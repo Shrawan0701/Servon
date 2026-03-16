@@ -1,0 +1,56 @@
+# --- System Files ---
+.DS_Store
+Thumbs.db
+*.log
+
+# --- Dependencies ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Secrets & Environment Variables ---
+# DO NOT remove these; these files contain your DB passwords and JWT keys
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- Backend Specific ---
+/backend/dist
+/backend/build
+/backend/npm-debug.log*
+
+# --- Frontend (Web) Specific ---
+/frontend/build
+/frontend/.next
+/frontend/out
+/frontend/dist
+
+# --- Mobile (Expo/React Native) Specific ---
+/mobile/.expo/
+/mobile/dist/
+/mobile/web-build/
+/mobile/node_modules/
+/mobile/*.jks
+/mobile/*.p8
+/mobile/*.p12
+/mobile/*.key
+/mobile/*.mobileprovision
+/mobile/*.orig.*
+/mobile/ios/build/
+/mobile/android/build/
+/mobile/android/app/build/
+
+# --- Testing ---
+/coverage
+.nyc_output
+
+# --- Editor / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
