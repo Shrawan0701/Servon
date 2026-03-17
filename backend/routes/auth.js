@@ -4,6 +4,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../db");
 const { generateOTP, sendOTP } = require("../utils/otp");
+const authMiddleware = require("../middleware/auth");
 
 // Signup
 router.post("/signup", async (req, res) => {
@@ -265,6 +266,28 @@ router.get("/me", require("../middleware/auth"), async (req, res) => {
 
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/update-push-token", authMiddleware, async (req, res) => {
+  const { pushToken } = req.body;
+  const businessId = req.businessId;
+
+  if (!pushToken) {
+    return res.status(400).json({ error: "Push token is required" });
+  }
+
+  try {
+    await pool.query(
+      "UPDATE businesses SET push_token = $1 WHERE id = $2",
+      [pushToken, businessId]
+    );
+
+    console.log(`Push token updated for Business ${businessId}`);
+    res.json({ message: "Push token updated successfully" });
+  } catch (err) {
+    console.error("Database error updating push token:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

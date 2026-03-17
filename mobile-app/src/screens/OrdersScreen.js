@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { 
   View, Text, FlatList, TouchableOpacity, StyleSheet, 
-  RefreshControl, ActivityIndicator, Alert, Platform
+  RefreshControl, ActivityIndicator, Alert, Platform, SectionList
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,7 +10,8 @@ import { getOrders, updateOrderStatus, getProfile } from "../api";
 import * as Print from 'expo-print'; 
 import { useAuth } from "../context/AuthContext"; // <-- ADDED USEAUTH IMPORT
 
-const STATUS_FILTERS = ["All", "EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE", "PAID"];
+// Added "PREVIOUS" to the filter list
+const STATUS_FILTERS = ["All", "EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE", "PAID", "PREVIOUS"];
 
 export default function OrdersScreen() {
   // Grabbing isChefMode to lock down the buttons!
@@ -205,7 +206,175 @@ export default function OrdersScreen() {
     }
   };
 
-  const filteredOrders = filter === "All" ? orders : orders.filter((o) => o.status === filter);
+  // --- NEW PREVIOUS ORDERS HELPERS ---
+  const isToday = (someDate) => {
+    const today = new Date();
+    const d = new Date(someDate);
+    return d.getDate() === today.getDate() &&
+      d.getMonth() === today.getMonth() &&
+      d.getFullYear() === today.getFullYear();
+  };
+
+  const getFilteredData = () => {
+    if (filter === "All") return orders.filter(o => isToday(o.created_at));
+    if (filter === "PREVIOUS") return []; // Handled by SectionList below
+    return orders.filter((o) => o.status === filter && isToday(o.created_at));
+  };
+
+  const getGroupedPreviousOrders = () => {
+    const previous = orders.filter(o => !isToday(o.created_at));
+    const groups = previous.reduce((acc, order) => {
+      const date = new Date(order.created_at).toLocaleDateString('en-IN', { 
+        day: 'numeric', month: 'long', year: 'numeric' 
+      });
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(order);
+      return acc;
+    }, {});
+
+    return Object.keys(groups).map(date => ({
+      title: date,
+      data: groups[date]
+    })).sort((a, b) => new Date(b.title) - new Date(a.title));
+  };
+
+  const renderOrderItem = ({ item }) => {
+    const items = Array.isArray(item.items) ? item.items : JSON.parse(item.items || "[]");
+    const isProcessing = processingTable === item.table_number;
+    const orderTime = new Date(item.updated_at || item.created_at).getTime();
+    const secondsPassed = Math.floor((currentTime - orderTime) / 1000);
+    const timeLeft = Math.max(0, 60 - secondsPassed);
+
+    return (
+      <View style={styles.orderCard}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <Text style={{ fontSize: 18, fontWeight: "800", color: "#111" }}>
+            Table {item.table_number}
+          </Text>
+          <View style={[styles.badge, { backgroundColor: statusColor(item.status) }]}>
+            <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800" }}>{item.status.replace("_", " ")}</Text>
+          </View>
+        </View>
+        
+        {items.map((i, idx) => (
+          <Text key={idx} style={{ fontSize: 15, color: "#374151", marginBottom: 4, fontWeight: "500" }}>
+            • {i.name} × {i.quantity} — <Text style={{fontWeight: '700'}}>₹{(i.price * i.quantity).toFixed(0)}</Text>
+          </Text>
+        ))}
+        
+        {item.special_instructions && (
+          <View style={{ backgroundColor: "#FEF3C7", padding: 8, borderRadius: 8, marginTop: 6 }}>
+            <Text style={{ fontSize: 13, color: "#92400E", fontWeight: "600" }}>
+              📝 Note: {item.special_instructions}
+            </Text>
+          </View>
+        )}
+        
+        <View style={styles.totalRow}>
+          <Text style={{ fontWeight: "600", fontSize: 14, color: "#6B7280" }}>Subtotal:</Text>
+          <Text style={{ fontWeight: "800", fontSize: 18, color: "#111" }}>₹{item.total_amount}</Text>
+        </View>
+        
+        <Text style={{ fontSize: 12, color: "#aaa", marginTop: 4 }}>
+          Ordered at: {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+
+        {/* ONLY SHOW ACTION BUTTONS IF IT IS A TODAY'S ORDER */}
+        {isToday(item.created_at) && (
+          <>
+            {(item.status === "EDITABLE" || item.status === "CONFIRMED") && (
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+                {item.status === "EDITABLE" && timeLeft > 0 ? (
+                  <View style={[styles.actionBtn, { backgroundColor: "#F3F4F6", flexDirection: "row", justifyContent: "center", gap: 8 }]}>
+                    <ActivityIndicator size="small" color="#9CA3AF" />
+                    <Text style={[styles.actionBtnText, { color: "#6B7280" }]}>
+                      Customer Reviewing ({timeLeft}s)...
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <TouchableOpacity 
+                      style={[styles.actionBtn, { backgroundColor: "#10B981" }]} 
+                      onPress={() => handleStatusUpdate(item.id, "PREPARING")}
+                    >
+                      <Text style={styles.actionBtnText}>Accept to Kitchen</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.actionBtn, { backgroundColor: "#EF4444", flex: 0.4 }]} 
+                      onPress={() => handleStatusUpdate(item.id, "REJECTED")}
+                    >
+                      <Text style={styles.actionBtnText}>Reject</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
+            
+            {item.status === "PREPARING" && (
+              <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: "#F59E0B", marginTop: 16 }]}
+                onPress={() => handleStatusUpdate(item.id, "SERVED")}
+              >
+                <Text style={[styles.actionBtnText, {color: '#fff'}]}>Food is Ready (Mark Served)</Text>
+              </TouchableOpacity>
+            )}
+
+            {item.status === "SERVED" && (
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+                <TouchableOpacity 
+                  style={[styles.actionBtn, { backgroundColor: "#8B5CF6" }]} 
+                  onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}
+                >
+                  <Text style={styles.actionBtnText}>Keep Table Active</Text>
+                </TouchableOpacity>
+
+                {!isChefMode && (
+                  <TouchableOpacity 
+                    style={[styles.actionBtn, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]}
+                    onPress={() => handlePrintAndCheckout(item)}
+                    disabled={isProcessing}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.actionBtnText}>Print & Clear</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {item.status === "TABLE_ACTIVE" && (
+              <>
+                {!isChefMode && (
+                  <TouchableOpacity 
+                    style={[
+                      styles.actionBtn, 
+                      { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }
+                    ]}
+                    onPress={() => handlePrintAndCheckout(item)}
+                    disabled={isProcessing}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <ActivityIndicator color="#fff" size="small" />
+                        <Text style={styles.actionBtnText}>Generating Master Bill...</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons name="print-outline" size={20} color="#fff" />
+                        <Text style={styles.actionBtnText}>Print Final Combined Bill</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </View>
+    );
+  };
 
   if (loading) {
     return (
@@ -217,7 +386,6 @@ export default function OrdersScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
-      
       <View>
         <FlatList
           horizontal
@@ -238,163 +406,42 @@ export default function OrdersScreen() {
         />
       </View>
 
-      <FlatList
-        data={filteredOrders} 
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
-        }
-        contentContainerStyle={{ padding: 12 }}
-        ListEmptyComponent={
-          <View style={{ alignItems: "center", marginTop: 60 }}>
-            <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
-            <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>No orders found</Text>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const items = Array.isArray(item.items) ? item.items : JSON.parse(item.items || "[]");
-          const isProcessing = processingTable === item.table_number;
-
-          // CALCULATE TIME LEFT FOR CUSTOMER EDITING
-          const orderTime = new Date(item.updated_at || item.created_at).getTime();
-          const secondsPassed = Math.floor((currentTime - orderTime) / 1000);
-          const timeLeft = Math.max(0, 60 - secondsPassed);
-
-          return (
-            <View style={styles.orderCard}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <Text style={{ fontSize: 18, fontWeight: "800", color: "#111" }}>
-                  Table {item.table_number}
-                </Text>
-                <View style={[styles.badge, { backgroundColor: statusColor(item.status) }]}>
-                  <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800" }}>{item.status.replace("_", " ")}</Text>
-                </View>
-              </View>
-              
-              {items.map((i, idx) => (
-                <Text key={idx} style={{ fontSize: 15, color: "#374151", marginBottom: 4, fontWeight: "500" }}>
-                  • {i.name} × {i.quantity} — <Text style={{fontWeight: '700'}}>₹{(i.price * i.quantity).toFixed(0)}</Text>
-                </Text>
-              ))}
-              
-              {item.special_instructions && (
-                <View style={{ backgroundColor: "#FEF3C7", padding: 8, borderRadius: 8, marginTop: 6 }}>
-                  <Text style={{ fontSize: 13, color: "#92400E", fontWeight: "600" }}>
-                    📝 Note: {item.special_instructions}
-                  </Text>
-                </View>
-              )}
-              
-              <View style={styles.totalRow}>
-                <Text style={{ fontWeight: "600", fontSize: 14, color: "#6B7280" }}>Subtotal:</Text>
-                <Text style={{ fontWeight: "800", fontSize: 18, color: "#111" }}>₹{item.total_amount}</Text>
-              </View>
-              
-              <Text style={{ fontSize: 12, color: "#aaa", marginTop: 4 }}>
-                Ordered at: {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-
-              {/* STAGE 1: NEW ORDER - WAIT FOR CUSTOMER TO FINISH EDITING */}
-              {(item.status === "EDITABLE" || item.status === "CONFIRMED") && (
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-                  
-                  {/* IF STILL EDITABLE AND TIME LEFT > 0, HIDE THE REAL BUTTONS */}
-                  {item.status === "EDITABLE" && timeLeft > 0 ? (
-                    <View style={[styles.actionBtn, { backgroundColor: "#F3F4F6", flexDirection: "row", justifyContent: "center", gap: 8 }]}>
-                      <ActivityIndicator size="small" color="#9CA3AF" />
-                      <Text style={[styles.actionBtnText, { color: "#6B7280" }]}>
-                        Customer Reviewing ({timeLeft}s)...
-                      </Text>
-                    </View>
-                  ) : (
-                    // SHOW NORMAL BUTTONS ONCE TIME IS UP OR STATUS IS CONFIRMED
-                    <>
-                      <TouchableOpacity 
-                        style={[styles.actionBtn, { backgroundColor: "#10B981" }]} 
-                        onPress={() => handleStatusUpdate(item.id, "PREPARING")}
-                      >
-                        <Text style={styles.actionBtnText}>Accept to Kitchen</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.actionBtn, { backgroundColor: "#EF4444", flex: 0.4 }]} 
-                        onPress={() => handleStatusUpdate(item.id, "REJECTED")}
-                      >
-                        <Text style={styles.actionBtnText}>Reject</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              )}
-              
-              {/* STAGE 2: KITCHEN PREPARING */}
-              {item.status === "PREPARING" && (
-                <TouchableOpacity 
-                  style={[styles.actionBtn, { backgroundColor: "#F59E0B", marginTop: 16 }]}
-                  onPress={() => handleStatusUpdate(item.id, "SERVED")}
-                >
-                  <Text style={[styles.actionBtnText, {color: '#fff'}]}>Food is Ready (Mark Served)</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* STAGE 3: FOOD SERVED -> CHOOSE TO PARK IT OR BILL IT */}
-              {item.status === "SERVED" && (
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-                  <TouchableOpacity 
-                    style={[styles.actionBtn, { backgroundColor: "#8B5CF6" }]} 
-                    onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}
-                  >
-                    <Text style={styles.actionBtnText}>Keep Table Active</Text>
-                  </TouchableOpacity>
-
-                  {/* CHEF MODE LOCK: Hide Bill Generation Button */}
-                  {!isChefMode && (
-                    <TouchableOpacity 
-                      style={[styles.actionBtn, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]}
-                      onPress={() => handlePrintAndCheckout(item)}
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : (
-                        <Text style={styles.actionBtnText}>Print & Clear</Text>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              {/* STAGE 4: PARKED TABLE -> WAITING FOR FINAL BILL */}
-              {item.status === "TABLE_ACTIVE" && (
-                <>
-                  {/* CHEF MODE LOCK: Hide Master Bill Generation Button */}
-                  {!isChefMode && (
-                    <TouchableOpacity 
-                      style={[
-                        styles.actionBtn, 
-                        { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }
-                      ]}
-                      onPress={() => handlePrintAndCheckout(item)}
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? (
-                        <>
-                          <ActivityIndicator color="#fff" size="small" />
-                          <Text style={styles.actionBtnText}>Generating Master Bill...</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Ionicons name="print-outline" size={20} color="#fff" />
-                          <Text style={styles.actionBtnText}>Print Final Combined Bill</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
+      {filter === "PREVIOUS" ? (
+        <SectionList
+          sections={getGroupedPreviousOrders()}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
+          }
+          contentContainerStyle={{ padding: 12 }}
+          renderSectionHeader={({ section: { title } }) => (
+            <Text style={styles.sectionHeader}>{title}</Text>
+          )}
+          renderItem={renderOrderItem}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", marginTop: 60 }}>
+              <Ionicons name="archive-outline" size={48} color="#D1D5DB" />
+              <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>No archived orders</Text>
             </View>
-          );
-        }}
-      />
+          }
+        />
+      ) : (
+        <FlatList
+          data={getFilteredData()} 
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
+          }
+          contentContainerStyle={{ padding: 12 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", marginTop: 60 }}>
+              <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
+              <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>No orders found for today</Text>
+            </View>
+          }
+          renderItem={renderOrderItem}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -419,4 +466,5 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   actionBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: "center" },
   actionBtnText: { color: "#fff", fontWeight: "800", fontSize: 15, textAlign: "center" },
+  sectionHeader: { fontSize: 14, fontWeight: "800", color: "#6B7280", backgroundColor: "#f8f9fa", paddingVertical: 8, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
 });

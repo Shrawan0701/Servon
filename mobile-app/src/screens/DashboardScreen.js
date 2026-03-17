@@ -39,6 +39,15 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  // Helper to check if a date is today
+  const isToday = (someDate) => {
+    const today = new Date();
+    const d = new Date(someDate);
+    return d.getDate() === today.getDate() &&
+      d.getMonth() === today.getMonth() &&
+      d.getFullYear() === today.getFullYear();
+  };
+
   useFocusEffect(
     useCallback(() => {
       loadData(); 
@@ -52,7 +61,10 @@ export default function DashboardScreen() {
       });
 
       socket.on("new_order", ({ order, notification, tableNumber }) => {
-        setLiveOrders((prev) => [{ ...order, table_number: tableNumber }, ...prev]);
+        // Only add to live list if it's actually from today (safety check)
+        if(isToday(order.created_at)) {
+          setLiveOrders((prev) => [{ ...order, table_number: tableNumber }, ...prev]);
+        }
         setNotifications((prev) => [notification, ...prev]);
       });
 
@@ -76,7 +88,14 @@ export default function DashboardScreen() {
       ]);
 
       setAnalytics(analyticsRes.data);
-      setLiveOrders(ordersRes.data.filter((o) => !["PAID", "REJECTED"].includes(o.status)));
+      
+      // --- THE FIX: Filter by Status AND Date ---
+      // We only want orders from TODAY that are NOT Paid or Rejected
+      const todaysLive = ordersRes.data.filter((o) => 
+        isToday(o.created_at) && !["PAID", "REJECTED"].includes(o.status)
+      );
+      
+      setLiveOrders(todaysLive);
       setNotifications(notifRes.data);
 
       if (subRes.data?.subscription_status) {
@@ -274,7 +293,7 @@ export default function DashboardScreen() {
               ) : (
                 notifications.map((n, index) => (
                   <View key={n.id || index} style={[styles.notifItem, !n.is_read && styles.notifItemUnread]}>
-                    <Text style={styles.notifTitle}>{n.title || "New Update"}</Text>
+                    <Text style={styles.notifTitle}>{n.title || "New Order"}</Text>
                     <Text style={styles.notifMessage}>{n.message}</Text>
                     <Text style={styles.notifTime}>
                       {new Date(n.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}

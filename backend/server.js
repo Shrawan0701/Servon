@@ -4,15 +4,28 @@ const http = require("http");
 const cors = require("cors"); 
 const fileUpload = require("express-fileupload"); 
 const { init: initSocket } = require("./socket"); 
+const pool = require("./db"); 
 const app = express(); 
 const server = http.createServer(app); 
+const cron = require('node-cron');
+const sendPush = require('./utils/pushNotify');
+
 // Init socket 
 initSocket(server); 
+
 // Middleware 
 app.use(cors({ origin: "*" })); 
 app.use(express.json({ limit: "10mb" })); 
 app.use(express.urlencoded({ extended: true, limit: "10mb" })); 
 app.use(fileUpload({ limits: { fileSize: 5 * 1024 * 1024 } })); // 5MB 
+
+// --- DEBUG LOGGER ---
+// This will print every request to your console so we can see the 404 in real-time
+app.use((req, res, next) => {
+  console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 // Routes 
 app.use("/api/auth", require("./routes/auth")); 
 app.use("/api/subscription", require("./routes/subscription")); 
@@ -24,18 +37,36 @@ app.use("/api/sales", require("./routes/sales"));
 app.use("/api/profile", require("./routes/profile")); 
 app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/reviews', require('./routes/reviews'));
+
 // Health check 
 app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date() })); 
 
+// Daily Subscription Expiry Check (10:00 AM)
+cron.schedule('0 10 * * *', async () => {
+  try {
+    const result = await pool.query(`
+      SELECT push_token FROM businesses 
+      WHERE subscription_end_date::date = (CURRENT_DATE + INTERVAL '3 days')::date
+    `);
 
+    result.rows.forEach(row => {
+      if (row.push_token) {
+        sendPush(row.push_token, "Plan Expiring", "Your Servon plan expires in 3 days. Renew now to avoid interruption!");
+      }
+    });
+  } catch (err) {
+    console.error("Cron Job Error:", err);
+  }
+});
 
-// 404 handler 
-app.use("*", (req, res) => res.status(404).json({ error: "Route not found" })); 
+// 404 handler - MUST BE LAST
+app.use("*", (req, res) => {
+  console.log(`404 triggered for: ${req.originalUrl}`);
+  res.status(404).json({ error: "Route not found" });
+});
 
 const PORT = process.env.PORT || 5000; 
 
-// REMOVE app.listen() entirely!
-// ONLY use server.listen() so both Express and Socket.io work on the same port
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Servon backend running on port ${PORT}`);
 });
