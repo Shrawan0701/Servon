@@ -328,7 +328,8 @@ useEffect(() => {
             <div class="center" style="margin-top: 15px;">
                 <p style="font-size: 12px; margin-bottom: 5px;">How was your food? Scan to rate us!</p>
                 // Change this line in your backend PDF utility
-<img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${process.env.CUSTOMER_URL || 'https://servon-customer-menu.vercel.app'}/feedback/${profile?.id}?table=${currentOrder.table_number}`)}" width="100" height="100" />
+                // ✅ Use the Vercel-style variable OR the hardcoded live link as a fallback
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${import.meta.env.VITE_CUSTOMER_URL || 'https://servon-customer-menu.vercel.app'}/feedback/${profile?.id}?table=${currentOrder.table_number}`)}" width="100" height="100" />
             </div>
           </body>
         </html>
