@@ -18,6 +18,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const { width } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
 
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 
+                 (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+                    ? 'http://localhost:5000' 
+                    : 'https://servon.onrender.com');
+
+                    
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
@@ -33,7 +39,7 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://10.28.120.38:5000/api/auth/login", {
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

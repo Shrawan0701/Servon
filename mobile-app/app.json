@@ -5,6 +5,15 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+
+    "web": {
+      "name": "Servon | Command Your Revenue",
+      "shortName": "Servon",
+      "description": "The premium operating system for high-growth Indian restaurants.",
+      "backgroundColor": "#FAF9F6",
+      "themeColor": "#008060"
+    },
+    
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
