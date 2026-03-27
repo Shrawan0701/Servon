@@ -135,6 +135,13 @@ export default function LandingPage({ onNavigate }) {
   const [activeFaq, setActiveFaq] = useState(null);
 
   useEffect(() => {
+    // ✅ This "locks" the title so it doesn't flick back to undefined
+    if (Platform.OS === 'web') {
+      document.title = "Servon | Track Your Business";
+    }
+  }, []);
+
+  useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }).start();
 
     const interval = setInterval(() => {
