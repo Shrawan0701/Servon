@@ -11,8 +11,10 @@ export default function App() {
     <CartProvider> 
       <BrowserRouter> 
         <Routes> 
-          <Route path="/menu/:businessId/:tableId" element={<MenuPage />} /> 
-          <Route path="/cart/:businessId/:tableId" element={<CartPage />} /> 
+          {/* ✅ FIXED: Added /menu as a valid path for Query Parameters */}
+          <Route path="/menu/:businessId?/:tableId?" element={<MenuPage />} /> 
+          <Route path="/cart/:businessId?/:tableId?" element={<CartPage />} /> 
+          
           <Route path="/order-success/:orderId" element={<OrderSuccessPage />} /> 
           <Route path="/feedback/:businessId" element={<FeedbackPage />} />
           <Route path="*" element={<NotFoundPage />} /> 
