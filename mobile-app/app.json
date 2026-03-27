@@ -7,13 +7,13 @@
     "icon": "./assets/icon.png",
 
     "web": {
-      "name": "Servon | Command Your Revenue",
+      "name": "Servon | Track Your Business",
       "shortName": "Servon",
       "description": "The premium operating system for high-growth Indian restaurants.",
       "backgroundColor": "#FAF9F6",
       "themeColor": "#008060"
     },
-    
+
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
