@@ -19,7 +19,7 @@ initSocket(server);
 app.use(cors({
   origin: [
     "https://servon-customer-menu.vercel.app",
-    "https://servon-blue.vercel.app/",
+    "https://servon-blue.vercel.app",
     "http://localhost:8081" // for local testing
   ],
   credentials: true
