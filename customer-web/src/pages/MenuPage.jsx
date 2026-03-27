@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom"; // ✅ Added useLocation
 import { fetchPublicMenu, fetchTableInfo } from "../api";
 import { useCart } from "../context/CartContext";
 
@@ -66,8 +66,16 @@ function ThaliContents({ contents }) {
 // --- Main Component ---
 
 export default function MenuPage() {
-  const { businessId, tableId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation(); // ✅ Added to read query string (?restaurantId=...)
+  
+  // ✅ FIX: Support both URL styles (localhost:3000/menu/id/id AND vercel.app/menu?restaurantId=id)
+  const params = useParams();
+  const queryParams = new URLSearchParams(location.search);
+
+  const businessId = params.businessId || queryParams.get("restaurantId");
+  const tableId = params.tableId || queryParams.get("tableId");
+
   const { addToCart, removeFromCart, getQuantity, totalItems, totalAmount } = useCart();
 
   const [menuItems, setMenuItems] = useState([]);
@@ -77,6 +85,13 @@ export default function MenuPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // ✅ Safety: Only load if we have both IDs
+    if (!businessId || !tableId) {
+      setLoading(false);
+      setError("Invalid QR Code. Please scan a valid Servon menu link.");
+      return;
+    }
+
     const load = async () => {
       try {
         const [menuRes, tableRes] = await Promise.all([
