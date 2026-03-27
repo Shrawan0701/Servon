@@ -286,6 +286,11 @@ useEffect(() => {
         `;
       });
 
+      // ✅ SAFE LIVE URL CONFIG
+      // We hardcode the production URL here to prevent 'import.meta' SyntaxErrors in Expo Web
+      const liveCustomerUrl = "https://servon-customer-menu.vercel.app";
+      const feedbackLink = `${liveCustomerUrl}/feedback/${profile?.id}?table=${currentOrder.table_number}`;
+
       const htmlContent = `
         <html>
           <head>
@@ -327,15 +332,13 @@ useEffect(() => {
             <div class="center" style="font-weight: bold; font-size: 16px;">Thank You for Visiting!</div>
             <div class="center" style="margin-top: 15px;">
                 <p style="font-size: 12px; margin-bottom: 5px;">How was your food? Scan to rate us!</p>
-                // Change this line in your backend PDF utility
-                // ✅ Use the Vercel-style variable OR the hardcoded live link as a fallback
-<img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${import.meta.env.VITE_CUSTOMER_URL || 'https://servon-customer-menu.vercel.app'}/feedback/${profile?.id}?table=${currentOrder.table_number}`)}" width="100" height="100" />
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(feedbackLink)}" width="100" height="100" />
             </div>
           </body>
         </html>
       `;
 
-     if (Platform.OS === 'web') {
+      if (Platform.OS === 'web') {
         const iframe = document.createElement('iframe');
         iframe.style.cssText = 'position:absolute;width:0px;height:0px;border:none;';
         document.body.appendChild(iframe);
