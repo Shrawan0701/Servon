@@ -66,7 +66,11 @@ router.post("/", auth, subscription, async (req, res) => {
 
     const tableId = result.rows[0].id;
 
-    const qrUrl = `${process.env.FRONTEND_URL}/menu/${req.businessId}/${tableId}`;
+    const customerUrl = process.env.CUSTOMER_URL || "https://servon-customer-menu.vercel.app";
+    
+    // Construct the URL with query parameters for your customer-web logic
+    const qrUrl = `${customerUrl}/menu?restaurantId=${req.businessId}&tableId=${tableId}`;
+
     const qrDataUrl = await QRCode.toDataURL(qrUrl, {
       width: 300,
       margin: 2,
