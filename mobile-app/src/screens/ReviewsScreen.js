@@ -1,11 +1,23 @@
 import { useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import { 
+  View, 
+  Text, 
+  FlatList, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ActivityIndicator, 
+  ScrollView, 
+  Platform, 
+  Dimensions 
+} from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { getReviews } from "../api";
 
 const STAR_FILTERS = ["All", "5", "4", "3", "2", "1"];
+const IS_WEB = Platform.OS === "web";
+const CONTENT_MAX = 1100;
 
 export default function ReviewsScreen() {
   const navigation = useNavigation();
@@ -61,57 +73,64 @@ export default function ReviewsScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#111" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
+        <ActivityIndicator size="large" color="#0F172A" />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
       {/* Header */}
       <View style={styles.navHeader}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ flexDirection: "row", alignItems: "center" }}>
-           <Ionicons name="chevron-back" size={24} color="#111" />
-           <Text style={{ fontSize: 16, fontWeight: "600", marginLeft: 4 }}>Profile</Text>
-        </TouchableOpacity>
-        <Text style={{ fontSize: 16, fontWeight: "800", color: "#111", marginRight: 16 }}>Reviews</Text>
+        <View style={styles.headerInner}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ flexDirection: "row", alignItems: "center" }}>
+            <Ionicons name="chevron-back" size={24} color="#0F172A" />
+            <Text style={{ fontSize: 16, fontWeight: "600", marginLeft: 4, color: "#0F172A" }}>Profile</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 16, fontWeight: "800", color: "#0F172A" }}>Reviews</Text>
+        </View>
       </View>
 
       {/* Filters */}
       <View style={styles.filterSection}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <Text style={{ fontWeight: "700", color: "#374151" }}>Filter by Stars</Text>
-          <TouchableOpacity onPress={() => setSortBy(sortBy === "latest" ? "oldest" : "latest")} style={styles.sortBtn}>
-            <Ionicons name="swap-vertical" size={16} color="#4B5563" />
-            <Text style={styles.sortBtnText}>{sortBy === "latest" ? "Latest First" : "Oldest First"}</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          {STAR_FILTERS.map((star) => (
-            <TouchableOpacity
-              key={star}
-              style={[styles.filterTab, starFilter === star && styles.filterTabActive]}
-              onPress={() => setStarFilter(star)}
-            >
-              <Text style={[styles.filterTabText, starFilter === star && { color: "#fff" }]}>
-                {star === "All" ? "All Reviews" : `${star} Stars`}
-              </Text>
+        <View style={styles.filterInner}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <Text style={{ fontWeight: "700", color: "#1E293B" }}>Filter by Stars</Text>
+            <TouchableOpacity onPress={() => setSortBy(sortBy === "latest" ? "oldest" : "latest")} style={styles.sortBtn}>
+              <Ionicons name="swap-vertical" size={16} color="#64748B" />
+              <Text style={styles.sortBtnText}>{sortBy === "latest" ? "Latest First" : "Oldest First"}</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+          </View>
+          
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {STAR_FILTERS.map((star) => (
+              <TouchableOpacity
+                key={star}
+                style={[styles.filterTab, starFilter === star && styles.filterTabActive]}
+                onPress={() => setStarFilter(star)}
+              >
+                <Text style={[styles.filterTabText, starFilter === star && { color: "#fff" }]}>
+                  {star === "All" ? "All Reviews" : `${star} Stars`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
       </View>
 
       {/* Reviews List */}
       <FlatList
         data={displayedReviews}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 16 }}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={[
+          styles.listContent,
+          IS_WEB && { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX }
+        ]}
         ListEmptyComponent={
           <View style={{ alignItems: "center", marginTop: 60 }}>
-            <Ionicons name="star-half-outline" size={48} color="#D1D5DB" />
-            <Text style={{ color: "#6B7280", marginTop: 12, fontSize: 15, fontWeight: "500" }}>No reviews found for this filter.</Text>
+            <Ionicons name="star-half-outline" size={48} color="#94A3B8" />
+            <Text style={{ color: "#64748B", marginTop: 12, fontSize: 15, fontWeight: "500" }}>No reviews found for this filter.</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -132,7 +151,7 @@ export default function ReviewsScreen() {
               {item.comment ? (
                 <Text style={styles.commentText}>"{item.comment}"</Text>
               ) : (
-                <Text style={[styles.commentText, { color: "#9CA3AF", fontStyle: "italic" }]}>No written feedback provided.</Text>
+                <Text style={[styles.commentText, { color: "#94A3B8", fontStyle: "italic" }]}>No written feedback provided.</Text>
               )}
 
               {/* Show What They Ate! */}
@@ -153,21 +172,73 @@ export default function ReviewsScreen() {
 }
 
 const styles = StyleSheet.create({
-  navHeader: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", backgroundColor: "#fff", flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  filterSection: { padding: 16, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  sortBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F3F4F6", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  sortBtnText: { fontSize: 12, fontWeight: "600", color: "#4B5563" },
-  filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff" },
-  filterTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
-  filterTabText: { fontSize: 13, fontWeight: "700", color: "#4B5563" },
+  navHeader: { 
+    borderBottomWidth: 1, 
+    borderBottomColor: "#E2E8F0", 
+    backgroundColor: "#fff", 
+    paddingVertical: 12 
+  },
+  headerInner: {
+    flexDirection: "row", 
+    justifyContent: "space-between", 
+    alignItems: "center",
+    paddingHorizontal: 16,
+    maxWidth: CONTENT_MAX,
+    alignSelf: 'center',
+    width: '100%'
+  },
+  filterSection: { 
+    backgroundColor: "#fff", 
+    borderBottomWidth: 1, 
+    borderBottomColor: "#E2E8F0",
+    paddingVertical: 16
+  },
+  filterInner: {
+    paddingHorizontal: 16,
+    maxWidth: CONTENT_MAX,
+    alignSelf: 'center',
+    width: '100%'
+  },
+  sortBtn: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 4, 
+    backgroundColor: "#F1F5F9", 
+    paddingHorizontal: 10, 
+    paddingVertical: 4, 
+    borderRadius: 6 
+  },
+  sortBtnText: { fontSize: 12, fontWeight: "600", color: "#64748B" },
+  filterTab: { 
+    paddingHorizontal: 16, 
+    paddingVertical: 8, 
+    borderRadius: 20, 
+    borderWidth: 1, 
+    borderColor: "#E2E8F0", 
+    backgroundColor: "#fff" 
+  },
+  filterTabActive: { backgroundColor: "#0F172A", borderColor: "#0F172A" },
+  filterTabText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
   
-  reviewCard: { backgroundColor: "#fff", padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: "#E5E7EB" },
+  listContent: { padding: 16 },
+  reviewCard: { 
+    backgroundColor: "#fff", 
+    padding: 16, 
+    borderRadius: 16, 
+    marginBottom: 16, 
+    borderWidth: 1, 
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2
+  },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
-  tableText: { fontSize: 16, fontWeight: "800", color: "#111827" },
-  dateText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  commentText: { fontSize: 15, color: "#374151", lineHeight: 22, marginBottom: 12 },
+  tableText: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  dateText: { fontSize: 12, color: "#64748B", marginTop: 2 },
+  commentText: { fontSize: 15, color: "#1E293B", lineHeight: 22, marginBottom: 12 },
   
-  itemsBox: { backgroundColor: "#F9FAFB", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: "#F3F4F6" },
-  itemsTitle: { fontSize: 12, fontWeight: "700", color: "#6B7280", marginBottom: 6, textTransform: "uppercase" },
-  itemText: { fontSize: 13, color: "#4B5563", marginBottom: 2, fontWeight: "500" }
+  itemsBox: { backgroundColor: "#F8FAFC", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#F1F5F9" },
+  itemsTitle: { fontSize: 12, fontWeight: "700", color: "#64748B", marginBottom: 6, textTransform: "uppercase" },
+  itemText: { fontSize: 13, color: "#475569", marginBottom: 2, fontWeight: "500" }
 });

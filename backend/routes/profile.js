@@ -171,4 +171,43 @@ router.post("/verify-pin", auth, async (req, res) => {
   }
 });
 
+// Upload Business Logo
+// Upload Business Logo
+router.post("/upload-logo", auth, async (req, res) => {
+  try {
+    // 1. Check if files exist at all
+    if (!req.files || Object.keys(req.files).length === 0) {
+      console.log("No files found in request");
+      return res.status(400).json({ error: "No files were uploaded." });
+    }
+
+    // 2. Check for the specific key "logo"
+    const logoFile = req.files.logo;
+    if (!logoFile) {
+      console.log("File found, but key is not 'logo'");
+      return res.status(400).json({ error: "Please upload file with field name 'logo'" });
+    }
+
+    console.log(`Uploading logo for business ${req.businessId}...`);
+
+    // 3. Upload to Cloudinary
+    // Note: Use logoFile.data (the buffer)
+    const logoUrl = await uploadImage(logoFile.data, "servon/logos");
+
+    // 4. Update Database
+    const result = await pool.query(
+      `UPDATE businesses 
+       SET logo_url = $1, updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING id, logo_url`,
+      [logoUrl, req.businessId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Logo upload route error:", err);
+    res.status(500).json({ error: "Internal server error during upload" });
+  }
+});
+
 module.exports = router;

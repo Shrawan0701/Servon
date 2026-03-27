@@ -1,133 +1,240 @@
 import { useState, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, RefreshControl,
-  ActivityIndicator, Modal, TextInput, Image, ScrollView
+  ActivityIndicator, Modal, TextInput, Image, ScrollView, Platform, Dimensions
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { getMenu, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../api";
-import { SafeAreaView } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker"; // <-- NEW
-import { Ionicons } from "@expo/vector-icons"; // <-- NEW
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
 
-const CATEGORIES = ["Starters", "Main Course", "Breads", "Rice & Biryani", "Desserts", "Beverages", "Soups", "Salads", "Snacks", "Specials"];
-
-// Your Cloudinary Details
+const CATEGORIES = ["All", "Starters", "Main Course", "Breads", "Rice & Biryani", "Desserts", "Beverages", "Soups", "Salads", "Snacks", "Specials"];
 const CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/da9ej0tre/image/upload";
-const UPLOAD_PRESET = "servon_menu"; // The unsigned preset you created
+const UPLOAD_PRESET = "servon_menu";
+const isWeb = Platform.OS === "web";
+
+const EMPTY_FORM = {
+  name: "", description: "", price: "", category: "Starters",
+  image_url: null, is_thali: false, thali_includes: [], thali_custom: []
+};
 
 export default function MenuScreen() {
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  
-  // Added image_url to state
-  const [form, setForm] = useState({ name: "", description: "", price: "", category: "Starters", image_url: null });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [customInput, setCustomInput] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("All");
+  const [showItemPicker, setShowItemPicker] = useState(false);
+  const [numColumns, setNumColumns] = useState(isWeb ? 3 : 1);
+
+  // Responsive column logic for Web
+  useFocusEffect(useCallback(() => {
+    if (isWeb) {
+      const updateLayout = () => {
+        const width = Dimensions.get('window').width;
+        if (width > 1200) setNumColumns(3);
+        else if (width > 768) setNumColumns(2);
+        else setNumColumns(1);
+      };
+      const subscription = Dimensions.addEventListener('change', updateLayout);
+      updateLayout();
+      return () => subscription.remove();
+    }
+  }, []));
 
   useFocusEffect(useCallback(() => { loadMenu(); }, []));
 
   const loadMenu = async () => {
+  try {
+    const res = await getMenu();
+
+    // ✅ FIX: Normalize thali_includes + thali_custom
+    const normalized = res.data.map(item => ({
+      ...item,
+    thali_includes: (() => {
+  if (Array.isArray(item.thali_includes)) {
+    return item.thali_includes.map(String);
+  }
+
+  if (typeof item.thali_includes === "string") {
     try {
-      const res = await getMenu();
-      setItems(res.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); setRefreshing(false); }
+      return JSON.parse(item.thali_includes).map(String);
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+})(),
+      thali_custom: typeof item.thali_custom === "string"
+        ? item.thali_custom
+        : "",
+    }));
+
+   
+    setItems(normalized);
+
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
+
+
+  const filteredItems = selectedFilter === "All" 
+    ? items 
+    : items.filter(i => i.category === selectedFilter);
+
+  const openAdd = () => {
+    setEditItem(null);
+    setForm(EMPTY_FORM);
+    setCustomInput("");
+    setShowModal(true);
   };
 
-  const openAdd = () => { 
-    setEditItem(null); 
-    setForm({ name: "", description: "", price: "", category: "Starters", image_url: null }); 
-    setShowModal(true); 
+ const openEdit = (item) => {
+  setEditItem(item);
+  setForm({
+    name: item.name,
+    description: item.description || "",
+    price: String(item.price),
+    category: item.category,
+    image_url: item.image_url || null,
+    is_thali: item.is_thali || false,
+    thali_includes: (item.thali_includes || []).map(String),
+    // CRITICAL FIX: Convert string from DB back to Array for the Modal chips
+    thali_custom: typeof item.thali_custom === 'string' 
+      ? item.thali_custom.split(",").map(s => s.trim()).filter(Boolean) 
+      : [],
+  });
+  setCustomInput("");
+  setShowModal(true);
+};
+
+  // --- Logic for Manual Extras ---
+  const addCustomItem = () => {
+    const parts = customInput.split(",").map(s => s.trim()).filter(Boolean);
+    if (!parts.length) return;
+    setForm(prev => ({ 
+      ...prev, 
+      thali_custom: [...new Set([...prev.thali_custom, ...parts])] 
+    }));
+    setCustomInput("");
   };
 
-  const openEdit = (item) => { 
-    setEditItem(item); 
-    setForm({ 
-      name: item.name, 
-      description: item.description || "", 
-      price: String(item.price), 
-      category: item.category,
-      image_url: item.image_url || null 
-    }); 
-    setShowModal(true); 
+  const removeCustomItem = (index) => {
+    setForm(prev => ({ 
+      ...prev, 
+      thali_custom: prev.thali_custom.filter((_, i) => i !== index) 
+    }));
   };
 
-  // Image Picker Logic
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [4, 3], // Wide aspect ratio looks best for food menus
-      quality: 0.7, // Compress slightly for faster loads
+      aspect: [4, 3],
+      quality: 0.7,
     });
-
     if (!result.canceled) {
       setForm((prev) => ({ ...prev, image_url: result.assets[0].uri }));
     }
   };
 
-  // Cloudinary Upload Logic
   const uploadImageToCloudinary = async (uri) => {
     const data = new FormData();
-    data.append("file", { uri, type: "image/jpeg", name: "menu_item.jpg" });
+    if (Platform.OS === 'web') {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      data.append("file", blob, "menu_item.jpg");
+    } else {
+      data.append("file", { uri, type: "image/jpeg", name: "menu_item.jpg" });
+    }
     data.append("upload_preset", UPLOAD_PRESET);
     data.append("cloud_name", "da9ej0tre");
 
     try {
       const response = await fetch(CLOUDINARY_URL, { method: "POST", body: data });
       const json = await response.json();
-      return json.secure_url; // The live Cloudinary URL
+      return json.secure_url; 
     } catch (error) {
-      console.error("Cloudinary upload error:", error);
       throw new Error("Image upload failed");
     }
   };
 
-  const handleSave = async () => {
-    if (!form.name || !form.price || !form.category) { 
-      Alert.alert("Required", "Name, price, and category are required"); return; 
+ const handleSave = async () => {
+
+  const finalIncludes = [...form.thali_includes]; // 🔥 FORCE COPY
+
+  console.log("FINAL FORM:", form);
+  console.log("FINAL INCLUDES:", finalIncludes);
+
+  if (!form.name || !form.price || !form.category) {
+    Alert.alert("Required", "Name, price, and category are required");
+    return;
+  }
+
+  setSaving(true);
+
+  try {
+    let finalImageUrl = form.image_url;
+
+    if (form.image_url && !form.image_url.startsWith("http")) {
+      finalImageUrl = await uploadImageToCloudinary(form.image_url);
     }
-    setSaving(true);
-    try {
-      let finalImageUrl = form.image_url;
 
-      // If it's a local file URI (from image picker), upload it to Cloudinary first
-      if (form.image_url && !form.image_url.startsWith("http")) {
-        finalImageUrl = await uploadImageToCloudinary(form.image_url);
-      }
+    const data = {
+      name: form.name,
+      description: form.description,
+      price: parseFloat(form.price),
+      category: form.category,
+      image_url: finalImageUrl,
+      is_thali: form.is_thali,
 
-      const data = { 
-        name: form.name, 
-        description: form.description, 
-        price: parseFloat(form.price), 
-        category: form.category,
-        image_url: finalImageUrl 
-      };
+      // 🔥 CRITICAL FIX
+      thali_includes: form.is_thali ? JSON.stringify(finalIncludes) : "[]",
 
-      if (editItem) {
-        await updateMenuItem(editItem.id, data);
-      } else {
-        await addMenuItem(data);
-      }
-      setShowModal(false);
-      await loadMenu();
-    } catch (err) {
-      Alert.alert("Error", err.response?.data?.error || "Save failed");
-    } finally { setSaving(false); }
-  };
+      thali_custom: form.is_thali ? form.thali_custom.join(",") : "",
+    };
+
+    console.log("SENDING DATA:", data);
+
+    if (editItem) await updateMenuItem(editItem.id, data);
+    else await addMenuItem(data);
+
+    setShowModal(false);
+    await loadMenu();
+
+  } catch (err) {
+    Alert.alert("Error", err.response?.data?.error || "Save failed");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleDelete = (id) => {
-    Alert.alert("Delete Item", "Are you sure?", [
-      { text: "Cancel" },
-      {
-        text: "Delete", style: "destructive", onPress: async () => {
-          try { await deleteMenuItem(id); setItems((prev) => prev.filter((i) => i.id !== id)); }
-          catch (err) { Alert.alert("Error", "Delete failed"); }
-        }
-      },
-    ]);
+    const confirmDelete = () => {
+        deleteMenuItem(id).then(() => {
+            setItems(prev => prev.filter(i => i.id !== id));
+        }).catch(() => Alert.alert("Error", "Delete failed"));
+    };
+
+    if (Platform.OS === 'web') {
+        if (window.confirm("Are you sure?")) confirmDelete();
+    } else {
+        Alert.alert("Delete Item", "Are you sure?", [
+            { text: "Cancel" },
+            { text: "Delete", style: "destructive", onPress: confirmDelete }
+        ]);
+    }
   };
 
   const handleToggle = async (id) => {
@@ -137,41 +244,143 @@ export default function MenuScreen() {
     } catch (err) { Alert.alert("Error", "Toggle failed"); }
   };
 
-  if (loading) return <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><ActivityIndicator size="large" color="#111" /></View>;
+ const toggleThaliItem = (itemId) => {
+  const id = String(itemId);
+
+  setForm(prev => {
+    const list = prev.thali_includes.map(String);
+
+    if (list.includes(id)) {
+      return {
+        ...prev,
+        thali_includes: list.filter(x => x !== id),
+      };
+    } else {
+      return {
+        ...prev,
+        thali_includes: [...list, id],
+      };
+    }
+  });
+};
+
+  if (loading) return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <ActivityIndicator size="large" color="#111" />
+    </View>
+  );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
-      <View style={{ padding: 12, alignItems: "flex-end" }}>
-        <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-          <Text style={{ color: "#fff", fontWeight: "700" }}>+ Add Item</Text>
-        </TouchableOpacity>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
+      <View style={styles.header}>
+        <View style={styles.headerInner}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+            {CATEGORIES.map(cat => (
+              <TouchableOpacity 
+                key={cat} 
+                onPress={() => setSelectedFilter(cat)}
+                style={[styles.filterBtn, selectedFilter === cat && styles.filterBtnActive]}
+              >
+                <Text style={[styles.filterBtnText, selectedFilter === cat && { color: "#fff" }]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
+            <Text style={{ color: "#fff", fontWeight: "700" }}>+ Add Item</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
-        data={items}
-        keyExtractor={(i) => i.id}
+        key={numColumns}
+        numColumns={numColumns}
+        data={filteredItems}
+        keyExtractor={(i) => String(i.id)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadMenu(); }} />}
-        contentContainerStyle={{ padding: 12 }}
-        ListEmptyComponent={<Text style={{ textAlign: "center", marginTop: 40, color: "#888" }}>No menu items yet</Text>}
+        contentContainerStyle={[
+          styles.listContent,
+          isWeb && { alignSelf: 'center', maxWidth: 1200, width: '100%' }
+        ]}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+                <Ionicons name="restaurant-outline" size={40} color="#111" />
+            </View>
+            <Text style={styles.emptyTitle}>Your menu is empty</Text>
+            <Text style={styles.emptySub}>Add your first dish and let customers start ordering in minutes.</Text>
+            <View style={styles.stepsRow}>
+                <EmptyStep icon="camera-outline" label="Upload a photo" color="#F59E0B" />
+                <EmptyStep icon="pricetag-outline" label="Set name & price" color="#10B981" />
+                <EmptyStep icon="layers-outline" label="Pick a category" color="#3B82F6" />
+                <EmptyStep icon="storefront-outline" label="Go live instantly" color="#EF4444" />
+            </View>
+            <TouchableOpacity style={styles.bigAddBtn} onPress={openAdd}>
+                <Ionicons name="add-circle" size={24} color="#fff" />
+                <Text style={styles.bigAddBtnText}>Add Your First Item</Text>
+            </TouchableOpacity>
+          </View>
+        }
         renderItem={({ item }) => (
-          <View style={styles.menuCard}>
+          <View style={[styles.menuCard, isWeb && { width: `${96/numColumns}%`, marginHorizontal: '1%' }]}>
             <View style={{ flexDirection: "row", gap: 12 }}>
               {item.image_url ? (
-                <Image source={{ uri: item.image_url }} style={styles.menuImg} />
+                <Image source={{ uri: item.image_url }} style={styles.menuImg} resizeMode="cover" />
               ) : (
                 <View style={[styles.menuImg, { backgroundColor: "#f0f0f0", alignItems: "center", justifyContent: "center" }]}>
-                  <Text style={{ fontSize: 24 }}>🍽</Text>
+                  <Text style={{ fontSize: 24 }}>{item.is_thali ? "🍱" : "🍽"}</Text>
                 </View>
               )}
               <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <TouchableOpacity onPress={() => handleToggle(item.id)} style={[styles.availBadge, { backgroundColor: item.is_available ? "#198754" : "#aaa" }]}>
-                    <Text style={{ color: "#fff", fontSize: 11, fontWeight: "600" }}>{item.is_available ? "Available" : "Hidden"}</Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: 'flex-start' }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, flexWrap: 'wrap' }}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    {item.is_thali && (
+                      <View style={styles.thaliBadge}><Text style={styles.thaliBadgeText}>Thali</Text></View>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleToggle(item.id)}
+                    style={[styles.availBadge, { backgroundColor: item.is_available ? "#10B981" : "#A8A29E" }]}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{item.is_available ? "Available" : "Hidden"}</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.catTag}>{item.category}</Text>
-                {item.description ? <Text style={styles.desc} numberOfLines={2}>{item.description}</Text> : null}
+                
+                {/* --- Display Thali Items on Card --- */}
+{/* --- Display Thali Items on Card --- */}
+{item.is_thali && (
+  <View style={styles.thaliIncludes}>
+
+    {/* INCLUDED ITEMS */}
+    {(Array.isArray(item.thali_includes) ? item.thali_includes : []).map((id, idx) => {
+const found = items.find(i => String(i.id) === String(id));
+  console.log("MATCHING:", id, "=>", found); // 🔥 DEBUG
+
+  return (
+    <View key={`inc-${idx}`} style={styles.thaliChip}>
+      <Text style={styles.thaliChipText}>
+        {found ? found.name : `❌ Missing ${id}`}
+      </Text>
+    </View>
+  );
+})}
+
+    {/* CUSTOM ITEMS */}
+    {(item.thali_custom || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((name, idx) => (
+        <View key={`custom-${idx}`} style={styles.thaliChip}>
+          <Text style={styles.thaliChipText}>{name}</Text>
+        </View>
+      ))}
+
+  </View>
+)}
+
+          {item.description ? <Text style={styles.desc} numberOfLines={2}>{item.description}</Text> : null}
                 <Text style={styles.price}>₹{item.price}</Text>
               </View>
             </View>
@@ -186,44 +395,78 @@ export default function MenuScreen() {
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
         <View style={{ flex: 1, backgroundColor: "#fff" }}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowModal(false)}><Text style={{ fontSize: 16, color: "#555" }}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowModal(false)}><Text style={{ fontSize: 16, color: "#78716C" }}>Cancel</Text></TouchableOpacity>
             <Text style={styles.modalTitle}>{editItem ? "Edit Item" : "Add Item"}</Text>
             <TouchableOpacity onPress={handleSave} disabled={saving}>
               {saving ? <ActivityIndicator color="#111" /> : <Text style={{ fontSize: 16, fontWeight: "700", color: "#111" }}>Save</Text>}
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 20 }}>
-            
-            {/* NEW: IMAGE UPLOAD BOX */}
-            <Text style={[styles.fieldLabel, { marginTop: 0 }]}>Item Image</Text>
-            <TouchableOpacity style={styles.imagePickerBox} onPress={pickImage}>
-              {form.image_url ? (
-                <Image source={{ uri: form.image_url }} style={styles.previewImage} />
-              ) : (
-                <View style={{ alignItems: "center" }}>
-                  <Ionicons name="camera-outline" size={32} color="#888" />
-                  <Text style={{ color: "#888", marginTop: 8, fontWeight: "500" }}>Tap to upload photo</Text>
-                </View>
-              )}
+          <ScrollView contentContainerStyle={{ padding: 20, maxWidth: isWeb ? 600 : '100%', alignSelf: 'center', width: '100%' }}>
+            <TouchableOpacity style={[styles.thaliToggle, form.is_thali && styles.thaliToggleActive]} onPress={() => setForm((p) => ({ ...p, is_thali: !p.is_thali }))}>
+              <Text style={{ fontSize: 20 }}>🍱</Text>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={[styles.thaliToggleTitle, form.is_thali && { color: "#fff" }]}>This is a Thali / Combo</Text>
+                <Text style={[styles.thaliToggleSub, form.is_thali && { color: "#ddd" }]}>Bundle multiple items under one price</Text>
+              </View>
+              <Ionicons name={form.is_thali ? "checkmark-circle" : "ellipse-outline"} size={22} color={form.is_thali ? "#fff" : "#bbb"} />
             </TouchableOpacity>
 
+            {form.is_thali && (
+              <View style={styles.thaliBuilder}>
+                <Text style={styles.fieldLabel}>Included Items</Text>
+                <TouchableOpacity style={styles.pickItemsBtn} onPress={() => setShowItemPicker(true)}>
+                  <Ionicons name="list-outline" size={18} color="#111" />
+                  <Text style={styles.pickItemsBtnText}>{form.thali_includes.length > 0 ? `${form.thali_includes.length} selected` : "Pick from menu"}</Text>
+                </TouchableOpacity>
+
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                  {items.filter((i) => form.thali_includes.map(String).includes(String(i.id))).map((i) => (
+                    <TouchableOpacity key={i.id} style={styles.selectedChip} onPress={() => toggleThaliItem(i.id)}>
+                      <Text style={styles.selectedChipText}>{i.name}</Text>
+                      <Ionicons name="close" size={12} color="#111" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Add Extra (Manual)</Text>
+                <View style={styles.customInputRow}>
+                  <TextInput 
+                    style={styles.customInput} 
+                    value={customInput} 
+                    onChangeText={setCustomInput} 
+                    placeholder="e.g. Roasted Papad" 
+                    placeholderTextColor="#A8A29E"
+                    onSubmitEditing={addCustomItem} 
+                    returnKeyType="done" 
+                  />
+                  <TouchableOpacity style={styles.addExtraBtn} onPress={addCustomItem}>
+                    <Ionicons name="add" size={24} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                  {form.thali_custom.map((name, index) => (
+                    <TouchableOpacity key={index} style={[styles.selectedChip, { backgroundColor: '#10B98120', borderColor: '#10B981' }]} onPress={() => removeCustomItem(index)}>
+                      <Text style={[styles.selectedChipText, { color: '#059669' }]}>{name}</Text>
+                      <Ionicons name="close" size={12} color="#059669" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.fieldLabel}>Item Image</Text>
+            <TouchableOpacity style={styles.imagePickerBox} onPress={pickImage}>
+              {form.image_url ? <Image source={{ uri: form.image_url }} style={styles.previewImage} resizeMode="cover" /> : <View style={{ alignItems: "center" }}><Ionicons name="camera-outline" size={32} color="#888" /><Text style={{ color: "#888" }}>Tap to upload</Text></View>}
+            </TouchableOpacity>
             <Text style={styles.fieldLabel}>Item Name *</Text>
-            <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder="e.g. Paneer Tikka" />
-
-            <Text style={styles.fieldLabel}>Description</Text>
-            <TextInput style={[styles.input, { height: 80 }]} value={form.description} onChangeText={(v) => setForm((p) => ({ ...p, description: v }))} placeholder="Optional description" multiline />
-
+            <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder="Name" />
             <Text style={styles.fieldLabel}>Price (₹) *</Text>
-            <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} placeholder="e.g. 250" keyboardType="decimal-pad" />
-
+            <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} keyboardType="decimal-pad" placeholder="0.00" />
             <Text style={styles.fieldLabel}>Category *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-              {CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.catTab, form.category === cat && styles.catTabActive]}
-                  onPress={() => setForm((p) => ({ ...p, category: cat }))}
-                >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {CATEGORIES.filter(c => c !== "All").map((cat) => (
+                <TouchableOpacity key={cat} style={[styles.catTab, form.category === cat && styles.catTabActive]} onPress={() => setForm((p) => ({ ...p, category: cat }))}>
                   <Text style={[{ fontSize: 13 }, form.category === cat && { color: "#fff" }]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
@@ -231,46 +474,124 @@ export default function MenuScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      <Modal visible={showItemPicker} transparent animationType="fade">
+        <View style={styles.pickerOverlay}>
+            <View style={styles.pickerContent}>
+                <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Pick Thali Items</Text>
+                    <TouchableOpacity onPress={() => setShowItemPicker(false)}><Text style={{fontWeight:'700'}}>Done</Text></TouchableOpacity>
+                </View>
+                <FlatList
+                    data={items.filter(i => !i.is_thali)}
+                    keyExtractor={i => String(i.id)}
+                    renderItem={({ item }) => {
+                      const active = form.thali_includes.map(String).includes(String(item.id));
+                        return (
+                            <TouchableOpacity style={[styles.pickerRow, active && styles.pickerRowActive]} onPress={() => toggleThaliItem(item.id)}>
+                                <Text style={[styles.pickerRowText, active && {color: '#fff'}]}>{item.name}</Text>
+                                <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={20} color={active ? "#fff" : "#ccc"} />
+                            </TouchableOpacity>
+                        );
+                    }}
+                />
+            </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
+function EmptyStep({ icon, label, color }) {
+    return (
+        <View style={styles.stepItem}>
+            <View style={[styles.stepIcon, {backgroundColor: color + '15'}]}>
+                <Ionicons name={icon} size={20} color={color} />
+            </View>
+            <Text style={styles.stepLabel}>{label}</Text>
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
-  addBtn: { backgroundColor: "#111", borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },
-  menuCard: { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#ebebeb" },
-  menuImg: { width: 72, height: 72, borderRadius: 10 },
-  itemName: { fontSize: 15, fontWeight: "700", color: "#111", flex: 1, marginRight: 8 },
-  catTag: { fontSize: 12, color: "#888", marginTop: 2 },
-  desc: { fontSize: 13, color: "#555", marginTop: 4 },
-  price: { fontSize: 16, fontWeight: "700", color: "#111", marginTop: 6 },
-  availBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, alignSelf: "flex-start" },
-  cardActions: { flexDirection: "row", gap: 8, marginTop: 12 },
-  editBtn: { flex: 1, borderRadius: 8, borderWidth: 1.5, borderColor: "#111", padding: 10, alignItems: "center" },
-  editBtnText: { fontWeight: "600", color: "#111" },
-  deleteBtn: { flex: 1, borderRadius: 8, borderWidth: 1.5, borderColor: "#dc3545", padding: 10, alignItems: "center" },
-  deleteBtnText: { fontWeight: "600", color: "#dc3545" },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#ebebeb" },
-  modalTitle: { fontSize: 17, fontWeight: "700" },
-  fieldLabel: { fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8, marginTop: 16 },
-  input: { borderWidth: 1.5, borderColor: "#ddd", borderRadius: 10, padding: 12, fontSize: 15, color: "#111", backgroundColor: "#fafafa" },
-  catTab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: "#ddd", backgroundColor: "#fff", marginRight: 8 },
-  catTabActive: { backgroundColor: "#111", borderColor: "#111" },
+  header: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E8E2D9", paddingVertical: 12 },
+  headerInner: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, maxWidth: 1200, alignSelf: 'center', width: '100%' },
+  filterScroll: { flex: 1, marginRight: 10 },
+  filterBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: "#F3F4F6", marginRight: 8, borderWidth: 1, borderColor: "#E8E2D9" },
+  filterBtnActive: { backgroundColor: "#111827", borderColor: "#111827" },
+  filterBtnText: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
+  addBtn: { backgroundColor: "#111827", borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },
   
-  // NEW: Image Picker Styles
-  imagePickerBox: {
-    height: 160,
-    backgroundColor: "#fafafa",
-    borderWidth: 2,
-    borderColor: "#ddd",
-    borderStyle: "dashed",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  previewImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
+  listContent: { padding: 12, flexGrow: 1 },
+  menuCard: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: "#E8E2D9" },
+  menuImg: { width: 80, height: 80, borderRadius: 12, overflow: 'hidden' },
+  itemName: { fontSize: 16, fontWeight: "800", color: "#111827" },
+  catTag: { fontSize: 11, color: "#10B981", fontWeight: "700", textTransform: 'uppercase', marginTop: 4, letterSpacing: 0.5 },
+  desc: { fontSize: 13, color: "#78716C", marginTop: 6, lineHeight: 18 },
+  price: { fontSize: 18, fontWeight: "800", color: "#111827", marginTop: 8 },
+  availBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+  cardActions: { flexDirection: "row", gap: 10, marginTop: 16, borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 16 },
+  editBtn: { flex: 1, borderRadius: 10, borderWidth: 1.5, borderColor: "#111827", padding: 12, alignItems: "center" },
+  editBtnText: { fontWeight: "700", color: "#111827", fontSize: 14 },
+  deleteBtn: { flex: 1, borderRadius: 10, borderWidth: 1.5, borderColor: "#EF4444", padding: 12, alignItems: "center" },
+  deleteBtnText: { fontWeight: "700", color: "#EF4444", fontSize: 14 },
+
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, paddingTop: 40, alignSelf: 'center', maxWidth: 600 },
+  emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#F3F4F6", alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 24, fontWeight: '900', color: '#111827' },
+  emptySub: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginTop: 10, lineHeight: 22 },
+  stepsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 20, marginTop: 40 },
+  stepItem: { alignItems: 'center', width: 110 },
+  stepIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  stepLabel: { fontSize: 12, fontWeight: '700', color: '#4B5563', textAlign: 'center' },
+  bigAddBtn: { backgroundColor: '#111827', flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 18, paddingHorizontal: 40, borderRadius: 100, marginTop: 50, width: '100%', justifyContent: 'center' },
+  bigAddBtnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
+
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E8E2D9" },
+  modalTitle: { fontSize: 18, fontWeight: "800" },
+  fieldLabel: { fontSize: 13, fontWeight: "800", color: "#10B981", marginBottom: 8, marginTop: 20, letterSpacing: 1 },
+  input: { borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, padding: 14, fontSize: 15, color: "#111", backgroundColor: "#F9FAFB" },
+  catTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E8E2D9", backgroundColor: "#fff", marginRight: 8, marginBottom: 10 },
+  catTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
+  imagePickerBox: { height: 180, backgroundColor: "#F9FAFB", borderWidth: 2, borderColor: "#E8E2D9", borderStyle: "dashed", borderRadius: 16, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  previewImage: { width: "100%", height: "100%" },
+  thaliToggle: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 16, padding: 16, backgroundColor: "#F9FAFB" },
+  thaliToggleActive: { backgroundColor: "#111827", borderColor: "#111827" },
+  thaliToggleTitle: { fontSize: 16, fontWeight: "800", color: "#111" },
+  thaliToggleSub: { fontSize: 13, color: "#78716C", marginTop: 2 },
+  thaliBuilder: { marginTop: 16, padding: 16, backgroundColor: "#F3F4F6", borderRadius: 16, borderWidth: 1, borderColor: "#E8E2D9" },
+  pickItemsBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, padding: 14, backgroundColor: "#fff" },
+  pickItemsBtnText: { fontSize: 14, fontWeight: "700", color: "#111", flex: 1 },
+  selectedChip: { flexDirection: "row", alignItems: "center", backgroundColor: "#F3F4F6", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, gap: 6, borderWidth: 1, borderColor: '#E8E2D9' },
+  selectedChipText: { fontSize: 12, fontWeight: "700", color: "#111" },
+  thaliBadge: { backgroundColor: "#111827", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  thaliBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  thaliIncludes: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 6,
+  marginTop: 6,
+},
+
+thaliChip: {
+  backgroundColor: "#DCFCE7", // light green
+  paddingVertical: 3,
+  paddingHorizontal: 8,
+  borderRadius: 12,
+  alignSelf: "flex-start",
+},
+
+thaliChipText: {
+  fontSize: 11,
+  color: "#166534", // dark green text
+  fontWeight: "500",
+},
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(28, 25, 23, 0.5)', justifyContent: 'flex-end' },
+  pickerContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%', alignSelf: 'center', width: '100%', maxWidth: 600 },
+  pickerRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  pickerRowActive: { backgroundColor: '#111827' },
+  pickerRowText: { fontSize: 16, fontWeight: '700' },
+  customInputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  customInput: { flex: 1, borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, padding: 12, fontSize: 15, color: "#111", backgroundColor: "#fff" },
+  addExtraBtn: { backgroundColor: "#111827", width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });

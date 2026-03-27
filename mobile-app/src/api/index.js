@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
 const API = axios.create({
-  baseURL: 'http://10.75.23.38:5000/api',
+ baseURL: `${process.env.EXPO_PUBLIC_API_URL}/api`,
   timeout: 15000,
 });
 
@@ -35,11 +35,10 @@ API.interceptors.response.use(
   }
 );
 
-// Auth
+// --- Auth ---
 export const signup = (data) => API.post("/auth/signup", data);
 export const login = (data) => API.post("/auth/login", data);
 export const getMe = () => API.get("/auth/me");
-
 
 export const sendOTP = (email) =>
   API.post("/auth/forgot-password/send-otp", { email });
@@ -50,7 +49,7 @@ export const verifyOTP = (email, otp) =>
 export const resetPassword = (resetToken, newPassword) =>
   API.post("/auth/forgot-password/reset", { resetToken, newPassword });
 
-// Subscription
+// --- Subscription ---
 export const createPaymentOrder = () =>
   API.post("/subscription/create-order");
 
@@ -63,7 +62,7 @@ export const getSubscriptionDetails = () =>
 export const getReferrals = () => API.get("/referrals");
 export const redeemReferrals = () => API.post("/referrals/redeem");
 
-// Menu
+// --- Menu ---
 export const getMenu = () => API.get("/menu");
 
 export const addMenuItem = (formData) =>
@@ -82,7 +81,7 @@ export const toggleMenuItemAvailability = (id) =>
 export const deleteMenuItem = (id) =>
   API.delete(`/menu/${id}`);
 
-// Tables
+// --- Tables ---
 export const getTables = () => API.get("/tables");
 
 export const addTable = (tableNumber) =>
@@ -94,7 +93,7 @@ export const deleteTable = (id) =>
 export const getQRPdfUrl = (id) =>
   `${API.defaults.baseURL}/tables/${id}/qr-pdf`;
 
-// Orders
+// --- Orders ---
 export const getOrders = () => API.get("/orders");
 
 export const updateOrderStatus = (id, status) =>
@@ -109,18 +108,18 @@ export const markNotificationRead = (id) =>
 export const markAllNotificationsRead = () =>
   API.patch("/orders/notifications/read-all");
 
-// Analytics
+// --- Analytics ---
 export const getAnalytics = () =>
   API.get("/analytics");
 
-// Sales
+// --- Sales ---
 export const getSalesCSVUrl = (startDate, endDate) =>
   `${API.defaults.baseURL}/sales/csv?startDate=${startDate}&endDate=${endDate}`;
 
 export const getSalesPDFUrl = (startDate, endDate) =>
   `${API.defaults.baseURL}/sales/pdf?startDate=${startDate}&endDate=${endDate}`;
 
-// Profile
+// --- Profile & Branding ---
 export const getProfile = () =>
   API.get("/profile");
 
@@ -129,10 +128,33 @@ export const updateProfile = (formData) =>
     headers: { "Content-Type": "multipart/form-data" },
   });
 
+// ✅ New Endpoint added by your friend
+export const uploadLogo = (formData) =>
+  API.post("/profile/upload-logo", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
 export const getReviews = () => API.get("/reviews");
 
-// Add these to the bottom of your api.js file
+// --- Security ---
 export const setAdminPin = (pin) => API.patch("/profile/pin", { pin });
 export const verifyAdminPin = (pin) => API.post("/profile/verify-pin", { pin });
+
+// Expenses
+export const getExpenses = (period = "monthly") =>
+  API.get(`/expenses?period=${period}`);
+
+export const addExpense = (formData) =>
+  API.post("/expenses", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+export const deleteExpense = (id) =>
+  API.delete(`/expenses/${id}`);
+
+export const updateExpense = (id, formData) =>
+  API.put(`/expenses/${id}`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 
 export default API;

@@ -35,10 +35,18 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-// Add menu item
+// Add menu item (Combined Logic)
 router.post("/", auth, subscription, async (req, res) => {
-  // EXTRACT image_url FROM req.body
-  const { name, description, price, category, image_url } = req.body;
+  const { 
+    name, 
+    description, 
+    price, 
+    category, 
+    image_url, 
+    is_thali, 
+    thali_includes, 
+    thali_custom 
+  } = req.body;
 
   if (!name || !price || !category) {
     return res
@@ -47,13 +55,22 @@ router.post("/", auth, subscription, async (req, res) => {
   }
 
   try {
-    // USE the image_url directly from the frontend
     const result = await pool.query(
       `INSERT INTO menu_items 
-       (business_id, name, description, price, image_url, category)
-       VALUES ($1, $2, $3, $4, $5, $6)
+       (business_id, name, description, price, image_url, category, is_thali, thali_includes, thali_custom)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [req.businessId, name, description, price, image_url || null, category]
+      [
+        req.businessId,
+        name,
+        description,
+        price,
+        image_url || null,
+        category,
+        is_thali || false,
+        JSON.stringify(thali_includes || []),
+        thali_custom || "",
+      ]
     );
 
     res.status(201).json(result.rows[0]);
@@ -63,10 +80,18 @@ router.post("/", auth, subscription, async (req, res) => {
   }
 });
 
-// Update menu item
+// Update menu item (Combined Logic)
 router.put("/:id", auth, subscription, async (req, res) => {
-  // EXTRACT image_url FROM req.body
-  const { name, description, price, category, image_url } = req.body;
+  const { 
+    name, 
+    description, 
+    price, 
+    category, 
+    image_url, 
+    is_thali, 
+    thali_includes, 
+    thali_custom 
+  } = req.body;
 
   try {
     const existing = await pool.query(
@@ -78,7 +103,6 @@ router.put("/:id", auth, subscription, async (req, res) => {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    // Determine final image URL (keep old one if a new one isn't provided)
     const finalImageUrl = image_url !== undefined ? image_url : existing.rows[0].image_url;
 
     const result = await pool.query(
@@ -88,8 +112,11 @@ router.put("/:id", auth, subscription, async (req, res) => {
            price = $3,
            image_url = $4,
            category = $5,
+           is_thali = $6,
+           thali_includes = $7,
+           thali_custom = $8,
            updated_at = NOW()
-       WHERE id = $6 AND business_id = $7
+       WHERE id = $9 AND business_id = $10
        RETURNING *`,
       [
         name || existing.rows[0].name,
@@ -97,13 +124,15 @@ router.put("/:id", auth, subscription, async (req, res) => {
         price || existing.rows[0].price,
         finalImageUrl,
         category || existing.rows[0].category,
+        is_thali !== undefined ? is_thali : existing.rows[0].is_thali,
+        JSON.stringify(thali_includes !== undefined ? thali_includes : (existing.rows[0].thali_includes || [])),
+        thali_custom !== undefined ? thali_custom : (existing.rows[0].thali_custom || ""),
         req.params.id,
         req.businessId,
       ]
     );
 
     res.json(result.rows[0]);
-
   } catch (err) {
     console.error("Update menu error:", err);
     res.status(500).json({ error: "Server error" });
@@ -145,7 +174,6 @@ router.delete("/:id", auth, subscription, async (req, res) => {
     }
 
     res.json({ message: "Item deleted" });
-
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }

@@ -44,7 +44,6 @@ export function AuthProvider({ children }) {
       }
 
       // --- IMPROVED PROJECT ID SELECTION ---
-      // We try reading from config first, then fall back to our hardcoded ID
       const projectId = 
         Constants?.expoConfig?.extra?.eas?.projectId ?? 
         Constants?.easConfig?.projectId ?? 
@@ -140,11 +139,22 @@ export function AuthProvider({ children }) {
     await AsyncStorage.setItem("isChefMode", value ? "true" : "false");
   };
 
+  // --- PREMIUM STATUS LOGIC (Friend's logic) ---
+  // While loading is true, we return null to avoid UI flickering.
+  // Once loaded: "ACTIVE" = premium, anything else = free.
+  const isPremium = loading ? null : business?.subscription_status === "ACTIVE";
+
   return (
     <AuthContext.Provider value={{
-      token, business, loading, login, logout, updateBusiness,
+      token, 
+      business, 
+      loading, 
+      login, 
+      logout, 
+      updateBusiness,
       isChefMode: isChefModeState,
-      setIsChefMode
+      setIsChefMode,
+      isPremium // Exported for use in components
     }}>
       {children}
     </AuthContext.Provider>

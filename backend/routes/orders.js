@@ -115,7 +115,7 @@ router.post("/place", async (req, res) => {
     }
 
     // Create notification
-    const notifMessage = `New order from Table ${tableNum} — ₹${totalAmount}`;
+    const notifMessage = `New order from Table ${tableNum} - ₹${totalAmount}`;
     const notifResult = await pool.query(
       "INSERT INTO notifications (business_id, order_id, message) VALUES ($1, $2, $3) RETURNING *",
       [businessId, order.id, notifMessage]

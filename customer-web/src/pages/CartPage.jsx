@@ -3,6 +3,38 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { placeOrder } from "../api";
 
+// --- Helper Functions from Friend's Push ---
+
+// Resolves thali contents from allItems + thali_custom string
+function getThaliContents(item, allItems) {
+  const picked = (item.thali_includes || []).map(String);
+  const pickedNames = allItems
+    .filter((i) => picked.includes(String(i.id)))
+    .map((i) => i.name);
+  const custom = (item.thali_custom || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return [...pickedNames, ...custom];
+}
+
+// Amber chips showing what's in the thali
+function ThaliContents({ item, allItems }) {
+  const contents = getThaliContents(item, allItems);
+  if (!contents.length) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+      {contents.map((name, i) => (
+        <span key={i} style={styles.thaliChip}>
+          {name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// --- Main Component ---
+
 export default function CartPage() {
   const { businessId, tableId } = useParams();
   const navigate = useNavigate();
@@ -12,6 +44,9 @@ export default function CartPage() {
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState(null);
 
+  // Using cartItems as the lookup pool for Thali contents
+  const allItems = cartItems;
+
   if (cartItems.length === 0) {
     return (
       <div
@@ -20,10 +55,7 @@ export default function CartPage() {
       >
         <div style={{ fontSize: 48 }}>🛒</div>
         <h5 className="mt-3">Your cart is empty</h5>
-        <button
-          className="btn btn-dark mt-3"
-          onClick={() => navigate(-1)}
-        >
+        <button className="btn btn-dark mt-3" onClick={() => navigate(-1)}>
           Go Back to Menu
         </button>
       </div>
@@ -35,15 +67,19 @@ export default function CartPage() {
     setError(null);
 
     try {
+      // Combined item mapping: mapping your basic fields + friend's thali fields
       const orderItems = cartItems.map((i) => ({
         id: i.id,
         name: i.name,
         price: i.price,
         quantity: i.quantity,
         imageUrl: i.image_url,
+        is_thali: i.is_thali || false,
+        thali_includes: i.thali_includes || [],
+        thali_custom: i.thali_custom || "",
       }));
 
-      // Check if we are editing an active order
+      // Check if we are editing an active order (Your logic)
       const activeOrderId = sessionStorage.getItem("activeOrderId");
 
       const res = await placeOrder({
@@ -63,8 +99,7 @@ export default function CartPage() {
       });
     } catch (err) {
       setError(
-        err.response?.data?.error ||
-          "Failed to place order. Please try again."
+        err.response?.data?.error || "Failed to place order. Please try again."
       );
     } finally {
       setPlacing(false);
@@ -115,52 +150,42 @@ export default function CartPage() {
             style={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: "flex-start", // Changed to flex-start to accommodate Thali chips
               marginBottom: 16,
               paddingBottom: 16,
               borderBottom: "1px solid #f0f0f0",
+              gap: 10,
             }}
           >
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>
-                {item.name}
+              {/* Name + Thali Badge */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 600, fontSize: 15 }}>{item.name}</span>
+                {item.is_thali && <span style={styles.thaliBadge}>Thali</span>}
               </div>
-              <div style={{ color: "#888", fontSize: 13 }}>
+
+              <div style={{ color: "#888", fontSize: 13, marginTop: 2 }}>
                 ₹{item.price} each
               </div>
+
+              {/* Thali contents chips (Friend's logic) */}
+              {item.is_thali && <ThaliContents item={item} allItems={allItems} />}
+
+              {/* Qty controls below name/chips */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                <button className="qty-btn" onClick={() => removeFromCart(item.id)}>
+                  –
+                </button>
+                <span style={{ fontWeight: 700, minWidth: 20, textAlign: "center" }}>
+                  {item.quantity}
+                </span>
+                <button className="qty-btn" onClick={() => addToCart(item)}>
+                  +
+                </button>
+              </div>
             </div>
 
-            <div className="qty-control">
-              <button
-                className="qty-btn"
-                onClick={() => removeFromCart(item.id)}
-              >
-                –
-              </button>
-              <span
-                style={{
-                  fontWeight: 700,
-                  minWidth: 20,
-                  textAlign: "center",
-                }}
-              >
-                {item.quantity}
-              </span>
-              <button
-                className="qty-btn"
-                onClick={() => addToCart(item)}
-              >
-                +
-              </button>
-            </div>
-
-            <div
-              style={{
-                fontWeight: 700,
-                minWidth: 60,
-                textAlign: "right",
-              }}
-            >
+            <div style={{ fontWeight: 700, minWidth: 60, textAlign: "right", paddingTop: 2 }}>
               ₹{(item.price * item.quantity).toFixed(0)}
             </div>
           </div>
@@ -206,13 +231,7 @@ export default function CartPage() {
             padding: "14px 16px",
           }}
         >
-          <div
-            style={{
-              fontWeight: 700,
-              marginBottom: 10,
-              fontSize: 15,
-            }}
-          >
+          <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 15 }}>
             Bill Summary
           </div>
 
@@ -226,12 +245,12 @@ export default function CartPage() {
                 marginBottom: 4,
               }}
             >
-              <span>
-                {item.name} × {item.quantity}
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {item.name}
+                {item.is_thali && <span style={styles.thaliBadgeSmall}>Thali</span>}
+                {" "}× {item.quantity}
               </span>
-              <span>
-                ₹{(item.price * item.quantity).toFixed(0)}
-              </span>
+              <span>₹{(item.price * item.quantity).toFixed(0)}</span>
             </div>
           ))}
 
@@ -270,3 +289,31 @@ export default function CartPage() {
     </div>
   );
 }
+
+const styles = {
+  thaliBadge: {
+    background: "#111",
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: 600,
+    padding: "2px 8px",
+    borderRadius: 20,
+  },
+  thaliBadgeSmall: {
+    background: "#e5e7eb",
+    color: "#374151",
+    fontSize: 10,
+    fontWeight: 600,
+    padding: "1px 6px",
+    borderRadius: 4,
+    verticalAlign: "middle",
+  },
+  thaliChip: {
+    fontSize: 10,
+    fontWeight: 500,
+    color: "#854F0B",
+    background: "#FAEEDA",
+    borderRadius: 4,
+    padding: "2px 6px",
+  },
+};

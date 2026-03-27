@@ -37,6 +37,7 @@ app.use("/api/sales", require("./routes/sales"));
 app.use("/api/profile", require("./routes/profile")); 
 app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/reviews', require('./routes/reviews'));
+app.use('/api/expenses', require('./routes/expenses'));
 
 // Health check 
 app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date() })); 

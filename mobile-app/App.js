@@ -1,23 +1,64 @@
+import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import AuthNavigator from "./src/navigation/AuthNavigator";
 import MainNavigator from "./src/navigation/MainNavigator";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Platform } from "react-native";
+
+// Web Screens
+import LandingPage from "./src/screens/web/LandingPage";
+import PrivacyPolicy from "./src/screens/web/PrivacyPolicy";
+import TermsOfService from "./src/screens/web/TermsOfService";
+import FeaturesPage from "./src/screens/web/FeaturesPage";
+import PricingPage from "./src/screens/web/PricingPage";
+import FAQPage from "./src/screens/web/FAQPage";
+import AboutPage from "./src/screens/web/AboutPage";
+import ContactPage from "./src/screens/web/ContactPage";
 
 function Root() {
   const { token, loading } = useAuth();
+  const [webScreen, setWebScreen] = React.useState("landing");
+
+  const handleWebNavigate = (screen) => {
+    setWebScreen(screen);
+    if (Platform.OS === "web") window.scrollTo(0, 0);
+  };
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#111" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FAF9F6" }}>
+        <ActivityIndicator size="large" color="#10B981" />
       </View>
     );
   }
 
-  return token ? <MainNavigator /> : <AuthNavigator />;
+  // ─── Authenticated: always go to MainNavigator ────────────────────────────
+  // Payment success is handled INSIDE ProfileScreen via postMessage (web)
+  // or via RazorpayCheckout callback (Android). No redirect needed here.
+  if (token) {
+    return <MainNavigator />;
+  }
+
+  // ─── Unauthenticated web ──────────────────────────────────────────────────
+  if (Platform.OS === "web") {
+    switch (webScreen) {
+      case "login":         return <AuthNavigator initialRoute="Login" />;
+      case "signup":        return <AuthNavigator initialRoute="Signup" />;
+      case "PrivacyPolicy": return <PrivacyPolicy onNavigate={handleWebNavigate} />;
+      case "TermsOfService":return <TermsOfService onNavigate={handleWebNavigate} />;
+      case "Features":      return <FeaturesPage onNavigate={handleWebNavigate} />;
+      case "Pricing":       return <PricingPage onNavigate={handleWebNavigate} />;
+      case "FAQ":           return <FAQPage onNavigate={handleWebNavigate} />;
+      case "About":         return <AboutPage onNavigate={handleWebNavigate} />;
+      case "Contact":       return <ContactPage onNavigate={handleWebNavigate} />;
+      default:              return <LandingPage onNavigate={handleWebNavigate} />;
+    }
+  }
+
+  // ─── Unauthenticated native ───────────────────────────────────────────────
+  return <AuthNavigator />;
 }
 
 export default function App() {
@@ -25,7 +66,7 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <NavigationContainer>
-          <StatusBar style="dark" />
+          <StatusBar style="auto" />
           <Root />
         </NavigationContainer>
       </AuthProvider>

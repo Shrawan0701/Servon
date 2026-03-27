@@ -1,14 +1,17 @@
 import { useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, ActivityIndicator, Image, RefreshControl } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, ActivityIndicator, Image, RefreshControl, Platform, Dimensions } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { getTables, addTable, deleteTable } from "../api";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Platform} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+
+const isWeb = Platform.OS === 'web';
 
 export default function TablesScreen() {
+  const insets = useSafeAreaInsets();
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,22 +43,26 @@ export default function TablesScreen() {
   };
 
   const handleDelete = (id) => {
-    Alert.alert("Delete Table", "Are you sure?", [
-      { text: "Cancel" },
-      {
-        text: "Delete", style: "destructive", onPress: async () => {
-          try { await deleteTable(id); setTables((prev) => prev.filter((t) => t.id !== id)); }
-          catch (err) { Alert.alert("Error", "Delete failed"); }
-        }
-      },
-    ]);
+    const confirmDelete = async () => {
+      try { 
+        await deleteTable(id); 
+        setTables((prev) => prev.filter((t) => t.id !== id)); 
+      } catch (err) { Alert.alert("Error", "Delete failed"); }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm("Are you sure you want to delete this table?")) confirmDelete();
+    } else {
+      Alert.alert("Delete Table", "Are you sure?", [
+        { text: "Cancel" },
+        { text: "Delete", style: "destructive", onPress: confirmDelete },
+      ]);
+    }
   };
 
- const handleDownloadQR = async (table) => {
+  const handleDownloadQR = async (table) => {
     try {
       const token = await AsyncStorage.getItem("token");
-      
-      // ⚠️ IMPORTANT: Replace '192.168.x.x' with your computer's actual IP address
       const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://192.168.x.x:5000"; 
       const downloadUrl = `${baseUrl}/api/tables/${table.id}/qr-pdf?token=${token}`;
 
@@ -64,13 +71,10 @@ export default function TablesScreen() {
       } else {
         const filename = `table-${table.table_number}-qr.pdf`;
         const fileUri = FileSystem.cacheDirectory + filename;
-
         const res = await FileSystem.downloadAsync(downloadUrl, fileUri, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (res.status !== 200) throw new Error("Download failed");
-
         await Sharing.shareAsync(res.uri, {
           mimeType: "application/pdf",
           dialogTitle: `Table ${table.table_number} QR Code`,
@@ -78,59 +82,103 @@ export default function TablesScreen() {
       }
     } catch (err) {
       console.error("QR Download Error:", err);
-      Alert.alert("Download Error", "Make sure your phone and laptop are on the same Wi-Fi and you're using your Laptop's IP address.");
+      Alert.alert("Download Error", "Could not download QR. Check server connection.");
     }
   };
   
-  if (loading) return <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}><ActivityIndicator size="large" color="#111" /></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#111" /></View>;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
-      <View style={{ padding: 12, alignItems: "flex-end" }}>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)}>
-          <Text style={{ color: "#fff", fontWeight: "700" }}>+ Add Table</Text>
-        </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      {/* ─── HEADER ─── */}
+      <View style={styles.header}>
+        <View style={styles.headerInner}>
+          <View>
+            <Text style={styles.headerTitle}>Tables</Text>
+            <Text style={styles.headerSub}>{tables.length} Active Tables</Text>
+          </View>
+          <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)}>
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={styles.addBtnText}>Add Table</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* ─── TABLE GRID ─── */}
       <FlatList
         data={tables}
-        keyExtractor={(t) => t.id}
+        keyExtractor={(t) => String(t.id)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadTables(); }} />}
-        numColumns={2}
-        contentContainerStyle={{ padding: 8 }}
-        columnWrapperStyle={{ gap: 8 }}
-        ListEmptyComponent={<Text style={{ textAlign: "center", marginTop: 40, color: "#888" }}>No tables yet. Add your first table!</Text>}
+        numColumns={isWeb ? 4 : 2}
+        key={isWeb ? 'web-grid' : 'mobile-grid'}
+        contentContainerStyle={[styles.listContent, isWeb && { alignSelf: 'center', maxWidth: 1200, width: '100%' }]}
+        columnWrapperStyle={styles.columnWrapper}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="grid-outline" size={48} color="#D1D5DB" />
+            </View>
+            <Text style={styles.emptyTitle}>No tables added</Text>
+            <Text style={styles.emptySub}>Add tables to generate QR codes for your customers to scan and order.</Text>
+            <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowAddModal(true)}>
+              <Text style={styles.emptyBtnText}>Create Your First Table</Text>
+            </TouchableOpacity>
+          </View>
+        }
         renderItem={({ item }) => (
           <View style={styles.tableCard}>
-            <Text style={styles.tableNumber}>Table {item.table_number}</Text>
-            {item.qr_code_url && (
-              <Image source={{ uri: item.qr_code_url }} style={styles.qrImage} />
-            )}
+            <View style={styles.cardHeader}>
+               <View style={styles.tableBadge}>
+                  <Text style={styles.tableBadgeText}>LIVE</Text>
+               </View>
+               <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+               </TouchableOpacity>
+            </View>
+
+            <Text style={styles.tableNumberLabel}>TABLE</Text>
+            <Text style={styles.tableNumberValue}>{item.table_number}</Text>
+            
+            <View style={styles.qrContainer}>
+              {item.qr_code_url ? (
+                <Image source={{ uri: item.qr_code_url }} style={styles.qrImage} />
+              ) : (
+                <View style={styles.qrPlaceholder}>
+                  <Ionicons name="qr-code-outline" size={40} color="#E5E7EB" />
+                </View>
+              )}
+            </View>
+
             <TouchableOpacity style={styles.downloadBtn} onPress={() => handleDownloadQR(item)}>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: "#111" }}>⬇ Download QR</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteTableBtn} onPress={() => handleDelete(item.id)}>
-              <Text style={{ fontSize: 12, color: "#dc3545", fontWeight: "600" }}>Delete</Text>
+              <Ionicons name="cloud-download-outline" size={16} color="#111" />
+              <Text style={styles.downloadBtnText}>Download QR</Text>
             </TouchableOpacity>
           </View>
         )}
       />
-      <Modal visible={showAddModal} transparent animationType="slide">
+
+      {/* ─── ADD MODAL ─── */}
+      <Modal visible={showAddModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Add Table</Text>
+            <View style={styles.modalHeaderRow}>
+               <Text style={styles.modalTitle}>New Table</Text>
+               <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                  <Ionicons name="close" size={24} color="#6B7280" />
+               </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.inputLabel}>Table Name or Number</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isWeb && { outlineStyle: 'none' }]}
               value={tableNumber}
               onChangeText={setTableNumber}
-              placeholder="e.g. 1, A1, VIP-1"
+              placeholder="e.g. 05 or T-10"
+              placeholderTextColor="#9CA3AF"
               autoFocus
             />
             <TouchableOpacity style={styles.confirmBtn} onPress={handleAddTable} disabled={adding}>
-              <Text style={{ color: "#fff", fontWeight: "700" }}>{adding ? "Adding..." : "Add Table"}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop: 12, alignItems: "center" }} onPress={() => setShowAddModal(false)}>
-              <Text style={{ color: "#555" }}>Cancel</Text>
+              {adding ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>Confirm & Create</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -140,20 +188,73 @@ export default function TablesScreen() {
 }
 
 const styles = StyleSheet.create({
-  addBtn: { backgroundColor: "#111", borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },
-  tableCard: { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: "#ebebeb", alignItems: "center" },
-  tableNumber: { fontSize: 16, fontWeight: "700", color: "#111", marginBottom: 10 },
-  qrImage: { width: 120, height: 120, marginBottom: 10 },
-  downloadBtn: { borderWidth: 1.5, borderColor: "#111", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 6 },
-  deleteTableBtn: { paddingVertical: 4 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalBox: { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
-  input: { borderWidth: 1.5, borderColor: "#ddd", borderRadius: 10, padding: 14, fontSize: 15, color: "#111", marginBottom: 16 },
-  confirmBtn: { backgroundColor: "#111", borderRadius: 10, padding: 16, alignItems: "center" },
-});
+  container: { flex: 1, backgroundColor: "#FAF8F5" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  
+  header: { 
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8E2D9",
+    paddingVertical: 12
+  },
+  headerInner: {
+    flexDirection: "row", 
+    justifyContent: "space-between", 
+    alignItems: "center", 
+    paddingHorizontal: 20,
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%'
+  },
+  headerTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
+  headerSub: { fontSize: 13, color: "#78716C", marginTop: 2 },
+  
+  addBtn: { backgroundColor: "#111827", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  addBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
-async function getToken() {
-  const AsyncStorage = require("@react-native-async-storage/async-storage").default;
-  return AsyncStorage.getItem("token");
-}
+  listContent: { padding: 16, flexGrow: 1 },
+  columnWrapper: { justifyContent: 'flex-start', gap: 16, marginBottom: 16 },
+
+  tableCard: { 
+    backgroundColor: "#fff", 
+    borderRadius: 16, 
+    padding: 16, 
+    width: isWeb ? '23.5%' : '47.5%', 
+    borderWidth: 1, 
+    borderColor: "#E8E2D9", 
+    alignItems: "center",
+    ...Platform.select({
+      ios: { shadowColor: "#A89880", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
+      android: { elevation: 2 },
+    })
+  },
+  cardHeader: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  tableBadge: { backgroundColor: "#ECFDF5", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  tableBadgeText: { color: "#10B981", fontSize: 9, fontWeight: "800" },
+
+  tableNumberLabel: { fontSize: 10, fontWeight: "700", color: "#A8A29E", letterSpacing: 1 },
+  tableNumberValue: { fontSize: 28, fontWeight: "900", color: "#111827", marginVertical: 2 },
+  
+  qrContainer: { width: '100%', aspectRatio: 1, backgroundColor: '#FAF8F5', borderRadius: 12, marginVertical: 12, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#E8E2D9', borderStyle: 'dashed' },
+  qrImage: { width: '85%', height: '85%' },
+  qrPlaceholder: { alignItems: 'center' },
+
+  downloadBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: "#F3F4F6", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, width: '100%', justifyContent: 'center' },
+  downloadBtnText: { fontSize: 12, fontWeight: "700", color: "#111827" },
+
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 40, alignSelf: 'center', maxWidth: 600 },
+  emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#fff", justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#E8E2D9' },
+  emptyTitle: { fontSize: 20, fontWeight: "900", color: "#111827" },
+  emptySub: { fontSize: 14, color: "#78716C", textAlign: "center", marginTop: 10, lineHeight: 22 },
+  emptyBtn: { marginTop: 24, backgroundColor: "#111827", paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12 },
+  emptyBtnText: { color: "#fff", fontWeight: "700" },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(28, 25, 23, 0.7)", justifyContent: "center", padding: 20 },
+  modalBox: { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, alignSelf: 'center' },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
+  inputLabel: { fontSize: 13, fontWeight: "700", color: "#10B981", marginBottom: 8, letterSpacing: 0.5 },
+  input: { borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, padding: 14, fontSize: 16, color: "#111827", backgroundColor: "#FAF8F5" },
+  confirmBtn: { backgroundColor: "#111827", borderRadius: 12, padding: 16, alignItems: "center", marginTop: 12 },
+  confirmBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+});
