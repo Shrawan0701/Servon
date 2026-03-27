@@ -11,11 +11,22 @@ const cron = require('node-cron');
 const sendPush = require('./utils/pushNotify');
 
 // Init socket 
+// Init socket 
 initSocket(server); 
 
 // Middleware 
-app.use(cors({ origin: "*" })); 
+// REPLACED: app.use(cors({ origin: "*" })); 
+app.use(cors({
+  origin: [
+    "https://servon-customer-menu.vercel.app",
+    "https://servon-blue.vercel.app/",
+    "http://localhost:8081" // for local testing
+  ],
+  credentials: true
+}));
+
 app.use(express.json({ limit: "10mb" })); 
+// ... rest of your code
 app.use(express.urlencoded({ extended: true, limit: "10mb" })); 
 app.use(fileUpload({ limits: { fileSize: 5 * 1024 * 1024 } })); // 5MB 
 
