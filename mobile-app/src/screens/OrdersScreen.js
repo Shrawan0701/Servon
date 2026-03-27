@@ -327,7 +327,8 @@ useEffect(() => {
             <div class="center" style="font-weight: bold; font-size: 16px;">Thank You for Visiting!</div>
             <div class="center" style="margin-top: 15px;">
                 <p style="font-size: 12px; margin-bottom: 5px;">How was your food? Scan to rate us!</p>
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${process.env.EXPO_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}/feedback/${profile?.id}?table=${currentOrder.table_number}`)}" width="100" height="100" />
+                // Change this line in your backend PDF utility
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${process.env.CUSTOMER_URL || 'https://servon-customer-menu.vercel.app'}/feedback/${profile?.id}?table=${currentOrder.table_number}`)}" width="100" height="100" />
             </div>
           </body>
         </html>
