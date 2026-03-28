@@ -16,16 +16,33 @@ initSocket(server);
 
 // Middleware 
 // REPLACED: app.use(cors({ origin: "*" })); 
+const allowedOrigins = [
+  "https://servon.cloud",
+  "https://www.servon.cloud", // IMPORTANT (you are using this!)
+  "https://menu.servon.cloud",
+  "https://servon-customer-menu.vercel.app",
+  "https://servon-blue.vercel.app",
+  "http://localhost:8081"
+];
+
 app.use(cors({
-  origin: [
-    "https://servon.cloud",
-    "https://menu.servon.cloud",
-    "https://servon-customer-menu.vercel.app",
-    "https://servon-blue.vercel.app",
-    "http://localhost:8081" // for local testing
-  ],
-  credentials: true
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps, curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("Not allowed by CORS: " + origin));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+// VERY IMPORTANT: handle preflight manually
+app.options("*", cors());
 
 app.use(express.json({ limit: "10mb" })); 
 // ... rest of your code
