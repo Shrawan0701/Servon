@@ -21,7 +21,7 @@ const isWeb = Platform.OS === "web";
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 
                  (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hostname === 'localhost' 
                     ? 'http://localhost:5000' 
-                    : 'https://servon.onrender.com');
+                    : (Platform.OS === 'web' ? 'https://servon.onrender.com' : 'http://10.193.19.38:5000'));
 
                     
 export default function LoginScreen({ navigation }) {

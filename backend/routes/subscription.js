@@ -81,7 +81,7 @@ router.post("/verify-payment", async (req, res) => {
 // 3. Hosted Checkout Page — used ONLY for web (iframe-safe, no redirect)
 router.get("/checkout/:orderId", async (req, res) => {
   const { orderId } = req.params;
-  const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://10.28.120.38:8081";
+  const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://10.193.19.38:8081";
 
   res.send(`
 <!DOCTYPE html>

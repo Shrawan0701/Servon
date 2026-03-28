@@ -22,7 +22,8 @@ const allowedOrigins = [
   "https://menu.servon.cloud",
   "https://servon-customer-menu.vercel.app",
   "https://servon-blue.vercel.app",
-  "http://localhost:8081"
+  "http://localhost:8081",
+  "http://10.193.19.38:8081"
 ];
 
 app.use(cors({

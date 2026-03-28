@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Image,
-  Platform, Switch, useWindowDimensions,
+  Platform, Switch, useWindowDimensions, Modal,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
@@ -65,6 +65,10 @@ export default function ProfileScreen({ onNavigate }) {
   const [activeSection, setActiveSection] = useState("subscription");
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showSuccessModal, setShowSuccessModal]   = useState(false);
+
+  // ─── Custom confirm modals (replace window.confirm) ───────────────────────
+  const [showLogoutModal, setShowLogoutModal]     = useState(false);
+  const [showChefModeModal, setShowChefModeModal] = useState(false);
 
   const pollingRef = useRef(null);
 
@@ -161,8 +165,9 @@ export default function ProfileScreen({ onNavigate }) {
   };
 
   const handleLogout = () => {
-    if (Platform.OS === "web") {
-      if (window.confirm("Are you sure you want to logout?")) logout();
+    if (Platform.OS === 'web') {
+      // Show custom modal instead of window.confirm
+      setShowLogoutModal(true);
     } else {
       Alert.alert("Logout", "Are you sure you want to logout?", [
         { text: "Cancel", style: "cancel" },
@@ -289,10 +294,8 @@ export default function ProfileScreen({ onNavigate }) {
         return Alert.alert("Hold on!", "You must set an Admin PIN below before turning on Chef Mode.");
       }
       if (Platform.OS === "web") {
-        if (window.confirm("Entering Chef Mode will hide revenue and billing. Continue?")) {
-          setIsChefMode(true);
-          navigation.navigate("Dashboard");
-        }
+        // Show custom modal instead of window.confirm
+        setShowChefModeModal(true);
       } else {
         Alert.alert(
           "Enter Chef Mode?",
@@ -627,6 +630,65 @@ export default function ProfileScreen({ onNavigate }) {
 
         {showPinModal && <ChefPinModal visible={showPinModal} onClose={() => setShowPinModal(false)} onSuccess={() => { setShowPinModal(false); setIsChefMode(false); }} />}
         {showSuccessModal && <SuccessModal />}
+
+        {/* ─── CHEF MODE CONFIRM MODAL (web only) ─── */}
+        <Modal visible={showChefModeModal} transparent animationType="fade">
+          <View style={styles.confirmOverlay}>
+            <View style={styles.confirmBox}>
+              <View style={styles.confirmIconCircle}>
+                <Ionicons name="restaurant-outline" size={28} color="#92400E" />
+              </View>
+              <Text style={styles.confirmTitle}>Enter Chef Mode?</Text>
+              <Text style={styles.confirmSub}>
+                Entering Chef Mode will hide revenue and billing from view. You can unlock it anytime with your Admin PIN.
+              </Text>
+              <View style={styles.confirmActions}>
+                <TouchableOpacity style={styles.confirmCancelBtn} onPress={() => setShowChefModeModal(false)}>
+                  <Text style={styles.confirmCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.confirmOkBtn}
+                  onPress={() => {
+                    setShowChefModeModal(false);
+                    setIsChefMode(true);
+                    navigation.navigate("Dashboard");
+                  }}
+                >
+                  <Ionicons name="restaurant-outline" size={15} color="#fff" />
+                  <Text style={styles.confirmOkText}>Enter Chef Mode</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ─── LOGOUT CONFIRM MODAL (web only) ─── */}
+        <Modal visible={showLogoutModal} transparent animationType="fade">
+          <View style={styles.confirmOverlay}>
+            <View style={styles.confirmBox}>
+              <View style={[styles.confirmIconCircle, { backgroundColor: "#FEF2F2" }]}>
+                <Ionicons name="log-out-outline" size={28} color="#DC2626" />
+              </View>
+              <Text style={styles.confirmTitle}>Logout?</Text>
+              <Text style={styles.confirmSub}>
+                Are you sure you want to logout of your account?
+              </Text>
+              <View style={styles.confirmActions}>
+                <TouchableOpacity style={styles.confirmCancelBtn} onPress={() => setShowLogoutModal(false)}>
+                  <Text style={styles.confirmCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmOkBtn, { backgroundColor: "#DC2626" }]}
+                  onPress={() => { setShowLogoutModal(false); logout(); }}
+                >
+                  <Ionicons name="log-out-outline" size={15} color="#fff" />
+                  <Text style={styles.confirmOkText}>Yes, Logout</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
       </SafeAreaView>
     );
   }
@@ -988,4 +1050,16 @@ const styles = StyleSheet.create({
   successDivider: { width: "100%", height: 1, backgroundColor: BORDER, marginVertical: 24 },
   successBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: T_PRIMARY, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
   successBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+
+  // ─── Confirm modal styles (chef mode + logout) ────────────────────────────
+  confirmOverlay: { flex: 1, backgroundColor: "rgba(28, 25, 23, 0.7)", justifyContent: "center", padding: 20 },
+  confirmBox: { backgroundColor: CARD, borderRadius: 20, padding: 28, width: "100%", maxWidth: 400, alignSelf: "center", alignItems: "center" },
+  confirmIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEF3C7", justifyContent: "center", alignItems: "center", marginBottom: 16 },
+  confirmTitle: { fontSize: 18, fontWeight: "800", color: T_PRIMARY, marginBottom: 8 },
+  confirmSub: { fontSize: 13, color: T_MUTED, textAlign: "center", lineHeight: 20, marginBottom: 24 },
+  confirmActions: { flexDirection: "row", gap: 12, width: "100%" },
+  confirmCancelBtn: { flex: 1, borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  confirmCancelText: { fontSize: 14, fontWeight: "700", color: T_MUTED },
+  confirmOkBtn: { flex: 1, backgroundColor: T_PRIMARY, borderRadius: 12, paddingVertical: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
+  confirmOkText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });

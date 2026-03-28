@@ -33,6 +33,11 @@ export default function MenuScreen() {
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [numColumns, setNumColumns] = useState(isWeb ? 3 : 1);
 
+  // ─── Delete confirmation state ───────────────────────────────────────────
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
   // Responsive column logic for Web
   useFocusEffect(useCallback(() => {
     if (isWeb) {
@@ -221,19 +226,29 @@ export default function MenuScreen() {
 };
 
   const handleDelete = (id) => {
-    const confirmDelete = () => {
-        deleteMenuItem(id).then(() => {
-            setItems(prev => prev.filter(i => i.id !== id));
-        }).catch(() => Alert.alert("Error", "Delete failed"));
-    };
-
     if (Platform.OS === 'web') {
-        if (window.confirm("Are you sure?")) confirmDelete();
+      // Show custom modal instead of browser confirm
+      setItemToDelete(id);
+      setShowDeleteModal(true);
     } else {
-        Alert.alert("Delete Item", "Are you sure?", [
-            { text: "Cancel" },
-            { text: "Delete", style: "destructive", onPress: confirmDelete }
-        ]);
+      Alert.alert("Delete Item", "Are you sure?", [
+        { text: "Cancel" },
+        { text: "Delete", style: "destructive", onPress: () => confirmDelete(id) }
+      ]);
+    }
+  };
+
+  const confirmDelete = async (id) => {
+    setDeleting(true);
+    try {
+      await deleteMenuItem(id);
+      setItems(prev => prev.filter(i => i.id !== id));
+      setShowDeleteModal(false);
+      setItemToDelete(null);
+    } catch {
+      Alert.alert("Error", "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -498,6 +513,40 @@ const found = items.find(i => String(i.id) === String(id));
             </View>
         </View>
       </Modal>
+
+      {/* ─── DELETE CONFIRM MODAL (web only) ─── */}
+      <Modal visible={showDeleteModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.deleteModalBox}>
+            <View style={styles.deleteIconCircle}>
+              <Ionicons name="trash-outline" size={28} color="#EF4444" />
+            </View>
+            <Text style={styles.deleteTitle}>Delete Item?</Text>
+            <Text style={styles.deleteSub}>
+              This will permanently remove this menu item. This action cannot be undone.
+            </Text>
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => { setShowDeleteModal(false); setItemToDelete(null); }}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteConfirmBtn}
+                onPress={() => confirmDelete(itemToDelete)}
+                disabled={deleting}
+              >
+                {deleting
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.deleteConfirmBtnText}>Yes, Delete</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -594,4 +643,16 @@ thaliChipText: {
   customInputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   customInput: { flex: 1, borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, padding: 12, fontSize: 15, color: "#111", backgroundColor: "#fff" },
   addExtraBtn: { backgroundColor: "#111827", width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+
+  // ─── Delete modal styles ───────────────────────────────────────────────────
+  modalOverlay: { flex: 1, backgroundColor: "rgba(28, 25, 23, 0.7)", justifyContent: "center", padding: 20 },
+  deleteModalBox: { backgroundColor: "#fff", borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, alignSelf: 'center', alignItems: 'center' },
+  deleteIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEF2F2", justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  deleteTitle: { fontSize: 18, fontWeight: "800", color: "#111827", marginBottom: 8 },
+  deleteSub: { fontSize: 13, color: "#78716C", textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  deleteActions: { flexDirection: 'row', gap: 12, width: '100%' },
+  cancelBtn: { flex: 1, borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  cancelBtnText: { fontSize: 14, fontWeight: "700", color: "#374151" },
+  deleteConfirmBtn: { flex: 1, backgroundColor: "#EF4444", borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  deleteConfirmBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });

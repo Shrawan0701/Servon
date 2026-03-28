@@ -384,22 +384,144 @@ const generateSalesReportPDF = (reportData) => {
 
 const generateQRPDF = async (tableNumber, qrCodeDataUrl) => {
   return new Promise((resolve, reject) => {
-    const doc     = new PDFDocument({ size: [300, 350], margin: 30 });
+    const W   = 360;
+    const H   = 520;
+    const doc = new PDFDocument({ size: [W, H], margin: 0 });
+
     const buffers = [];
     doc.on("data",  (chunk) => buffers.push(chunk));
     doc.on("end",   () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
-    doc.fontSize(16).fillColor("#111").text("Servon", { align: "center" });
-    doc.fontSize(12).fillColor("#555").text(`Table ${tableNumber}`, { align: "center" });
-    doc.moveDown(0.5);
+    // ── Background ────────────────────────────────────────────────────────
+    doc.rect(0, 0, W, H).fill("#FFFFFF");
+
+    // ── Top accent bar ────────────────────────────────────────────────────
+    doc.rect(0, 0, W, 6).fill("#111827");
+
+    // ── Warm top strip ────────────────────────────────────────────────────
+    doc.rect(0, 6, W, 60).fill("#FAF8F5");
+
+    // ── "TABLE" label ─────────────────────────────────────────────────────
+    doc
+      .fontSize(10)
+      .font("Helvetica-Bold")
+      .fillColor("#A8A29E")
+      .text("TABLE", 0, 20, { align: "center", characterSpacing: 4 });
+
+    // ── Table number ──────────────────────────────────────────────────────
+    doc
+      .fontSize(38)
+      .font("Helvetica-Bold")
+      .fillColor("#111827")
+      .text(String(tableNumber), 0, 30, { align: "center" });
+
+    // ── Divider ───────────────────────────────────────────────────────────
+    doc
+      .moveTo(36, 72)
+      .lineTo(W - 36, 72)
+      .strokeColor("#E8E2D9")
+      .lineWidth(1)
+      .stroke();
+
+    // ── QR Code ───────────────────────────────────────────────────────────
+    const qrSize = 210;
+    const qrX    = (W - qrSize) / 2;
+    const qrY    = 88;
+
+    // QR border box
+    doc
+      .roundedRect(qrX - 12, qrY - 12, qrSize + 24, qrSize + 24, 10)
+      .strokeColor("#E8E2D9")
+      .lineWidth(1.5)
+      .stroke();
 
     const base64Data = qrCodeDataUrl.replace(/^data:image\/png;base64,/, "");
     const imgBuffer  = Buffer.from(base64Data, "base64");
-    doc.image(imgBuffer, { fit: [220, 220], align: "center" });
+    doc.image(imgBuffer, qrX, qrY, { width: qrSize, height: qrSize });
 
-    doc.moveDown(1);
-    doc.fontSize(10).fillColor("#888").text("Scan to order", { align: "center" });
+    // ── "Scan to Order" heading ───────────────────────────────────────────
+    const belowQR = qrY + qrSize + 22;
+
+    doc
+      .fontSize(16)
+      .font("Helvetica-Bold")
+      .fillColor("#111827")
+      .text("Scan to Order", 0, belowQR, { align: "center" });
+
+    doc
+      .fontSize(9.5)
+      .font("Helvetica")
+      .fillColor("#78716C")
+      .text(
+        "Point your phone camera at the QR code\nto browse the menu and place your order.",
+        36,
+        belowQR + 22,
+        { align: "center", lineGap: 3 }
+      );
+
+    // ── Step-by-step guide ────────────────────────────────────────────────
+    const stepsY    = belowQR + 76;
+    const stepColW  = (W - 72) / 2;
+    const steps = [
+      { num: "1", text: "Open your phone camera" },
+      { num: "2", text: "Point at the QR code"   },
+      { num: "3", text: "Tap the link that pops up" },
+      { num: "4", text: "Order from the menu"     },
+    ];
+
+    steps.forEach((step, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const sx  = 36 + col * (stepColW + 0);
+      const sy  = stepsY + row * 36;
+
+      // Filled circle
+      doc.circle(sx + 10, sy + 8, 9).fill("#111827");
+
+      // Step number (white)
+      doc
+        .fontSize(9)
+        .font("Helvetica-Bold")
+        .fillColor("#FFFFFF")
+        .text(step.num, sx + 5, sy + 3, { width: 10, align: "center" });
+
+      // Step label
+      doc
+        .fontSize(9)
+        .font("Helvetica")
+        .fillColor("#374151")
+        .text(step.text, sx + 26, sy + 2, { width: stepColW - 30 });
+    });
+
+    // ── Bottom divider ────────────────────────────────────────────────────
+    const footerDivY = H - 46;
+    doc
+      .moveTo(36, footerDivY)
+      .lineTo(W - 36, footerDivY)
+      .strokeColor("#E8E2D9")
+      .lineWidth(1)
+      .stroke();
+
+    // ── Footer text ───────────────────────────────────────────────────────
+    doc
+      .fontSize(8.5)
+      .font("Helvetica")
+      .fillColor("#A8A29E")
+      .text("Need help? Ask a staff member.", 0, footerDivY + 8, { align: "center" });
+
+    doc
+      .fontSize(7.5)
+      .fillColor("#D1D5DB")
+      .text(
+        `Table ${tableNumber}  ·  Scan & Order`,
+        0, footerDivY + 22,
+        { align: "center", characterSpacing: 0.5 }
+      );
+
+    // ── Bottom accent bar ─────────────────────────────────────────────────
+    doc.rect(0, H - 6, W, 6).fill("#111827");
+
     doc.end();
   });
 };
