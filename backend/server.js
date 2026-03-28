@@ -18,6 +18,8 @@ initSocket(server);
 // REPLACED: app.use(cors({ origin: "*" })); 
 app.use(cors({
   origin: [
+    "https://servon.cloud",
+    "https://menu.servon.cloud",
     "https://servon-customer-menu.vercel.app",
     "https://servon-blue.vercel.app",
     "http://localhost:8081" // for local testing

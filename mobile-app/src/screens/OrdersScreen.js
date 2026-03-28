@@ -288,7 +288,7 @@ useEffect(() => {
 
       // ✅ SAFE LIVE URL CONFIG
       // We hardcode the production URL here to prevent 'import.meta' SyntaxErrors in Expo Web
-      const liveCustomerUrl = "https://servon-customer-menu.vercel.app";
+      const liveCustomerUrl = "https://menu.servon.cloud";
       const feedbackLink = `${liveCustomerUrl}/feedback/${profile?.id}?table=${currentOrder.table_number}`;
 
       const htmlContent = `
