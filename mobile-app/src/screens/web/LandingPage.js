@@ -134,12 +134,83 @@ export default function LandingPage({ onNavigate }) {
   const [activeStep, setActiveStep] = useState(0);
   const [activeFaq, setActiveFaq] = useState(null);
 
+  // ── Web-only head tags (GA + SEO + Favicon) ──────────────────────────
   useEffect(() => {
-    // ✅ This "locks" the title so it doesn't flick back to undefined
     if (Platform.OS === 'web') {
+      // Page title
       document.title = "Servon | Track Your Business";
+
+      // ── Google Analytics (gtag.js) ──────────────────────────────────
+      const gtagScript = document.createElement('script');
+      gtagScript.async = true;
+      gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-2D5DS8141R';
+      document.head.appendChild(gtagScript);
+
+      const inlineScript = document.createElement('script');
+      inlineScript.innerHTML = `
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-2D5DS8141R');
+      `;
+      document.head.appendChild(inlineScript);
+      // ───────────────────────────────────────────────────────────────
+
+      // ── SEO Meta Tags ───────────────────────────────────────────────
+      const metaDesc = document.createElement('meta');
+      metaDesc.name = 'description';
+      metaDesc.content =
+        'Servon is the premium POS and restaurant management system for Indian restaurants. ' +
+        'QR ordering, kitchen sync, Chef Mode privacy, expense tracking, and GST billing — all in one platform.';
+      document.head.appendChild(metaDesc);
+
+      const metaKeywords = document.createElement('meta');
+      metaKeywords.name = 'keywords';
+      metaKeywords.content =
+        'restaurant POS India, QR menu ordering, restaurant billing software, kitchen order system, ' +
+        'KOT software, GST billing restaurant, restaurant management app, Chef Mode, ' +
+        'expense tracking restaurant, UPI payments restaurant, Servon';
+      document.head.appendChild(metaKeywords);
+
+      const metaOGTitle = document.createElement('meta');
+      metaOGTitle.setAttribute('property', 'og:title');
+      metaOGTitle.content = 'Servon | The Restaurant OS for India';
+      document.head.appendChild(metaOGTitle);
+
+      const metaOGDesc = document.createElement('meta');
+      metaOGDesc.setAttribute('property', 'og:description');
+      metaOGDesc.content =
+        'QR ordering, live kitchen sync, Chef Mode privacy, and expense ERP — ' +
+        'the all-in-one operating system built for high-growth Indian restaurants.';
+      document.head.appendChild(metaOGDesc);
+
+      const metaOGType = document.createElement('meta');
+      metaOGType.setAttribute('property', 'og:type');
+      metaOGType.content = 'website';
+      document.head.appendChild(metaOGType);
+
+      const metaRobots = document.createElement('meta');
+      metaRobots.name = 'robots';
+      metaRobots.content = 'index, follow';
+      document.head.appendChild(metaRobots);
+      // ───────────────────────────────────────────────────────────────
+
+      // ── Favicon (servon-logo.png from assets folder) ────────────────
+      const favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      favicon.type = 'image/png';
+      favicon.href = '/assets/servon-logo.png';
+      document.head.appendChild(favicon);
+
+      // Apple touch icon (iOS home screen)
+      const appleIcon = document.createElement('link');
+      appleIcon.rel = 'apple-touch-icon';
+      appleIcon.href = '/assets/servon-logo.png';
+      document.head.appendChild(appleIcon);
+      // ───────────────────────────────────────────────────────────────
     }
   }, []);
+  // ─────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }).start();
@@ -219,16 +290,15 @@ export default function LandingPage({ onNavigate }) {
             </Text>
 
            <View style={s.heroBtnGroup}>
-              {/* Added the onPress trigger here */}
-              <TouchableOpacity 
-                style={s.heroPrimaryBtn} 
+              <TouchableOpacity
+                style={s.heroPrimaryBtn}
                 onPress={() => onNavigate("signup")}
               >
                 <Text style={s.heroPrimaryText}>Start Now</Text>
                 <Ionicons name="arrow-forward" size={18} color="#FFF" />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={s.heroFoot}>Trusted by 100+ outlets across the country.</Text>
 
             <PremiumDashboard />
@@ -1043,13 +1113,12 @@ const s = StyleSheet.create({
     fontSize: width > 600 ? 12 : 11,
     letterSpacing: 1.5,
   },
-  fL: { 
-    color: "#94A3B8", 
-    marginBottom: 15, 
-    fontWeight: '500', 
+  fL: {
+    color: "#94A3B8",
+    marginBottom: 15,
+    fontWeight: '500',
     fontSize: 15,
-    // Add this for better web/touch interaction
-    paddingVertical: 2, 
+    paddingVertical: 2,
   },
   fDivider: {
     height: 1,
