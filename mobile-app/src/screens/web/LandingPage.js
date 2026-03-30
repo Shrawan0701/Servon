@@ -11,6 +11,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+// You need to go up 3 levels to reach the root assets folder: 
+// web -> screens -> src -> root/assets
+import servonLogo from '../../../assets/servon-logo.png';
 
 const { width } = Dimensions.get("window");
 
@@ -195,19 +198,18 @@ export default function LandingPage({ onNavigate }) {
       document.head.appendChild(metaRobots);
       // ───────────────────────────────────────────────────────────────
 
-      // ── Favicon (servon-logo.png from assets folder) ────────────────
-      const favicon = document.createElement('link');
-      favicon.rel = 'icon';
-      favicon.type = 'image/png';
-      favicon.href = '/assets/servon-logo.png';
-      document.head.appendChild(favicon);
+     // Favicon
+const favicon = document.createElement('link');
+favicon.rel = 'icon';
+favicon.type = 'image/png';
+favicon.href = servonLogo; // Use the imported variable here
+document.head.appendChild(favicon);
 
-      // Apple touch icon (iOS home screen)
-      const appleIcon = document.createElement('link');
-      appleIcon.rel = 'apple-touch-icon';
-      appleIcon.href = '/assets/servon-logo.png';
-      document.head.appendChild(appleIcon);
-      // ───────────────────────────────────────────────────────────────
+// Apple touch icon
+const appleIcon = document.createElement('link');
+appleIcon.rel = 'apple-touch-icon';
+appleIcon.href = servonLogo; // And here
+document.head.appendChild(appleIcon);
     }
   }, []);
   // ─────────────────────────────────────────────────────────────────────
