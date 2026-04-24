@@ -5,29 +5,33 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF9F6" 
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.servon.business"
+    },
+   "android": {
+  "adaptiveIcon": {
+    "foregroundImage": "./assets/adaptive-icon.png", 
+    "backgroundColor": "#FAF9F6" 
+  },
+      "package": "com.servon.business",
+      "permissions": [
+        "NOTIFICATIONS"
+      ]
+    },
     "web": {
       "name": "Servon | Track Your Business",
       "shortName": "Servon",
       "description": "The premium operating system for high-growth Indian restaurants.",
       "backgroundColor": "#FAF9F6",
-      "themeColor": "#008060"
-    },
-
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.anonymous.servonbusiness"
+      "themeColor": "#008060",
+      "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {
@@ -37,7 +41,8 @@
     "owner": "shrawan45",
     "plugins": [
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-notifications"
     ]
   }
 }

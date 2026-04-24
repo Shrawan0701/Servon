@@ -21,10 +21,26 @@ function Root() {
   const { token, loading } = useAuth();
   const [webScreen, setWebScreen] = React.useState("landing");
 
-  const handleWebNavigate = (screen) => {
-    setWebScreen(screen);
-    if (Platform.OS === "web") window.scrollTo(0, 0);
-  };
+  React.useEffect(() => {
+  if (Platform.OS === "web") {
+    const path = window.location.pathname;
+
+    if (path === "/privacy") setWebScreen("PrivacyPolicy");
+    else if (path === "/terms") setWebScreen("TermsOfService");
+  }
+}, []);
+
+ const handleWebNavigate = (screen) => {
+  setWebScreen(screen);
+
+  if (Platform.OS === "web") {
+    if (screen === "PrivacyPolicy") window.history.pushState({}, "", "/privacy");
+    else if (screen === "TermsOfService") window.history.pushState({}, "", "/terms");
+    else window.history.pushState({}, "", "/");
+
+    window.scrollTo(0, 0);
+  }
+};
 
   if (loading) {
     return (
