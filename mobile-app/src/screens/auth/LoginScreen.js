@@ -18,10 +18,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const { width } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 
-                 (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-                    ? 'http://localhost:5000' 
-                    : (Platform.OS === 'web' ? 'https://servon.onrender.com' : 'http://10.193.19.38:5000'));
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || "https://servon.onrender.com";
 
                     
 export default function LoginScreen({ navigation }) {
