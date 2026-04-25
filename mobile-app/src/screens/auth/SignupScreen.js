@@ -87,7 +87,14 @@ export default function SignupScreen({ navigation }) {
       await login(res.data.token, res.data.business);
       
     } catch (err) {
-      setError(err.response?.data?.error || "Signup failed");
+     console.log("SIGNUP ERROR FULL:", err);
+console.log("SIGNUP RESPONSE:", err?.response?.data);
+
+setError(
+  err.response?.data?.message ||
+  err.response?.data?.error ||
+  "Signup failed"
+);
     } finally {
       setLoading(false);
     }

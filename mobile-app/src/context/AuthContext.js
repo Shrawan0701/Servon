@@ -100,19 +100,29 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (tokenValue, businessData) => {
-    try {
-      await AsyncStorage.setItem("token", tokenValue);
-      await AsyncStorage.setItem("business", JSON.stringify(businessData));
-      API.defaults.headers.common["Authorization"] = `Bearer ${tokenValue}`;
-      setToken(tokenValue);
-      setBusiness(businessData);
+  try {
+    await AsyncStorage.setItem("token", tokenValue);
+    await AsyncStorage.setItem("business", JSON.stringify(businessData));
 
-      // Register push immediately after successful login
-      registerPush(); 
+    API.defaults.headers.common["Authorization"] = `Bearer ${tokenValue}`;
+
+    setToken(tokenValue);
+    setBusiness(businessData);
+
+    // 🔥 ADD THIS (VERY IMPORTANT)
+    try {
+      const res = await API.get("/auth/me");
+      setBusiness(res.data.business);
+      await AsyncStorage.setItem("business", JSON.stringify(res.data.business));
     } catch (e) {
-      console.error("Login save error:", e);
+      console.log("Fetch latest business failed:", e);
     }
-  };
+
+    registerPush();
+  } catch (e) {
+    console.error("Login save error:", e);
+  }
+};
 
   const logout = async () => {
     try {

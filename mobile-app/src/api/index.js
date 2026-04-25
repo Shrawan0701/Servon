@@ -2,8 +2,14 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (Platform.OS === "web"
+    ? "https://servon.onrender.com"
+    : "https://servon.onrender.com");
+
 const API = axios.create({
- baseURL: `${process.env.EXPO_PUBLIC_API_URL}/api`,
+  baseURL: `${BASE_URL}/api`,
   timeout: 15000,
 });
 
