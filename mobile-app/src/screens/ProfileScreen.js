@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Image,
-  Platform, Switch, useWindowDimensions, Modal,
+  Platform, Switch, useWindowDimensions, Modal, AppState // Add AppState here
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
@@ -177,98 +177,219 @@ export default function ProfileScreen({ onNavigate }) {
   };
 
   // ─── PAYMENT ─────────────────────────────────────────────────────────────────
-  const handleRenew = async () => {
-    try {
-      setPaying(true);
-      const orderRes = await createPaymentOrder();
-      const { orderId, key, amount, currency } = orderRes.data;
+  useEffect(() => {
+  const subscription = AppState.addEventListener("change", (nextAppState) => {
+    // ONLY check if the user is actually in the middle of a payment process
+    if (nextAppState === "active" && paying) { 
+      checkPaymentStatus();
+    }
+  });
 
-      // ── WEB: Razorpay JS SDK opens its own native popup directly ─────────────
-      if (IS_WEB) {
-        const loaded = await loadRazorpayScript();
-        if (!loaded || !window.Razorpay) {
-          Alert.alert("Error", "Could not load payment gateway. Check your connection.");
-          setPaying(false);
-          return;
-        }
+  return () => subscription.remove();
+}, [paying]); // Add paying to dependency array
 
-        const rzp = new window.Razorpay({
-          key,
-          order_id: orderId,
-          amount: String(amount),
-          currency,
-          name: "Servon",
-          description: "Servon Monthly Subscription",
-          theme: { color: "#1A1410" },
-          modal: {
-            ondismiss: () => setPaying(false),
-          },
-          handler: async (response) => {
-            try {
-              await verifyPayment({
-                razorpay_order_id:   response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature:  response.razorpay_signature,
-              });
-              await loadData();
-              setShowSuccessModal(true);
-            } catch {
-              Alert.alert("Verification Error", "Payment received but verification failed. Please contact support.");
-            } finally {
-              setPaying(false);
-            }
-          },
-        });
 
-        rzp.on("payment.failed", () => {
-          Alert.alert("Payment Failed", "Please try again.");
-          setPaying(false);
-        });
 
-        rzp.open();
+const checkPaymentStatus = async () => {
+  // If we aren't even trying to pay, don't do anything
+  if (!paying) return false; 
+
+  try {
+    const sub = await getSubscriptionDetails();
+    if (sub.data?.subscription_status === "ACTIVE") {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      await loadData();
+      setShowSuccessModal(true);
+      setPaying(false); // This sets paying to false, so it won't trigger again!
+      return true;
+    }
+    return false;
+  } catch (err) {
+    return false;
+  }
+};
+
+
+// Updated handleRenew logic
+
+const handleRenew = async () => {
+
+  try {
+
+    setPaying(true);
+
+    const orderRes = await createPaymentOrder();
+
+    const { orderId, key, amount, currency } = orderRes.data;
+
+
+
+    // --- WEB LOGIC (Keep as is) ---
+
+    if (IS_WEB) {
+
+      const loaded = await loadRazorpayScript();
+
+      if (!loaded || !window.Razorpay) {
+
+        Alert.alert("Error", "Could not load payment gateway.");
+
+        setPaying(false);
+
         return;
+
       }
 
-      // ── ANDROID / iOS (Expo Go): in-app browser + poll backend ───────────────
-      const checkoutUrl = `${process.env.EXPO_PUBLIC_API_URL}/api/subscription/checkout/${orderId}`;
 
-      await WebBrowser.openBrowserAsync(checkoutUrl, {
-        toolbarColor: "#1A1410",
-        showTitle: false,
-        enableBarCollapsing: false,
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+
+      const rzp = new window.Razorpay({
+
+        key,
+
+        order_id: orderId,
+
+        amount: String(amount),
+
+        currency,
+
+        name: "Servon",
+
+        description: "Servon Monthly Subscription",
+
+        theme: { color: "#1A1410" },
+
+        modal: { ondismiss: () => setPaying(false) },
+
+        handler: async (response) => {
+
+          try {
+
+            await verifyPayment({
+
+              razorpay_order_id: response.razorpay_order_id,
+
+              razorpay_payment_id: response.razorpay_payment_id,
+
+              razorpay_signature: response.razorpay_signature,
+
+            });
+
+            await loadData();
+
+            setShowSuccessModal(true);
+
+          } catch {
+
+            Alert.alert("Error", "Verification failed.");
+
+          } finally {
+
+            setPaying(false);
+
+          }
+
+        },
+
       });
 
-      // Browser closed — poll backend every 2s up to 30s
-      let attempts = 0;
-      pollingRef.current = setInterval(async () => {
-        attempts++;
-        try {
-          const sub = await getSubscriptionDetails();
-          if (sub.data?.subscription_status === "ACTIVE") {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-            await loadData();
-            setShowSuccessModal(true);
-            setPaying(false);
-          } else if (attempts >= 15) {
-            // 30s elapsed, user probably didn't pay — just reset quietly
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-            setPaying(false);
-          }
-        } catch {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-          setPaying(false);
-        }
-      }, 2000);
+      rzp.open();
 
-    } catch (err) {
-      Alert.alert("Error", "Unable to start payment. Please try again.");
-      setPaying(false);
+      return;
+
     }
-  };
+
+
+
+    // --- ANDROID / iOS LOGIC ---
+
+    const checkoutUrl = `${process.env.EXPO_PUBLIC_API_URL}/api/subscription/checkout/${orderId}`;
+
+
+
+    // 1. Open the browser
+
+    await WebBrowser.openBrowserAsync(checkoutUrl, {
+
+      toolbarColor: "#1A1410",
+
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+
+    });
+
+
+
+    // 2. Clear any existing interval
+
+    if (pollingRef.current) clearInterval(pollingRef.current);
+
+
+
+    // 3. Start Polling Immediately after browser closes OR when user returns
+
+    let attempts = 0;
+
+    const checkStatus = async () => {
+
+      attempts++;
+
+      try {
+
+        const sub = await getSubscriptionDetails();
+
+        if (sub.data?.subscription_status === "ACTIVE") {
+
+          clearInterval(pollingRef.current);
+
+          pollingRef.current = null;
+
+          await loadData();
+
+          setShowSuccessModal(true);
+
+          setPaying(false);
+
+        } else if (attempts >= 20) { // Check for 40 seconds
+
+          clearInterval(pollingRef.current);
+
+          pollingRef.current = null;
+
+          setPaying(false);
+
+        }
+
+      } catch (err) {
+
+        console.log("Polling error", err);
+
+      }
+
+    };
+
+
+
+    // Run once immediately
+
+    checkStatus();
+
+    // Then set interval
+
+    pollingRef.current = setInterval(checkStatus, 2000);
+
+
+
+  } catch (err) {
+
+    Alert.alert("Error", "Unable to start payment.");
+
+    setPaying(false);
+
+  }
+
+};
 
   const handleSetPin = async () => {
     if (newPin.length !== 4) return Alert.alert("Invalid", "PIN must be exactly 4 digits");
