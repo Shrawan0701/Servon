@@ -120,47 +120,46 @@ export default function AnalyticsScreen() {
 
   // ─── DOWNLOAD REPORT (Analytics tab) ──────────────────────────────────────
   const downloadReport = async (format) => {
-    const token   = await AsyncStorage.getItem("token");
+    const token = await AsyncStorage.getItem("token");
     const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
-    const url     = `${baseUrl}/api/sales/${format}?startDate=${startDate}&endDate=${endDate}&token=${token}&includeDailyTable=true`;
+    // We add the token to the URL so the backend can authenticate the GET request
+    const url = `${baseUrl}/api/sales/${format}?startDate=${startDate}&endDate=${endDate}&token=${token}&includeDailyTable=true`;
 
-    if (Platform.OS === "web") {
-      setDownloading(true);
-      try {
-        const res  = await fetch(url);
-        if (!res.ok) throw new Error("Download failed");
-        const blob = await res.blob();
-        const href = URL.createObjectURL(blob);
-        const a    = document.createElement("a");
-        a.href     = href;
-        a.download = `report-${startDate}-to-${endDate}.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(href);
-      } catch {
-        Alert.alert("Export Error", "Could not download report. Please try again.");
-      } finally {
-        setDownloading(false);
-      }
-    } else {
-      setDownloading(true);
-      try {
+    setDownloading(true);
+    try {
+      if (Platform.OS === "web") {
+        // FIXED WEB DOWNLOAD: Direct link approach is more reliable on mobile web than fetch-blob
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `report-${startDate}-to-${endDate}.${format}`);
+        link.setAttribute("target", "_blank"); // Necessary for mobile browsers
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // NATIVE DOWNLOAD
         const filename = `servon-report-${Date.now()}.${format}`;
-        const fileUri  = FileSystem.cacheDirectory + filename;
+        const fileUri = FileSystem.cacheDirectory + filename;
         const res = await FileSystem.downloadAsync(url, fileUri, {
           headers: { Authorization: `Bearer ${token}` },
         });
+
         if (res.status !== 200) throw new Error("Download failed");
-        await Sharing.shareAsync(res.uri, {
-          mimeType: format === "pdf" ? "application/pdf" : "text/csv",
-          dialogTitle: `Business Report (${format.toUpperCase()})`,
-        });
-      } catch {
-        Alert.alert("Export Error", "Mobile download failed. Check connection.");
-      } finally {
-        setDownloading(false);
+
+        // Request permission and share
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(res.uri, {
+            mimeType: format === "pdf" ? "application/pdf" : "text/csv",
+            dialogTitle: `Business Report (${format.toUpperCase()})`,
+            UTI: format === "pdf" ? "com.adobe.pdf" : "public.comma-separated-values-text",
+          });
+        }
       }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Export Error", "Could not download report. Please try again.");
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -429,20 +428,25 @@ function ExpensesTab() {
         [],
         ["", "", "TOTAL", parseFloat(grandTotal).toFixed(2)],
       ];
-      const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const csvContent = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+
       if (Platform.OS === "web") {
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement("a");
-        a.href = url; a.download = `expenses_${period}_${toDateStr(new Date())}.csv`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        // FIXED WEB CSV: Explicitly define UTF-8 BOM for Excel compatibility on mobile
+        const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `expenses_${period}_${toDateStr(new Date())}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        return;
+      } else {
+        const path = FileSystem.cacheDirectory + `expenses_${period}_${Date.now()}.csv`;
+        await FileSystem.writeAsStringAsync(path, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: "Export Expenses CSV" });
       }
-      const path = FileSystem.cacheDirectory + `expenses_${period}_${Date.now()}.csv`;
-      await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
-      await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: "Export Expenses CSV" });
-    } catch {
+    } catch (err) {
       Alert.alert("Export Error", "Could not export CSV.");
     } finally {
       setExporting(false);
