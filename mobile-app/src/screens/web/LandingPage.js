@@ -31,23 +31,27 @@ const C = {
 
 const REVIEWS = [
   {
-    quote: "Chef Mode is a game changer. I can finally travel for my other business without worrying about staff seeing exactly how much we made today.",
-    name: "Arjun ",
+    quote:
+      "Servon completely cleaned up our restaurant operations. Orders flow smoothly from tables to kitchen, and my staff finally stopped running around in chaos during peak hours.",
+    name: "Arjun Mehta",
     initials: "AM"
   },
   {
-    quote: "We replaced our old POS with Servon in one afternoon. The QR menu is so fast that our table turnover increased by 20% in the first month.",
+    quote:
+      "The QR ordering experience feels premium and super fast. Customers love how simple it is, and our staff can focus more on service instead of taking manual orders.",
     name: "Priya Sharma",
     initials: "PS"
   },
   {
-    quote: "The expense tracking is better than most accounting software. I know my net profit before I even close the shutter at night.",
-    name: "Vikram ",
+    quote:
+      "Chef Mode™ Privacy is honestly brilliant. Managers get the control they need while kitchen staff stay focused only on operations. It keeps everything professional and organized.",
+    name: "Vikram Rao",
     initials: "VR"
   },
   {
-    quote: "No app downloads meant 100% of my customers actually used the digital menu. Direct UPI payments save us so much in gateway fees.",
-    name: "Kabir ",
+    quote:
+      "Analytics and expense tracking gave us clarity we never had before. We can actually see what’s working, what’s wasting money, and make decisions much faster.",
+    name: "Kabir Desai",
     initials: "KD"
   }
 ];
@@ -395,7 +399,7 @@ document.head.appendChild(appleIcon);
             </View>
             <Text style={s.priceTitleMain}>Simple, transparent{"\n"}pricing</Text>
             <Text style={s.priceSubMain}>
-              No hidden fees. Start free, upgrade when{"\n"}you're ready.
+              No hidden fees. Upgrade when{"\n"}you're ready.
             </Text>
           </View>
 
@@ -419,8 +423,8 @@ document.head.appendChild(appleIcon);
                 "Full Chef Mode™ Financial Privacy",
                 "Live Kitchen Dashboard (KOT Sync)",
                 "Inventory & Expense ERP Suite",
-                "GST-Ready PDF & CSV Reports",
-                "24/7 Priority WhatsApp Support"
+                "Export PDF & CSV Reports",
+                "24/7 Priority Support"
               ].map((item, idx) => (
                 <View key={idx} style={s.proItem}>
                   <View style={s.blueCheck}>
@@ -451,10 +455,23 @@ document.head.appendChild(appleIcon);
 
           <View style={s.faqList}>
             {[
-              { q: "How long is the setup process?",        a: "Most outlets go live in under 10 minutes. Simply upload your menu, categorize items, and print your QR codes." },
-              { q: "What is Chef Mode™ exactly?",           a: "It's a privacy layer that removes all revenue, P&L, and expense data from staff screens with one master toggle." },
-              { q: "Is specialized hardware required?",     a: "No. Servon is cloud-based and runs on any smartphone, tablet, or existing desktop PC seamlessly." }
-            ].map((f, i) => (
+              {
+    q: "How long does setup take?",
+    a: "Most restaurants can get started within minutes. Upload your menu, generate QR codes, and begin taking orders without complicated onboarding."
+  },
+  {
+    q: "What is Chef Mode™?",
+    a: "Chef Mode™ is a privacy feature that hides sensitive business insights like revenue and expense data from staff-facing screens with a single toggle."
+  },
+  {
+    q: "Does Servon require special hardware?",
+    a: "No. Servon works smoothly on your existing phones, tablets, laptops, and desktop systems without needing expensive hardware."
+  },
+  {
+    q: "Can customers order without downloading an app?",
+    a: "Yes. Customers simply scan the QR code and access the digital menu directly from their browser for a fast and seamless ordering experience."
+  }
+               ].map((f, i) => (
               <TouchableOpacity
                 key={i}
                 activeOpacity={0.9}

@@ -86,7 +86,7 @@ export default function ReviewsScreen() {
         <View style={styles.headerInner}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ flexDirection: "row", alignItems: "center" }}>
             <Ionicons name="chevron-back" size={24} color="#0F172A" />
-            <Text style={{ fontSize: 16, fontWeight: "600", marginLeft: 4, color: "#0F172A" }}>Profile</Text>
+            <Text style={{ fontSize: 16, fontWeight: "600", marginLeft: 4, color: "#0F172A" }}>Back</Text>
           </TouchableOpacity>
           <Text style={{ fontSize: 16, fontWeight: "800", color: "#0F172A" }}>Reviews</Text>
         </View>

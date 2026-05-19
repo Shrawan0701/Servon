@@ -7,18 +7,22 @@ export default function FAQPage({ onNavigate }) {
   const [open, setOpen] = useState(null);
   const faqData = [
    
-    { 
-      q: "Is there any setup fee or hardware required?", 
-      a: "There is zero setup fee. You do not need specialized hardware. Servon works on any device with a browser—Android tablets, iPads, or even old Windows PCs. Simply log in, upload your menu CSV, and you are live." 
-    },
-    { 
-      q: "What happens if my restaurant's internet goes down?", 
-      a: "Servon is designed with local caching. Front-of-house staff can still place orders on their devices. Once the internet returns, the system automatically syncs all offline KOTs to the cloud dashboard." 
-    },
-    { 
-      q: "Can I export data for my CA?", 
-      a: "Absolutely. In the Analytics tab, you can generate GST-ready reports for any custom date range. These export instantly as professional PDFs or detailed CSV files for your accountant." 
-    }
+    {
+    q: "How long does setup take?",
+    a: "Most restaurants can get started within minutes. Upload your menu, generate QR codes, and begin taking orders without complicated onboarding."
+  },
+  {
+    q: "What is Chef Mode™?",
+    a: "Chef Mode™ is a privacy feature that hides sensitive business insights like revenue and expense data from staff-facing screens with a single toggle."
+  },
+  {
+    q: "Does Servon require special hardware?",
+    a: "No. Servon works smoothly on your existing phones, tablets, laptops, and desktop systems without needing expensive hardware."
+  },
+  {
+    q: "Can customers order without downloading an app?",
+    a: "Yes. Customers simply scan the QR code and access the digital menu directly from their browser for a fast and seamless ordering experience."
+  }
   ];
 
   return (

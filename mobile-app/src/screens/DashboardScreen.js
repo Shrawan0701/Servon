@@ -31,15 +31,211 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 const isWeb = Platform.OS === "web";
 
+// ─── Web-only: inject Google Font + global CSS ───────────────────────────────
+if (isWeb && typeof document !== "undefined") {
+  if (!document.getElementById("servon-font")) {
+    const link = document.createElement("link");
+    link.id = "servon-font";
+    link.rel = "stylesheet";
+    link.href =
+      "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap";
+    document.head.appendChild(link);
+  }
+  if (!document.getElementById("servon-web-css")) {
+    const style = document.createElement("style");
+    style.id = "servon-web-css";
+    style.textContent = `
+      * { box-sizing: border-box; }
+      body { font-family: 'DM Sans', sans-serif !important; background: #F5F3EF !important; }
+
+      /* ── Stat cards ── */
+      .servon-stat-card {
+        background: #fff;
+        border: 1px solid #EAE6E0;
+        border-radius: 16px;
+        padding: 20px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        transition: box-shadow 0.18s ease, transform 0.18s ease;
+        min-width: 0;
+        position: relative;
+        overflow: hidden;
+      }
+      .servon-stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        border-radius: 16px 16px 0 0;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+      }
+      .servon-stat-card:hover {
+        box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+        transform: translateY(-2px);
+      }
+      .servon-stat-card:hover::before { opacity: 1; }
+      .servon-stat-card.accent-blue::before  { background: #3B82F6; }
+      .servon-stat-card.accent-green::before { background: #10B981; }
+      .servon-stat-card.accent-amber::before { background: #F59E0B; }
+      .servon-stat-card.accent-red::before   { background: #EF4444; }
+
+      .servon-stat-icon {
+        width: 42px; height: 42px;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      .servon-stat-value {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 28px;
+        font-weight: 700;
+        color: #111827;
+        line-height: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .servon-stat-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: #9CA3AF;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-top: 4px;
+      }
+
+      /* ── Stats grid ── */
+      .servon-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        padding: 0 24px;
+        margin-bottom: 28px;
+      }
+      @media (max-width: 860px) {
+        .servon-stats-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+      @media (max-width: 500px) {
+        .servon-stats-grid { grid-template-columns: 1fr; padding: 0 16px; }
+      }
+
+      /* ── Order cards ── */
+      .servon-order-card {
+        background: #fff;
+        border: 1px solid #EAE6E0;
+        border-radius: 16px;
+        padding: 18px 20px;
+        margin-bottom: 14px;
+        transition: box-shadow 0.18s ease;
+        position: relative;
+        overflow: hidden;
+      }
+      .servon-order-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.07); }
+
+      /* ── Status action buttons ── */
+      .servon-action-btn {
+        border: none; outline: none; cursor: pointer;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 12px; font-weight: 600;
+        padding: 7px 14px;
+        border-radius: 8px;
+        transition: opacity 0.14s, transform 0.14s;
+      }
+      .servon-action-btn:hover { opacity: 0.85; transform: scale(0.97); }
+
+      /* ── Header ── */
+      .servon-web-header {
+        background: rgba(255,255,255,0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid #EAE6E0;
+        position: sticky; top: 0; z-index: 100;
+      }
+
+      /* ── Notification panel ── */
+      .servon-notif-panel {
+        position: fixed;
+        top: 0; right: 0; bottom: 0;
+        width: 380px;
+        background: #fff;
+        border-left: 1px solid #EAE6E0;
+        z-index: 200;
+        display: flex; flex-direction: column;
+        animation: slideIn 0.22s ease;
+      }
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to   { transform: translateX(0);   opacity: 1; }
+      }
+      .servon-notif-overlay {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.25);
+        z-index: 199;
+        backdrop-filter: blur(2px);
+        animation: fadeIn 0.2s ease;
+      }
+      @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+      /* ── Empty state ── */
+      .servon-empty {
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: 60px 20px;
+        border: 1.5px dashed #D1C9BC;
+        border-radius: 16px;
+        background: #FAFAF8;
+        color: #9CA3AF;
+        gap: 10px;
+      }
+
+      /* ── Section heading ── */
+      .servon-section-head {
+        display: flex; align-items: center; gap: 10px;
+        margin-bottom: 14px;
+      }
+      .servon-section-title {
+        font-size: 17px; font-weight: 700; color: #111827;
+      }
+      .servon-count-pill {
+        background: #111827; color: #fff;
+        font-size: 11px; font-weight: 600;
+        padding: 2px 8px; border-radius: 20px;
+      }
+
+      /* ── Live dot ── */
+      .servon-live-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: #10B981;
+        box-shadow: 0 0 0 0 rgba(16,185,129,0.6);
+        animation: pulse 1.8s infinite;
+        display: inline-block;
+        margin-right: 6px;
+      }
+      @keyframes pulse {
+        0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+        70%  { box-shadow: 0 0 0 7px rgba(16,185,129,0); }
+        100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+      }
+
+      /* ── Scrollbar ── */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #D1C9BC; border-radius: 3px; }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 export default function DashboardScreen() {
   const { business, updateBusiness, isChefMode } = useAuth();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
-  // Only used for web responsive tweaks
   const isSmallWeb = isWeb && screenWidth < 600;
-  
+
   const [analytics, setAnalytics] = useState(null);
   const [liveOrders, setLiveOrders] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -57,7 +253,7 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadData(); 
+      loadData();
 
       const socket = io(process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000", {
         transports: ["websocket"],
@@ -68,7 +264,7 @@ export default function DashboardScreen() {
       });
 
       socket.on("new_order", ({ order, notification, tableNumber }) => {
-        if(isToday(order.created_at)) {
+        if (isToday(order.created_at)) {
           setLiveOrders((prev) => [{ ...order, table_number: tableNumber }, ...prev]);
         }
         setNotifications((prev) => [notification, ...prev]);
@@ -94,11 +290,11 @@ export default function DashboardScreen() {
       ]);
 
       setAnalytics(analyticsRes.data);
-      
-      const todaysLive = ordersRes.data.filter((o) => 
+
+      const todaysLive = ordersRes.data.filter((o) =>
         isToday(o.created_at) && !["PAID", "REJECTED"].includes(o.status)
       );
-      
+
       setLiveOrders(todaysLive);
       setNotifications(notifRes.data);
 
@@ -107,7 +303,6 @@ export default function DashboardScreen() {
           subscription_status: subRes.data.subscription_status,
           subscription_end_date: subRes.data.subscription_end_date
         });
-        
         checkAndShowWarning(subRes.data.subscription_end_date);
       }
     } catch (err) {
@@ -120,13 +315,11 @@ export default function DashboardScreen() {
 
   const checkAndShowWarning = (freshEndDateStr) => {
     try {
-      const endDateStr = freshEndDateStr || business?.subscription_end_date; 
+      const endDateStr = freshEndDateStr || business?.subscription_end_date;
       if (!endDateStr) return;
-      
       const endDate = new Date(endDateStr);
       const today = new Date();
       const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-
       if (daysLeft <= 3) {
         if (Platform.OS === "web") {
           if (daysLeft < 0) {
@@ -136,23 +329,15 @@ export default function DashboardScreen() {
           }
         } else {
           if (daysLeft < 0) {
-             Alert.alert(
-               "Subscription Expired", 
-               "Your Servon plan has expired! Please go to your Profile to renew.", 
-               [
-                 { text: "Will do!", style: "cancel" },
-                 { text: "Renew Now", onPress: () => navigation.navigate("Profile") }
-               ]
-             );
+            Alert.alert("Subscription Expired", "Your Servon plan has expired! Please go to your Profile to renew.", [
+              { text: "Will do!", style: "cancel" },
+              { text: "Renew Now", onPress: () => navigation.navigate("Profile") }
+            ]);
           } else {
-             Alert.alert(
-               "Renewal Reminder", 
-               `Your Servon plan expires in ${daysLeft} days. Please renew soon!`, 
-               [
-                 { text: "Got it", style: "cancel" },
-                 { text: "Renew Now", onPress: () => navigation.navigate("Profile") }
-               ]
-             );
+            Alert.alert("Renewal Reminder", `Your Servon plan expires in ${daysLeft} days. Please renew soon!`, [
+              { text: "Got it", style: "cancel" },
+              { text: "Renew Now", onPress: () => navigation.navigate("Profile") }
+            ]);
           }
         }
       }
@@ -198,13 +383,236 @@ export default function DashboardScreen() {
     );
   }
 
-  // Compute stat card width dynamically for web small screens
-  // On small web: 2 columns with gap; on large web: 4 columns; on native: 48%
-  const statCardStyle = isWeb ? (
-    isSmallWeb
-      ? { width: "calc(50% - 8px)", minWidth: 0 }   // 2×2 grid on small web
-      : { width: "23.5%", minWidth: 200 }            // 4-column on large web
-  ) : null; // native uses StyleSheet 48%
+  // ─── WEB RENDER ─────────────────────────────────────────────────────────────
+  if (isWeb) {
+    const todayStr = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+
+    return (
+      <div style={{ minHeight: "100vh", background: "#F5F3EF", fontFamily: "'DM Sans', sans-serif" }}>
+
+        {/* ── STICKY HEADER ── */}
+        <div className="servon-web-header">
+          <div style={{ maxWidth: 1160, margin: "0 auto", padding: "0 28px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            {/* Brand */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 22, fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>
+                Servon<span style={{ color: "#22C55E" }}>.</span>
+              </span>
+            </div>
+
+            {/* Right actions */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {/* Notification bell */}
+              <button
+                onClick={handleOpenNotifications}
+                style={{
+                  position: "relative", background: unreadCount > 0 ? "#F0FDF4" : "#F9F8F6",
+                  border: `1px solid ${unreadCount > 0 ? "#BBF7D0" : "#EAE6E0"}`,
+                  borderRadius: 10, width: 38, height: 38,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", transition: "background 0.15s"
+                }}
+              >
+                <Ionicons name="notifications-outline" size={18} color={unreadCount > 0 ? "#16A34A" : "#374151"} />
+                {unreadCount > 0 && (
+                  <span style={{
+                    position: "absolute", top: -4, right: -4,
+                    background: "#EF4444", color: "#fff",
+                    fontSize: 9, fontWeight: 700,
+                    width: 16, height: 16, borderRadius: "50%",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    border: "2px solid #F5F3EF"
+                  }}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Profile */}
+              <button
+                onClick={() => navigation.navigate("Profile")}
+                style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: "#111827", color: "#fff",
+                  fontSize: 14, fontWeight: 600,
+                  border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "opacity 0.15s"
+                }}
+              >
+                {ownerInitial}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── MAIN CONTENT ── */}
+        <div style={{ maxWidth: 1160, margin: "0 auto", padding: "32px 28px 60px" }}>
+
+          {/* Page title row */}
+          <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#111827", letterSpacing: "-0.4px" }}>
+                Good {getGreeting()}, {business?.owner_name?.split(" ")[0] || "there"} 👋
+              </h1>
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9CA3AF" }}>{todayStr}</p>
+            </div>
+            <button
+              onClick={() => { setRefreshing(true); loadData(); }}
+              style={{
+                background: "#fff", border: "1px solid #EAE6E0",
+                borderRadius: 10, padding: "8px 16px",
+                fontSize: 13, fontWeight: 500, color: "#374151",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                transition: "box-shadow 0.15s"
+              }}
+            >
+              <Ionicons name="refresh-outline" size={14} color="#374151" />
+              Refresh
+            </button>
+          </div>
+
+          <SubscriptionBanner />
+
+          {/* ── STAT CARDS ── */}
+          <div className="servon-stats-grid" style={{ marginTop: 10 }}>
+            <WebStatCard
+              label="Orders Today"
+              value={analytics?.today?.totalOrders ?? 0}
+              icon="cube"
+              color="#3B82F6"
+              bg="#EFF6FF"
+              accent="blue"
+            />
+            {!isChefMode && (
+              <WebStatCard
+                label="Revenue Today"
+                value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`}
+                icon="wallet"
+                color="#10B981"
+                bg="#ECFDF5"
+                accent="green"
+              />
+            )}
+            <WebStatCard
+              label="Active Tables"
+              value={activeTableCount}
+              icon="grid"
+              color="#F59E0B"
+              bg="#FFFBEB"
+              accent="amber"
+            />
+            <WebStatCard
+              label="Top Item"
+              value={analytics?.today?.mostOrderedItem?.name || "-"}
+              icon="flame"
+              color="#EF4444"
+              bg="#FEF2F2"
+              accent="red"
+              isText
+            />
+          </div>
+
+          {/* ── LIVE ORDERS ── */}
+          <div style={{ marginTop: 8 }}>
+            <div className="servon-section-head">
+              <span className="servon-live-dot" />
+              <span className="servon-section-title">Live Orders</span>
+              <span className="servon-count-pill">{liveOrders.length}</span>
+            </div>
+
+            {liveOrders.length === 0 ? (
+              <div className="servon-empty">
+                <Ionicons name="restaurant-outline" size={36} color="#C4BAB0" />
+                <span style={{ fontSize: 15, fontWeight: 600, color: "#6B7280" }}>No active orders right now</span>
+                <span style={{ fontSize: 13, color: "#B3ACA4" }}>Waiting for customers to scan QR</span>
+              </div>
+            ) : (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: screenWidth > 900 ? "repeat(2, 1fr)" : "1fr",
+                gap: 14
+              }}>
+                {liveOrders.map((order) => (
+                  <WebOrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── NOTIFICATION SIDE PANEL ── */}
+        {showNotifications && (
+          <>
+            <div className="servon-notif-overlay" onClick={() => setShowNotifications(false)} />
+            <div className="servon-notif-panel">
+              {/* Panel header */}
+              <div style={{
+                padding: "20px 24px 16px",
+                borderBottom: "1px solid #EAE6E0",
+                display: "flex", alignItems: "center", justifyContent: "space-between"
+              }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#111827" }}>Notifications</p>
+                  {unreadCount > 0 && (
+                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9CA3AF" }}>
+                      {unreadCount} unread
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  style={{
+                    background: "#F3F4F6", border: "none", borderRadius: 8,
+                    width: 32, height: 32, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                  }}
+                >
+                  <Ionicons name="close" size={16} color="#374151" />
+                </button>
+              </div>
+
+              {/* Notification list */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px" }}>
+                {notifications.length === 0 ? (
+                  <div style={{ textAlign: "center", marginTop: 60, color: "#9CA3AF", fontSize: 14 }}>
+                    No notifications yet.
+                  </div>
+                ) : (
+                  notifications.map((n, index) => (
+                    <div
+                      key={n.id || index}
+                      style={{
+                        padding: "14px 16px",
+                        borderRadius: 12,
+                        background: n.is_read ? "#FAFAF8" : "#F0FDF4",
+                        border: `1px solid ${n.is_read ? "#EAE6E0" : "#BBF7D0"}`,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#111827" }}>
+                          {!n.is_read && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#22C55E", marginRight: 6, verticalAlign: "middle" }} />}
+                          {n.title || "New Order"}
+                        </p>
+                        <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>
+                          {new Date(n.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: "#4B5563", lineHeight: 1.5 }}>{n.message}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ─── NATIVE (ANDROID / IOS) — UNCHANGED ─────────────────────────────────────
+  const statCardStyle = null;
 
   return (
     <View style={styles.container}>
@@ -214,7 +622,6 @@ export default function DashboardScreen() {
           <Text style={styles.brandText}>
             Servon<Text style={styles.brandAccent}>.</Text>
           </Text>
-
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.iconBtn} onPress={handleOpenNotifications}>
               <Ionicons name="notifications-outline" size={24} color="#374151" />
@@ -224,11 +631,7 @@ export default function DashboardScreen() {
                 </View>
               )}
             </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.profileAvatar} 
-              onPress={() => navigation.navigate("Profile")}
-            >
+            <TouchableOpacity style={styles.profileAvatar} onPress={() => navigation.navigate("Profile")}>
               <Text style={styles.profileAvatarText}>{ownerInitial}</Text>
             </TouchableOpacity>
           </View>
@@ -242,49 +645,13 @@ export default function DashboardScreen() {
         <View style={styles.responsiveContent}>
           <SubscriptionBanner />
 
-          {/* Stats grid — inline style for web responsive, StyleSheet for native */}
-          <View style={[
-            styles.statsGrid,
-            isSmallWeb && styles.statsGridSmall,
-          ]}>
-            <StatCard
-              label="Orders Today"
-              value={analytics?.today?.totalOrders ?? 0}
-              icon="cube"
-              color="#3B82F6"
-              bg="#EFF6FF"
-              extraStyle={statCardStyle}
-            />
-            
+          <View style={[styles.statsGrid, isSmallWeb && styles.statsGridSmall]}>
+            <StatCard label="Orders Today" value={analytics?.today?.totalOrders ?? 0} icon="cube" color="#3B82F6" bg="#EFF6FF" extraStyle={statCardStyle} />
             {!isChefMode && (
-              <StatCard
-                label="Revenue Today"
-                value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`}
-                icon="wallet"
-                color="#10B981"
-                bg="#ECFDF5"
-                extraStyle={statCardStyle}
-              />
+              <StatCard label="Revenue Today" value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`} icon="wallet" color="#10B981" bg="#ECFDF5" extraStyle={statCardStyle} />
             )}
-
-            <StatCard
-              label="Active Tables"
-              value={activeTableCount}
-              icon="grid"
-              color="#F59E0B"
-              bg="#FFFBEB"
-              extraStyle={statCardStyle}
-            />
-            
-            <StatCard
-              label="Top Item"
-              value={analytics?.today?.mostOrderedItem?.name || "-"}
-              icon="flame"
-              color="#EF4444"
-              bg="#FEF2F2"
-              isText
-              extraStyle={statCardStyle}
-            />
+            <StatCard label="Active Tables" value={activeTableCount} icon="grid" color="#F59E0B" bg="#FFFBEB" extraStyle={statCardStyle} />
+            <StatCard label="Top Item" value={analytics?.today?.mostOrderedItem?.name || "-"} icon="flame" color="#EF4444" bg="#FEF2F2" isText extraStyle={statCardStyle} />
           </View>
 
           <View style={styles.section}>
@@ -322,7 +689,6 @@ export default function DashboardScreen() {
                 <Ionicons name="close-circle" size={28} color="#D1D5DB" />
               </TouchableOpacity>
             </View>
-
             <ScrollView contentContainerStyle={styles.notifList} showsVerticalScrollIndicator={false}>
               {notifications.length === 0 ? (
                 <Text style={styles.emptyNotif}>No notifications yet.</Text>
@@ -345,7 +711,112 @@ export default function DashboardScreen() {
   );
 }
 
-/* ---------------- COMPONENTS ---------------- */
+/* ── HELPERS ────────────────────────────────────────────────────────────────── */
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "morning";
+  if (h < 17) return "afternoon";
+  return "evening";
+}
+
+/* ── WEB-ONLY COMPONENTS ────────────────────────────────────────────────────── */
+
+function WebStatCard({ label, value, icon, color, bg, accent, isText }) {
+  return (
+    <div className={`servon-stat-card accent-${accent}`}>
+      <div className="servon-stat-icon" style={{ background: bg }}>
+        <Ionicons name={icon} size={18} color={color} />
+      </div>
+      <div>
+        <div
+          className="servon-stat-value"
+          style={isText ? { fontSize: 18, fontWeight: 600 } : {}}
+          title={String(value)}
+        >
+          {value}
+        </div>
+        <div className="servon-stat-label">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function WebOrderCard({ order, onStatusUpdate }) {
+  const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
+  const color = statusColor(order.status);
+  const elapsed = Math.floor((Date.now() - new Date(order.created_at)) / 60000);
+
+  return (
+    <div className="servon-order-card">
+      {/* Left accent bar colored by status */}
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: color, borderRadius: "16px 0 0 16px" }} />
+
+      <div style={{ paddingLeft: 8 }}>
+        {/* Header row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{
+              background: "#F3F4F6", borderRadius: 8,
+              padding: "4px 10px", fontSize: 13, fontWeight: 600, color: "#374151"
+            }}>
+              Table {order.table_number || "?"}
+            </span>
+            <span style={{
+              background: `${color}18`, color: color,
+              borderRadius: 20, padding: "3px 10px",
+              fontSize: 11, fontWeight: 600,
+              display: "flex", alignItems: "center", gap: 4
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />
+              {order.status}
+            </span>
+          </div>
+          <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>
+            {elapsed < 1 ? "Just now" : `${elapsed}m ago`}
+          </span>
+        </div>
+
+        {/* Items */}
+        <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 10, marginBottom: 10 }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{
+                background: "#F3F4F6", borderRadius: 6,
+                padding: "2px 7px", fontSize: 11, fontWeight: 700, color: "#374151"
+              }}>{item.quantity}×</span>
+              <span style={{ fontSize: 13, color: "#1F2937", fontWeight: 500 }}>{item.name}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Special instructions */}
+        {order.special_instructions && (
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: 6,
+            background: "#FFFBEB", borderRadius: 8, padding: "8px 10px", marginBottom: 10
+          }}>
+            <Ionicons name="information-circle" size={14} color="#F59E0B" style={{ marginTop: 1 }} />
+            <span style={{ fontSize: 12, color: "#92400E", lineHeight: 1.5 }}>{order.special_instructions}</span>
+          </div>
+        )}
+
+        {/* Footer: total + action buttons */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #F3F4F6", paddingTop: 10 }}>
+          <div>
+            <span style={{ fontSize: 12, color: "#9CA3AF" }}>Total </span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>₹{order.total_amount}</span>
+          </div>
+
+          {/* Contextual action buttons per status */}
+         
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── NATIVE-ONLY COMPONENTS (unchanged) ─────────────────────────────────────── */
 
 function StatCard({ label, value, icon, color, bg, isText, extraStyle }) {
   return (
@@ -412,8 +883,9 @@ const statusColor = (s) => ({
   REJECTED: "#EF4444",
 }[s] || "#6B7280");
 
+/* ── NATIVE STYLESHEET (unchanged) ─────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF8F5" }, 
+  container: { flex: 1, backgroundColor: "#FAF8F5" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 
   responsiveContent: {
@@ -447,55 +919,36 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 6 },
   badge: {
     position: "absolute",
-    top: -2,
-    right: -2,
+    top: -2, right: -2,
     backgroundColor: "#EF4444",
     borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "center",
+    minWidth: 16, height: 16,
+    alignItems: "center", justifyContent: "center",
   },
   badgeText: { color: "#fff", fontSize: 9, fontWeight: "600" },
   profileAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 34, height: 34, borderRadius: 17,
     backgroundColor: "#111827",
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
   },
   profileAvatarText: { color: "#fff", fontSize: 14, fontWeight: "600" },
 
-  // Stats grid — base (native: 2-col wrapping)
   statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: "row", flexWrap: "wrap",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    ...Platform.select({
-      web: { gap: 16 }
-    })
+    paddingHorizontal: 20, paddingTop: 10,
+    ...Platform.select({ web: { gap: 16 } })
   },
-  // Small web override: use gap instead of space-between so 2 cards sit flush
   statsGridSmall: {
-    ...Platform.select({
-      web: { gap: 12, justifyContent: "flex-start" }
-    })
+    ...Platform.select({ web: { gap: 12, justifyContent: "flex-start" } })
   },
 
   statCard: {
     backgroundColor: "#fff",
-    // Native: always 2 columns
     width: "48%",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#E8E2D9",
+    borderRadius: 16, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: "#E8E2D9",
     ...Platform.select({
-      // Web default (large): 4 columns — overridden inline for small web
       web: { width: "23.5%", minWidth: 200 },
       ios: { shadowColor: "#A89880", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
       android: { elevation: 2 },
@@ -542,14 +995,11 @@ const styles = StyleSheet.create({
   orderTotalValue: { fontSize: 17, fontWeight: "800", color: "#111827" },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  modalContent: { 
-    backgroundColor: "#fff", 
-    borderTopLeftRadius: 24, 
-    borderTopRightRadius: 24, 
-    padding: 24, 
-    maxHeight: "80%",
-    alignSelf: 'center',
-    width: '100%',
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, maxHeight: "80%",
+    alignSelf: 'center', width: '100%',
     ...Platform.select({ web: { maxWidth: 600 } })
   },
   modalHeaderTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },

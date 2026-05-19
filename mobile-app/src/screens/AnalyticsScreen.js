@@ -44,29 +44,29 @@ const BORDER       = "#E2E8F0";
 const TEXT_MAIN    = "#1E293B";
 const TEXT_MUTED   = "#64748B";
 const TEXT_FAINT   = "#94A3B8";
-const CONTENT_MAX  = 1100;
+const CONTENT_MAX  = 1200;
 
-const FL_BG    = "#F7F7F7";
-const FL_DARK  = "#0F1729";
-const FL_GREEN = "#22C55E";
+const FL_BG    = "#F8FAFC";
+const FL_DARK  = "#0F172A";
+const FL_GREEN = "#10B981";
 const FL_RED   = "#EF4444";
-const FL_BORD  = "#E4E4E4";
+const FL_BORD  = "#E2E8F0";
 
 // ── Categories ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { key: "Utilities",    icon: "flash",                      color: "#F59E0B", bg: "#FEF3C7", desc: "Power, water & utility charges" },
-  { key: "Payroll",      icon: "people",                     color: "#3B82F6", bg: "#EFF6FF", desc: "Wages, salaries & advances" },
-  { key: "Procurement",  icon: "cube",                       color: "#8B5CF6", bg: "#F5F3FF", desc: "Raw materials & supplies" },
-  { key: "Maintenance",  icon: "construct",                  color: "#F97316", bg: "#FFF7ED", desc: "Equipment & repair costs" },
-  { key: "Waste",        icon: "trash",                      color: "#EF4444", bg: "#FEF2F2", desc: "Expired or wasted items" },
-  { key: "Other",        icon: "ellipsis-horizontal-circle", color: "#6B7280", bg: "#F3F4F6", desc: "Miscellaneous expenses" },
+  { key: "Utilities",     icon: "flash",                      color: "#F59E0B", bg: "#FEF3C7", desc: "Power, water & utility charges" },
+  { key: "Payroll",       icon: "people",                     color: "#3B82F6", bg: "#EFF6FF", desc: "Wages, salaries & advances" },
+  { key: "Procurement",   icon: "cube",                       color: "#8B5CF6", bg: "#F5F3FF", desc: "Raw materials & supplies" },
+  { key: "Maintenance",   icon: "construct",                  color: "#F97316", bg: "#FFF7ED", desc: "Equipment & repair costs" },
+  { key: "Waste",         icon: "trash",                      color: "#EF4444", bg: "#FEF2F2", desc: "Expired or wasted items" },
+  { key: "Other",         icon: "ellipsis-horizontal-circle", color: "#6B7280", bg: "#F3F4F6", desc: "Miscellaneous expenses" },
 ];
 
 const PERIODS = ["daily", "weekly", "monthly"];
 const getCat  = (key) => CATEGORIES.find((c) => c.key === key) || CATEGORIES[5];
-const fmt     = (n)   => "₹" + parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const dayOf   = (d)   => new Date(d).getDate();
-const monOf   = (d)   => new Date(d).toLocaleDateString("en-IN", { month: "short" }).toUpperCase();
+const fmt     = (n)    => "₹" + parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const dayOf   = (d)    => new Date(d).getDate();
+const monOf   = (d)    => new Date(d).toLocaleDateString("en-IN", { month: "short" }).toUpperCase();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ROOT SCREEN
@@ -81,20 +81,13 @@ export default function AnalyticsScreen() {
   const [endDate,       setEndDate]       = useState(toDateStr(new Date()));
 
   const { width: screenWidth } = useWindowDimensions();
-  const isSmallWeb  = IS_WEB && screenWidth < 600;
-  const isMediumWeb = IS_WEB && screenWidth >= 600 && screenWidth < 900;
-  const H_PAD       = IS_WEB ? (isSmallWeb ? 16 : 48) : 20;
+  const isMobileView = screenWidth < 768;
+  const H_PAD        = isMobileView ? 16 : 32;
   const contentWidth = IS_WEB ? Math.min(screenWidth, CONTENT_MAX) : screenWidth;
 
-  const kpiCardWidth = IS_WEB
-    ? isSmallWeb  ? (contentWidth - H_PAD * 2 - 12) / 2
-    : isMediumWeb ? (contentWidth - H_PAD * 2 - 48) / 2
-    :               (contentWidth - H_PAD * 2 - 48) / 4
-    : (screenWidth - 40 - 16) / 2;
-
-  const chartWidth = IS_WEB
-    ? Math.min(contentWidth - H_PAD * 2 - (isSmallWeb ? 32 : 64), contentWidth - H_PAD * 2 - 40)
-    : screenWidth - 40 - 40;
+  const chartWidth = !isMobileView
+    ? (contentWidth * 0.6) - 48
+    : screenWidth - 64;
 
   useFocusEffect(useCallback(() => { loadAnalytics(); }, []));
 
@@ -118,26 +111,22 @@ export default function AnalyticsScreen() {
     setEndDate(toDateStr(end));
   };
 
-  // ─── DOWNLOAD REPORT (Analytics tab) ──────────────────────────────────────
   const downloadReport = async (format) => {
     const token = await AsyncStorage.getItem("token");
     const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
-    // We add the token to the URL so the backend can authenticate the GET request
     const url = `${baseUrl}/api/sales/${format}?startDate=${startDate}&endDate=${endDate}&token=${token}&includeDailyTable=true`;
 
     setDownloading(true);
     try {
       if (Platform.OS === "web") {
-        // FIXED WEB DOWNLOAD: Direct link approach is more reliable on mobile web than fetch-blob
         const link = document.createElement("a");
         link.href = url;
         link.setAttribute("download", `report-${startDate}-to-${endDate}.${format}`);
-        link.setAttribute("target", "_blank"); // Necessary for mobile browsers
+        link.setAttribute("target", "_blank");
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       } else {
-        // NATIVE DOWNLOAD
         const filename = `servon-report-${Date.now()}.${format}`;
         const fileUri = FileSystem.cacheDirectory + filename;
         const res = await FileSystem.downloadAsync(url, fileUri, {
@@ -146,7 +135,6 @@ export default function AnalyticsScreen() {
 
         if (res.status !== 200) throw new Error("Download failed");
 
-        // Request permission and share
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(res.uri, {
             mimeType: format === "pdf" ? "application/pdf" : "text/csv",
@@ -174,7 +162,7 @@ export default function AnalyticsScreen() {
 
   const last30        = data?.last30Days || [];
   const totalRev      = last30.reduce((s, d) => s + (parseFloat(d.revenue) || 0), 0) || 0;
-  const totalOrd      = last30.reduce((s, d) => s + (parseInt(d.orders)   || 0), 0) || 0;
+  const totalOrd      = last30.reduce((s, d) => s + (parseInt(d.orders)    || 0), 0) || 0;
   const avgOrderValue = totalOrd ? totalRev / totalOrd : 0;
   const last7         = last30.slice(-7);
   const revenueChartData = last7.map((d) => ({
@@ -183,50 +171,38 @@ export default function AnalyticsScreen() {
     label: `₹${(parseFloat(d.revenue) || 0).toLocaleString("en-IN")}`,
   }));
 
-  const calcTrend = (curr, prev) => {
-    if (!prev || prev === 0) return null;
-    const pct = ((curr - prev) / prev) * 100;
-    return { label: `${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%`, up: pct >= 0 };
-  };
-  const prev7    = last30.slice(-14, -7);
-  const curr7Rev = last7.reduce((s, d) => s + (parseFloat(d.revenue) || 0), 0);
-  const prev7Rev = prev7.reduce((s, d) => s + (parseFloat(d.revenue) || 0), 0);
-  const curr7Ord = last7.reduce((s, d) => s + (parseInt(d.orders)   || 0), 0);
-  const prev7Ord = prev7.reduce((s, d) => s + (parseInt(d.orders)   || 0), 0);
-  const revTrend = calcTrend(curr7Rev, prev7Rev);
-  const ordTrend = calcTrend(curr7Ord, prev7Ord);
-  const avgTrend = calcTrend(curr7Rev / (curr7Ord || 1), prev7Rev / (prev7Ord || 1));
-  const maxQty   = data?.topItems?.length ? Math.max(...data.topItems.slice(0, 5).map(i => parseInt(i.total_qty) || 0)) : 1;
+  const maxQty = data?.topItems?.length ? Math.max(...data.topItems.slice(0, 5).map(i => parseInt(i.total_qty) || 0)) : 1;
 
   return (
     <SafeAreaView style={styles.container}>
-
-      {/* ── TOP TAB BAR ── */}
+      {/* ── TOP NAV BAR ── */}
       <View style={styles.mainTabBar}>
-        {["Analytics", "Expenses"].map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.mainTab, activeMainTab === tab && styles.mainTabActive]}
-            onPress={() => setActiveMainTab(tab)}
-          >
-            <Ionicons name={tab === "Analytics" ? "bar-chart" : "receipt"} size={15} color={activeMainTab === tab ? "#fff" : TEXT_MUTED} />
-            <Text style={[styles.mainTabText, activeMainTab === tab && styles.mainTabTextActive]}>{tab}</Text>
-          </TouchableOpacity>
-        ))}
+        <View style={styles.tabBarInner}>
+          {["Analytics", "Expenses"].map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.mainTab, activeMainTab === tab && styles.mainTabActive]}
+              onPress={() => setActiveMainTab(tab)}
+            >
+              <Ionicons name={tab === "Analytics" ? "bar-chart" : "receipt"} size={18} color={activeMainTab === tab ? "#fff" : TEXT_MUTED} />
+              <Text style={[styles.mainTabText, activeMainTab === tab && styles.mainTabTextActive]}>{tab}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       {/* ── ANALYTICS TAB ── */}
       {activeMainTab === "Analytics" && (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, IS_WEB && { alignSelf: "center", width: "100%", maxWidth: CONTENT_MAX }]}
+          contentContainerStyle={[styles.scrollContent, { alignSelf: "center", width: "100%", maxWidth: CONTENT_MAX }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAnalytics(); }} tintColor={ACCENT} colors={[ACCENT]} />}
         >
           {/* HEADER */}
           <View style={[styles.header, { paddingHorizontal: H_PAD }]}>
-            <View style={{ flex: 1, marginRight: 12 }}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>Performance Overview</Text>
-              <Text style={[styles.headerTitle, isSmallWeb && { fontSize: 24 }]}>Analytics</Text>
+              <Text style={styles.headerTitle}>Analytics</Text>
               <Text style={styles.headerSub}>{startDate} — {endDate}</Text>
             </View>
             <TouchableOpacity style={styles.refreshBtn} onPress={() => { setRefreshing(true); loadAnalytics(); }} activeOpacity={0.7}>
@@ -235,46 +211,45 @@ export default function AnalyticsScreen() {
           </View>
 
           {/* KPI GRID */}
-          <View style={[styles.kpiGrid, { paddingHorizontal: H_PAD }, isSmallWeb && styles.kpiGridSmall]}>
-            <KPICard label="REVENUE"   value={`₹${totalRev.toLocaleString("en-IN")}`} icon="wallet"  color={ACCENT}  bg="#ECFDF5" trend={revTrend?.label} trendUp={revTrend?.up} cardWidth={kpiCardWidth} isSmall={isSmallWeb} />
-            <KPICard label="ORDERS"    value={totalOrd.toLocaleString("en-IN")}         icon="cart"    color="#3B82F6" bg="#EFF6FF" trend={ordTrend?.label} trendUp={ordTrend?.up} cardWidth={kpiCardWidth} isSmall={isSmallWeb} />
-            <KPICard label="AVG ORDER" value={`₹${avgOrderValue.toFixed(0)}`}           icon="receipt" color="#F59E0B" bg="#FFFBEB" trend={avgTrend?.label} trendUp={avgTrend?.up} cardWidth={kpiCardWidth} isSmall={isSmallWeb} />
-            <KPICard label="PEAK HOUR" value={data?.peakHour?.hour ? `${data.peakHour.hour}:00` : "--:--"} icon="time" color="#8B5CF6" bg="#F5F3FF" cardWidth={kpiCardWidth} isSmall={isSmallWeb} />
+          <View style={[styles.kpiGrid, { paddingHorizontal: H_PAD }]}>
+            <KPICard label="TOTAL REVENUE" value={`₹${totalRev.toLocaleString("en-IN")}`} icon="wallet" color={ACCENT} bg="#ECFDF5" isMobile={isMobileView} />
+            <KPICard label="ORDERS FULFILLED" value={totalOrd.toLocaleString("en-IN")} icon="cart" color="#3B82F6" bg="#EFF6FF" isMobile={isMobileView} />
+            <KPICard label="AVG ORDER VALUE" value={`₹${avgOrderValue.toFixed(0)}`} icon="receipt" color="#F59E0B" bg="#FFFBEB" isMobile={isMobileView} />
+            <KPICard label="PEAK HOUR ACTIVITY" value={data?.peakHour?.hour ? `${data.peakHour.hour}:00` : "--:--"} icon="time" color="#8B5CF6" bg="#F5F3FF" isMobile={isMobileView} />
           </View>
 
-          {/* CHART */}
-          <View style={{ paddingHorizontal: H_PAD, marginTop: 32 }}>
-            <SectionHeader title="Revenue Insights" subtitle="Visualizing your daily growth" icon="analytics-outline" />
-          </View>
-          <View style={[styles.chartSection, { marginHorizontal: H_PAD }]}>
-            <View style={styles.chartWrapper}>
-              <VictoryChart theme={VictoryTheme.material} height={isSmallWeb ? 220 : 280} width={chartWidth} padding={{ top: 20, bottom: 50, left: isSmallWeb ? 48 : 60, right: 20 }} containerComponent={<VictoryContainer responsive={false} />}>
-                <VictoryAxis style={axisStyle} />
-                <VictoryAxis dependentAxis style={axisStyle} tickFormat={(x) => `₹${x >= 1000 ? `${(x / 1000).toFixed(0)}k` : x}`} />
-                <VictoryBar data={revenueChartData} style={{ data: { fill: PRIMARY, width: isSmallWeb ? 18 : 26 } }} cornerRadius={{ top: 8 }} animate={{ duration: 800, onLoad: { duration: 400 } }} />
-              </VictoryChart>
-            </View>
-            {revenueChartData.every(d => d.y === 0) && (
-              <View style={styles.chartEmpty}>
-                <Ionicons name="bar-chart-outline" size={40} color={TEXT_FAINT} />
-                <Text style={styles.chartEmptyText}>No sales activity recorded</Text>
+          {/* SPLIT WORKSPACE FOR CHARTS & TOP ITEMS */}
+          <View style={[styles.splitWorkspace, { paddingHorizontal: H_PAD }, isMobileView && { flexDirection: "column" }]}>
+            <View style={isMobileView ? { width: "100%" } : { flex: 1.5 }}>
+              <SectionHeader title="Revenue Insights" subtitle="Daily growth patterns" icon="analytics-outline" />
+              <View style={styles.chartSection}>
+                <View style={styles.chartWrapper}>
+                  <VictoryChart theme={VictoryTheme.material} height={250} width={chartWidth} padding={{ top: 20, bottom: 45, left: 55, right: 20 }} containerComponent={<VictoryContainer responsive={false} />}>
+                    <VictoryAxis style={axisStyle} />
+                    <VictoryAxis dependentAxis style={axisStyle} tickFormat={(x) => `₹${x >= 1000 ? `${(x / 1000).toFixed(0)}k` : x}`} />
+                    <VictoryBar data={revenueChartData} style={{ data: { fill: PRIMARY, width: isMobileView ? 18 : 26 } }} cornerRadius={{ top: 4 }} />
+                  </VictoryChart>
+                </View>
+                {revenueChartData.every(d => d.y === 0) && (
+                  <View style={styles.chartEmpty}>
+                    <Ionicons name="bar-chart-outline" size={36} color={TEXT_FAINT} />
+                    <Text style={styles.chartEmptyText}>No sales activity recorded</Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
+            </View>
 
-          {/* LOWER SPLIT */}
-          <View style={[styles.splitRow, { paddingHorizontal: H_PAD }, (isSmallWeb || isMediumWeb || !IS_WEB) && { flexDirection: "column" }]}>
-            <View style={[styles.section, { flex: 1.5 }]}>
-              <SectionHeader title="Top Items" subtitle="Highest volume products" icon="trophy-outline" />
+            <View style={isMobileView ? { width: "100%" } : { flex: 1 }}>
+              <SectionHeader title="Top Products" subtitle="Highest volume items" icon="trophy-outline" />
               <View style={styles.premiumCard}>
                 {data?.topItems?.length ? (
-                  data.topItems.slice(0, 5).map((item, i) => {
+                  data.topItems.slice(0, 4).map((item, i) => {
                     const pct = maxQty > 0 ? (parseInt(item.total_qty) || 0) / maxQty : 0;
                     return (
                       <View key={i} style={styles.itemRow}>
                         <View style={styles.itemHeader}>
-                          <Text style={styles.itemName}>{item.name}</Text>
-                          <Text style={styles.itemQty}>{item.total_qty} Sold</Text>
+                          <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                          <Text style={styles.itemQty}>{item.total_qty} Units</Text>
                         </View>
                         <View style={styles.progressTrack}>
                           <View style={[styles.progressFill, { width: `${pct * 100}%`, backgroundColor: i === 0 ? ACCENT : PRIMARY }]} />
@@ -283,31 +258,36 @@ export default function AnalyticsScreen() {
                     );
                   })
                 ) : (
-                  <View style={styles.emptyItems}><Text style={styles.emptyText}>Data pending...</Text></View>
+                  <View style={styles.emptyItems}><Text style={styles.emptyText}>Data compiling...</Text></View>
                 )}
               </View>
             </View>
+          </View>
 
-            <View style={[styles.section, { flex: 1 }]}>
-              <SectionHeader title="Reports" subtitle="Export data" icon="cloud-download-outline" />
-              <View style={styles.premiumCard}>
-                <Text style={styles.fieldLabel}>DATE RANGE</Text>
+          {/* EXTRACT CONTROLS REPORTS */}
+          <View style={[{ paddingHorizontal: H_PAD, marginTop: 36 }]}>
+            <SectionHeader title="Report Extraction Hub" subtitle="Export authenticated data ledgers" icon="cloud-download-outline" />
+            <View style={[styles.premiumCard, !isMobileView && styles.webReportCardRow]}>
+              <View style={[!isMobileView && { flex: 1, marginRight: 24 }]}>
+                <Text style={styles.fieldLabel}>CHOOSE PERIOD TIME RANGE</Text>
                 <View style={styles.rangeSelector}>
                   {[7, 30, 90].map((d) => {
                     const isActive = startDate === toDateStr(new Date(Date.now() - d * 86400000));
                     return (
                       <TouchableOpacity key={d} style={[styles.rangeTab, isActive && styles.rangeTabActive]} onPress={() => handleRangeSelect(d)}>
-                        <Text style={[styles.rangeTabText, isActive && { color: "#fff" }]}>{d}d</Text>
+                        <Text style={[styles.rangeTabText, isActive && { color: "#fff" }]}>{d} Days</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
+              </View>
+              <View style={[!isMobileView && styles.webReportBtnStack, isMobileView && { gap: 12, marginTop: 12 }]}>
                 <TouchableOpacity style={[styles.exportBtn, downloading && { opacity: 0.7 }]} onPress={() => downloadReport("pdf")} disabled={downloading}>
-                  {downloading ? <ActivityIndicator color="#fff" /> : <><Ionicons name="document-text" size={18} color="#fff" /><Text style={styles.exportBtnText}>PDF Report</Text></>}
+                  {downloading ? <ActivityIndicator color="#fff" /> : <><Ionicons name="document-text" size={20} color="#fff" /><Text style={styles.exportBtnText}>Export PDF Document</Text></>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.csvBtn} onPress={() => downloadReport("csv")}>
-                  <Ionicons name="grid-outline" size={16} color={PRIMARY} />
-                  <Text style={styles.csvBtnText}>Export CSV</Text>
+                  <Ionicons name="grid-outline" size={18} color={PRIMARY} />
+                  <Text style={styles.csvBtnText}>Extract CSV Spreadsheet</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -325,34 +305,29 @@ function SectionHeader({ title, subtitle, icon }) {
   return (
     <View style={secStyles.container}>
       <View style={secStyles.iconBox}><Ionicons name={icon} size={18} color={PRIMARY} /></View>
-      <View><Text style={secStyles.title}>{title}</Text><Text style={secStyles.sub}>{subtitle}</Text></View>
+      <View style={{ flex: 1 }}><Text style={secStyles.title}>{title}</Text><Text style={secStyles.sub}>{subtitle}</Text></View>
     </View>
   );
 }
 
-function KPICard({ label, value, icon, color, bg, trend, trendUp, cardWidth, isSmall }) {
+function KPICard({ label, value, icon, color, bg, isMobile }) {
   return (
-    <View style={[styles.kpiCard, { width: cardWidth }, isSmall && styles.kpiCardSmall]}>
-      <View style={[styles.kpiTopRow, isSmall && { marginBottom: 10 }]}>
-        <View style={[styles.kpiIconBox, { backgroundColor: bg }, isSmall && { width: 36, height: 36 }]}>
-          <Ionicons name={icon} size={isSmall ? 16 : 20} color={color} />
+    <View style={[styles.kpiCard, isMobile ? styles.kpiCardMobile : styles.kpiCardWeb]}>
+      <View style={styles.kpiTopRow}>
+        <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
+        <View style={[styles.kpiIconBox, { backgroundColor: bg }]}>
+          <Ionicons name={icon} size={16} color={color} />
         </View>
-        {trend && (
-          <View style={[styles.trendPill, { backgroundColor: trendUp ? "#DCFCE7" : "#FEE2E2" }]}>
-            <Text style={[styles.trendPillText, { color: trendUp ? "#059669" : "#DC2626" }]}>{trend}</Text>
-          </View>
-        )}
       </View>
-      <Text style={[styles.kpiLabel, isSmall && { fontSize: 10 }]}>{label}</Text>
-      <Text style={[styles.kpiValue, isSmall && { fontSize: 18 }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
     </View>
   );
 }
 
 const axisStyle = {
   axis:       { stroke: "transparent" },
-  grid:       { stroke: "#E2E8F0", strokeDasharray: "4,4" },
-  tickLabels: { fontSize: 11, fill: TEXT_MUTED, fontWeight: "600" },
+  grid:       { stroke: "#F1F5F9", strokeDasharray: "0" },
+  tickLabels: { fontSize: 11, fill: TEXT_MUTED, fontWeight: "500" },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -370,6 +345,10 @@ function ExpensesTab() {
   const [deleting,      setDeleting]      = useState(null);
   const [ledgerTab,     setLedgerTab]     = useState("Expenses");
   const [exporting,     setExporting]     = useState(false);
+
+  const { width: screenWidth } = useWindowDimensions();
+  const isDesktop = screenWidth >= 900;
+  const H_PAD = screenWidth < 768 ? 16 : 32;
 
   useFocusEffect(useCallback(() => { load(); }, [period]));
 
@@ -417,7 +396,6 @@ function ExpensesTab() {
   const handleEdit   = (exp) => { setEditingExp(exp); setShowModal(true); };
   const handleAddNew = ()    => { setEditingExp(null); setShowModal(true); };
 
-  // ── EXPORT CSV ────────────────────────────────────────────────────────────
   const exportCSV = async () => {
     if (!expenses.length) { Alert.alert("No Data", "No expenses to export."); return; }
     setExporting(true);
@@ -431,7 +409,6 @@ function ExpensesTab() {
       const csvContent = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
 
       if (Platform.OS === "web") {
-        // FIXED WEB CSV: Explicitly define UTF-8 BOM for Excel compatibility on mobile
         const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -453,10 +430,6 @@ function ExpensesTab() {
     }
   };
 
-  // ── EXPORT PDF ────────────────────────────────────────────────────────────
-  // WEB FIX: Open HTML in a new tab and trigger the browser's print-to-PDF dialog
-  // instead of downloading as an .html file.
-  // Native: uses expo-print to generate a real PDF and share it.
   const exportPDF = async () => {
     if (!expenses.length) { Alert.alert("No Data", "No expenses to export."); return; }
     setExporting(true);
@@ -523,18 +496,15 @@ function ExpensesTab() {
         </body></html>`;
 
       if (Platform.OS === "web") {
-        // ── WEB FIX: open in new tab + auto-trigger print dialog (Save as PDF) ──
         const newTab = window.open("", "_blank");
         if (newTab) {
           newTab.document.write(html);
           newTab.document.close();
           newTab.focus();
-          // Small delay lets the browser render the HTML before print dialog
           setTimeout(() => {
             newTab.print();
           }, 600);
         } else {
-          // Popup blocked fallback — download as HTML with a clear hint inside
           const blob = new Blob([html], { type: "text/html" });
           const href = URL.createObjectURL(blob);
           const a    = document.createElement("a");
@@ -548,7 +518,6 @@ function ExpensesTab() {
           );
         }
       } else {
-        // ── NATIVE: use expo-print to get a real PDF ──
         const { uri } = await Print.printToFileAsync({ html, base64: false });
         await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Export Expenses PDF" });
       }
@@ -578,125 +547,142 @@ function ExpensesTab() {
   })();
 
   return (
-    <View style={{ flex: 1, backgroundColor: FL_BG }}>
-
-      {/* Totals Banner */}
-      <View style={FL.totalsBanner}>
-        <View style={FL.totalsRow}>
-          <View style={[FL.totalsIcon, { backgroundColor: "#DCFCE7" }]}><Ionicons name="trending-up" size={13} color={FL_GREEN} /></View>
-          <Text style={FL.totalsLabel}>TOTAL SALES</Text>
-          <Text style={[FL.totalsValue, { color: FL_GREEN }]}>{fmt(totalSales)}</Text>
-        </View>
-        <View style={FL.totalsRow}>
-          <View style={[FL.totalsIcon, { backgroundColor: "#FEE2E2" }]}><Ionicons name="trending-down" size={13} color={FL_RED} /></View>
-          <Text style={FL.totalsLabel}>TOTAL EXPENSES</Text>
-          <Text style={[FL.totalsValue, { color: FL_RED }]}>{fmt(grandTotal)}</Text>
-        </View>
-        <View style={[FL.totalsRow, { marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: FL_BORD }]}>
-          <View style={[FL.totalsIcon, { backgroundColor: netProfit >= 0 ? "#DCFCE7" : "#FEE2E2" }]}>
-            <Ionicons name={netProfit >= 0 ? "checkmark-circle" : "alert-circle"} size={13} color={netProfit >= 0 ? FL_GREEN : FL_RED} />
-          </View>
-          <Text style={FL.totalsLabel}>NET PROFIT</Text>
-          <Text style={[FL.totalsValue, { color: netProfit >= 0 ? FL_GREEN : FL_RED }]}>{netProfit >= 0 ? "" : "-"}{fmt(Math.abs(netProfit))}</Text>
-        </View>
-      </View>
-
-      {/* Ledger Tabs */}
-      <View style={FL.tabRow}>
-        {["Sales", "Expenses"].map((t) => (
-          <TouchableOpacity key={t} style={[FL.tabBtn, ledgerTab === t && FL.tabBtnActive]} onPress={() => setLedgerTab(t)}>
-            <Text style={[FL.tabBtnText, ledgerTab === t && FL.tabBtnTextActive]}>{t.toUpperCase()}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Period Chips */}
-      <View style={FL.periodRow}>
-        {PERIODS.map((p) => (
-          <TouchableOpacity key={p} style={[FL.periodChip, period === p && FL.periodChipActive]} onPress={() => setPeriod(p)}>
-            <Text style={[FL.periodChipText, period === p && FL.periodChipTextActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Export Row */}
-      {ledgerTab === "Expenses" && (
-        <View style={FL.exportRow}>
-          <Text style={FL.exportLabel}>EXPORT {period.toUpperCase()}</Text>
-          <TouchableOpacity style={[FL.exportBtn, { backgroundColor: FL_DARK }, exporting && { opacity: 0.5 }]} onPress={exportPDF} disabled={exporting}>
-            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-text-outline" size={13} color="#fff" /><Text style={FL.exportBtnText}>PDF</Text></>}
-          </TouchableOpacity>
-          <TouchableOpacity style={[FL.exportBtn, { backgroundColor: "#059669" }, exporting && { opacity: 0.5 }]} onPress={exportCSV} disabled={exporting}>
-            {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-outline" size={13} color="#fff" /><Text style={FL.exportBtnText}>CSV</Text></>}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* List */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110, paddingTop: 6 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={FL_DARK} />}>
-        {ledgerTab === "Sales" ? (
-          !salesList.length ? (
-            <View style={FL.emptyWrap}>
-              <View style={FL.emptyIconBox}><Ionicons name="cash-outline" size={36} color="#9CA3AF" /></View>
-              <Text style={FL.emptyTitle}>No sales {period === "daily" ? "today" : `this ${period.replace("ly", "")}`}</Text>
-              <Text style={FL.emptySub}>Sales will appear here as orders come in</Text>
+    <View style={[FL.container, { paddingHorizontal: H_PAD }]}>
+      <View style={[isDesktop ? FL.desktopSplitLayout : { flexDirection: "column", flex: 1 }]}>
+        
+        {/* FILTERS & ACCUMULATOR CARDS */}
+        <View style={[isDesktop ? { width: 360, marginRight: 24 } : { width: "100%" }]}>
+          <View style={FL.totalsBanner}>
+            <Text style={FL.panelHeaderTitle}>Financial Summary</Text>
+            
+            <View style={FL.totalsRow}>
+              <View style={[FL.totalsIcon, { backgroundColor: "#ECFDF5" }]}><Ionicons name="trending-up" size={14} color={FL_GREEN} /></View>
+              <Text style={FL.totalsLabel}>TOTAL REVENUE</Text>
+              <Text style={[FL.totalsValue, { color: FL_GREEN }]}>{fmt(totalSales)}</Text>
             </View>
-          ) : (
-            salesList.map((sale, i) => (
-              <View key={i} style={FL.expRow}>
-                <View style={FL.dateBlock}><Text style={FL.dateDay}>{dayOf(sale.date)}</Text><Text style={FL.dateMon}>{monOf(sale.date)}</Text></View>
-                <View style={[FL.catIconBox, { backgroundColor: "#DCFCE7" }]}><Ionicons name="receipt" size={18} color={FL_GREEN} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={FL.expCat}>{sale.orders} {sale.orders === 1 ? "order" : "orders"}</Text>
-                  <Text style={FL.expDesc}>Daily sales revenue</Text>
-                </View>
-                <Text style={[FL.expAmt, { color: FL_GREEN }]}>+{fmt(sale.revenue)}</Text>
+            
+            <View style={FL.totalsRow}>
+              <View style={[FL.totalsIcon, { backgroundColor: "#FEF2F2" }]}><Ionicons name="trending-down" size={14} color={FL_RED} /></View>
+              <Text style={FL.totalsLabel}>ACCUMULATED EXPENSES</Text>
+              <Text style={[FL.totalsValue, { color: FL_RED }]}>{fmt(grandTotal)}</Text>
+            </View>
+            
+            <View style={FL.netProfitContainer}>
+              <View style={[FL.totalsIcon, { backgroundColor: netProfit >= 0 ? "#ECFDF5" : "#FEF2F2" }]}>
+                <Ionicons name={netProfit >= 0 ? "checkmark-circle" : "alert-circle"} size={14} color={netProfit >= 0 ? FL_GREEN : FL_RED} />
               </View>
-            ))
-          )
-        ) : !expenses.length ? (
-          <View style={FL.emptyWrap}>
-            <View style={FL.emptyIconBox}><Ionicons name="receipt-outline" size={36} color="#9CA3AF" /></View>
-            <Text style={FL.emptyTitle}>{period === "daily" ? "No expenses today" : `No ${period} expenses`}</Text>
-            <Text style={FL.emptySub}>Tap "+ ADD EXPENSE" to get started</Text>
+              <Text style={FL.totalsLabel}>NET OPERATION PROFIT</Text>
+              <Text style={[FL.totalsValue, { color: netProfit >= 0 ? FL_GREEN : FL_RED }]}>{netProfit >= 0 ? "" : "-"}{fmt(Math.abs(netProfit))}</Text>
+            </View>
           </View>
-        ) : (
-          expenses.map((exp) => {
-            const cat        = getCat(exp.category);
-            const isDeleting = deleting === exp.id;
-            return (
-              <View key={exp.id} style={FL.expRow}>
-                <View style={FL.dateBlock}><Text style={FL.dateDay}>{dayOf(exp.expense_date)}</Text><Text style={FL.dateMon}>{monOf(exp.expense_date)}</Text></View>
-                <View style={[FL.catIconBox, { backgroundColor: cat.bg }]}><Ionicons name={cat.icon} size={18} color={cat.color} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={FL.expCat}>{exp.category}</Text>
-                  <Text style={FL.expDesc} numberOfLines={1}>{exp.description || cat.desc}</Text>
-                  {exp.receipt_url && (
-                    <View style={FL.receiptBadge}>
-                      <Ionicons name="camera" size={9} color="#3B82F6" />
-                      <Text style={FL.receiptBadgeText}>receipt</Text>
-                    </View>
-                  )}
-                </View>
-                <View style={{ alignItems: "flex-end", gap: 6 }}>
-                  <Text style={FL.expAmt}>-{fmt(exp.amount)}</Text>
-                  <View style={FL.rowActions}>
-                    <TouchableOpacity style={FL.editBtn} onPress={() => handleEdit(exp)} disabled={isDeleting}><Ionicons name="pencil" size={13} color="#3B82F6" /></TouchableOpacity>
-                    <TouchableOpacity style={FL.deleteBtn} onPress={() => handleDelete(exp)} disabled={isDeleting}>
-                      {isDeleting ? <ActivityIndicator size="small" color={FL_RED} /> : <Ionicons name="trash" size={13} color={FL_RED} />}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
 
-      {/* FAB */}
+          <View style={FL.controlContainerCard}>
+            <Text style={FL.panelHeaderTitle}>Filter Horizon</Text>
+            <View style={FL.tabRow}>
+              {["Sales", "Expenses"].map((t) => (
+                <TouchableOpacity key={t} style={[FL.tabBtn, ledgerTab === t && FL.tabBtnActive]} onPress={() => setLedgerTab(t)}>
+                  <Text style={[FL.tabBtnText, ledgerTab === t && FL.tabBtnTextActive]}>{t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={FL.periodRow}>
+              {PERIODS.map((p) => (
+                <TouchableOpacity key={p} style={[FL.periodChip, period === p && FL.periodChipActive]} onPress={() => setPeriod(p)}>
+                  <Text style={[FL.periodChipText, period === p && FL.periodChipTextActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* DATA STREAM LIST */}
+        <View style={FL.listStreamContainer}>
+          <View style={FL.ledgerHeaderRow}>
+            <Text style={FL.sectionTitleLabel}>{ledgerTab} Records</Text>
+            {ledgerTab === "Expenses" && (
+              <View style={FL.exportRow}>
+                <TouchableOpacity style={[FL.exportBtn, { backgroundColor: FL_DARK }, exporting && { opacity: 0.5 }]} onPress={exportPDF} disabled={exporting}>
+                  {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-text-outline" size={14} color="#fff" /><Text style={FL.exportBtnText}>PDF</Text></>}
+                </TouchableOpacity>
+                <TouchableOpacity style={[FL.exportBtn, { backgroundColor: "#059669" }, exporting && { opacity: 0.5 }]} onPress={exportCSV} disabled={exporting}>
+                  {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-outline" size={14} color="#fff" /><Text style={FL.exportBtnText}>CSV</Text></>}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 120 }} 
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={FL_DARK} />}
+          >
+            {ledgerTab === "Sales" ? (
+              !salesList.length ? (
+                <View style={FL.emptyWrap}>
+                  <View style={FL.emptyIconBox}><Ionicons name="cash-outline" size={32} color="#94A3B8" /></View>
+                  <Text style={FL.emptyTitle}>No transactions recorded</Text>
+                  <Text style={FL.emptySub}>Sales tracks automatically materialize here as client orders are processed.</Text>
+                </View>
+              ) : (
+                salesList.map((sale, i) => (
+                  <View key={i} style={FL.expRow}>
+                    <View style={FL.dateBlock}><Text style={FL.dateDay}>{dayOf(sale.date)}</Text><Text style={FL.dateMon}>{monOf(sale.date)}</Text></View>
+                    <View style={[FL.catIconBox, { backgroundColor: "#ECFDF5" }]}><Ionicons name="receipt" size={18} color={FL_GREEN} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={FL.expCat}>{sale.orders} {sale.orders === 1 ? "order" : "orders"}</Text>
+                      <Text style={FL.expDesc}>Daily incoming operational revenue</Text>
+                    </View>
+                    <Text style={[FL.expAmt, { color: FL_GREEN }]}>+{fmt(sale.revenue)}</Text>
+                  </View>
+                ))
+              )
+            ) : !expenses.length ? (
+              <View style={FL.emptyWrap}>
+                <View style={FL.emptyIconBox}><Ionicons name="receipt-outline" size={32} color="#94A3B8" /></View>
+                <Text style={FL.emptyTitle}>Log clear</Text>
+                <Text style={FL.emptySub}>No metrics listed for this horizon window view.</Text>
+              </View>
+            ) : (
+              expenses.map((exp) => {
+                const cat        = getCat(exp.category);
+                const isDeleting = deleting === exp.id;
+                return (
+                  <View key={exp.id} style={FL.expRow}>
+                    <View style={FL.dateBlock}><Text style={FL.dateDay}>{dayOf(exp.expense_date)}</Text><Text style={FL.dateMon}>{monOf(exp.expense_date)}</Text></View>
+                    <View style={[FL.catIconBox, { backgroundColor: cat.bg }]}><Ionicons name={cat.icon} size={18} color={cat.color} /></View>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={FL.expCat} numberOfLines={1}>{exp.category}</Text>
+                      <Text style={FL.expDesc} numberOfLines={1}>{exp.description || cat.desc}</Text>
+                      {exp.receipt_url && (
+                        <View style={FL.receiptBadge}>
+                          <Ionicons name="camera" size={10} color="#3B82F6" />
+                          <Text style={FL.receiptBadgeText}>invoice link</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
+                      <Text style={FL.expAmt}>-{fmt(exp.amount)}</Text>
+                      <View style={FL.rowActions}>
+                        <TouchableOpacity style={FL.editBtn} onPress={() => handleEdit(exp)} disabled={isDeleting}><Ionicons name="pencil" size={13} color="#3B82F6" /></TouchableOpacity>
+                        <TouchableOpacity style={FL.deleteBtn} onPress={() => handleDelete(exp)} disabled={isDeleting}>
+                          {isDeleting ? <ActivityIndicator size="small" color={FL_RED} /> : <Ionicons name="trash" size={13} color={FL_RED} />}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+
+      </View>
+
+      {/* FAB TOGGLE COMPONENT CONTAINER */}
       <TouchableOpacity style={FL.fab} onPress={handleAddNew} activeOpacity={0.85}>
         <Ionicons name="add" size={20} color="#fff" />
-        <Text style={FL.fabText}>ADD EXPENSE</Text>
+        <Text style={FL.fabText}>LOG EXPENSE</Text>
       </TouchableOpacity>
 
       <ExpenseModal
@@ -711,12 +697,6 @@ function ExpensesTab() {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXPENSE MODAL
-// FIXES:
-//   1. useEffect fires on every open (not just screen focus)
-//   2. savedReceiptUrl preserved on edit — shown in thumbnail
-//   3. existingReceiptUrl sent to backend so PUT never NULLs receipt
-//   4. View / Change / Remove overlays on thumbnail
-//   5. Fullscreen preview modal with X
 // ═══════════════════════════════════════════════════════════════════════════════
 function ExpenseModal({ visible, expense, onClose, onSaved }) {
   const isEdit = !!expense;
@@ -726,13 +706,12 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
   const [amount,          setAmount]          = useState("");
   const [note,            setNote]            = useState("");
   const [date,            setDate]            = useState(new Date().toISOString().split("T")[0]);
-  const [receipt,         setReceipt]         = useState(null);       // newly picked image asset
-  const [savedReceiptUrl, setSavedReceiptUrl] = useState(null);       // existing URL from DB
+  const [receipt,         setReceipt]         = useState(null);
+  const [savedReceiptUrl, setSavedReceiptUrl] = useState(null);
   const [saving,          setSaving]          = useState(false);
   const [previewVisible,  setPreviewVisible]  = useState(false);
   const [previewUri,      setPreviewUri]      = useState(null);
 
-  // Fires every time the modal opens or the expense changes
   useEffect(() => {
     if (!visible) return;
     if (isEdit && expense) {
@@ -741,7 +720,7 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
       setNote(expense.description || "");
       setDate(expense.expense_date?.split("T")[0] || toDateStr(new Date()));
       setReceipt(null);
-      setSavedReceiptUrl(expense.receipt_url || null); // ← load existing receipt
+      setSavedReceiptUrl(expense.receipt_url || null);
     } else {
       setCategory(CATEGORIES[0].key);
       setAmount("");
@@ -778,7 +757,7 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
       });
       if (!result.canceled && result.assets?.length > 0) {
         setReceipt(result.assets[0]);
-        setSavedReceiptUrl(null); // new pick replaces saved
+        setSavedReceiptUrl(null);
       }
     } catch {
       Alert.alert("Error", "Could not open photo library.");
@@ -799,10 +778,6 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
 
       if (receipt) {
         if (Platform.OS === "web") {
-          // ── WEB FIX ──────────────────────────────────────────────────────────
-          // On web, ImagePicker gives a blob: URI. We must fetch it to get a real
-          // Blob object and append that — plain objects like { uri, name, type }
-          // are NOT files and will arrive at the backend as "[object Object]".
           const response  = await fetch(receipt.uri);
           const blob      = await response.blob();
           const mimeType  = blob.type || "image/jpeg";
@@ -810,8 +785,6 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
           const filename  = `receipt_${Date.now()}.${ext}`;
           fd.append("receipt", blob, filename);
         } else {
-          // ── NATIVE ───────────────────────────────────────────────────────────
-          // React Native FormData accepts the { uri, name, type } shape
           fd.append("receipt", {
             uri:  receipt.uri,
             name: `receipt_${Date.now()}.jpg`,
@@ -819,10 +792,8 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
           });
         }
       } else if (savedReceiptUrl) {
-        // No new image but existing receipt exists — tell backend to keep it
         fd.append("existingReceiptUrl", savedReceiptUrl);
       } else {
-        // User removed the receipt — tell backend to clear it
         fd.append("existingReceiptUrl", "");
       }
 
@@ -850,25 +821,23 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
     } catch { return date; }
   })();
 
-  // Thumbnail: newly picked image takes priority, else existing saved URL
   const thumbUri = receipt?.uri || savedReceiptUrl || null;
 
   return (
     <>
       <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
         <View style={MD.overlay}>
-          <View style={MD.sheet}>
+          <View style={[MD.sheet, IS_WEB && { maxWidth: 460, alignSelf: "center", width: "100%", marginBottom: "4vh", borderRadius: 16 }]}>
 
-            <View style={MD.titleBar}>
+            <View style={[MD.titleBar, IS_WEB && { borderTopLeftRadius: 16, borderTopRightRadius: 16 }]}>
               <Ionicons name={isEdit ? "pencil" : "add-circle"} size={18} color="#fff" />
-              <Text style={MD.titleText}>{isEdit ? "EDIT EXPENSE" : "LOG NEW EXPENSE"}</Text>
+              <Text style={MD.titleText}>{isEdit ? "EDIT EXPENSE LOG" : "LOG SYSTEM EXPENSE"}</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ paddingHorizontal: 20 }}>
 
-              {/* Category */}
               <View style={{ marginTop: 20 }}>
-                <Text style={MD.fieldLabel}>CATEGORY</Text>
+                <Text style={MD.fieldLabel}>EXPENSE CATEGORY</Text>
                 <TouchableOpacity style={MD.dropdown} onPress={() => setDropOpen(!dropOpen)} activeOpacity={0.8}>
                   <View style={[MD.dropIconBox, { backgroundColor: selectedCat.bg }]}>
                     <Ionicons name={selectedCat.icon} size={16} color={selectedCat.color} />
@@ -885,10 +854,10 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                         onPress={() => { setCategory(cat.key); setDropOpen(false); }}
                       >
                         <View style={[MD.dropItemIcon, { backgroundColor: cat.bg }]}>
-                          <Ionicons name={cat.icon} size={15} color={cat.color} />
+                          <Ionicons name={cat.icon} size={16} color={cat.color} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={[MD.dropItemText, category === cat.key && { fontWeight: "800", color: FL_DARK }]}>{cat.key}</Text>
+                          <Text style={[MD.dropItemText, category === cat.key && { fontWeight: "700", color: FL_DARK }]}>{cat.key}</Text>
                           <Text style={MD.dropItemDesc}>{cat.desc}</Text>
                         </View>
                         {category === cat.key && <Ionicons name="checkmark-circle" size={18} color={FL_GREEN} />}
@@ -898,123 +867,100 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                 )}
               </View>
 
-              {/* Amount */}
               <View style={{ marginTop: 24 }}>
-                <Text style={MD.fieldLabel}>AMOUNT (₹)</Text>
+                <Text style={MD.fieldLabel}>VALUATION AMOUNT (INR)</Text>
                 <TextInput
                   style={MD.amountInput}
                   value={amount}
                   onChangeText={setAmount}
                   keyboardType="numeric"
                   placeholder="0.00"
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor="#94A3B8"
                 />
                 <View style={MD.underline} />
               </View>
 
-              {/* Note */}
               <View style={{ marginTop: 20 }}>
-                <Text style={MD.fieldLabel}>NOTE</Text>
+                <Text style={MD.fieldLabel}>TRANSACTION MEMO / NOTE</Text>
                 <TextInput
                   style={MD.noteInput}
                   value={note}
                   onChangeText={setNote}
-                  placeholder="e.g. Electricity bill for June"
-                  placeholderTextColor="#D1D5DB"
+                  placeholder="Provide transaction contexts..."
+                  placeholderTextColor="#94A3B8"
                   multiline
                 />
                 <View style={MD.underline} />
               </View>
 
-              {/* Date */}
               <View style={MD.dateRow}>
-                <View style={MD.dateIconBox}><Ionicons name="calendar" size={17} color={FL_DARK} /></View>
+                <View style={MD.dateIconBox}><Ionicons name="calendar" size={16} color={FL_DARK} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={MD.datePre}>DATE</Text>
+                  <Text style={MD.datePre}>RECORD POST DATE</Text>
                   <TextInput
                     style={MD.dateInput}
                     value={date}
                     onChangeText={setDate}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#D1D5DB"
+                    placeholderTextColor="#94A3B8"
                     keyboardType="numeric"
                   />
                 </View>
                 <Text style={MD.dateLabelSmall}>{dateLabel}</Text>
               </View>
 
-              {/* Receipt */}
-              <View style={{ marginBottom: 20 }}>
-                <Text style={MD.fieldLabel}>RECEIPT PHOTO (OPTIONAL)</Text>
+              <View style={{ marginBottom: 24 }}>
+                <Text style={MD.fieldLabel}>SUPPORTING INVOICE SLIP (OPTIONAL)</Text>
                 {thumbUri ? (
-                  // ── Receipt thumbnail with View / Change / Remove overlays ──
-                  <View style={{ borderRadius: 12, overflow: "hidden" }}>
-                    <Image
-                      source={{ uri: thumbUri }}
-                      style={{ width: "100%", height: 160, borderRadius: 12 }}
-                      resizeMode="cover"
-                    />
-                    {/* View — bottom left */}
+                  <View style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
+                    <Image source={{ uri: thumbUri }} style={{ width: "100%", height: 140 }} resizeMode="cover" />
                     <TouchableOpacity onPress={() => openPreview(thumbUri)} style={MD.imgOverlayLeft}>
-                      <Ionicons name="eye-outline" size={13} color="#fff" />
-                      <Text style={MD.imgOverlayText}>View</Text>
+                      <Ionicons name="eye-outline" size={12} color="#fff" />
+                      <Text style={MD.imgOverlayText}>Inspect</Text>
                     </TouchableOpacity>
-                    {/* Change — bottom right */}
                     <TouchableOpacity onPress={pickReceipt} style={MD.imgOverlayRight}>
-                      <Ionicons name="camera" size={13} color="#fff" />
-                      <Text style={MD.imgOverlayText}>Change</Text>
+                      <Ionicons name="camera" size={12} color="#fff" />
+                      <Text style={MD.imgOverlayText}>Replace</Text>
                     </TouchableOpacity>
-                    {/* Remove X — top right */}
-                    <TouchableOpacity
-                      style={MD.imgRemoveBtn}
-                      onPress={() => { setReceipt(null); setSavedReceiptUrl(null); }}
-                    >
-                      <Ionicons name="close-circle" size={26} color={FL_RED} />
+                    <TouchableOpacity style={MD.imgRemoveBtn} onPress={() => { setReceipt(null); setSavedReceiptUrl(null); }}>
+                      <Ionicons name="close-circle" size={24} color={FL_RED} />
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity style={MD.receiptBtn} onPress={pickReceipt} activeOpacity={0.8}>
-                    <View style={MD.receiptIconBox}><Ionicons name="camera" size={22} color="#fff" /></View>
-                    <View>
-                      <Text style={MD.receiptTitle}>ATTACH RECEIPT PHOTO</Text>
-                      <Text style={MD.receiptSub}>Tap to open photo library</Text>
+                    <View style={MD.receiptIconBox}><Ionicons name="camera" size={18} color="#fff" /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={MD.receiptTitle}>ATTACH INVOICE RECEIPT</Text>
+                      <Text style={MD.receiptSub}>Click to deploy visual validation file</Text>
                     </View>
                   </TouchableOpacity>
                 )}
               </View>
 
-              {/* Actions */}
               <View style={MD.actionRow}>
                 <TouchableOpacity style={MD.cancelBtn} onPress={handleClose}>
-                  <Text style={MD.cancelText}>CANCEL</Text>
+                  <Text style={MD.cancelText}>Dismiss</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[MD.confirmBtn, (!amount || saving) && { opacity: 0.5 }]}
                   onPress={handleSave}
                   disabled={!amount || saving}
                 >
-                  {saving
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={MD.confirmText}>{isEdit ? "SAVE CHANGES" : "CONFIRM EXPENSE"}</Text>
-                  }
+                  {saving ? <ActivityIndicator color="#fff" /> : <Text style={MD.confirmText}>{isEdit ? "Update" : "Confirm Entry"}</Text>}
                 </TouchableOpacity>
               </View>
-              <View style={{ height: 24 }} />
+              <View style={{ height: 20 }} />
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      {/* FULLSCREEN RECEIPT PREVIEW */}
       <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={() => setPreviewVisible(false)}>
         <View style={MD.previewOverlay}>
           <TouchableOpacity onPress={() => setPreviewVisible(false)} style={MD.previewClose}>
             <Ionicons name="close" size={22} color="#fff" />
           </TouchableOpacity>
-          {previewUri && (
-            <Image source={{ uri: previewUri }} style={MD.previewImage} resizeMode="contain" />
-          )}
-          <Text style={MD.previewHint}>Tap × to close</Text>
+          {previewUri && <Image source={{ uri: previewUri }} style={MD.previewImage} resizeMode="contain" />}
         </View>
       </Modal>
     </>
@@ -1022,183 +968,187 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STYLES
+// STYLES STACK CODES
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const secStyles = StyleSheet.create({
-  container:{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
-  iconBox:  { width: 36, height: 36, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: BORDER },
-  title:    { fontSize: 16, fontWeight: "800", color: PRIMARY, letterSpacing: -0.3 },
+  container:{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 18, marginTop: 12 },
+  iconBox:  { width: 34, height: 34, borderRadius: 8, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: BORDER },
+  title:    { fontSize: 16, fontWeight: "700", color: PRIMARY, letterSpacing: -0.2 },
   sub:      { fontSize: 12, color: TEXT_MUTED },
 });
 
 const styles = StyleSheet.create({
   container:    { flex: 1, backgroundColor: BG },
-  scrollContent:{ paddingBottom: 20 },
+  scrollContent:{ paddingVertical: 20 },
   center:       { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText:  { fontSize: 14, fontWeight: "700", color: TEXT_MUTED },
+  loadingText:  { fontSize: 14, fontWeight: "600", color: TEXT_MUTED },
 
-  mainTabBar:       { flexDirection: "row", padding: 6, gap: 6, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 16, backgroundColor: CARD_BG },
-  mainTab:          { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, backgroundColor: "#F1F5F9" },
+  mainTabBar:       { borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD_BG },
+  tabBarInner:      { flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
+  mainTab:          { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   mainTabActive:    { backgroundColor: PRIMARY },
-  mainTabText:      { fontSize: 13, fontWeight: "700", color: TEXT_MUTED },
+  mainTabText:      { fontSize: 14, fontWeight: "600", color: TEXT_MUTED },
   mainTabTextActive:{ color: "#fff" },
 
-  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 40 },
-  greeting:  { fontSize: 13, fontWeight: "800", color: ACCENT, letterSpacing: 1, textTransform: "uppercase" },
-  headerTitle:{ fontSize: 32, fontWeight: "900", color: PRIMARY, marginTop: 4, letterSpacing: -1 },
-  headerSub: { fontSize: 13, color: TEXT_MUTED, marginTop: 4, fontWeight: "600" },
-  refreshBtn:{ width: 48, height: 48, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
+  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 24 },
+  greeting:  { fontSize: 11, fontWeight: "700", color: ACCENT, letterSpacing: 1 },
+  headerTitle:{ fontSize: 28, fontWeight: "800", color: PRIMARY },
+  headerSub: { fontSize: 13, color: TEXT_MUTED, marginTop: 2 },
+  refreshBtn:{ width: 44, height: 44, borderRadius: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" },
 
-  kpiGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 16 },
-  kpiGridSmall: { gap: 12 },
-  kpiCard:      { backgroundColor: CARD_BG, borderRadius: 24, padding: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 20, elevation: 3 },
-  kpiCardSmall: { borderRadius: 16, padding: 16 },
-  kpiTopRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  kpiIconBox:   { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  trendPill:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
-  trendPillText:{ fontSize: 11, fontWeight: "800" },
-  kpiLabel:     { fontSize: 12, color: TEXT_MUTED, fontWeight: "700", letterSpacing: 0.5, marginBottom: 6 },
-  kpiValue:     { fontSize: 24, fontWeight: "900", color: PRIMARY, letterSpacing: -0.5 },
+  // Responsive KPI Grid Structure
+  kpiGrid:      { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
+  kpiCard:      { backgroundColor: CARD_BG, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 4 },
+  kpiCardWeb:   { width: "23.5%" },
+  kpiCardMobile:{ width: "48%", marginBottom: 4 }, // Forces perfect 2x2 rows on smaller screens
+  
+  kpiTopRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  kpiIconBox:   { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  kpiLabel:     { fontSize: 12, color: TEXT_MUTED, fontWeight: "700", flex: 1, marginRight: 4, letterSpacing: 0.2 },
+  kpiValue:     { fontSize: 24, fontWeight: "800", color: PRIMARY, letterSpacing: -0.5 },
 
-  chartSection:  { backgroundColor: "#fff", borderRadius: 28, padding: 20, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 20, elevation: 2 },
-  chartWrapper:  { marginTop: 10 },
-  chartEmpty:    { position: "absolute", top: 100, alignItems: "center", gap: 10 },
-  chartEmptyText:{ fontSize: 14, color: TEXT_FAINT, fontWeight: "600" },
+  splitWorkspace: { flexDirection: "row", gap: 24, marginTop: 28 },
+  chartSection:   { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER, alignItems: "center" },
+  chartWrapper:   { paddingRight: 8 },
+  chartEmpty:    { position: "absolute", top: 90, alignItems: "center", gap: 6 },
+  chartEmptyText:{ fontSize: 13, color: TEXT_FAINT },
 
-  splitRow:   { flexDirection: IS_WEB ? "row" : "column", gap: 20, marginTop: 40 },
+  splitRow:   { flexDirection: "row", gap: 20, marginTop: 28 },
   section:    { flex: 1 },
-  premiumCard:{ backgroundColor: "#fff", borderRadius: 28, padding: 24, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 20, elevation: 2 },
+  premiumCard:{ backgroundColor: "#fff", borderRadius: 14, padding: 20, borderWidth: 1, borderColor: BORDER },
 
-  itemRow:      { marginBottom: 20 },
-  itemHeader:   { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  itemName:     { fontSize: 15, fontWeight: "700", color: TEXT_MAIN },
-  itemQty:      { fontSize: 13, color: TEXT_MUTED, fontWeight: "600" },
-  progressTrack:{ height: 8, backgroundColor: "#F1F5F9", borderRadius: 10, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 10 },
+  itemRow:      { marginBottom: 16 },
+  itemHeader:   { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  itemName:     { fontSize: 14, fontWeight: "600", color: TEXT_MAIN, flex: 1, marginRight: 8 },
+  itemQty:      { fontSize: 12, color: TEXT_MUTED, fontWeight: "500" },
+  progressTrack:{ height: 6, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 4 },
 
-  fieldLabel:    { fontSize: 11, fontWeight: "800", color: TEXT_MUTED, letterSpacing: 1, marginBottom: 12 },
-  rangeSelector: { flexDirection: "row", backgroundColor: "#F1F5F9", padding: 6, borderRadius: 14, marginBottom: 20 },
-  rangeTab:      { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
+  fieldLabel:    { fontSize: 11, fontWeight: "700", color: TEXT_MUTED, marginBottom: 8 },
+  rangeSelector: { flexDirection: "row", backgroundColor: "#F1F5F9", padding: 4, borderRadius: 10, marginBottom: 16 },
+  rangeTab:      { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
   rangeTabActive:{ backgroundColor: PRIMARY },
-  rangeTabText:  { fontSize: 13, fontWeight: "700", color: TEXT_MUTED },
+  rangeTabText:  { fontSize: 13, fontWeight: "600", color: TEXT_MUTED },
 
-  exportBtn:    { backgroundColor: PRIMARY, height: 56, borderRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12 },
-  exportBtnText:{ color: "#fff", fontSize: 16, fontWeight: "800" },
-  csvBtn:       { height: 56, borderRadius: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 2, borderColor: BORDER },
-  csvBtnText:   { color: PRIMARY, fontSize: 15, fontWeight: "800" },
+  exportBtn:    { backgroundColor: PRIMARY, height: 44, borderRadius: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  exportBtnText:{ color: "#fff", fontSize: 14, fontWeight: "600" },
+  csvBtn:       { height: 44, borderRadius: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: "#fff" },
+  csvBtnText:   { color: PRIMARY, fontSize: 13, fontWeight: "600" },
 
-  emptyItems:{ alignItems: "center", paddingVertical: 20 },
-  emptyText: { fontSize: 13, color: TEXT_FAINT, fontWeight: "600" },
+  webReportCardRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  webReportBtnStack:{ width: 220 },
+
+  emptyItems:{ alignItems: "center", paddingVertical: 16 },
+  emptyText: { fontSize: 13, color: TEXT_FAINT },
 });
 
 const FL = StyleSheet.create({
-  center:       { flex: 1, justifyContent: "center", alignItems: "center" },
-  totalsBanner: { backgroundColor: "#fff", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: FL_BORD },
-  totalsRow:    { flexDirection: "row", alignItems: "center", marginBottom: 5 },
-  totalsIcon:   { width: 22, height: 22, borderRadius: 6, alignItems: "center", justifyContent: "center", marginRight: 8 },
-  totalsLabel:  { flex: 1, fontSize: 12, fontWeight: "700", color: "#555", letterSpacing: 0.5 },
-  totalsValue:  { fontSize: 15, fontWeight: "900" },
+  container:    { flex: 1, paddingTop: 16 },
+  desktopSplitLayout: { flexDirection: "row", alignItems: "flex-start", flex: 1 },
+  listStreamContainer: { flex: 1, width: "100%" },
+  panelHeaderTitle: { fontSize: 14, fontWeight: "700", color: PRIMARY, marginBottom: 14 },
+  totalsBanner: { backgroundColor: "#fff", padding: 18, borderRadius: 14, borderWidth: 1, borderColor: FL_BORD, marginBottom: 20 },
+  totalsRow:    { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  totalsIcon:   { width: 22, height: 22, borderRadius: 6, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  totalsLabel:  { flex: 1, fontSize: 12, fontWeight: "600", color: TEXT_MUTED },
+  totalsValue:  { fontSize: 15, fontWeight: "700" },
+  netProfitContainer: { flexDirection: "row", alignItems: "center", marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: FL_BORD },
 
-  tabRow:          { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: FL_BORD },
-  tabBtn:          { flex: 1, paddingVertical: 13, alignItems: "center", borderBottomWidth: 3, borderBottomColor: "transparent" },
-  tabBtnActive:    { borderBottomColor: FL_DARK },
-  tabBtnText:      { fontSize: 13, fontWeight: "700", color: "#999", letterSpacing: 1 },
-  tabBtnTextActive:{ color: FL_DARK },
+  controlContainerCard: { backgroundColor: "#fff", padding: 18, borderRadius: 14, borderWidth: 1, borderColor: FL_BORD },
+  tabRow:       { flexDirection: "row", backgroundColor: "#F1F5F9", padding: 4, borderRadius: 10, marginBottom: 12 },
+  tabBtn:       { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
+  tabBtnActive: { backgroundColor: "#fff" },
+  tabBtnText:   { fontSize: 13, fontWeight: "600", color: TEXT_MUTED },
+  tabBtnTextActive:{ color: FL_DARK, fontWeight: "700" },
 
-  periodRow:           { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: FL_BG },
-  periodChip:          { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: "#fff", borderWidth: 1, borderColor: FL_BORD },
+  periodRow:           { flexDirection: "row", gap: 6 },
+  periodChip:          { flex: 1, paddingVertical: 6, alignItems: "center", borderRadius: 8, backgroundColor: "#fff", borderWidth: 1, borderColor: FL_BORD },
   periodChipActive:    { backgroundColor: FL_DARK, borderColor: FL_DARK },
-  periodChipText:      { fontSize: 12, fontWeight: "700", color: "#888" },
+  periodChipText:      { fontSize: 12, fontWeight: "600", color: TEXT_MUTED },
   periodChipTextActive:{ color: "#fff" },
 
-  exportRow:    { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 10, paddingTop: 2, backgroundColor: FL_BG },
-  exportLabel:  { flex: 1, fontSize: 11, fontWeight: "800", color: "#9CA3AF", letterSpacing: 0.8 },
-  exportBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, minWidth: 64, justifyContent: "center" },
-  exportBtnText:{ fontSize: 12, fontWeight: "800", color: "#fff" },
+  ledgerHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderBottomWidth: 1, borderBottomColor: BORDER, paddingBottom: 10, marginBottom: 12, marginTop: 4 },
+  sectionTitleLabel: { fontSize: 15, fontWeight: "700", color: PRIMARY },
+  exportRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
+  exportBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  exportBtnText:{ fontSize: 12, fontWeight: "600", color: "#fff" },
 
   expRow: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: "#fff", marginHorizontal: 12, marginBottom: 6,
+    backgroundColor: "#fff", marginBottom: 8,
     borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14,
     borderWidth: 1, borderColor: FL_BORD,
-    ...Platform.select({
-      ios:     { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
-      android: { elevation: 1 },
-    }),
   },
-  dateBlock:  { width: 38, alignItems: "center", marginRight: 12 },
-  dateDay:    { fontSize: 20, fontWeight: "900", color: FL_DARK, lineHeight: 22 },
-  dateMon:    { fontSize: 10, fontWeight: "700", color: "#888", letterSpacing: 0.5, marginTop: 1 },
-  catIconBox: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", marginRight: 10, borderWidth: 1, borderColor: FL_BORD },
-  expCat:     { fontSize: 14, fontWeight: "800", color: FL_DARK },
-  expDesc:    { fontSize: 12, color: "#888", marginTop: 1 },
-  expAmt:     { fontSize: 14, fontWeight: "900", color: FL_RED },
-  receiptBadge:    { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4, backgroundColor: "#EFF6FF", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, alignSelf: "flex-start" },
-  receiptBadgeText:{ fontSize: 9, color: "#3B82F6", fontWeight: "700" },
+  dateBlock:  { width: 34, alignItems: "center", marginRight: 10 },
+  dateDay:    { fontSize: 18, fontWeight: "800", color: FL_DARK },
+  dateMon:    { fontSize: 10, fontWeight: "600", color: TEXT_MUTED },
+  catIconBox: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", marginRight: 12, borderWidth: 1, borderColor: FL_BORD },
+  expCat:     { fontSize: 14, fontWeight: "700", color: FL_DARK },
+  expDesc:    { fontSize: 12, color: TEXT_MUTED, marginTop: 1 },
+  expAmt:     { fontSize: 14, fontWeight: "700", color: FL_RED },
+  receiptBadge:    { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4, backgroundColor: "#EFF6FF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: "flex-start" },
+  receiptBadgeText:{ fontSize: 9, color: "#3B82F6", fontWeight: "600" },
   rowActions: { flexDirection: "row", gap: 6, marginTop: 4 },
-  editBtn:    { width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
-  deleteBtn:  { width: 28, height: 28, borderRadius: 8, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
+  editBtn:    { width: 26, height: 26, borderRadius: 6, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
+  deleteBtn:  { width: 26, height: 26, borderRadius: 6, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
   fab: {
-    position: "absolute", bottom: 24, right: 20,
-    flexDirection: "row", alignItems: "center", gap: 7,
-    backgroundColor: FL_GREEN, paddingHorizontal: 22, paddingVertical: 14, borderRadius: 32,
-    ...Platform.select({
-      ios:     { shadowColor: FL_GREEN, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.5, shadowRadius: 14 },
-      android: { elevation: 8 },
-    }),
+    position: "absolute", bottom: 20, right: 20,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: FL_GREEN, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+    zIndex: 99,
   },
-  fabText:     { color: "#fff", fontWeight: "900", fontSize: 13, letterSpacing: 1 },
-  emptyWrap:   { alignItems: "center", paddingTop: 80 },
-  emptyIconBox:{ width: 72, height: 72, borderRadius: 36, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", marginBottom: 14 },
-  emptyTitle:  { fontSize: 16, fontWeight: "800", color: FL_DARK, marginBottom: 4 },
-  emptySub:    { fontSize: 13, color: "#888" },
+  fabText:     { color: "#fff", fontWeight: "700", fontSize: 13 },
+  emptyWrap:   { alignItems: "center", paddingTop: 50 },
+  emptyIconBox:{ width: 56, height: 56, borderRadius: 12, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  emptyTitle:  { fontSize: 14, fontWeight: "700", color: FL_DARK },
+  emptySub:    { fontSize: 12, color: TEXT_MUTED, textAlign: "center", paddingHorizontal: 16 },
 });
 
 const MD = StyleSheet.create({
-  overlay:{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  sheet:  { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, maxHeight: "94%" },
-  titleBar:{ backgroundColor: FL_DARK, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingVertical: 18, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
-  titleText:{ fontSize: 14, fontWeight: "900", color: "#fff", letterSpacing: 2 },
+  overlay:{ flex: 1, backgroundColor: "rgba(15, 23, 42, 0.4)", justifyContent: "flex-end" },
+  sheet:  { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 20, maxHeight: "85%" },
+  titleBar:{ backgroundColor: FL_DARK, paddingVertical: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
+  titleText:{ fontSize: 12, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
 
-  fieldLabel:  { fontSize: 11, fontWeight: "800", color: "#9CA3AF", letterSpacing: 1.2, marginBottom: 8 },
-  dropdown:    { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: FL_BORD, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
-  dropIconBox: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", marginRight: 10 },
-  dropText:    { flex: 1, fontSize: 15, fontWeight: "700", color: FL_DARK },
-  dropList:    { marginTop: 4, borderWidth: 1, borderColor: FL_BORD, borderRadius: 12, backgroundColor: "#fff", overflow: "hidden", ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 14 }, android: { elevation: 6 } }) },
-  dropItem:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  dropItemIcon:{ width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", marginRight: 10 },
-  dropItemText:{ fontSize: 14, fontWeight: "600", color: "#374151" },
-  dropItemDesc:{ fontSize: 11, color: "#9CA3AF", marginTop: 1 },
+  fieldLabel:  { fontSize: 11, fontWeight: "700", color: TEXT_MUTED, marginBottom: 6 },
+  dropdown:    { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: FL_BORD, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  dropIconBox: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  dropText:    { flex: 1, fontSize: 14, fontWeight: "600", color: FL_DARK },
+  dropList:    { marginTop: 4, borderWidth: 1, borderColor: FL_BORD, borderRadius: 10, backgroundColor: "#fff", overflow: "hidden" },
+  dropItem:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  dropItemIcon:{ width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  dropItemText:{ fontSize: 14, fontWeight: "600", color: TEXT_MAIN },
+  dropItemDesc:{ fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
 
-  amountInput:  { fontSize: 38, fontWeight: "900", color: FL_DARK, padding: 0 },
-  underline:    { height: 1.5, backgroundColor: "#E5E7EB", marginTop: 8, marginBottom: 4 },
-  noteInput:    { fontSize: 15, fontWeight: "600", color: FL_DARK, padding: 0, minHeight: 36 },
+  amountInput:  { fontSize: 28, fontWeight: "700", color: FL_DARK, padding: 0 },
+  underline:    { height: 1, backgroundColor: BORDER, marginTop: 4, marginBottom: 4 },
+  noteInput:    { fontSize: 14, fontWeight: "500", color: FL_DARK, padding: 0, minHeight: 32 },
 
-  dateRow:       { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 20, marginBottom: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  dateIconBox:   { width: 34, height: 34, borderRadius: 8, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  datePre:       { fontSize: 10, fontWeight: "700", color: "#9CA3AF", letterSpacing: 1 },
-  dateInput:     { fontSize: 14, fontWeight: "800", color: FL_DARK, padding: 0, marginTop: 2 },
-  dateLabelSmall:{ fontSize: 11, color: "#9CA3AF", fontWeight: "600" },
+  dateRow:       { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14, marginBottom: 18, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  dateIconBox:   { width: 26, height: 26, borderRadius: 6, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
+  datePre:       { fontSize: 10, fontWeight: "600", color: TEXT_MUTED },
+  dateInput:     { fontSize: 14, fontWeight: "700", color: FL_DARK, padding: 0 },
+  dateLabelSmall:{ fontSize: 12, color: TEXT_MUTED, fontWeight: "500" },
 
-  imgOverlayLeft:  { position: "absolute", bottom: 10, left: 10, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(0,0,0,0.62)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  imgOverlayRight: { position: "absolute", bottom: 10, right: 10, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(0,0,0,0.62)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  imgOverlayText:  { fontSize: 11, color: "#fff", fontWeight: "700" },
-  imgRemoveBtn:    { position: "absolute", top: 8, right: 8, backgroundColor: "#fff", borderRadius: 13 },
+  imgOverlayLeft:  { position: "absolute", bottom: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(15,23,42,0.8)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  imgOverlayRight: { position: "absolute", bottom: 8, right: 8, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(15,23,42,0.8)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  imgOverlayText:  { fontSize: 11, color: "#fff", fontWeight: "600" },
+  imgRemoveBtn:    { position: "absolute", top: 6, right: 6, backgroundColor: "#fff", borderRadius: 12 },
 
-  receiptBtn:    { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: FL_DARK, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14 },
-  receiptIconBox:{ width: 42, height: 42, borderRadius: 10, backgroundColor: FL_GREEN, alignItems: "center", justifyContent: "center" },
-  receiptTitle:  { fontSize: 12, fontWeight: "800", color: "#fff", letterSpacing: 0.6 },
-  receiptSub:    { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
+  receiptBtn:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: FL_DARK, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  receiptIconBox:{ width: 32, height: 32, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  receiptTitle:  { fontSize: 12, fontWeight: "700", color: "#fff" },
+  receiptSub:    { fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
 
-  actionRow:  { flexDirection: "row", gap: 12, marginTop: 8 },
-  cancelBtn:  { flex: 1, paddingVertical: 15, borderRadius: 12, borderWidth: 1.5, borderColor: FL_BORD, alignItems: "center" },
-  cancelText: { fontSize: 12, fontWeight: "800", color: "#888", letterSpacing: 1 },
-  confirmBtn: { flex: 2, paddingVertical: 15, borderRadius: 12, backgroundColor: FL_DARK, alignItems: "center" },
-  confirmText:{ fontSize: 12, fontWeight: "800", color: "#fff", letterSpacing: 1 },
+  actionRow:  { flexDirection: "row", gap: 10, marginTop: 10 },
+  cancelBtn:  { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: FL_BORD, alignItems: "center" },
+  cancelText: { fontSize: 13, fontWeight: "600", color: TEXT_MUTED },
+  confirmBtn: { flex: 1.5, paddingVertical: 12, borderRadius: 8, backgroundColor: FL_DARK, alignItems: "center" },
+  confirmText:{ fontSize: 13, fontWeight: "600", color: "#fff" },
 
-  previewOverlay:{ flex: 1, backgroundColor: "rgba(0,0,0,0.93)", alignItems: "center", justifyContent: "center" },
-  previewClose:  { position: "absolute", top: 52, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", zIndex: 10 },
-  previewImage:  { width: "92%", height: "72%", borderRadius: 16 },
-  previewHint:   { marginTop: 16, fontSize: 12, color: "rgba(255,255,255,0.4)", fontWeight: "600" },
+  previewOverlay:{ flex: 1, backgroundColor: "rgba(15,23,42,0.95)", alignItems: "center", justifyContent: "center" },
+  previewClose:  { position: "absolute", top: 36, right: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center", zIndex: 10 },
+  previewImage:  { width: "90%", height: "70%" },
 });

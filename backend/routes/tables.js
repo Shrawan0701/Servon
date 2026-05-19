@@ -6,19 +6,7 @@ const subscription = require("../middleware/subscription");
 const QRCode = require("qrcode");
 const { generateQRPDF } = require("../utils/pdf");
 
-// Get all tables
-router.get("/", auth, async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM tables WHERE business_id = $1 ORDER BY table_number",
-      [req.businessId]
-    );
-
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: "Server error" });
-  }
-});
+// ─── 1. PUBLIC ENDPOINTS (MUST BE AT THE TOP) ───────────────────────────
 
 // Get public table info
 router.get("/public/:tableId", async (req, res) => {
@@ -36,6 +24,22 @@ router.get("/public/:tableId", async (req, res) => {
     }
 
     res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── 2. AUTHENTICATED OWNER ENDPOINTS (SECURED BELOW) ───────────────────
+
+// Get all tables
+router.get("/", auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM tables WHERE business_id = $1 ORDER BY table_number",
+      [req.businessId]
+    );
+
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }

@@ -26,7 +26,7 @@ export default function PrivacyPolicy({ onNavigate }) {
       <Text style={ts.p}>• Transactional Logs: Order timestamps, table numbers, and payment status.</Text>
 
       <Text style={ts.h}>4. Use of Information</Text>
-      <Text style={ts.p}>We use your data strictly to facilitate restaurant operations: generating KOTs, calculating real-time net profit, and automating GST-ready reports. We do not use your data for marketing third-party services to your diners.</Text>
+      <Text style={ts.p}>We use your data strictly to facilitate restaurant operations: generating KOTs, calculating real-time net profit, and automating export-ready reports. We do not use your data for marketing third-party services to your diners.</Text>
 
       <Text style={ts.h}>5. Third-Party Services</Text>
       <Text style={ts.p}>Servon integrates with UPI providers. Payment data is processed directly by the respective banks; Servon does not store credit card numbers or UPI PINs.</Text>

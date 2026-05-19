@@ -23,10 +23,10 @@ export default function TermsOfService({ onNavigate }) {
       <Text style={ts.p}>Users are prohibited from: (a) Attempting to reverse engineer the POS software; (b) Using the platform for money laundering; (c) Bypassing the Chef Mode™ security protocols without owner authorization.</Text>
 
       <Text style={ts.h}>4. Termination of Service</Text>
-      <Text style={ts.p}>You may terminate your account at any time via the billing portal. Upon termination, we provide a 7-day grace period to export all your business data in CSV/PDF format before it is permanently deleted from our active servers.</Text>
+      <Text style={ts.p}>You may terminate your account at any time via the portal. Upon termination, we provide a 7-day grace period to export all your business data in CSV/PDF format before it is permanently deleted from our active servers.</Text>
 
       <Text style={ts.h}>5. Limitation of Liability</Text>
-      <Text style={ts.p}>Servon is not liable for any revenue loss caused by local hardware failure or internet outages. While our system has offline capabilities, final data sync requires a connection.</Text>
+      <Text style={ts.p}>Servon is not liable for any revenue loss caused by local hardware failure or internet outages. While our system has capabilities, final data sync requires a connection.</Text>
     </WebPageLayout>
   );
 }
