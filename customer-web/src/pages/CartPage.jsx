@@ -276,8 +276,21 @@ export default function CartPage() {
           </div>
         )}
 
+        {/* Payment notice for the customer */}
+        <div 
+          style={{ 
+            marginTop: 24, 
+            textAlign: "center", 
+            color: "#666", 
+            fontSize: 13, 
+            fontWeight: 500 
+          }}
+        >
+          Confirm your order and pay on bill table
+        </div>
+
         <button
-          className="confirm-btn mt-4"
+          className="confirm-btn mt-2"
           onClick={handleConfirmOrder}
           disabled={placing}
         >
