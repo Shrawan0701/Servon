@@ -388,8 +388,7 @@ export default function DashboardScreen() {
     const todayStr = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 
     return (
-      <div style={{ minHeight: "100vh", background: "#F5F3EF", fontFamily: "'DM Sans', sans-serif" }}>
-
+        <div style={{ minHeight: "100vh", background: "#F5F3EF", fontFamily: "'DM Sans', sans-serif", overflowY: "auto" }}>
         {/* ── STICKY HEADER ── */}
         <div className="servon-web-header">
           <div style={{ maxWidth: 1160, margin: "0 auto", padding: "0 28px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
