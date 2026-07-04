@@ -4,10 +4,12 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   Animated,
   ScrollView,
   Platform,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,7 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 // web -> screens -> src -> root/assets
 import servonLogo from '../../../assets/servon-logo.png';
 
-const { width } = Dimensions.get("window");
+
 
 const C = {
   bg:         "#FAF9F6",
@@ -50,22 +52,42 @@ const REVIEWS = [
   },
   {
     quote:
-      "Analytics and expense tracking gave us clarity we never had before. We can actually see what’s working, what’s wasting money, and make decisions much faster.",
+      "Analytics and expense tracking gave us clarity we never had before. We can actually see what's working, what's wasting money, and make decisions much faster.",
     name: "Kabir Desai",
     initials: "KD"
   }
 ];
 
-// ─── HELPER COMPONENTS ────────────────────────────────────────────────
+const BUSINESS_TYPES = ["Hotel", "Restaurant", "Resort", "Cafe", "Other"];
 
-const SectionTag = ({ text, color = C.green }) => (
-  <View style={s.tagWrap}>
-    <View style={[s.tagDot, { backgroundColor: color }]} />
-    <Text style={[s.tagText, { color }]}>{text.toUpperCase()}</Text>
+const Field = ({ label, required, value, onChangeText, error, styles, ...inputProps }) => (
+  <View style={styles.formGroup}>
+    <Text style={styles.formLabel}>
+      {label}{required ? <Text style={styles.requiredStar}> *</Text> : null}
+    </Text>
+    <TextInput
+      style={[styles.formInput, error && { borderColor: '#EF4444', borderWidth: 2 }]}
+      placeholderTextColor="#94A3B8"
+      value={value}
+      onChangeText={onChangeText}
+      {...inputProps}
+    />
+    {error ? <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>{error}</Text> : null}
   </View>
 );
 
-const PremiumDashboard = () => (
+const SectionTag = ({ text, color = C.green, styles }) => (
+  <View style={styles.tagWrap}>
+    <View style={[styles.tagDot, { backgroundColor: color }]} />
+    <Text style={[styles.tagText, { color }]}>{text.toUpperCase()}</Text>
+  </View>
+);
+
+const PremiumDashboard = () => {
+  const { width } = useWindowDimensions();
+  const dm = getDashboardStyles(width);
+
+  return (
   <View style={dm.wrapper}>
     <View style={dm.browserChrome}>
       <View style={dm.windowControls}>
@@ -130,16 +152,162 @@ const PremiumDashboard = () => (
       </View>
     </View>
   </View>
-);
+  );
+};
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────
 
 export default function LandingPage({ onNavigate }) {
+  // Live viewport width — re-renders this component whenever the window/
+  // device size actually changes, unlike the old Dimensions.get() snapshot.
+  const { width } = useWindowDimensions();
+  const isWide = width > 600;
+  const s = getMainStyles(width);
+
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const autoScrollRef = useRef(null);
   const [activeStep, setActiveStep] = useState(0);
   const [activeFaq, setActiveFaq] = useState(null);
+
+  // ─── DEMO MODAL STATE ───────────────────────────────────────────────
+  const [demoModalVisible, setDemoModalVisible] = useState(false);
+  const [showFloatingDemo, setShowFloatingDemo] = useState(false);
+
+  // ─── FORM STATE ──────────────────────────────────────────────────────
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    businessName: '',
+    businessType: '',
+    message: '',
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  // ─────────────────────────────────────────────────────────────────────
+
+  // ─── API URL ──────────────────────────────────────────────────────────
+  const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+
+  // TEMP: backend route /api/demo-request doesn't exist yet.
+  // Flip this to false once it's built, to re-enable the real fetch call below.
+  const USE_MOCK_SUBMIT = true;
+
+  // ─── VALIDATION ──────────────────────────────────────────────────────
+  const validateForm = () => {
+    const errors = {};
+    let isValid = true;
+
+    if (!formData.name.trim() || formData.name.trim().length < 2) {
+      errors.name = 'Full name is required (min 2 characters)';
+      isValid = false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email.trim()) {
+      errors.email = 'Email is required';
+      isValid = false;
+    } else if (!emailRegex.test(formData.email.trim())) {
+      errors.email = 'Please enter a valid email address';
+      isValid = false;
+    }
+
+    if (!formData.businessName.trim() || formData.businessName.trim().length < 2) {
+      errors.businessName = 'Business name is required (min 2 characters)';
+      isValid = false;
+    }
+
+    if (!formData.businessType) {
+      errors.businessType = 'Please select a business type';
+      isValid = false;
+    }
+
+    setFormErrors(errors);
+    return isValid;
+  };
+
+  // ─── SUBMIT HANDLER ──────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    // Validate
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    setSubmitError('');
+    setSubmitSuccess(false);
+
+    // TEMP MOCK PATH — remove this whole `if` block once the backend
+    // route exists, and set USE_MOCK_SUBMIT to false above.
+    if (USE_MOCK_SUBMIT) {
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setSubmitSuccess(true);
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          businessName: '',
+          businessType: '',
+          message: '',
+        });
+        setFormErrors({});
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          setDemoModalVisible(false);
+        }, 3000);
+      }, 800);
+      return;
+    }
+
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim() || undefined,
+        business_name: formData.businessName.trim(),
+        business_type: formData.businessType.toLowerCase(),
+        message: formData.message.trim() || undefined,
+      };
+
+      const response = await fetch(`${API_URL}/api/demo-request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSubmitSuccess(true);
+        // Reset form
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          businessName: '',
+          businessType: '',
+          message: '',
+        });
+        setFormErrors({});
+        // Close modal after success
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          setDemoModalVisible(false);
+        }, 3000);
+      } else {
+        setSubmitError(data.message || 'Something went wrong. Please try again.');
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
+      setSubmitError('Network error. Please check your connection and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // ── Web-only head tags (GA + SEO + Favicon) ──────────────────────────
   useEffect(() => {
@@ -203,17 +371,17 @@ export default function LandingPage({ onNavigate }) {
       // ───────────────────────────────────────────────────────────────
 
      // Favicon
-const favicon = document.createElement('link');
-favicon.rel = 'icon';
-favicon.type = 'image/png';
-favicon.href = servonLogo; // Use the imported variable here
-document.head.appendChild(favicon);
+    const favicon = document.createElement('link');
+    favicon.rel = 'icon';
+    favicon.type = 'image/png';
+    favicon.href = servonLogo;
+    document.head.appendChild(favicon);
 
-// Apple touch icon
-const appleIcon = document.createElement('link');
-appleIcon.rel = 'apple-touch-icon';
-appleIcon.href = servonLogo; // And here
-document.head.appendChild(appleIcon);
+    // Apple touch icon
+    const appleIcon = document.createElement('link');
+    appleIcon.rel = 'apple-touch-icon';
+    appleIcon.href = servonLogo;
+    document.head.appendChild(appleIcon);
     }
   }, []);
   // ─────────────────────────────────────────────────────────────────────
@@ -258,6 +426,17 @@ document.head.appendChild(appleIcon);
             <TouchableOpacity onPress={() => onNavigate?.("login")}>
               <Text style={s.navLoginText}>Sign In</Text>
             </TouchableOpacity>
+
+            {/* ─── DEMO BUTTON (NAV) ─── */}
+            <TouchableOpacity
+              style={s.demoBtnNav}
+              activeOpacity={0.7}
+              onPress={() => setDemoModalVisible(true)}
+            >
+              <Ionicons name="calendar-outline" size={14} color={C.charcoal} />
+              <Text style={s.demoBtnNavText}>Book Demo</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={s.navCta} onPress={() => onNavigate?.("signup")}>
               <Text style={s.navCtaText}>Get Started </Text>
             </TouchableOpacity>
@@ -268,7 +447,12 @@ document.head.appendChild(appleIcon);
       <ScrollView
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
+          { 
+            useNativeDriver: false,
+            listener: (event) => {
+              setShowFloatingDemo(event.nativeEvent.contentOffset.y > 400);
+            }
+          }
         )}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -295,13 +479,29 @@ document.head.appendChild(appleIcon);
               Deploy QR ordering, manage live kitchen sync, and protect your margins.
             </Text>
 
-           <View style={s.heroBtnGroup}>
+            <View style={[s.heroBtnGroup, { flexDirection: "row", gap: 14, flexWrap: "wrap", justifyContent: "center" }]}>
               <TouchableOpacity
                 style={s.heroPrimaryBtn}
                 onPress={() => onNavigate("signup")}
               >
                 <Text style={s.heroPrimaryText}>Start Now</Text>
                 <Ionicons name="arrow-forward" size={18} color="#FFF" />
+              </TouchableOpacity>
+
+              {/* ─── DEMO BUTTON (HERO) ─── */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setDemoModalVisible(true)}
+              >
+                <LinearGradient
+                  colors={['#1E2226', '#121417']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.demoBtnHero}
+                >
+                  <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
+                  <Text style={s.demoBtnHeroText}>Book a Demo</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
 
@@ -348,7 +548,7 @@ document.head.appendChild(appleIcon);
         {/* ── REVIEWS ── */}
         <View style={s.reviewSection}>
           <View style={s.sectionHeader}>
-            <SectionTag text="Success Stories" />
+            <SectionTag text="Success Stories" styles={s} />
             <Text style={s.sectionH2}>What Our Users Say</Text>
           </View>
 
@@ -456,22 +656,22 @@ document.head.appendChild(appleIcon);
           <View style={s.faqList}>
             {[
               {
-    q: "How long does setup take?",
-    a: "Most restaurants can get started within minutes. Upload your menu, generate QR codes, and begin taking orders without complicated onboarding."
-  },
-  {
-    q: "What is Chef Mode™?",
-    a: "Chef Mode™ is a privacy feature that hides sensitive business insights like revenue and expense data from staff-facing screens with a single toggle."
-  },
-  {
-    q: "Does Servon require special hardware?",
-    a: "No. Servon works smoothly on your existing phones, tablets, laptops, and desktop systems without needing expensive hardware."
-  },
-  {
-    q: "Can customers order without downloading an app?",
-    a: "Yes. Customers simply scan the QR code and access the digital menu directly from their browser for a fast and seamless ordering experience."
-  }
-               ].map((f, i) => (
+                q: "How long does setup take?",
+                a: "Most restaurants can get started within minutes. Upload your menu, generate QR codes, and begin taking orders without complicated onboarding."
+              },
+              {
+                q: "What is Chef Mode™?",
+                a: "Chef Mode™ is a privacy feature that hides sensitive business insights like revenue and expense data from staff-facing screens with a single toggle."
+              },
+              {
+                q: "Does Servon require special hardware?",
+                a: "No. Servon works smoothly on your existing phones, tablets, laptops, and desktop systems without needing expensive hardware."
+              },
+              {
+                q: "Can customers order without downloading an app?",
+                a: "Yes. Customers simply scan the QR code and access the digital menu directly from their browser for a fast and seamless ordering experience."
+              }
+            ].map((f, i) => (
               <TouchableOpacity
                 key={i}
                 activeOpacity={0.9}
@@ -499,7 +699,7 @@ document.head.appendChild(appleIcon);
         </View>
 
         {/* ── FOOTER ── */}
-       <View style={s.footer}>
+        <View style={s.footer}>
           <View style={s.footerTop}>
             <View style={s.fBrand}>
               <Text style={s.fLogo}>Servon<Text style={{ color: C.green }}>.</Text></Text>
@@ -556,13 +756,200 @@ document.head.appendChild(appleIcon);
         </View>
 
       </ScrollView>
+
+      {/* ─── FLOATING DEMO BUTTON ─── */}
+      {showFloatingDemo && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={s.floatingBtnWrap}
+          onPress={() => setDemoModalVisible(true)}
+        >
+          <LinearGradient
+            colors={['#1E2226', '#121417']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.floatingBtn}
+          >
+            <Ionicons name="calendar-outline" size={16} color="#FFFFFF" />
+            <Text style={s.floatingBtnText}>Book Demo</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+
+      {/* ─── DEMO MODAL ─── */}
+      {demoModalVisible && (
+        <View style={s.modalOverlay}>
+          <TouchableOpacity 
+            style={s.modalBackdrop} 
+            activeOpacity={1} 
+            onPress={() => {
+              setDemoModalVisible(false);
+              setSubmitError('');
+              setSubmitSuccess(false);
+            }}
+          />
+          <View style={s.modalCard}>
+            <View style={s.modalHeaderRow}>
+              <View style={s.modalHeaderText}>
+                <Text style={s.modalTitle}>Book a Demo</Text>
+              </View>
+              <TouchableOpacity
+                style={s.modalCloseBtn}
+                onPress={() => {
+                  setDemoModalVisible(false);
+                  setSubmitError('');
+                  setSubmitSuccess(false);
+                }}
+              >
+                <Ionicons name="close" size={20} color="#1E293B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={s.modalSubtitle}>
+              See Servon in action. Tell us a bit about your business and we'll set up a walkthrough.
+            </Text>
+
+            <ScrollView
+              style={s.modalScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Name */}
+              <Field
+                label="Full Name"
+                required
+                placeholder="Your full name"
+                value={formData.name}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
+                error={formErrors.name}
+                styles={s}
+              />
+
+              {/* Email */}
+              <Field
+                label="Email Address"
+                required
+                placeholder="you@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={formData.email}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
+                error={formErrors.email}
+                styles={s}
+              />
+
+              {/* Phone */}
+              <Field
+                label="Phone Number"
+                placeholder="Optional"
+                keyboardType="phone-pad"
+                value={formData.phone}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+                styles={s}
+              />
+
+              {/* Business Name */}
+              <Field
+                label="Business / Hotel Name"
+                required
+                placeholder="e.g. Taj Residency"
+                value={formData.businessName}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, businessName: text }))}
+                error={formErrors.businessName}
+                styles={s}
+              />
+
+              {/* Business Type */}
+              <View style={s.formGroup}>
+                <Text style={s.formLabel}>
+                  Business Type<Text style={s.requiredStar}> *</Text>
+                </Text>
+                <View style={s.pillRow}>
+                  {BUSINESS_TYPES.map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        s.pill,
+                        formData.businessType === type && s.pillActive,
+                        formErrors.businessType && { borderColor: '#EF4444' }
+                      ]}
+                      onPress={() => {
+                        setFormData(prev => ({ ...prev, businessType: type }));
+                        setFormErrors(prev => ({ ...prev, businessType: '' }));
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.pillText, formData.businessType === type && s.pillTextActive]}>
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {formErrors.businessType ? (
+                  <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>{formErrors.businessType}</Text>
+                ) : null}
+              </View>
+
+              {/* Message */}
+              <View style={s.formGroup}>
+                <Text style={s.formLabel}>Message</Text>
+                <TextInput
+                  style={[s.formInput, s.formTextArea]}
+                  placeholder="Tell us a bit more about what you need (optional)"
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  value={formData.message}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, message: text }))}
+                />
+              </View>
+            </ScrollView>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[s.modalSubmitBtn, isSubmitting && { opacity: 0.6 }]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+              activeOpacity={0.85}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <>
+                  <Text style={s.modalSubmitBtnText}>Send Request</Text>
+                  <Ionicons name="send" size={16} color="#FFF" />
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Error Message */}
+            {submitError ? (
+              <Text style={{ color: '#EF4444', textAlign: 'center', marginTop: 12, fontSize: 14 }}>
+                {submitError}
+              </Text>
+            ) : null}
+
+            {/* Success Message */}
+            {submitSuccess ? (
+              <Text style={{ color: '#008060', textAlign: 'center', marginTop: 12, fontSize: 14, fontWeight: '600' }}>
+                ✅ Demo request sent successfully! We'll contact you soon.
+              </Text>
+            ) : null}
+
+            <Text style={s.modalFinePrint}>
+              By submitting, you agree to be contacted by the Servon team about this request.
+            </Text>
+          </View>
+        </View>
+      )}
+
     </View>
   );
 }
 
 // ─── DASHBOARD STYLES ─────────────────────────────────────────────────
 
-const dm = StyleSheet.create({
+const getDashboardStyles = (width) => StyleSheet.create({
   wrapper: {
     width: '100%',
     maxWidth: 940,
@@ -668,7 +1055,7 @@ const dm = StyleSheet.create({
 
 // ─── MAIN STYLES ──────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const getMainStyles = (width) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
 
   // ── NAV ──
@@ -690,7 +1077,7 @@ const s = StyleSheet.create({
     paddingHorizontal: width > 600 ? 30 : 16,
   },
   logo: { fontSize: width > 600 ? 24 : 20, fontWeight: '900', color: C.charcoal, letterSpacing: -1 },
-  navRight: { flexDirection: 'row', alignItems: 'center', gap: width > 600 ? 24 : 12 },
+  navRight: { flexDirection: 'row', alignItems: 'center', gap: width > 600 ? 24 : 10 },
   navLoginText: { fontSize: width > 600 ? 15 : 13, fontWeight: '700', color: C.charcoal },
   navCta: {
     backgroundColor: C.charcoal,
@@ -699,6 +1086,214 @@ const s = StyleSheet.create({
     borderRadius: 10,
   },
   navCtaText: { color: '#FFF', fontWeight: '800', fontSize: width > 600 ? 13 : 11 },
+
+  // ── DEMO BUTTONS ──
+  demoBtnNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: width > 600 ? 16 : 10,
+    paddingVertical: width > 600 ? 9 : 7,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: C.charcoal,
+    backgroundColor: 'transparent',
+  },
+  demoBtnNavText: {
+    color: C.charcoal,
+    fontWeight: '700',
+    fontSize: width > 600 ? 13 : 11,
+  },
+  demoBtnHero: {
+    paddingHorizontal: width > 600 ? 32 : 22,
+    paddingVertical: width > 600 ? 18 : 14,
+    borderRadius: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  demoBtnHeroText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: width > 600 ? 16 : 14,
+  },
+  floatingBtnWrap: {
+    position: 'absolute',
+    bottom: width > 600 ? 32 : 20,
+    right: width > 600 ? 32 : 16,
+    borderRadius: 100,
+    zIndex: 999,
+  },
+  floatingBtn: {
+    borderRadius: 100,
+    paddingHorizontal: width > 600 ? 22 : 16,
+    paddingVertical: width > 600 ? 16 : 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  floatingBtnText: {
+    color: '#FFF',
+    fontWeight: '800',
+    fontSize: width > 600 ? 14 : 12,
+  },
+
+  // ── MODAL ──
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2000,
+    padding: 16,
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '90%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    display: 'flex',
+    flexDirection: 'column',
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 40,
+    elevation: 12,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalHeaderText: {
+    flex: 1,
+  },
+  modalCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  modalTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: C.charcoal,
+    letterSpacing: -0.5,
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: C.muted,
+    marginTop: 10,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalScroll: {
+    flexGrow: 1,
+    flexShrink: 1,
+    marginBottom: 16,
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.charcoal,
+    marginBottom: 8,
+  },
+  requiredStar: {
+    color: '#EF4444',
+  },
+  formInput: {
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: C.charcoal,
+    backgroundColor: '#FCFCFA',
+  },
+  formTextArea: {
+    height: 100,
+    paddingTop: 14,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  pill: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    backgroundColor: '#FFFFFF',
+  },
+  pillActive: {
+    backgroundColor: C.charcoal,
+    borderColor: C.charcoal,
+  },
+  pillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: C.charcoal,
+  },
+  pillTextActive: {
+    color: '#FFFFFF',
+  },
+  modalSubmitBtn: {
+    backgroundColor: C.charcoal,
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
+    flexShrink: 0,
+  },
+  modalSubmitBtnText: {
+    color: '#FFF',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  modalFinePrint: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 16,
+    flexShrink: 0,
+  },
 
   // ── HERO ──
   hero: {
@@ -753,21 +1348,21 @@ const s = StyleSheet.create({
   },
   cursonBadgeText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
   heroH1: {
-    fontSize: width > 800 ? 84 : width > 400 ? 48 : 38,
+    fontSize: width > 800 ? 60 : width > 400 ? 38 : 30,
     fontWeight: '900',
     color: '#121417',
     textAlign: 'center',
-    lineHeight: width > 800 ? 92 : width > 400 ? 56 : 46,
+    lineHeight: width > 800 ? 68 : width > 400 ? 46 : 38,
     letterSpacing: -2,
-    marginBottom: 28,
+    marginBottom: 24,
   },
   heroSub: {
-    fontSize: width > 600 ? 18 : 15,
+    fontSize: width > 600 ? 16 : 14,
     color: '#636E72',
     textAlign: 'center',
-    maxWidth: 650,
-    lineHeight: width > 600 ? 28 : 24,
-    marginBottom: 36,
+    maxWidth: 600,
+    lineHeight: width > 600 ? 25 : 22,
+    marginBottom: 32,
     paddingHorizontal: 4,
   },
   heroBtnGroup: { marginBottom: 20 },
@@ -833,11 +1428,11 @@ const s = StyleSheet.create({
     letterSpacing: 2,
   },
   darkSectionH2: {
-    fontSize: width > 600 ? 48 : 30,
+    fontSize: width > 600 ? 34 : 24,
     fontWeight: '900',
     color: '#FFFFFF',
     textAlign: 'center',
-    lineHeight: width > 600 ? 56 : 38,
+    lineHeight: width > 600 ? 42 : 32,
     letterSpacing: -1,
   },
   featureGrid: {
@@ -887,7 +1482,7 @@ const s = StyleSheet.create({
   },
   sectionHeader: { marginBottom: 40, alignItems: 'center' },
   sectionH2: {
-    fontSize: width > 600 ? 36 : 26,
+    fontSize: width > 600 ? 28 : 20,
     fontWeight: '900',
     color: C.charcoal,
     textAlign: 'center',
@@ -956,11 +1551,11 @@ const s = StyleSheet.create({
   },
   pricePillText: { fontSize: 10, fontWeight: '900', color: '#4F46E5', letterSpacing: 1 },
   priceTitleMain: {
-    fontSize: width > 600 ? 36 : 28,
+    fontSize: width > 600 ? 28 : 22,
     fontWeight: '900',
     color: '#121417',
     textAlign: 'center',
-    lineHeight: width > 600 ? 44 : 36,
+    lineHeight: width > 600 ? 34 : 28,
     letterSpacing: -1,
   },
   priceSubMain: {
@@ -1041,7 +1636,7 @@ const s = StyleSheet.create({
   },
   faqBadgeText: { fontSize: 11, fontWeight: '900', color: '#4F46E5', letterSpacing: 1 },
   faqMainTitle: {
-    fontSize: width > 600 ? 40 : 26,
+    fontSize: width > 600 ? 30 : 22,
     fontWeight: '900',
     color: C.charcoal,
     letterSpacing: -1,
