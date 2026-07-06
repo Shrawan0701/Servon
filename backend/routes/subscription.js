@@ -56,7 +56,7 @@ router.post("/verify-payment", async (req, res) => {
       [razorpay_payment_id, businessId]
     );
 
-    // Referral check
+    // ─── REFERRAL HANDLING ────────────────────────────────────────────
     const refCheck = await pool.query(
       `SELECT * FROM referrals WHERE referred_id = $1 AND status = 'PENDING'`,
       [businessId]
@@ -65,10 +65,22 @@ router.post("/verify-payment", async (req, res) => {
       const ref = refCheck.rows[0];
       const daysSinceSignup = (new Date() - new Date(ref.created_at)) / (1000 * 60 * 60 * 24);
       const newStatus = daysSinceSignup <= 3 ? "SUCCESS" : "EXPIRED";
+
+      // Update referral status
       await pool.query(
         `UPDATE referrals SET status = $1, updated_at = NOW() WHERE id = $2`,
         [newStatus, ref.id]
       );
+
+      // ─── ONLY IF SUCCESSFUL: increment referrer's reward count ────
+      if (newStatus === "SUCCESS") {
+        await pool.query(
+          `UPDATE businesses 
+           SET referral_rewards_earned = referral_rewards_earned + 1 
+           WHERE id = $1`,
+          [ref.referrer_id]
+        );
+      }
     }
 
     res.json({ success: true, message: "Account Activated!" });
@@ -78,7 +90,7 @@ router.post("/verify-payment", async (req, res) => {
   }
 });
 
-// 3. Hosted Checkout Page — used ONLY for web (iframe-safe, no redirect)
+// 3. Hosted Checkout Page
 router.get("/checkout/:orderId", async (req, res) => {
   const { orderId } = req.params;
   const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://10.193.19.38:8081";
@@ -106,7 +118,6 @@ router.get("/checkout/:orderId", async (req, res) => {
         theme: { color: "#1A1410" },
         modal: {
           ondismiss: function() {
-            // User closed the modal without paying — tell parent
             window.parent.postMessage({ type: "PAYMENT_DISMISSED" }, "${frontendOrigin}");
           }
         },
@@ -123,7 +134,6 @@ router.get("/checkout/:orderId", async (req, res) => {
             .then(function(res) { return res.json(); })
             .then(function(data) {
               if (data.success) {
-                // Tell the parent app payment is done
                 window.parent.postMessage({ type: "PAYMENT_SUCCESS" }, "${frontendOrigin}");
               } else {
                 window.parent.postMessage({ type: "PAYMENT_FAILED", error: data.error }, "${frontendOrigin}");

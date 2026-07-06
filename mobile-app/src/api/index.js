@@ -7,7 +7,6 @@ const BASE_URL =
   (Platform.OS === "web"
     ? "https://servon.onrender.com"
     : "https://servon.onrender.com");
-
 const API = axios.create({
   baseURL: `${BASE_URL}/api`,
   timeout: 15000,
@@ -67,7 +66,9 @@ export const getSubscriptionDetails = () =>
 
 export const getReferrals = () => API.get("/referrals");
 export const redeemReferrals = () => API.post("/referrals/redeem");
-
+// --- Referrals ---
+export const getReferralStats = () => API.get("/referrals/stats");
+export const redeemReferralReward = () => API.post("/referrals/redeem");
 // --- Menu ---
 export const getMenu = () => API.get("/menu");
 

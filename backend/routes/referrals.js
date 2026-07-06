@@ -3,102 +3,193 @@ const router = express.Router();
 const pool = require("../db");
 const auth = require("../middleware/auth");
 
-// Get referral stats and history
-// Get referral stats and history
-router.get("/", auth, async (req, res) => {
+// ─── GET REFERRAL STATS ──────────────────────────────────────────────
+router.get("/stats", auth, async (req, res) => {
   try {
-    // 1. Get their info
-    const bizRes = await pool.query("SELECT business_name, referral_code FROM businesses WHERE id = $1", [req.businessId]);
-    
-    let refCode = bizRes.rows[0].referral_code;
+    const businessId = req.businessId;
 
-    // 2. THE FIX: If they are an old user and don't have a code, generate one right now!
-    if (!refCode) {
-      const baseName = bizRes.rows[0].business_name.substring(0, 4).toUpperCase().replace(/\s/g, '');
-      refCode = baseName + Math.floor(1000 + Math.random() * 9000);
-      
-      // Save it to the database
-      await pool.query("UPDATE businesses SET referral_code = $1 WHERE id = $2", [refCode, req.businessId]);
+    // Get referral code
+    const codeResult = await pool.query(
+      "SELECT referral_code FROM businesses WHERE id = $1",
+      [businessId]
+    );
+
+    let referralCode = codeResult.rows[0]?.referral_code;
+    if (!referralCode) {
+      const nameResult = await pool.query(
+        "SELECT business_name FROM businesses WHERE id = $1",
+        [businessId]
+      );
+      const baseName = nameResult.rows[0]?.business_name
+        ?.substring(0, 4)
+        .toUpperCase()
+        .replace(/\s/g, "") || "SERV";
+      referralCode = baseName + Math.floor(1000 + Math.random() * 9000);
+      await pool.query(
+        "UPDATE businesses SET referral_code = $1 WHERE id = $2",
+        [referralCode, businessId]
+      );
     }
 
-    // 3. Get their referral history
-    const historyRes = await pool.query(
-      `SELECT r.status, r.created_at, b.business_name 
-       FROM referrals r
-       JOIN businesses b ON r.referred_id = b.id
-       WHERE r.referrer_id = $1
-       ORDER BY r.created_at DESC`,
-      [req.businessId]
+    // Count referrals by status
+    const statsResult = await pool.query(
+      `SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'SUCCESSFUL' THEN 1 END) as successful,
+        COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending
+       FROM referrals
+       WHERE referrer_id = $1`,
+      [businessId]
     );
 
-    // 4. Calculate how many times they've redeemed overall
-    const redeemRes = await pool.query(
-      `SELECT MAX(updated_at) as last_redeemed 
-       FROM referrals WHERE referrer_id = $1 AND status = 'REDEEMED'`,
-       [req.businessId]
+    // Get reward usage
+    const rewardResult = await pool.query(
+      `SELECT referral_rewards_used, referral_rewards_earned 
+       FROM businesses WHERE id = $1`,
+      [businessId]
     );
 
-    const successCount = historyRes.rows.filter(r => r.status === 'SUCCESS').length;
+    // Check cooldown (last redemption date)
+    const cooldownResult = await pool.query(
+      `SELECT MAX(created_at) as last_redeemed 
+       FROM referral_rewards 
+       WHERE business_id = $1 AND reward_type = 'FREE_MONTH'`,
+      [businessId]
+    );
+
+    const successful = parseInt(statsResult.rows[0]?.successful || 0);
+    const pending = parseInt(statsResult.rows[0]?.pending || 0);
+    const total = parseInt(statsResult.rows[0]?.total || 0);
+    const rewardsUsed = parseInt(rewardResult.rows[0]?.referral_rewards_used || 0);
+    const rewardsEarned = Math.floor(successful / 2);
+    const availableRewards = rewardsEarned - rewardsUsed;
+
+    // Check if cooldown has passed
+    let cooldownEnds = null;
+    let isCooldownActive = false;
+    if (cooldownResult.rows[0]?.last_redeemed) {
+      const lastRedeemed = new Date(cooldownResult.rows[0].last_redeemed);
+      const cooldownEnd = new Date(lastRedeemed);
+      cooldownEnd.setDate(cooldownEnd.getDate() + 30);
+      cooldownEnds = cooldownEnd;
+      isCooldownActive = new Date() < cooldownEnd;
+    }
 
     res.json({
-      referralCode: refCode, // Send the guaranteed code
-      history: historyRes.rows,
-      successCount,
-      lastRedeemed: redeemRes.rows[0].last_redeemed
+      referral_code: referralCode,
+      stats: { total, successful, pending },
+      rewards: {
+        earned: rewardsEarned,
+        used: rewardsUsed,
+        available: availableRewards,
+      },
+      reward_available: availableRewards > 0 && !isCooldownActive,
+      isCooldownActive,
+      cooldownEnds,
+      referrals_needed: Math.max(0, 2 - (successful % 2 === 0 ? 0 : 1)),
     });
-
   } catch (err) {
-    console.error(err);
+    console.error("Referral stats error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// Redeem 5 Successes for 1 Month Free
+// ─── REDEEM REFERRAL REWARD ──────────────────────────────────────────
 router.post("/redeem", auth, async (req, res) => {
   try {
-    // 1. Check if they have 5 SUCCESS referrals
-    const checkRes = await pool.query(
-      `SELECT id FROM referrals WHERE referrer_id = $1 AND status = 'SUCCESS' LIMIT 5`,
-      [req.businessId]
-    );
+    const businessId = req.businessId;
 
-    if (checkRes.rows.length < 5) {
-      return res.status(400).json({ error: "You need 5 successful referrals to redeem." });
+    // ─── 1. CHECK AVAILABLE REWARDS ──────────────────────────────────
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as count FROM referrals 
+       WHERE referrer_id = $1 AND status = 'SUCCESSFUL'`,
+      [businessId]
+    );
+    const successful = parseInt(countResult.rows[0]?.count || 0);
+
+    const rewardResult = await pool.query(
+      `SELECT referral_rewards_used FROM businesses WHERE id = $1`,
+      [businessId]
+    );
+    const used = parseInt(rewardResult.rows[0]?.referral_rewards_used || 0);
+
+    const available = Math.floor(successful / 2) - used;
+    if (available <= 0) {
+      return res.status(400).json({
+        error: "No rewards available. You need 2 successful referrals for 1 free month.",
+      });
     }
 
-    // 2. Check the 30-day cooldown rule
-    const lastRedeemRes = await pool.query(
-      `SELECT MAX(updated_at) as last_redeemed FROM referrals WHERE referrer_id = $1 AND status = 'REDEEMED'`,
-      [req.businessId]
+    // ─── 2. CHECK 30‑DAY COOLDOWN ─────────────────────────────────────
+    const cooldownResult = await pool.query(
+      `SELECT MAX(created_at) as last_redeemed 
+       FROM referral_rewards 
+       WHERE business_id = $1 AND reward_type = 'FREE_MONTH'`,
+      [businessId]
     );
-    
-    if (lastRedeemRes.rows[0].last_redeemed) {
-      const daysSinceLastRedeem = (new Date() - new Date(lastRedeemRes.rows[0].last_redeemed)) / (1000 * 60 * 60 * 24);
-      if (daysSinceLastRedeem < 30) {
-        return res.status(400).json({ error: "You can only redeem one free month every 30 days." });
+
+    if (cooldownResult.rows[0]?.last_redeemed) {
+      const lastRedeemed = new Date(cooldownResult.rows[0].last_redeemed);
+      const cooldownEnd = new Date(lastRedeemed);
+      cooldownEnd.setDate(cooldownEnd.getDate() + 30);
+
+      if (new Date() < cooldownEnd) {
+        const daysLeft = Math.ceil((cooldownEnd - new Date()) / (1000 * 60 * 60 * 24));
+        return res.status(400).json({
+          error: `You can only redeem once every 30 days. Please wait ${daysLeft} more day${daysLeft > 1 ? 's' : ''}.`,
+          cooldownEnds: cooldownEnd,
+        });
       }
     }
 
-    // 3. Mark exactly 5 as REDEEMED
-    const idsToUpdate = checkRes.rows.map(r => r.id);
-    await pool.query(
-      `UPDATE referrals SET status = 'REDEEMED', updated_at = NOW() WHERE id = ANY($1::uuid[])`,
-      [idsToUpdate]
+    // ─── 3. APPLY 1 MONTH FREE ────────────────────────────────────────
+    const now = new Date();
+    const endDate = new Date(now);
+    endDate.setMonth(endDate.getMonth() + 1);
+
+    const bizResult = await pool.query(
+      "SELECT subscription_status, subscription_end_date FROM businesses WHERE id = $1",
+      [businessId]
     );
 
-    // 4. Add 30 days to their subscription!
+    let finalEndDate = endDate;
+    if (
+      bizResult.rows[0]?.subscription_status === "ACTIVE" &&
+      bizResult.rows[0]?.subscription_end_date
+    ) {
+      const existingEnd = new Date(bizResult.rows[0].subscription_end_date);
+      if (existingEnd > now) {
+        finalEndDate = new Date(existingEnd);
+        finalEndDate.setMonth(finalEndDate.getMonth() + 1);
+      }
+    }
+
     await pool.query(
       `UPDATE businesses 
-       SET subscription_end_date = subscription_end_date + INTERVAL '30 days',
-           subscription_status = 'ACTIVE'
-       WHERE id = $1`,
-      [req.businessId]
+       SET 
+         subscription_status = 'ACTIVE',
+         subscription_end_date = $1,
+         subscription_start_date = COALESCE(subscription_start_date, NOW()),
+         referral_rewards_used = referral_rewards_used + 1,
+         updated_at = NOW()
+       WHERE id = $2`,
+      [finalEndDate, businessId]
     );
 
-    res.json({ message: "Successfully redeemed 1 Month Free!" });
+    // ─── 4. LOG REDEMPTION ─────────────────────────────────────────────
+    await pool.query(
+      `INSERT INTO referral_rewards (business_id, reward_type, description)
+       VALUES ($1, 'FREE_MONTH', '1 month free from referrals')`,
+      [businessId]
+    );
 
+    res.json({
+      success: true,
+      message: "🎉 1 month free subscription applied!",
+      new_end_date: finalEndDate,
+    });
   } catch (err) {
-    console.error(err);
+    console.error("Redeem error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
