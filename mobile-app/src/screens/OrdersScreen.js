@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, ActivityIndicator, Alert, Platform, SectionList, ScrollView,Dimensions
+  RefreshControl, ActivityIndicator, Alert, Platform, SectionList, ScrollView, Dimensions, TextInput, Modal, Pressable
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,7 +19,7 @@ const isWeb = Platform.OS === "web";
 
 const STATUS_FILTERS = ["All", "EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE", "PAID", "PREVIOUS"];
 
-// ─── Upgrade Gate (Now with navigation to Profile) ─────────────────────────
+// ─── Upgrade Gate ─────────────────────────────────────────────────────
 function UpgradeGate() {
   const navigation = useNavigation();
 
@@ -86,7 +86,6 @@ const gateStyles = StyleSheet.create({
     width: "100%",
     maxWidth: 400,
     alignItems: "center",
-    // Premium Shadow
     ...Platform.select({
       ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20 },
       android: { elevation: 10 },
@@ -157,7 +156,7 @@ const gateStyles = StyleSheet.create({
   }
 });
 
-// ─── Main Screen ─────────────────────────────────────────────────────────────
+// ─── Main Screen ──────────────────────────────────────────────────────
 export default function OrdersScreen() {
   const { isChefMode, isPremium, loading: authLoading } = useAuth();
   
@@ -170,24 +169,27 @@ export default function OrdersScreen() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [numColumns, setNumColumns] = useState(isWeb ? 3 : 1);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-
   const [showPicker, setShowPicker] = useState(false);
 
+  // ─── DISCOUNT MODAL STATE ──────────────────────────────────────────
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [selectedOrderForDiscount, setSelectedOrderForDiscount] = useState(null);
+  const [discountType, setDiscountType] = useState('none');
+  const [discountValue, setDiscountValue] = useState('');
 
-
-useEffect(() => {
-  if (isWeb) {
-    const updateLayout = () => {
-      const width = Dimensions.get('window').width;
-      if (width > 1200) setNumColumns(3);
-      else if (width > 768) setNumColumns(2);
-      else setNumColumns(1);
-    };
-    const subscription = Dimensions.addEventListener('change', updateLayout);
-    updateLayout();
-    return () => subscription.remove();
-  }
-}, []);
+  useEffect(() => {
+    if (isWeb) {
+      const updateLayout = () => {
+        const width = Dimensions.get('window').width;
+        if (width > 1200) setNumColumns(3);
+        else if (width > 768) setNumColumns(2);
+        else setNumColumns(1);
+      };
+      const subscription = Dimensions.addEventListener('change', updateLayout);
+      updateLayout();
+      return () => subscription.remove();
+    }
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -226,23 +228,19 @@ useEffect(() => {
   };
 
   const onDateChange = (event, selected) => {
-  // 1. If it's a "dismiss" action on mobile, just close it
-  if (event.type === "dismissed") {
-    setShowPicker(false);
-    return;
-  }
+    if (event.type === "dismissed") {
+      setShowPicker(false);
+      return;
+    }
+    if (Platform.OS === 'android') setShowPicker(false);
+    if (selected) {
+      const dateString = selected.toISOString().split('T')[0];
+      setSelectedDate(dateString);
+    }
+  };
 
-  // 2. Handle Android's unique closing behavior
-  if (Platform.OS === 'android') setShowPicker(false);
-  
-  // 3. Update the date
-  if (selected) {
-    const dateString = selected.toISOString().split('T')[0];
-    setSelectedDate(dateString);
-  }
-};
-
-  const handlePrintAndCheckout = async (currentOrder) => {
+  // ─── HANDLE PRINT & CHECKOUT WITH DISCOUNT ─────────────────────────
+  const handlePrintAndCheckout = async (currentOrder, discount = null) => {
     setProcessingTable(currentOrder.table_number);
 
     try {
@@ -269,12 +267,26 @@ useEffect(() => {
       });
 
       const finalItemsList = Object.values(combinedItems);
+
+      // ─── APPLY DISCOUNT ──────────────────────────────────────────────
+      let discountAmount = 0;
+      if (discount && discount.type !== 'none' && discount.value > 0) {
+        if (discount.type === 'percentage') {
+          discountAmount = (combinedSubtotal * discount.value) / 100;
+        } else if (discount.type === 'flat') {
+          discountAmount = Math.min(discount.value, combinedSubtotal);
+        }
+      }
+      const amountAfterDiscount = combinedSubtotal - discountAmount;
+
+      // ─── GST CALCULATION (ON DISCOUNTED AMOUNT) ─────────────────────
       const cgstPercent = parseFloat(profile?.cgst_percentage || 0);
       const sgstPercent = parseFloat(profile?.sgst_percentage || 0);
-      const cgstAmount = (combinedSubtotal * cgstPercent) / 100;
-      const sgstAmount = (combinedSubtotal * sgstPercent) / 100;
-      const grandTotal = combinedSubtotal + cgstAmount + sgstAmount;
+      const cgstAmount = (amountAfterDiscount * cgstPercent) / 100;
+      const sgstAmount = (amountAfterDiscount * sgstPercent) / 100;
+      const grandTotal = amountAfterDiscount + cgstAmount + sgstAmount;
 
+      // ─── BUILD BILL HTML ────────────────────────────────────────────
       let itemsHtml = "";
       finalItemsList.forEach(i => {
         itemsHtml += `
@@ -286,8 +298,10 @@ useEffect(() => {
         `;
       });
 
-      // ✅ SAFE LIVE URL CONFIG
-      // We hardcode the production URL here to prevent 'import.meta' SyntaxErrors in Expo Web
+      const discountHtml = discountAmount > 0
+        ? `<tr><td>Discount (${discount.type === 'percentage' ? discount.value + '%' : 'Flat'})</td><td class="right">-₹${discountAmount.toFixed(2)}</td></tr>`
+        : '';
+
       const liveCustomerUrl = "https://menu.servon.cloud";
       const feedbackLink = `${liveCustomerUrl}/feedback/${profile?.id}?table=${currentOrder.table_number}`;
 
@@ -321,6 +335,8 @@ useEffect(() => {
             <div class="divider"></div>
             <table>
               <tr><td>Subtotal:</td><td class="right">${combinedSubtotal.toFixed(2)}</td></tr>
+              ${discountHtml}
+              <tr><td>Amount After Discount:</td><td class="right">${amountAfterDiscount.toFixed(2)}</td></tr>
               ${cgstPercent > 0 ? `<tr><td>CGST (${cgstPercent}%):</td><td class="right">${cgstAmount.toFixed(2)}</td></tr>` : ''}
               ${sgstPercent > 0 ? `<tr><td>SGST (${sgstPercent}%):</td><td class="right">${sgstAmount.toFixed(2)}</td></tr>` : ''}
               <tr class="bold">
@@ -338,6 +354,7 @@ useEffect(() => {
         </html>
       `;
 
+      // ─── PRINT ──────────────────────────────────────────────────────
       if (Platform.OS === 'web') {
         const iframe = document.createElement('iframe');
         iframe.style.cssText = 'position:absolute;width:0px;height:0px;border:none;';
@@ -358,6 +375,7 @@ useEffect(() => {
         await Print.printAsync({ html: htmlContent });
       }
 
+      // ─── MARK ORDERS AS PAID ──────────────────────────────────────
       await Promise.all(tableOrders.map(o => updateOrderStatus(o.id, "PAID")));
       setOrders(prev => prev.map(o => 
         tableOrders.some(to => to.id === o.id) ? { ...o, status: "PAID" } : o
@@ -370,6 +388,50 @@ useEffect(() => {
     }
   };
 
+  // ─── DISCOUNT MODAL HANDLERS ──────────────────────────────────────
+  const openDiscountModal = (order) => {
+    setSelectedOrderForDiscount(order);
+    setDiscountType('none');
+    setDiscountValue('');
+    setShowDiscountModal(true);
+  };
+
+  const applyDiscount = () => {
+    const value = parseFloat(discountValue);
+    if (discountType !== 'none' && (!value || value <= 0)) {
+      Alert.alert('Invalid', 'Please enter a valid discount amount.');
+      return;
+    }
+    const discount = { type: discountType, value: value || 0 };
+    handlePrintAndCheckout(selectedOrderForDiscount, discount);
+    setShowDiscountModal(false);
+    setSelectedOrderForDiscount(null);
+  };
+
+  // ─── LIVE DISCOUNT PREVIEW ─────────────────────────────────────────
+  const modalSubtotal = useMemo(() => {
+    if (!selectedOrderForDiscount) return 0;
+    const tableOrders = orders.filter(o => 
+      o.table_number === selectedOrderForDiscount.table_number &&
+      o.status !== "PAID" && 
+      o.status !== "REJECTED"
+    );
+    return tableOrders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
+  }, [selectedOrderForDiscount, orders]);
+
+  const modalDiscountAmount = useMemo(() => {
+    if (!selectedOrderForDiscount) return 0;
+    const value = parseFloat(discountValue) || 0;
+    if (discountType === 'percentage') {
+      return (modalSubtotal * value) / 100;
+    }
+    if (discountType === 'flat') {
+      return Math.min(value, modalSubtotal);
+    }
+    return 0;
+  }, [discountType, discountValue, modalSubtotal, selectedOrderForDiscount]);
+
+  // ─── HELPERS ────────────────────────────────────────────────────────
   const isToday = (someDate) => {
     const today = new Date();
     const d = new Date(someDate);
@@ -385,26 +447,27 @@ useEffect(() => {
   };
 
   const getGroupedPreviousOrders = () => {
-  const filtered = orders.filter(o => {
-    const orderDate = new Date(o.created_at).toISOString().split('T')[0];
-    return orderDate === selectedDate && !isToday(o.created_at);
-  });
-
-  const groups = filtered.reduce((acc, order) => {
-    const dateLabel = new Date(order.created_at).toLocaleDateString('en-IN', { 
-      day: 'numeric', month: 'long', year: 'numeric' 
+    const filtered = orders.filter(o => {
+      const orderDate = new Date(o.created_at).toISOString().split('T')[0];
+      return orderDate === selectedDate && !isToday(o.created_at);
     });
-    if (!acc[dateLabel]) acc[dateLabel] = [];
-    acc[dateLabel].push(order);
-    return acc;
-  }, {});
 
-  return Object.keys(groups).map(date => ({
-    title: date,
-    data: groups[date]
-  }));
-};
+    const groups = filtered.reduce((acc, order) => {
+      const dateLabel = new Date(order.created_at).toLocaleDateString('en-IN', { 
+        day: 'numeric', month: 'long', year: 'numeric' 
+      });
+      if (!acc[dateLabel]) acc[dateLabel] = [];
+      acc[dateLabel].push(order);
+      return acc;
+    }, {});
 
+    return Object.keys(groups).map(date => ({
+      title: date,
+      data: groups[date]
+    }));
+  };
+
+  // ─── RENDER ORDER ITEM ─────────────────────────────────────────────
   const renderOrderItem = ({ item }) => {
     const items = Array.isArray(item.items) ? item.items : JSON.parse(item.items || "[]");
     const isProcessing = processingTable === item.table_number;
@@ -483,7 +546,7 @@ useEffect(() => {
                 {!isChefMode && (
                   <TouchableOpacity 
                     style={[styles.actionBtn, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]}
-                    onPress={() => handlePrintAndCheckout(item)}
+                    onPress={() => openDiscountModal(item)}
                     disabled={isProcessing}
                   >
                     {isProcessing ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.actionBtnText}>Print</Text>}
@@ -495,7 +558,7 @@ useEffect(() => {
             {item.status === "TABLE_ACTIVE" && !isChefMode && (
               <TouchableOpacity 
                 style={[styles.actionBtn, { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]}
-                onPress={() => handlePrintAndCheckout(item)}
+                onPress={() => openDiscountModal(item)}
                 disabled={isProcessing}
               >
                 {isProcessing ? (
@@ -552,105 +615,194 @@ useEffect(() => {
       {!isPremium ? (
         <UpgradeGate />
       ) : (
-        /* This View ensures the list itself doesn't stretch past 1200px on ultra-wide screens */
-       <View style={[{ flex: 1 }, isWeb && { maxWidth: 1200, alignSelf: 'center', width: '100%' }]}>
-  {filter === "PREVIOUS" ? (
-    /* --- PREVIOUS TAB START --- */
-    <>
-      {/* 1. PLACE THE DATE PICKER HERE (Above the list) */}
-      <View style={styles.datePickerContainer}>
-        <View style={styles.dateInfo}>
-          <Ionicons name="calendar-outline" size={20} color={GREEN} />
-          <Text style={styles.dateLabel}>Select History Date:</Text>
-        </View>
-        
-        {Platform.OS === 'web' ? (
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            style={styles.webDateInput}
-          />
-        ) : (
-          <View>
-    <TouchableOpacity 
-      style={styles.mobileDateBtn}
-      onPress={() => setShowPicker(true)}
-    >
-      <Text style={styles.mobileDateText}>
-        {new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-      </Text>
-      <Ionicons name="chevron-down" size={14} color={GREEN} />
-    </TouchableOpacity>
+        <View style={[{ flex: 1 }, isWeb && { maxWidth: 1200, alignSelf: 'center', width: '100%' }]}>
+          {filter === "PREVIOUS" ? (
+            /* --- PREVIOUS TAB START --- */
+            <>
+              <View style={styles.datePickerContainer}>
+                <View style={styles.dateInfo}>
+                  <Ionicons name="calendar-outline" size={20} color="#10B981" />
+                  <Text style={styles.dateLabel}>Select History Date:</Text>
+                </View>
+                
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    style={styles.webDateInput}
+                  />
+                ) : (
+                  <View>
+                    <TouchableOpacity 
+                      style={styles.mobileDateBtn}
+                      onPress={() => setShowPicker(true)}
+                    >
+                      <Text style={styles.mobileDateText}>
+                        {new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </Text>
+                      <Ionicons name="chevron-down" size={14} color="#10B981" />
+                    </TouchableOpacity>
 
-    {showPicker && DateTimePicker && (
-  <DateTimePicker
-    value={new Date(selectedDate)}
-    mode="date"
-    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-    onChange={onDateChange}
-    maximumDate={new Date()}
-  />
-)}
-  </View>
-        )}
-      </View>
+                    {showPicker && DateTimePicker && (
+                      <DateTimePicker
+                        value={new Date(selectedDate)}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={onDateChange}
+                        maximumDate={new Date()}
+                      />
+                    )}
+                  </View>
+                )}
+              </View>
 
-      {/* 2. THE SECTION LIST FOLLOWS */}
-      <SectionList
-        sections={getGroupedPreviousOrders()}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
-        }
-        contentContainerStyle={{ padding: 12 }}
-        renderSectionHeader={({ section: { title } }) => (
-          <Text style={styles.sectionHeader}>{title}</Text>
-        )}
-        renderItem={renderOrderItem}
-        ListEmptyComponent={
-          <View style={{ alignItems: "center", marginTop: 60 }}>
-            <Ionicons name="archive-outline" size={48} color="#D1D5DB" />
-            <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
-              No archived orders for this date
-            </Text>
-          </View>
-        }
-      />
-    </>
-    /* --- PREVIOUS TAB END --- */
-  ) : (
-    /* UPDATED FLATLIST WITH GRID LOGIC (For All other tabs) */
-    <FlatList
-      key={numColumns}
-      numColumns={numColumns}
-      data={getFilteredData()} 
-      keyExtractor={(item) => item.id}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
-      }
-      contentContainerStyle={{ 
-        padding: 12,
-        alignSelf: isWeb ? 'center' : 'stretch',
-        width: isWeb ? '100%' : 'auto',
-      }}
-      ListEmptyComponent={
-        <View style={{ alignItems: "center", marginTop: 60 }}>
-          <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
-          <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
-            No orders found for today
-          </Text>
+              <SectionList
+                sections={getGroupedPreviousOrders()}
+                keyExtractor={(item) => item.id}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
+                }
+                contentContainerStyle={{ padding: 12 }}
+                renderSectionHeader={({ section: { title } }) => (
+                  <Text style={styles.sectionHeader}>{title}</Text>
+                )}
+                renderItem={renderOrderItem}
+                ListEmptyComponent={
+                  <View style={{ alignItems: "center", marginTop: 60 }}>
+                    <Ionicons name="archive-outline" size={48} color="#D1D5DB" />
+                    <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
+                      No archived orders for this date
+                    </Text>
+                  </View>
+                }
+              />
+            </>
+          ) : (
+            /* --- TODAY TAB (grid) --- */
+            <FlatList
+              key={numColumns}
+              numColumns={numColumns}
+              data={getFilteredData()} 
+              keyExtractor={(item) => item.id}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
+              }
+              contentContainerStyle={{ 
+                padding: 12,
+                alignSelf: isWeb ? 'center' : 'stretch',
+                width: isWeb ? '100%' : 'auto',
+              }}
+              ListEmptyComponent={
+                <View style={{ alignItems: "center", marginTop: 60 }}>
+                  <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
+                  <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
+                    No orders found for today
+                  </Text>
+                </View>
+              }
+              renderItem={renderOrderItem}
+            />
+          )}
         </View>
-      }
-      renderItem={renderOrderItem}
-    />
-  )}
-</View>
       )}
+
+      {/* ─── DISCOUNT MODAL ───────────────────────────────────────────── */}
+      <Modal
+        visible={showDiscountModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDiscountModal(false)}
+      >
+        <Pressable style={styles.discountModalOverlay} onPress={() => setShowDiscountModal(false)}>
+          <Pressable style={styles.discountModal} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.discountModalHeader}>
+              <Text style={styles.discountModalTitle}>Apply Discount</Text>
+              <TouchableOpacity onPress={() => setShowDiscountModal(false)} hitSlop={10}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.discountSegment}>
+              {[
+                { key: 'none', label: 'None', icon: 'close-circle-outline' },
+                { key: 'percentage', label: '% Off', icon: 'pricetag-outline' },
+                { key: 'flat', label: '₹ Off', icon: 'cash-outline' },
+              ].map(({ key, label, icon }) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.segmentBtn, discountType === key && styles.segmentBtnActive]}
+                  onPress={() => { setDiscountType(key); setDiscountValue(''); }}
+                >
+                  <Ionicons name={icon} size={16} color={discountType === key ? '#fff' : '#6B7280'} />
+                  <Text style={[styles.segmentText, discountType === key && styles.segmentTextActive]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {discountType !== 'none' && (
+              <>
+                <View style={styles.discountInputWrap}>
+                  <Text style={styles.discountPrefix}>{discountType === 'percentage' ? '%' : '₹'}</Text>
+                  <TextInput
+                    style={styles.discountInputField}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    value={discountValue}
+                    onChangeText={setDiscountValue}
+                    autoFocus
+                  />
+                </View>
+
+                {discountType === 'percentage' && (
+                  <View style={styles.presetRow}>
+                    {[5, 10, 15, 20].map((p) => (
+                      <TouchableOpacity key={p} style={styles.presetChip} onPress={() => setDiscountValue(String(p))}>
+                        <Text style={styles.presetChipText}>{p}%</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+
+            <View style={styles.previewBox}>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Subtotal</Text>
+                <Text style={styles.previewValue}>₹{modalSubtotal.toFixed(0)}</Text>
+              </View>
+              {modalDiscountAmount > 0 && (
+                <View style={styles.previewRow}>
+                  <Text style={[styles.previewLabel, { color: '#EF4444' }]}>Discount</Text>
+                  <Text style={[styles.previewValue, { color: '#EF4444' }]}>-₹{modalDiscountAmount.toFixed(0)}</Text>
+                </View>
+              )}
+              <View style={[styles.previewRow, { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 8, marginTop: 4 }]}>
+                <Text style={styles.previewTotalLabel}>Payable</Text>
+                <Text style={styles.previewTotalValue}>₹{(modalSubtotal - modalDiscountAmount).toFixed(0)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.discountModalButtons}>
+              <TouchableOpacity
+                style={[styles.discountModalBtn, { backgroundColor: '#F3F4F6' }]}
+                onPress={() => setShowDiscountModal(false)}
+              >
+                <Text style={[styles.discountModalBtnText, { color: '#374151' }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.discountModalBtn, { backgroundColor: '#111827' }]} onPress={applyDiscount}>
+                <Ionicons name="print-outline" size={16} color="#fff" />
+                <Text style={styles.discountModalBtnText}>Apply & Print</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
+// ─── STATUS COLOR ────────────────────────────────────────────────────
 const statusColor = (s) =>
   ({
     EDITABLE: "#6B7280",
@@ -662,12 +814,10 @@ const statusColor = (s) =>
     REJECTED: "#EF4444",
   }[s] || "#888");
 
-  const GREEN = "#10B981";
+const GREEN = "#10B981";
 
+// ─── STYLES ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-
-  
-  // Filter Tabs
   filterTab: { 
     paddingHorizontal: 16, 
     paddingVertical: 8, 
@@ -679,7 +829,6 @@ const styles = StyleSheet.create({
   filterTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
   filterTabText: { fontSize: 13, fontWeight: "700", color: "#4B5563" },
 
-  // Order Cards (The Grid Fix)
   orderCard: { 
     backgroundColor: "#fff", 
     borderRadius: 16, 
@@ -687,7 +836,6 @@ const styles = StyleSheet.create({
     marginBottom: 12, 
     borderWidth: 1, 
     borderColor: "#E8E2D9",
-    // This allows the cards to sit side-by-side on Web
     ...Platform.select({
       web: {
         flex: 1,
@@ -775,7 +923,86 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
 
+  // ─── DISCOUNT MODAL STYLES ─────────────────────────────────────────
+  discountModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  discountModal: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 22,
+    width: '100%',
+    maxWidth: 380,
+  },
+  discountModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  discountModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+
+  discountSegment: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+    marginBottom: 16,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 9,
+  },
+  segmentBtnActive: { backgroundColor: '#111827' },
+  segmentText: { fontSize: 12, fontWeight: '700', color: '#6B7280' },
+  segmentTextActive: { color: '#fff' },
+
+  discountInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  discountPrefix: { fontSize: 18, fontWeight: '800', color: '#9CA3AF', marginRight: 8 },
+  discountInputField: { flex: 1, fontSize: 20, fontWeight: '700', paddingVertical: 12, color: '#111827' },
+
+  presetRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  presetChip: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#ECFDF5', alignItems: 'center' },
+  presetChipText: { fontSize: 13, fontWeight: '700', color: '#10B981' },
+
+  previewBox: { backgroundColor: '#FAF8F5', borderRadius: 12, padding: 14, marginBottom: 18, marginTop: 4 },
+  previewRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
+  previewLabel: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
+  previewValue: { fontSize: 13, color: '#111827', fontWeight: '700' },
+  previewTotalLabel: { fontSize: 15, color: '#111827', fontWeight: '800' },
+  previewTotalValue: { fontSize: 18, color: '#111827', fontWeight: '900' },
+
+  discountModalButtons: { flexDirection: 'row', gap: 10 },
+  discountModalBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  discountModalBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
 });
-
-
-

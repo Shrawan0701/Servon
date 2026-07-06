@@ -209,5 +209,23 @@ router.post("/upload-logo", auth, async (req, res) => {
     res.status(500).json({ error: "Internal server error during upload" });
   }
 });
+// ─── PUBLIC: Get business profile (no auth) ──────────────────────────
+router.get("/public/:businessId", async (req, res) => {
+  try {
+    const { businessId } = req.params;
+    const result = await pool.query(
+      `SELECT id, business_name, cgst_percentage, sgst_percentage, gst_number 
+       FROM businesses WHERE id = $1`,
+      [businessId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Business not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 module.exports = router;

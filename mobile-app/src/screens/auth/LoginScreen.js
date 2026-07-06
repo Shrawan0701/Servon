@@ -19,8 +19,7 @@ const { width } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
 
 const BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "https://servon.onrender.com";
-
+  process.env.EXPO_PUBLIC_API_URL || "http://10.12.34.12:5000";
                     
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();

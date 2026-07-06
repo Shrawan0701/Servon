@@ -24,8 +24,14 @@ const allowedOrigins = [
   "https://servon-blue.vercel.app",
   "http://localhost:8081",
   "http://10.193.19.38:8081",
-  "http://localhost:3000"
+  "http://localhost:3000",
+  "http://192.168.1.8:3000",
+  "http://192.168.1.8:3001",
+  "http://10.12.34.12:3000",
+  "exp://10.12.34.12:3001",
 ];
+
+
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -70,7 +76,7 @@ app.use("/api/profile", require("./routes/profile"));
 app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/expenses', require('./routes/expenses'));
-
+app.use("/api/business", require("./routes/profile"));
 // Health check 
 app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date() })); 
 
