@@ -11,6 +11,10 @@ const API = axios.create({
   baseURL: `${BASE_URL}/api`,
   timeout: 15000,
 });
+const API = axios.create({
+  baseURL: `${BASE_URL}/api`,
+  timeout: 15000,
+});
 
 API.interceptors.request.use(
   async (config) => {
@@ -119,6 +123,10 @@ export const markAllNotificationsRead = () =>
 export const getAnalytics = () =>
   API.get("/analytics");
 
+export const getDailySummary = () =>
+  API.get("/analytics/daily-summary");
+
+export const getNextInsight = () => API.get("/analytics/next-insight");
 // --- Sales ---
 export const getSalesCSVUrl = (startDate, endDate) =>
   `${API.defaults.baseURL}/sales/csv?startDate=${startDate}&endDate=${endDate}`;

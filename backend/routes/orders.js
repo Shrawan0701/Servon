@@ -2,11 +2,10 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const auth = require("../middleware/auth");
-const subscription = require("../middleware/subscription");
 const sendPush = require('../utils/pushNotify');
 const { getIO } = require("../socket");
 
-// ─── DISCOUNT CALCULATION HELPER ──────────────────────────────────────
+// ─── DISCOUNT CALCULATION (GST removed, handled separately) ──────────
 function calculateDiscount(subtotal, discountType = 'none', discountValue = 0) {
   let discountAmount = 0;
   if (discountType === 'percentage') {
@@ -14,18 +13,10 @@ function calculateDiscount(subtotal, discountType = 'none', discountValue = 0) {
   } else if (discountType === 'flat') {
     discountAmount = Math.min(discountValue, subtotal);
   }
-
-  const amountAfterDiscount = subtotal - discountAmount;
-  const gstRate = 0.18;
-  const gst = amountAfterDiscount * gstRate;
-  const total = amountAfterDiscount + gst;
-
   return {
     discountAmount,
-    amountAfterDiscount,
-    gst,
-    total,
-    subtotal
+    amountAfterDiscount: subtotal - discountAmount,
+    subtotal,
   };
 }
 
@@ -46,30 +37,28 @@ router.post("/place", async (req, res) => {
   }
 
   try {
-    // Check business subscription
+    // ─── Check business subscription ──────────────────────────────────
     const biz = await pool.query(
       "SELECT subscription_status, subscription_end_date, push_token FROM businesses WHERE id = $1",
       [businessId]
     );
-
     if (
       biz.rows.length === 0 ||
       biz.rows[0].subscription_status !== "ACTIVE" ||
       new Date(biz.rows[0].subscription_end_date) < new Date()
     ) {
-      return res
-        .status(403)
-        .json({ error: "Restaurant is currently not accepting orders" });
+      return res.status(403).json({ error: "Restaurant is currently not accepting orders" });
     }
-
     const pushToken = biz.rows[0].push_token;
+
+    // ─── Get table number ──────────────────────────────────────────────
     const tableInfo = await pool.query(
       "SELECT table_number FROM tables WHERE id = $1",
       [tableId]
     );
     const tableNum = tableInfo.rows[0]?.table_number || "Unknown";
 
-    // ─── CALCULATE SUBTOTAL ──────────────────────────────────────────
+    // ─── Calculate subtotal ────────────────────────────────────────────
     let subtotal = 0;
     if (Array.isArray(items)) {
       subtotal = items.reduce((sum, item) => {
@@ -90,14 +79,26 @@ router.post("/place", async (req, res) => {
       } catch (e) {}
     }
 
-    const discountResult = calculateDiscount(subtotal, discount_type, discount_value);
+    // ─── Fetch business GST rates ──────────────────────────────────────
+    const gstResult = await pool.query(
+      "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
+      [businessId]
+    );
+    const cgstPercent = parseFloat(gstResult.rows[0]?.cgst_percentage || 0);
+    const sgstPercent = parseFloat(gstResult.rows[0]?.sgst_percentage || 0);
+
+    // ─── Apply discount and compute GST ────────────────────────────────
+    const { discountAmount, amountAfterDiscount } = calculateDiscount(subtotal, discount_type, discount_value);
+    const cgst = (amountAfterDiscount * cgstPercent) / 100;
+    const sgst = (amountAfterDiscount * sgstPercent) / 100;
+    const gstTotal = cgst + sgst;
+    const finalTotal = amountAfterDiscount + gstTotal;
+
     const discountType = discount_type;
     const discountValue = parseFloat(discount_value) || 0;
-    const discountAmount = discountResult.discountAmount;
     const subtotalBeforeDiscount = subtotal;
-    const finalTotal = discountResult.total;
 
-    // ─── SMART TIMER ──────────────────────────────────────────────────
+    // ─── Smart timer ────────────────────────────────────────────────────
     const triggerAutoConfirm = (targetOrderId) => {
       setTimeout(async () => {
         try {
@@ -119,7 +120,7 @@ router.post("/place", async (req, res) => {
       }, 60 * 1000);
     };
 
-    // ─── EDIT FLOW ────────────────────────────────────────────────────
+    // ─── EDIT FLOW ──────────────────────────────────────────────────────
     if (orderId) {
       const checkOrder = await pool.query("SELECT status FROM orders WHERE id = $1", [orderId]);
       if (checkOrder.rows.length > 0 && checkOrder.rows[0].status === "EDITABLE") {
@@ -133,8 +134,9 @@ router.post("/place", async (req, res) => {
              discount_value = $5,
              discount_amount = $6,
              subtotal_before_discount = $7,
+             gst_amount = $8,
              updated_at = NOW()
-           WHERE id = $8
+           WHERE id = $9
            RETURNING *`,
           [
             JSON.stringify(items),
@@ -144,17 +146,16 @@ router.post("/place", async (req, res) => {
             discountValue,
             discountAmount,
             subtotalBeforeDiscount,
+            gstTotal,
             orderId
           ]
         );
-
         try {
           const io = getIO();
           io.to(`business_${businessId}`).emit("order_updated", updatedOrder.rows[0]);
         } catch (e) {
           console.warn("Socket emit failed:", e.message);
         }
-
         triggerAutoConfirm(orderId);
         return res.status(200).json(updatedOrder.rows[0]);
       }
@@ -166,9 +167,9 @@ router.post("/place", async (req, res) => {
        (
          business_id, table_id, items, total_amount, 
          special_instructions, status, updated_at,
-         discount_type, discount_value, discount_amount, subtotal_before_discount
+         discount_type, discount_value, discount_amount, subtotal_before_discount, gst_amount
        )
-       VALUES ($1, $2, $3, $4, $5, 'EDITABLE', NOW(), $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $5, 'EDITABLE', NOW(), $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         businessId,
@@ -179,7 +180,8 @@ router.post("/place", async (req, res) => {
         discountType,
         discountValue,
         discountAmount,
-        subtotalBeforeDiscount
+        subtotalBeforeDiscount,
+        gstTotal
       ]
     );
 
@@ -245,7 +247,22 @@ router.put("/edit/:id", async (req, res) => {
 
     const discType = discount_type || order.discount_type || 'none';
     const discValue = parseFloat(discount_value) || parseFloat(order.discount_value) || 0;
-    const discountResult = calculateDiscount(subtotal, discType, discValue);
+
+    // ─── Fetch business GST rates ──────────────────────────────────────
+    // For edit, we need the businessId from the order
+    const businessId = order.business_id;
+    const gstResult = await pool.query(
+      "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
+      [businessId]
+    );
+    const cgstPercent = parseFloat(gstResult.rows[0]?.cgst_percentage || 0);
+    const sgstPercent = parseFloat(gstResult.rows[0]?.sgst_percentage || 0);
+
+    const { discountAmount, amountAfterDiscount } = calculateDiscount(subtotal, discType, discValue);
+    const cgst = (amountAfterDiscount * cgstPercent) / 100;
+    const sgst = (amountAfterDiscount * sgstPercent) / 100;
+    const gstTotal = cgst + sgst;
+    const finalTotal = amountAfterDiscount + gstTotal;
 
     const updated = await pool.query(
       `UPDATE orders 
@@ -257,17 +274,19 @@ router.put("/edit/:id", async (req, res) => {
          discount_value = $5,
          discount_amount = $6,
          subtotal_before_discount = $7,
+         gst_amount = $8,
          updated_at = NOW()
-       WHERE id = $8
+       WHERE id = $9
        RETURNING *`,
       [
         JSON.stringify(items),
-        discountResult.total,
+        finalTotal,
         specialInstructions || null,
         discType,
         discValue,
-        discountResult.discountAmount,
+        discountAmount,
         subtotal,
+        gstTotal,
         req.params.id
       ]
     );
