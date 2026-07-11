@@ -11,10 +11,6 @@ const API = axios.create({
   baseURL: `${BASE_URL}/api`,
   timeout: 15000,
 });
-const API = axios.create({
-  baseURL: `${BASE_URL}/api`,
-  timeout: 15000,
-});
 
 API.interceptors.request.use(
   async (config) => {
@@ -123,6 +119,7 @@ export const markAllNotificationsRead = () =>
 export const getAnalytics = () =>
   API.get("/analytics");
 
+// --- DailySummary ---
 export const getDailySummary = () =>
   API.get("/analytics/daily-summary");
 
@@ -172,4 +169,9 @@ export const updateExpense = (id, formData) =>
     headers: { "Content-Type": "multipart/form-data" },
   });
 
+export const askAdvisor = (question) => API.post('/advisor/ask', { question });
+export const getAdvisorInsights = () => API.get('/advisor/insights');
+export const getAdvisorConversations = () => API.get('/advisor/conversations');
+export const deleteConversation = (id) => API.delete(`/advisor/conversations/${id}`);
+export const clearAllConversations = () => API.delete('/advisor/conversations');
 export default API;

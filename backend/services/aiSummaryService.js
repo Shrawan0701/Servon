@@ -1,8 +1,8 @@
 // services/aiSummaryService.js
-const OpenAI = require('openai');
+const Groq = require('groq-sdk');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 // ─── GENERATE FULL DAILY SUMMARY ──────────────────────────────────────
@@ -20,45 +20,43 @@ const generateSummary = async (data) => {
     : 'No peak hours recorded';
 
   const prompt = `
-You are a restaurant business analyst. Based on the following daily data, provide a concise, actionable summary.
+You are a restaurant business analyst. Based on the following daily data, provide a concise summary.
 
 **Data:**
 - Date: ${data.date}
 - Total Orders: ${data.totalOrders}
 - Total Revenue: ₹${data.totalRevenue.toFixed(0)}
 - Average Order Value: ₹${data.avgOrderValue.toFixed(0)}
-- Tables Used: ${data.tablesUsed}
 - Top Items: ${topItemsText}
 - Peak Hours: ${peakHoursText}
 
 **Instructions:**
-1. Write a friendly, professional summary (3-4 paragraphs, ~200-300 words).
-2. Highlight key insights (best-selling items, peak hours, revenue trends).
-3. Provide 2-3 actionable recommendations.
-4. End with a motivational note.
+1. Write a short summary (2-3 sentences).
+2. Highlight the most important metric.
+3. Give 1 quick recommendation.
+4. Total length: under 60 words.
 
 **Format:** Plain text, no markdown.
 `;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       messages: [
-        { role: "system", content: "You are a helpful restaurant business analyst." },
+        { role: "system", content: "You are a helpful restaurant business analyst. Keep summaries very short and focused." },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
-      max_tokens: 600,
+      max_tokens: 200, // Reduced from 600
     });
 
     return response.choices[0].message.content.trim();
   } catch (error) {
-    console.error('OpenAI API error:', error);
-    return ` Summary for ${data.date}\n\nYou had ${data.totalOrders} orders totaling ₹${data.totalRevenue.toFixed(0)}. Top items: ${topItemsText}. Keep up the great work! 🚀`;
+    console.error('Groq error:', error);
+    return `📊 ${data.totalOrders} orders, ₹${data.totalRevenue.toFixed(0)} revenue. Top: ${topItemsText}.`;
   }
 };
-
-// ─── GENERATE HOURLY INSIGHTS (NEW) ──────────────────────────────────
+// ─── GENERATE HOURLY INSIGHTS ──────────────────────────────────────────
 const generateInsights = async (data) => {
   const topItemsText = data.topItems.length > 0
     ? data.topItems.map(i => `${i.name} (${i.total_quantity} orders)`).join(', ')
@@ -90,8 +88,8 @@ Return ONLY a JSON array of strings.
 `;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       messages: [
         { role: "system", content: "You are a helpful restaurant analyst. Always output valid JSON array." },
         { role: "user", content: prompt },
@@ -101,12 +99,10 @@ Return ONLY a JSON array of strings.
     });
 
     const jsonStr = response.choices[0].message.content.trim();
-    // Remove markdown code blocks if any
     const cleaned = jsonStr.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned); // array of strings
+    return JSON.parse(cleaned);
   } catch (error) {
-    console.error('OpenAI insights error:', error);
-    // Fallback insights
+    console.error('Groq insights error:', error);
     return [
       `Total orders: ${data.totalOrders}`,
       `Revenue: ₹${data.totalRevenue.toFixed(0)}`,

@@ -15,7 +15,7 @@ import AnalyticsScreen from "../screens/AnalyticsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import ReferralsScreen from "../screens/ReferralsScreen"; 
 import ReviewsScreen from '../screens/ReviewsScreen';
-
+import AdvisorScreen from "../screens/AdvisorScreen";
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -77,6 +77,7 @@ export default function MainNavigator() {
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Referrals" component={ReferralsScreen} /> 
       <Stack.Screen name="Reviews" component={ReviewsScreen} />
+      <Stack.Screen name="Advisor" component={AdvisorScreen} options={{ title: 'AI Business Advisor' }} />
     </Stack.Navigator>
   );
 }

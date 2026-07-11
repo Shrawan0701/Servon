@@ -20,23 +20,30 @@ initSocket(server);
 
 // ─── CORS ──────────────────────────────────────────────────────────────
 const allowedOrigins = [
+  // ─── PRODUCTION ──────────────────────────────────────────────
   "https://servon.cloud",
   "https://www.servon.cloud",
   "https://menu.servon.cloud",
   "https://servon-customer-menu.vercel.app",
   "https://servon-blue.vercel.app",
+
+  // ─── LOCAL DEVELOPMENT ──────────────────────────────────────
   "http://localhost:8081",
   "http://localhost:3000",
   "http://localhost:3001",
+
+  // ─── NETWORK IPs (same Wi-Fi) ──────────────────────────────
   "http://10.193.19.38:8081",
   "http://192.168.1.8:3000",
   "http://192.168.1.8:3001",
   "http://10.61.96.12:3000",
-  "http://10.203.140.12:3000",
-  "http://10.203.140.12:3001",
-  "http://10.203.140.12:8081",
-  "exp://10.203.140.12:19000",
-  "exp://10.203.140.12:3001",
+
+  // ─── YOUR NEW IP ─────────────────────────────────────────────
+  "http://10.90.45.12:3000",
+  "http://10.90.45.12:3001",
+  "http://10.90.45.12:8081",
+  "http://10.90.45.12:19000",
+  "exp://10.90.45.12:19000",
 ];
 
 app.use(
@@ -80,7 +87,7 @@ app.use("/api/referrals", require("./routes/referrals"));
 app.use("/api/reviews", require("./routes/reviews"));
 app.use("/api/expenses", require("./routes/expenses"));
 app.use("/api/business", require("./routes/profile"));
-
+app.use("/api/advisor", require("./routes/advisor"));
 app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date() }));
 
 // ─── DAILY AI SUMMARY CRON (6:00 AM) ────────────────────────────────
