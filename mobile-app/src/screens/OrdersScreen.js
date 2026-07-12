@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,12 @@ import { useAuth } from "../context/AuthContext";
 
 // ─── CONSTANTS ──────────────────────────────────────────────────────────
 
+// How long (ms) we trust a locally-updated order over whatever the server
+// returns on the next focus-triggered fetch. This avoids the "status
+// reverts after navigating away and back" bug caused by read-after-write
+// lag on the backend.
+const LOCAL_UPDATE_TRUST_WINDOW_MS = 4000;
+
 // Original status colors (for normal mode)
 const statusColor = (s) =>
   ({
@@ -38,7 +44,20 @@ const statusColor = (s) =>
   }[s] || "#888");
 
 // Original status filters (for normal mode)
-const STATUS_FILTERS = ["All", "EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE", "PAID", "PREVIOUS"];
+// NOTE: uses {key, label} — key is always lowercase-safe and matches exactly
+// what getFilteredData() compares against. Previously this was a flat array
+// of display strings (e.g. "All"), which didn't match the "all" (lowercase)
+// check in getFilteredData once re-selected, causing the list to go blank.
+const STATUS_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "EDITABLE", label: "EDITABLE" },
+  { key: "CONFIRMED", label: "CONFIRMED" },
+  { key: "PREPARING", label: "PREPARING" },
+  { key: "SERVED", label: "SERVED" },
+  { key: "TABLE_ACTIVE", label: "TABLE ACTIVE" },
+  { key: "PAID", label: "PAID" },
+  { key: "PREVIOUS", label: "PREVIOUS" },
+];
 
 // ─── CHEF‑MODE STATUS CONFIG ──────────────────────────────────────────
 
@@ -150,7 +169,9 @@ const ChefOrderCard = React.memo((props) => {
       {/* Header */}
       <View style={styles.chefCardHeader}>
         <View style={styles.chefTableRow}>
-          <Ionicons name="restaurant-outline" size={20} color="#111" />
+          <View style={styles.chefTableIconWrap}>
+            <Ionicons name="restaurant-outline" size={18} color="#111" />
+          </View>
           <Text style={styles.chefTableNumber}>Table {order.table_number}</Text>
         </View>
         <ChefStatusBadge status={order.status} />
@@ -159,8 +180,10 @@ const ChefOrderCard = React.memo((props) => {
       {/* Items */}
       <View style={styles.chefItemsContainer}>
         {items.map((item, idx) => (
-          <View key={idx} style={styles.chefItemRow}>
-            <Text style={styles.chefItemName}>• {item.name}</Text>
+          <View key={idx} style={[styles.chefItemRow, idx !== items.length - 1 && styles.chefItemRowDivider]}>
+            <Text style={styles.chefItemName} numberOfLines={2}>
+              • {item.name}
+            </Text>
             <View style={styles.chefItemMeta}>
               <Text style={styles.chefItemQty}>×{item.quantity}</Text>
               <Text style={styles.chefItemPrice}>₹{(item.price * item.quantity).toFixed(0)}</Text>
@@ -179,9 +202,12 @@ const ChefOrderCard = React.memo((props) => {
 
       {/* Footer */}
       <View style={styles.chefCardFooter}>
-        <Text style={styles.chefTimestamp}>
-          {new Date(order.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-        </Text>
+        <View style={styles.chefTimestampRow}>
+          <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+          <Text style={styles.chefTimestamp}>
+            {new Date(order.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+          </Text>
+        </View>
         <View style={styles.chefTotalRow}>
           <Text style={styles.chefTotalLabel}>Total:</Text>
           <Text style={styles.chefTotalValue}>₹{Math.round(parseFloat(order.total_amount))}</Text>
@@ -198,30 +224,51 @@ const ChefOrderCard = React.memo((props) => {
               </View>
             ) : (
               <>
-                <TouchableOpacity style={[styles.chefActionBtn, styles.chefAcceptBtn]} onPress={() => onAccept(order.id)}>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={[styles.chefActionBtn, styles.chefAcceptBtn]}
+                  onPress={() => onAccept(order.id)}
+                >
                   <Ionicons name="checkmark" size={18} color="#fff" />
                   <Text style={styles.chefActionText}>Accept</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.chefActionBtn, styles.chefRejectBtn]} onPress={() => onReject(order.id)}>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={[styles.chefActionBtn, styles.chefRejectBtn]}
+                  onPress={() => onReject(order.id)}
+                >
                   <Ionicons name="close" size={18} color="#fff" />
                   <Text style={styles.chefActionText}>Reject</Text>
                 </TouchableOpacity>
               </>
             ))}
           {isPreparing && (
-            <TouchableOpacity style={[styles.chefActionBtn, styles.chefCompleteBtn]} onPress={() => onComplete(order.id)}>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={[styles.chefActionBtn, styles.chefCompleteBtn, { flex: 1 }]}
+              onPress={() => onComplete(order.id)}
+            >
               <Ionicons name="checkmark-done" size={18} color="#fff" />
               <Text style={styles.chefActionText}>Serve</Text>
             </TouchableOpacity>
           )}
           {isServed && (
-            <TouchableOpacity style={[styles.chefActionBtn, styles.chefActiveBtn]} onPress={() => onComplete(order.id)}>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={[styles.chefActionBtn, styles.chefActiveBtn, { flex: 1 }]}
+              onPress={() => onComplete(order.id)}
+            >
               <Ionicons name="people" size={18} color="#fff" />
               <Text style={styles.chefActionText}>Active Table</Text>
             </TouchableOpacity>
           )}
           {isTableActive && !isChefMode && (
-            <TouchableOpacity style={[styles.chefActionBtn, styles.chefPrintBtn]} onPress={() => onPrint(order)} disabled={isProcessing}>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={[styles.chefActionBtn, styles.chefPrintBtn, { flex: 1 }]}
+              onPress={() => onPrint(order)}
+              disabled={isProcessing}
+            >
               {isProcessing ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
@@ -265,7 +312,7 @@ function UpgradeGate() {
             </View>
           ))}
         </View>
-        <TouchableOpacity style={gateStyles.btn} onPress={() => navigation.navigate("Profile")} activeOpacity={0.8}>
+        <TouchableOpacity style={gateStyles.btn} onPress={() => navigation.navigate("Profile")} activeOpacity={0.85}>
           <Text style={gateStyles.btnText}>Upgrade to Premium</Text>
           <Ionicons name="arrow-forward" size={18} color="#fff" />
         </TouchableOpacity>
@@ -316,7 +363,7 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
         <Pressable style={styles.discountModal} onPress={(e) => e.stopPropagation()}>
           <View style={styles.discountModalHeader}>
             <Text style={styles.discountModalTitle}>Apply Discount</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10}>
+            <TouchableOpacity onPress={onClose} hitSlop={12} activeOpacity={0.6}>
               <Ionicons name="close" size={22} color="#6B7280" />
             </TouchableOpacity>
           </View>
@@ -328,6 +375,7 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
             ].map((item) => (
               <TouchableOpacity
                 key={item.key}
+                activeOpacity={0.75}
                 style={[styles.segmentBtn, discountType === item.key && styles.segmentBtnActive]}
                 onPress={() => { setDiscountType(item.key); setDiscountValue(""); }}
               >
@@ -345,7 +393,7 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
               {discountType === "percentage" && (
                 <View style={styles.presetRow}>
                   {[5, 10, 15, 20].map((p) => (
-                    <TouchableOpacity key={p} style={styles.presetChip} onPress={() => setDiscountValue(String(p))}>
+                    <TouchableOpacity key={p} activeOpacity={0.7} style={styles.presetChip} onPress={() => setDiscountValue(String(p))}>
                       <Text style={styles.presetChipText}>{p}%</Text>
                     </TouchableOpacity>
                   ))}
@@ -356,7 +404,7 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
           <View style={styles.previewBox}>
             <View style={styles.previewRow}>
               <Text style={styles.previewLabel}>Subtotal</Text>
-              <Text style={styles.previewValue}>₹{Math.round(modalSubtotal)}</Text> {/* Rounded */}
+              <Text style={styles.previewValue}>₹{Math.round(modalSubtotal)}</Text>
             </View>
             {modalDiscountAmount > 0 && (
               <View style={styles.previewRow}>
@@ -370,10 +418,10 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
             </View>
           </View>
           <View style={styles.discountModalButtons}>
-            <TouchableOpacity style={[styles.discountModalBtn, { backgroundColor: "#F3F4F6" }]} onPress={onClose}>
+            <TouchableOpacity activeOpacity={0.8} style={[styles.discountModalBtn, { backgroundColor: "#F3F4F6" }]} onPress={onClose}>
               <Text style={[styles.discountModalBtnText, { color: "#374151" }]}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.discountModalBtn, { backgroundColor: "#111827" }]} onPress={onApply}>
+            <TouchableOpacity activeOpacity={0.8} style={[styles.discountModalBtn, { backgroundColor: "#111827" }]} onPress={onApply}>
               <Ionicons name="print-outline" size={16} color="#fff" />
               <Text style={styles.discountModalBtnText}>Apply & Print</Text>
             </TouchableOpacity>
@@ -404,6 +452,11 @@ export default function OrdersScreen() {
   const [selectedOrderForDiscount, setSelectedOrderForDiscount] = useState(null);
   const [discountType, setDiscountType] = useState("none");
   const [discountValue, setDiscountValue] = useState("");
+
+  // Tracks per-order timestamps of local (optimistic) status changes so a
+  // focus-triggered refetch can't silently revert a change the backend
+  // hasn't finished propagating yet.
+  const localUpdateTimestamps = useRef({});
 
   const isWeb = Platform.OS === "web";
   let DateTimePicker;
@@ -441,7 +494,24 @@ export default function OrdersScreen() {
   const loadData = useCallback(async () => {
     try {
       const [ordersRes, profileRes] = await Promise.all([getOrders(), getProfile()]);
-      setOrders(ordersRes.data);
+      const freshOrders = ordersRes.data;
+      const now = Date.now();
+
+      // Merge fresh server data with any very-recent local optimistic
+      // updates, so a stale read (backend hasn't caught up yet) can't
+      // silently roll back a status change the user just made.
+      setOrders((prev) => {
+        const prevById = new Map(prev.map((o) => [o.id, o]));
+        return freshOrders.map((fresh) => {
+          const updatedAt = localUpdateTimestamps.current[fresh.id];
+          if (updatedAt && now - updatedAt < LOCAL_UPDATE_TRUST_WINDOW_MS) {
+            const local = prevById.get(fresh.id);
+            if (local) return local;
+          }
+          return fresh;
+        });
+      });
+
       setProfile(profileRes.data);
     } catch (err) {
       console.error("Data load error:", err);
@@ -455,6 +525,7 @@ export default function OrdersScreen() {
   const handleStatusUpdate = useCallback(async (orderId, status) => {
     try {
       await updateOrderStatus(orderId, status);
+      localUpdateTimestamps.current[orderId] = Date.now();
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
     } catch (err) {
       console.error("Update error:", err);
@@ -579,6 +650,10 @@ export default function OrdersScreen() {
         }
 
         await Promise.all(tableOrders.map((o) => updateOrderStatus(o.id, "PAID")));
+        const now = Date.now();
+        tableOrders.forEach((o) => {
+          localUpdateTimestamps.current[o.id] = now;
+        });
         setOrders((prev) =>
           prev.map((o) => (tableOrders.some((to) => to.id === o.id) ? { ...o, status: "PAID" } : o))
         );
@@ -643,20 +718,21 @@ export default function OrdersScreen() {
 
     return (
       <View style={styles.orderCardOld}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <Text style={{ fontSize: 18, fontWeight: "800", color: "#111" }}>Table {item.table_number}</Text>
           <View style={[styles.badgeOld, { backgroundColor: statusColor(item.status) }]}>
-            <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800" }}>{item.status.replace("_", " ")}</Text>
+            <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.4 }}>{item.status.replace("_", " ")}</Text>
           </View>
         </View>
         {items.map((i, idx) => (
-          <Text key={idx} style={{ fontSize: 15, color: "#374151", marginBottom: 4, fontWeight: "500" }}>
+          <Text key={idx} style={{ fontSize: 15, color: "#374151", marginBottom: 5, fontWeight: "500", lineHeight: 20 }}>
             • {i.name} × {i.quantity} - <Text style={{ fontWeight: "700" }}>₹{(i.price * i.quantity).toFixed(0)}</Text>
           </Text>
         ))}
         {item.special_instructions && (
-          <View style={{ backgroundColor: "#FEF3C7", padding: 8, borderRadius: 8, marginTop: 6 }}>
-            <Text style={{ fontSize: 13, color: "#92400E", fontWeight: "600" }}>Message: {item.special_instructions}</Text>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#FEF3C7", padding: 10, borderRadius: 10, marginTop: 8 }}>
+            <Ionicons name="chatbubble-outline" size={13} color="#92400E" style={{ marginTop: 2 }} />
+            <Text style={{ fontSize: 13, color: "#92400E", fontWeight: "600", flex: 1 }}>{item.special_instructions}</Text>
           </View>
         )}
         <View style={styles.totalRowOld}>
@@ -665,9 +741,12 @@ export default function OrdersScreen() {
             ₹{Math.round(parseFloat(item.total_amount))}
           </Text>
         </View>
-        <Text style={{ fontSize: 12, color: "#aaa", marginTop: 4 }}>
-          Ordered at: {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
+          <Ionicons name="time-outline" size={12} color="#aaa" />
+          <Text style={{ fontSize: 12, color: "#aaa" }}>
+            Ordered at: {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+          </Text>
+        </View>
         {isToday(item.created_at) && (
           <>
             {(item.status === "EDITABLE" || item.status === "CONFIRMED") && (
@@ -679,10 +758,10 @@ export default function OrdersScreen() {
                   </View>
                 ) : (
                   <>
-                    <TouchableOpacity style={[styles.actionBtnOld, { backgroundColor: "#10B981" }]} onPress={() => handleStatusUpdate(item.id, "PREPARING")}>
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#10B981" }]} onPress={() => handleStatusUpdate(item.id, "PREPARING")}>
                       <Text style={styles.actionBtnTextOld}>Accept</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionBtnOld, { backgroundColor: "#EF4444", flex: 0.4 }]} onPress={() => handleStatusUpdate(item.id, "REJECTED")}>
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#EF4444", flex: 0.4 }]} onPress={() => handleStatusUpdate(item.id, "REJECTED")}>
                       <Text style={styles.actionBtnTextOld}>Reject</Text>
                     </TouchableOpacity>
                   </>
@@ -690,24 +769,24 @@ export default function OrdersScreen() {
               </View>
             )}
             {item.status === "PREPARING" && (
-              <TouchableOpacity style={[styles.actionBtnOld, { backgroundColor: "#F59E0B", marginTop: 16 }]} onPress={() => handleStatusUpdate(item.id, "SERVED")}>
+              <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#F59E0B", marginTop: 16 }]} onPress={() => handleStatusUpdate(item.id, "SERVED")}>
                 <Text style={[styles.actionBtnTextOld, { color: "#fff" }]}>Mark Served</Text>
               </TouchableOpacity>
             )}
             {item.status === "SERVED" && (
               <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-                <TouchableOpacity style={[styles.actionBtnOld, { backgroundColor: "#8B5CF6" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
+                <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#8B5CF6" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
                   <Text style={styles.actionBtnTextOld}>Active Table</Text>
                 </TouchableOpacity>
                 {!isChefMode && (
-                  <TouchableOpacity style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
+                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
                     {isProcessing ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.actionBtnTextOld}>Print</Text>}
                   </TouchableOpacity>
                 )}
               </View>
             )}
             {item.status === "TABLE_ACTIVE" && !isChefMode && (
-              <TouchableOpacity style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
+              <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
                 {isProcessing ? (
                   <>
                     <ActivityIndicator color="#fff" size="small" />
@@ -830,6 +909,7 @@ export default function OrdersScreen() {
             contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 8 }}
             renderItem={({ item }) => (
               <TouchableOpacity
+                activeOpacity={0.75}
                 style={[styles.filterTab, filter === item.key && styles.filterTabActive]}
                 onPress={() => setFilter(item.key)}
               >
@@ -841,16 +921,17 @@ export default function OrdersScreen() {
           <FlatList
             horizontal
             data={STATUS_FILTERS}
-            keyExtractor={(i) => i}
+            keyExtractor={(i) => i.key}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 8 }}
             renderItem={({ item }) => (
               <TouchableOpacity
-                style={[styles.filterTab, filter === item && styles.filterTabActive]}
-                onPress={() => setFilter(item)}
+                activeOpacity={0.75}
+                style={[styles.filterTab, filter === item.key && styles.filterTabActive]}
+                onPress={() => setFilter(item.key)}
               >
-                <Text style={[styles.filterTabText, filter === item && { color: "#fff" }]}>
-                  {item.replace("_", " ")}
+                <Text style={[styles.filterTabText, filter === item.key && { color: "#fff" }]}>
+                  {item.label.replace("_", " ")}
                 </Text>
               </TouchableOpacity>
             )}
@@ -871,7 +952,7 @@ export default function OrdersScreen() {
                 <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} style={styles.webDateInput} />
               ) : (
                 <View>
-                  <TouchableOpacity style={styles.mobileDateBtn} onPress={() => setShowPicker(true)}>
+                  <TouchableOpacity activeOpacity={0.8} style={styles.mobileDateBtn} onPress={() => setShowPicker(true)}>
                     <Text style={styles.mobileDateText}>
                       {new Date(selectedDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                     </Text>
@@ -894,6 +975,7 @@ export default function OrdersScreen() {
               keyExtractor={(item) => item.id}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
               contentContainerStyle={{ padding: 12 }}
+              stickySectionHeadersEnabled={false}
               renderSectionHeader={({ section: { title } }) => <Text style={styles.sectionHeader}>{title}</Text>}
               renderItem={isChefMode ? renderOrderItemChef : renderOrderItemOld}
               ListEmptyComponent={
@@ -947,17 +1029,17 @@ const styles = StyleSheet.create({
   // ─── NORMAL MODE STYLES (old) ────────────────────────────────────
   orderCardOld: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 18,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#E8E2D9",
     ...Platform.select({
-      web: { flex: 1, margin: 8, minWidth: 300, shadowColor: "#A89880", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
+      web: { flex: 1, margin: 8, minWidth: 300, shadowColor: "#A89880", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12 },
       default: { elevation: 2 },
     }),
   },
-  badgeOld: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  badgeOld: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   totalRowOld: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -967,7 +1049,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
   },
-  actionBtnOld: { flex: 1, borderRadius: 10, padding: 14, alignItems: "center" },
+  actionBtnOld: { flex: 1, borderRadius: 12, padding: 14, alignItems: "center" },
   actionBtnTextOld: { color: "#fff", fontWeight: "800", fontSize: 15, textAlign: "center" },
 
   // ─── CHEF MODE STYLES ─────────────────────────────────────────────
@@ -976,26 +1058,28 @@ const styles = StyleSheet.create({
 
   chefOrderCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#E8E2D9",
     ...Platform.select({
-      web: { flex: 1, margin: 8, minWidth: 280, boxShadow: "0 4px 10px rgba(168,152,128,0.05)" },
+      web: { flex: 1, margin: 8, minWidth: 280, boxShadow: "0 4px 14px rgba(168,152,128,0.07)" },
       default: { elevation: 2 },
     }),
   },
   chefCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   chefTableRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  chefTableNumber: { fontSize: 20, fontWeight: "900", color: "#111" },
+  chefTableIconWrap: { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F9FAFB", alignItems: "center", justifyContent: "center" },
+  chefTableNumber: { fontSize: 19, fontWeight: "900", color: "#111" },
   chefItemsContainer: { marginBottom: 8 },
-  chefItemRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 3 },
-  chefItemName: { fontSize: 15, fontWeight: "500", color: "#374151" },
+  chefItemRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5 },
+  chefItemRowDivider: { borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
+  chefItemName: { fontSize: 15, fontWeight: "500", color: "#374151", flex: 1, paddingRight: 8 },
   chefItemMeta: { flexDirection: "row", gap: 12 },
   chefItemQty: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
   chefItemPrice: { fontSize: 14, fontWeight: "700", color: "#111" },
-  chefInstructions: { flexDirection: "row", alignItems: "center", backgroundColor: "#FEF3C7", padding: 8, borderRadius: 8, marginTop: 6, gap: 6 },
+  chefInstructions: { flexDirection: "row", alignItems: "flex-start", backgroundColor: "#FEF3C7", padding: 10, borderRadius: 10, marginTop: 8, gap: 6 },
   chefInstructionsText: { fontSize: 13, color: "#92400E", fontWeight: "600", flex: 1 },
   chefCardFooter: {
     flexDirection: "row",
@@ -1006,23 +1090,24 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
   },
+  chefTimestampRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   chefTimestamp: { fontSize: 12, color: "#9CA3AF", fontWeight: "500" },
   chefTotalRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   chefTotalLabel: { fontSize: 14, fontWeight: "600", color: "#6B7280" },
   chefTotalValue: { fontSize: 16, fontWeight: "800", color: "#111" },
-  chefActions: { flexDirection: "row", gap: 8, marginTop: 8 },
-  chefActionBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, gap: 4 },
+  chefActions: { flexDirection: "row", gap: 8, marginTop: 10 },
+  chefActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, gap: 5 },
   chefActionText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   chefAcceptBtn: { backgroundColor: "#10B981" },
   chefRejectBtn: { backgroundColor: "#EF4444" },
   chefCompleteBtn: { backgroundColor: "#F59E0B" },
   chefActiveBtn: { backgroundColor: "#8B5CF6" },
   chefPrintBtn: { backgroundColor: "#111827" },
-  chefWaitingBadge: { flexDirection: "row", alignItems: "center", backgroundColor: "#F3F4F6", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, gap: 8 },
+  chefWaitingBadge: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, gap: 8 },
   chefWaitingText: { color: "#6B7280", fontWeight: "600", fontSize: 13 },
 
   // ─── SHARED / GENERAL ─────────────────────────────────────────────
-  filterTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "#E8E2D9", backgroundColor: "#fff" },
+  filterTab: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1, borderColor: "#E8E2D9", backgroundColor: "#fff" },
   filterTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
   filterTabText: { fontSize: 13, fontWeight: "700", color: "#4B5563" },
 
@@ -1036,22 +1121,22 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     marginTop: 8,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E8E2D9",
   },
   dateInfo: { flexDirection: "row", alignItems: "center", gap: 8 },
   dateLabel: { fontSize: 14, fontWeight: "700", color: "#111827" },
   webDateInput: { padding: 8, borderRadius: 8, border: "1px solid #E8E2D9", fontFamily: "inherit", fontSize: "14px", outlineStyle: "none", cursor: "pointer", backgroundColor: "#FAF8F5" },
-  mobileDateBtn: { backgroundColor: "#FAF8F5", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: "#E8E2D9", flexDirection: "row", alignItems: "center", gap: 6 },
+  mobileDateBtn: { backgroundColor: "#FAF8F5", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#E8E2D9", flexDirection: "row", alignItems: "center", gap: 6 },
   mobileDateText: { fontSize: 14, fontWeight: "700", color: "#111827" },
 
   discountModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-  discountModal: { backgroundColor: "#fff", borderRadius: 20, padding: 22, width: "100%", maxWidth: 380 },
+  discountModal: { backgroundColor: "#fff", borderRadius: 22, padding: 22, width: "100%", maxWidth: 380 },
   discountModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
   discountModalTitle: { fontSize: 18, fontWeight: "800", color: "#111827" },
   discountSegment: { flexDirection: "row", backgroundColor: "#F3F4F6", borderRadius: 12, padding: 4, gap: 4, marginBottom: 16 },
-  segmentBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8, borderRadius: 9 },
+  segmentBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 9, borderRadius: 9 },
   segmentBtnActive: { backgroundColor: "#111827" },
   segmentText: { fontSize: 12, fontWeight: "700", color: "#6B7280" },
   segmentTextActive: { color: "#fff" },
@@ -1061,7 +1146,7 @@ const styles = StyleSheet.create({
   presetRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
   presetChip: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: "#ECFDF5", alignItems: "center" },
   presetChipText: { fontSize: 13, fontWeight: "700", color: "#10B981" },
-  previewBox: { backgroundColor: "#FAF8F5", borderRadius: 12, padding: 14, marginBottom: 18, marginTop: 4 },
+  previewBox: { backgroundColor: "#FAF8F5", borderRadius: 14, padding: 14, marginBottom: 18, marginTop: 4 },
   previewRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
   previewLabel: { fontSize: 13, color: "#6B7280", fontWeight: "600" },
   previewValue: { fontSize: 13, color: "#111827", fontWeight: "700" },
