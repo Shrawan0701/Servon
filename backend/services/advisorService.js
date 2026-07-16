@@ -1,8 +1,8 @@
-const Groq = require('groq-sdk');
+const OpenAI = require('openai');
 const { collectAdvisorData } = require('../utils/advisorData');
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 /**
@@ -59,10 +59,10 @@ ${orderedTrend.map(d => `${d.date}: ${d.orders} orders, ₹${parseFloat(d.revenu
 **ANSWER:**
 `;
 
-  // 3. Call Groq
+  // 3. Call OpenAI
   try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       messages: [
         { 
           role: "system", 
@@ -76,10 +76,10 @@ ${orderedTrend.map(d => `${d.date}: ${d.orders} orders, ₹${parseFloat(d.revenu
 
     return {
       answer: response.choices[0].message.content.trim(),
-      tokensUsed: 0,
+      tokensUsed: response.usage?.total_tokens || 0,
     };
   } catch (error) {
-    console.error('Groq error:', error);
+    console.error('OpenAI askAdvisor error:', error);
     return {
       answer: "I'm having trouble analysing your data right now. Please try again in a moment.",
       tokensUsed: 0,
@@ -88,7 +88,7 @@ ${orderedTrend.map(d => `${d.date}: ${d.orders} orders, ₹${parseFloat(d.revenu
 };
 
 /**
- * Generate proactive insights (for the dashboard) – still using Groq
+ * Generate proactive insights (for the dashboard) – using OpenAI JSON output
  */
 const generateInsights = async (businessId) => {
   const data = await collectAdvisorData(businessId, '30 days');
@@ -136,8 +136,8 @@ ${orderedTrend.map(d => `${d.date}: ${d.orders} orders, ₹${parseFloat(d.revenu
 `;
 
   try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: "You are a restaurant business analyst. Output valid JSON only — no markdown fences, no commentary. Every insight must cite a real number from the data provided." },
         { role: "user", content: prompt },
@@ -150,7 +150,7 @@ ${orderedTrend.map(d => `${d.date}: ${d.orders} orders, ₹${parseFloat(d.revenu
     const cleaned = jsonStr.replace(/```json|```/g, '').trim();
     return JSON.parse(cleaned);
   } catch (error) {
-    console.error('Insights generation error:', error);
+    console.error('OpenAI insights generation error:', error);
     return [
       {
         title: "Review your top items",

@@ -1,8 +1,7 @@
-// services/aiSummaryService.js
-const Groq = require('groq-sdk');
+const OpenAI = require('openai');
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // ─── GENERATE FULL DAILY SUMMARY ──────────────────────────────────────
@@ -40,22 +39,23 @@ You are a restaurant business analyst. Based on the following daily data, provid
 `;
 
   try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: "You are a helpful restaurant business analyst. Keep summaries very short and focused." },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
-      max_tokens: 200, // Reduced from 600
+      max_tokens: 200,
     });
 
     return response.choices[0].message.content.trim();
   } catch (error) {
-    console.error('Groq error:', error);
+    console.error('OpenAI daily summary error:', error);
     return `📊 ${data.totalOrders} orders, ₹${data.totalRevenue.toFixed(0)} revenue. Top: ${topItemsText}.`;
   }
 };
+
 // ─── GENERATE HOURLY INSIGHTS ──────────────────────────────────────────
 const generateInsights = async (data) => {
   const topItemsText = data.topItems.length > 0
@@ -88,10 +88,10 @@ Return ONLY a JSON array of strings.
 `;
 
   try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "You are a helpful restaurant analyst. Always output valid JSON array." },
+        { role: "system", content: "You are a helpful restaurant analyst. Always output a valid JSON array." },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
@@ -102,14 +102,14 @@ Return ONLY a JSON array of strings.
     const cleaned = jsonStr.replace(/```json|```/g, '').trim();
     return JSON.parse(cleaned);
   } catch (error) {
-    console.error('Groq insights error:', error);
+    console.error('OpenAI hourly insights error:', error);
     return [
       `Total orders: ${data.totalOrders}`,
       `Revenue: ₹${data.totalRevenue.toFixed(0)}`,
       `Top item: ${data.topItems[0]?.name || 'No items'}`,
       `Average order value: ₹${data.avgOrderValue.toFixed(0)}`,
       `Peak hour: ${peakHoursText.split(',')[0] || 'No peak'}`,
-      `Keep up the great work! `
+      `Keep up the great work!`
     ];
   }
 };
