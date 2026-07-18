@@ -1,4 +1,3 @@
-// routes/advisor.js
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
@@ -9,9 +8,12 @@ const { askAdvisor, generateInsights } = require('../services/advisorService');
 router.post('/ask', auth, async (req, res) => {
   try {
     const { question } = req.body;
-    if (!question || question.trim().length < 3) {
-      return res.status(400).json({ error: 'Please ask a valid question.' });
+    if (!question) {
+      console.log(req.body);
+      return res.status(400).json({ error: "Question missing" });
     }
+
+    console.log("Question:", question);
 
     const businessId = req.businessId;
     const result = await askAdvisor(businessId, question);
@@ -42,24 +44,17 @@ router.get('/insights', auth, async (req, res) => {
   try {
     const businessId = req.businessId;
 
-    // Check if we have recent insights (less than 6 hours old)
-    const existing = await pool.query(
-      `SELECT * FROM advisor_insights 
-       WHERE business_id = $1 
-         AND created_at > NOW() - INTERVAL '6 hours'
-       ORDER BY priority DESC
-       LIMIT 5`,
+    // To ensure insights are live, we clear older generated insights 
+    // for this business before saving and serving the fresh ones.
+    await pool.query(
+      `DELETE FROM advisor_insights WHERE business_id = $1`,
       [businessId]
     );
 
-    if (existing.rows.length > 0) {
-      return res.json({ insights: existing.rows });
-    }
-
-    // Generate fresh insights
+    // Generate fresh, positive insights based on live stats
     const insights = await generateInsights(businessId);
 
-    // Save insights
+    // Save fresh insights
     for (const insight of insights) {
       await pool.query(
         `INSERT INTO advisor_insights 
@@ -81,7 +76,7 @@ router.get('/insights', auth, async (req, res) => {
     res.json({ insights: result.rows });
   } catch (err) {
     console.error('Insights error:', err);
-    res.status(500).json({ error: 'Failed to generate insights.' });
+    res.status(500).json({ error: 'Failed to generate live insights.' });
   }
 });
 
