@@ -18,35 +18,38 @@ const askAdvisor = async (businessId, question) => {
 
   if (englishGreetings.includes(q)) {
     return {
-      answer: "Hey there! Great to see you. I'm your AI Business Advisor. Ask me anything about your restaurant's sales, menu pricing, operating costs, or customer metrics, and let's scale your business together!",
+      answer: "Hey there! Great to see you. I'm your AI Business Advisor. Ask me anything about your restaurant's sales, menu pricing, operating costs, or general restaurant industry strategies, and let's scale your business together!",
       tokensUsed: 0,
     };
   }
   
   if (hindiGreetings.includes(q) || q.includes("kaise ho") || q.includes("kaise hain")) {
     return {
-      answer: "Namaste! Aapka swagat hai. Main aapka AI Business Advisor hoon. Aap apne restaurant ke sales, menu, pricing ya customers ke baare mein kuch bhi pooch sakte hain. Bataiye, aaj business kaise badhana hai?",
+      answer: "Namaste! Aapka swagat hai. Main aapka AI Business Advisor hoon. Aap apne restaurant ke sales, menu, pricing ya general restaurant trends ke baare mein kuch bhi pooch sakte hain. Bataiye, aaj kaise help karu?",
       tokensUsed: 0,
     };
   }
 
   if (marathiGreetings.includes(q) || q.includes("kase ahat") || q.includes("kasa aahe")) {
     return {
-      answer: "Namaskar! Tumche swagat aahe. Me tumcha AI Business Advisor aahe. Tumhi tumchya hotel chya sales, menu, ani customer metrics baddal kahihi vicharu shakta. Sanga, aaj business kasa vadhvaycha?",
+      answer: "Namaskar! Tumche swagat aahe. Me tumcha AI Business Advisor aahe. Tumhi tumchya hotel chya sales, menu, ani generic industry updates baddal kahihi vicharu shakta. Sanga, aaj business kasa vadhvaycha?",
       tokensUsed: 0,
     };
   }
   
   // 2. Collect business data
   const data = await collectAdvisorData(businessId, '30 days');
-  const orderedTrend = [...data.dailyTrend].slice(0, 7).reverse();
 
   // 3. Build context-aware prompt
   const prompt = `
-You are Servon's AI Business Advisor.
-Analyze this live data block and directly answer the owner's question.
+You are Servon's AI Business Advisor. Your goal is to provide high-quality, non-repetitive advice to a restaurant owner.
 
-BUSINESS DATA:
+INTENT DETECTION RULE:
+Evaluate the owner's question carefully. 
+- If the question is about broader restaurant business concepts, the general food industry, macro economics, general strategy, or general advice (e.g., "how can you increase sales", "how does a restaurant manage supply chain", "what are global food trends"), do NOT get trapped discussing only their specific 30-day dashboard numbers. Answer with rich, creative, professional industry strategies.
+- If the question is specifically asking about their own metrics (e.g., "what are my sales", "analyze my data"), look closely at the live data block below to customize your answer.
+
+LIVE BUSINESS DATA (Use if specific data analysis is requested):
 Period: Last 30 days
 Total Orders: ${data.summary.totalOrders}
 Total Revenue: Rs.${data.summary.totalRevenue.toFixed(0)}
@@ -59,24 +62,20 @@ ${data.topItems.map((item, i) => `${i + 1}. ${item.name} | Orders: ${item.total_
 PEAK HOURS:
 ${data.peakHours.slice(0,5).map(h => `${Math.floor(h.hour)}:00 — ${h.orders} orders`).join('\n')}
 
-WEEKDAY PERFORMANCE:
-${data.weekdayPattern.map(d => {
-  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  return `${days[d.day_of_week]} — ${d.orders} orders, Rs.${parseFloat(d.revenue).toFixed(0)}`;
-}).join('\n')}
-
 CUSTOMER REVIEWS:
 Total Reviews: ${data.reviews.total_reviews} | Rating: ${Number(data.reviews.avg_rating||0).toFixed(1)} | Positive: ${data.reviews.positive} | Negative: ${data.reviews.negative}
 
-OWNER'S REAL TIME QUESTION:
+OWNER'S QUESTION:
 "${question}"
 
+CRITICAL REPETITION BAN:
+Avoid regurgitating the exact same standard templates (like only mentioning customer feedback, peak hour staffing, menu diversification, or basic marketing) if the question allows for deeper business logic. Be creative, analytical, and diverse in your tactical suggestions.
+
 CRITICAL OUTPUT INSTRUCTIONS:
-- You must match the owner's text style.
-- If the question is in Roman Hindi / Hinglish (e.g., "sales kaise badhau"), your response must be 100% written in Roman Hindi / Hinglish.
-- If the question is in Roman Marathi (e.g., "sales kashe wadhvu"), your response must be 100% written in Roman Marathi.
-- Provide 2 to 4 actionable steps.
-- Do not use markdown format. No asterisks, no headers. Plain text sentences only.
+- Default language is professional English. If the question is in English, you must respond in English.
+- If the question is in Roman Hindi / Hinglish, respond completely in Roman Hindi / Hinglish.
+- If the question is in Roman Marathi, respond completely in Roman Marathi.
+- Do not use markdown format. No asterisks, no headers. Plain text sentences only. Use standard numbers (1, 2, 3) for itemization.
 `;
 
   try {
@@ -87,20 +86,21 @@ CRITICAL OUTPUT INSTRUCTIONS:
           role: "system", 
           content: `You are Servon's AI Business Advisor, an expert restaurant consultant.
 
-CRITICAL DIRECTIVE: You will look at the owner's question and perfectly match its writing language and script style. 
+CRITICAL DIRECTIVE: You must dynamically detect the language of the owner's text and perfectly mirror it.
 
-- QUESTION: "hotel ka revenue kaise badhau" -> This is Roman Hindi / Hinglish. You MUST respond completely in Roman Hindi / Hinglish text. Do not use Devanagari script. Do not use English text.
-- QUESTION: "hotel cha sales kashe wadhvu" -> This is Roman Marathi. You MUST respond completely in Roman Marathi text. Do not use Devanagari script. Do not use English text.
+1. ENGLISH DETECTION: If the question is in English (e.g., "What's my analytics till today", "how to increase sales", or "Can you answer in english"), you MUST respond entirely in professional English.
+2. HINGLISH DETECTION: If the question is in Roman Hindi / Hinglish (e.g., "sales kaise badhau"), respond completely in Roman Hindi / Hinglish text.
+3. MARATHI DETECTION: If the question is in Roman Marathi (e.g., "sales kashe wadhvu"), respond completely in Roman Marathi text.
 
 STYLE SAFETY RULES:
-1. Never use markdown language syntax. No bold markers (**), no headers (#), no bullet asterisks (*). 
-2. Write response as clear plain text using standard digits (1, 2, 3) for itemization.
-3. Be friendly, motivating, and highly practical.` 
+- Never use markdown syntax. No bold markers (**), no headers (#), no bullet asterisks (*). 
+- Write the response as clean plain text. Use standard digits (1, 2, 3) for itemization.
+- Provide practical, creative, non-repetitive consultant-level steps.` 
         },
         { role: "user", content: prompt },
       ],
-      temperature: 0.2, 
-      max_tokens: 500,
+      temperature: 0.6, // Bumping temperature up to allow creative, diverse industry strategies
+      max_tokens: 600,
     });
 
     return {
@@ -121,7 +121,6 @@ STYLE SAFETY RULES:
  */
 const generateInsights = async (businessId) => {
   const data = await collectAdvisorData(businessId, '30 days');
-  const orderedTrend = [...data.dailyTrend].slice(0, 7).reverse();
 
   const prompt = `
 You are Servon's AI Business Advisor, a top-tier restaurant management consultant.
@@ -158,7 +157,7 @@ OUTPUT FORMAT (JSON ARRAY ONLY, NO MARKDOWN ENVELOPE):
         },
         { role: "user", content: prompt },
       ],
-      temperature: 0.3,
+      temperature: 0.4,
       max_tokens: 600,
     });
 
