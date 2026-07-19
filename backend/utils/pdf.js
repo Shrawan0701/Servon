@@ -2,20 +2,23 @@ const PDFDocument = require("pdfkit");
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const C = {
-  dark:       "#0F172A",
-  green:      "#10B981",
+  navy:       "#1E3A5F",   // primary navy — used for TEXT & accents (not big background fills)
+  navyMuted:  "#3D5A7A",   // secondary navy, for less prominent labels on light backgrounds
+  panelBg:    "#EEF2F7",   // soft navy-tinted panel background (table headers, totals, badge)
+  panelBorder:"#D8E1EC",   // border to edge the light panels above
+  green:      "#059669",
   greenLight: "#ECFDF5",
-  blue:       "#3B82F6",
+  blue:       "#2563EB",
   blueLight:  "#EFF6FF",
-  amber:      "#F59E0B",
+  amber:      "#D97706",
   amberLight: "#FFFBEB",
   white:      "#FFFFFF",
-  pageBg:     "#F8FAFC",
-  border:     "#E2E8F0",
+  pageBg:     "#FAF7F2",   // warm creamish page background (matches the QR ticket design)
+  border:     "#E7E1D6",   // warm neutral border to match the cream page
   textMain:   "#1E293B",
   textMuted:  "#64748B",
   textFaint:  "#94A3B8",
-  rowAlt:     "#F8FAFC",
+  rowAlt:     "#FBF8F3",   // subtle warm alt-row tint instead of cool gray
 };
 
 const PAGE_W    = 595.28;
@@ -49,19 +52,22 @@ function drawPageBg(doc) {
 }
 
 function drawHeaderBanner(doc, subtitle, startDate, endDate) {
-  doc.rect(0, 0, PAGE_W, HEADER_H).fill(C.dark);
+  doc.rect(0, 0, PAGE_W, HEADER_H).fill(C.white);
   doc.rect(0, 0, 5, HEADER_H).fill(C.green);
+  doc.moveTo(0, HEADER_H).lineTo(PAGE_W, HEADER_H)
+     .strokeColor(C.border).lineWidth(1).stroke();
 
   doc.fillColor(C.green).font("Helvetica-Bold").fontSize(30).text("Servon.", MARGIN, 28);
-  doc.fillColor(C.textFaint).font("Helvetica-Bold").fontSize(9)
+  doc.fillColor(C.navyMuted).font("Helvetica-Bold").fontSize(9)
      .text(subtitle, MARGIN, 70, { characterSpacing: 2 });
 
   if (startDate && endDate) {
     const bx = PAGE_W - MARGIN - 168;
-    doc.roundedRect(bx, 22, 168, 36, 8).fill("#1E293B");
+    doc.roundedRect(bx, 22, 168, 36, 8).fill(C.panelBg);
+    doc.roundedRect(bx, 22, 168, 36, 8).strokeColor(C.panelBorder).lineWidth(1).stroke();
     doc.fillColor(C.green).font("Helvetica-Bold").fontSize(7)
        .text("DATE RANGE", bx + 12, 30, { characterSpacing: 1 });
-    doc.fillColor(C.white).font("Helvetica").fontSize(9)
+    doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9)
        .text(`${startDate}  ->  ${endDate}`, bx + 12, 42);
   }
 
@@ -69,16 +75,18 @@ function drawHeaderBanner(doc, subtitle, startDate, endDate) {
     dateStyle: "medium",
     timeStyle: "short",
   })}`;
-  doc.fillColor(C.textFaint).font("Helvetica").fontSize(8)
+  doc.fillColor(C.textMuted).font("Helvetica").fontSize(8)
      .text(genLabel, 0, 90, { align: "right", width: PAGE_W - MARGIN });
 }
 
 function drawFooter(doc, pageNum, totalPages) {
-  doc.rect(0, PAGE_H - FOOTER_H, PAGE_W, FOOTER_H).fill(C.dark);
+  doc.rect(0, PAGE_H - FOOTER_H, PAGE_W, FOOTER_H).fill(C.panelBg);
+  doc.moveTo(0, PAGE_H - FOOTER_H).lineTo(PAGE_W, PAGE_H - FOOTER_H)
+     .strokeColor(C.panelBorder).lineWidth(1).stroke();
   doc.rect(0, PAGE_H - FOOTER_H, 5, FOOTER_H).fill(C.green);
-  doc.fillColor(C.textFaint).font("Helvetica").fontSize(8)
+  doc.fillColor(C.textMuted).font("Helvetica").fontSize(8)
      .text("© 2026 Servon Business Dashboard  •  Confidential", MARGIN, PAGE_H - 26);
-  doc.fillColor(C.textFaint).font("Helvetica").fontSize(8)
+  doc.fillColor(C.textMuted).font("Helvetica").fontSize(8)
      .text(`Page ${pageNum} of ${totalPages}`, 0, PAGE_H - 26, {
        align: "right",
        width: PAGE_W - MARGIN,
@@ -89,7 +97,7 @@ function drawFooter(doc, pageNum, totalPages) {
 
 function drawSectionTitle(doc, title, y) {
   doc.rect(MARGIN, y, 3, 18).fill(C.green);
-  doc.fillColor(C.dark).font("Helvetica-Bold").fontSize(13)
+  doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(13)
      .text(title, MARGIN + 12, y + 2);
   return y + 30;
 }
@@ -105,10 +113,12 @@ function drawKpiCard(doc, x, y, w, h, label, value, accentColor, bgColor) {
 }
 
 function drawTableHeader(doc, y, cols) {
-  doc.rect(MARGIN, y, CONTENT_W, 30).fill(C.dark);
+  doc.rect(MARGIN, y, CONTENT_W, 30).fill(C.panelBg);
+  doc.moveTo(MARGIN, y + 30).lineTo(MARGIN + CONTENT_W, y + 30)
+     .strokeColor(C.panelBorder).lineWidth(1).stroke();
   doc.rect(MARGIN, y, 3, 30).fill(C.green);
   cols.forEach((col) => {
-    doc.fillColor(C.white).font("Helvetica-Bold").fontSize(8.5)
+    doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(8.5)
        .text(col.label, col.x, y + 10, {
          width:            col.w,
          align:            col.align || "left",
@@ -273,9 +283,11 @@ const generateSalesReportPDF = (reportData) => {
 
       // Items totals row
       y = paginateIfNeeded(y, 32, null);
-      doc.rect(MARGIN, y, CONTENT_W, 32).fill(C.dark);
+      doc.rect(MARGIN, y, CONTENT_W, 32).fill(C.greenLight);
+      doc.moveTo(MARGIN, y).lineTo(MARGIN + CONTENT_W, y)
+         .strokeColor(C.green).lineWidth(1.5).stroke();
       doc.rect(MARGIN, y, 3, 32).fill(C.green);
-      doc.fillColor(C.textFaint).font("Helvetica-Bold").fontSize(9).text("TOTAL", MARGIN + 38, y + 10);
+      doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9).text("TOTAL", MARGIN + 38, y + 10);
       doc.fillColor(C.green).font("Helvetica-Bold").fontSize(9)
          .text(fmtRs(reportData.totalRevenue), MARGIN + 390, y + 10, { width: 100, align: "right" });
       y += 32;
@@ -363,10 +375,12 @@ const generateSalesReportPDF = (reportData) => {
 
       // Daily totals row
       y = paginateIfNeeded(y, 32, null);
-      doc.rect(MARGIN, y, CONTENT_W, 32).fill(C.dark);
+      doc.rect(MARGIN, y, CONTENT_W, 32).fill(C.greenLight);
+      doc.moveTo(MARGIN, y).lineTo(MARGIN + CONTENT_W, y)
+         .strokeColor(C.green).lineWidth(1.5).stroke();
       doc.rect(MARGIN, y, 3, 32).fill(C.green);
-      doc.fillColor(C.textFaint).font("Helvetica-Bold").fontSize(9).text("TOTAL", MARGIN + 8, y + 11);
-      doc.fillColor(C.textFaint).font("Helvetica-Bold").fontSize(9)
+      doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9).text("TOTAL", MARGIN + 8, y + 11);
+      doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9)
          .text(fmtNum(reportData.totalOrders), MARGIN + 218, y + 11, { width: 70, align: "center" });
       doc.fillColor(C.green).font("Helvetica-Bold").fontSize(9)
          .text(fmtRs(dailyTotal), MARGIN + 298, y + 11, { width: 110, align: "right" });
