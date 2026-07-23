@@ -1,24 +1,22 @@
 const PDFDocument = require("pdfkit");
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+// Monochrome, professional business-report palette. Color is used only for
+// the tiny "Servon." wordmark in the header — everywhere else is navy / ink /
+// gray / white with hairline borders, like a real financial report rather
+// than a colored dashboard mockup.
 const C = {
-  navy:       "#1E3A5F",   // primary navy — used for TEXT & accents (not big background fills)
-  navyMuted:  "#3D5A7A",   // secondary navy, for less prominent labels on light backgrounds
-  panelBg:    "#EEF2F7",   // soft navy-tinted panel background (table headers, totals, badge)
-  panelBorder:"#D8E1EC",   // border to edge the light panels above
-  green:      "#059669",
-  greenLight: "#ECFDF5",
-  blue:       "#2563EB",
-  blueLight:  "#EFF6FF",
-  amber:      "#D97706",
-  amberLight: "#FFFBEB",
+  navy:       "#1E3A5F",   // headings, emphasis, primary values
+  ink:        "#111827",   // body text
+  muted:      "#6B7280",   // secondary/label text
+  faint:      "#9CA3AF",   // tertiary text
+  border:     "#D1D5DB",   // standard hairline border
+  borderSoft: "#E5E7EB",   // lighter divider
+  panelBg:    "#F7F7F6",   // neutral light panel (table headers, totals, badges)
+  rowAlt:     "#FAFAFA",   // subtle zebra striping
   white:      "#FFFFFF",
-  pageBg:     "#FAF7F2",   // warm creamish page background (matches the QR ticket design)
-  border:     "#E7E1D6",   // warm neutral border to match the cream page
-  textMain:   "#1E293B",
-  textMuted:  "#64748B",
-  textFaint:  "#94A3B8",
-  rowAlt:     "#FBF8F3",   // subtle warm alt-row tint instead of cool gray
+  pageBg:     "#FFFFFF",
+  brand:      "#059669",   // used ONLY for the "Servon." wordmark — nowhere else
 };
 
 const PAGE_W    = 595.28;
@@ -53,19 +51,17 @@ function drawPageBg(doc) {
 
 function drawHeaderBanner(doc, subtitle, startDate, endDate) {
   doc.rect(0, 0, PAGE_W, HEADER_H).fill(C.white);
-  doc.rect(0, 0, 5, HEADER_H).fill(C.green);
   doc.moveTo(0, HEADER_H).lineTo(PAGE_W, HEADER_H)
      .strokeColor(C.border).lineWidth(1).stroke();
 
-  doc.fillColor(C.green).font("Helvetica-Bold").fontSize(30).text("Servon.", MARGIN, 28);
-  doc.fillColor(C.navyMuted).font("Helvetica-Bold").fontSize(9)
+  doc.fillColor(C.brand).font("Helvetica-Bold").fontSize(30).text("Servon.", MARGIN, 28);
+  doc.fillColor(C.muted).font("Helvetica-Bold").fontSize(9)
      .text(subtitle, MARGIN, 70, { characterSpacing: 2 });
 
   if (startDate && endDate) {
     const bx = PAGE_W - MARGIN - 168;
-    doc.roundedRect(bx, 22, 168, 36, 8).fill(C.panelBg);
-    doc.roundedRect(bx, 22, 168, 36, 8).strokeColor(C.panelBorder).lineWidth(1).stroke();
-    doc.fillColor(C.green).font("Helvetica-Bold").fontSize(7)
+    doc.roundedRect(bx, 22, 168, 36, 6).lineWidth(1).stroke(C.border);
+    doc.fillColor(C.muted).font("Helvetica-Bold").fontSize(7)
        .text("DATE RANGE", bx + 12, 30, { characterSpacing: 1 });
     doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9)
        .text(`${startDate}  ->  ${endDate}`, bx + 12, 42);
@@ -75,18 +71,17 @@ function drawHeaderBanner(doc, subtitle, startDate, endDate) {
     dateStyle: "medium",
     timeStyle: "short",
   })}`;
-  doc.fillColor(C.textMuted).font("Helvetica").fontSize(8)
+  doc.fillColor(C.faint).font("Helvetica").fontSize(8)
      .text(genLabel, 0, 90, { align: "right", width: PAGE_W - MARGIN });
 }
 
 function drawFooter(doc, pageNum, totalPages) {
-  doc.rect(0, PAGE_H - FOOTER_H, PAGE_W, FOOTER_H).fill(C.panelBg);
+  doc.rect(0, PAGE_H - FOOTER_H, PAGE_W, FOOTER_H).fill(C.white);
   doc.moveTo(0, PAGE_H - FOOTER_H).lineTo(PAGE_W, PAGE_H - FOOTER_H)
-     .strokeColor(C.panelBorder).lineWidth(1).stroke();
-  doc.rect(0, PAGE_H - FOOTER_H, 5, FOOTER_H).fill(C.green);
-  doc.fillColor(C.textMuted).font("Helvetica").fontSize(8)
+     .strokeColor(C.border).lineWidth(1).stroke();
+  doc.fillColor(C.faint).font("Helvetica").fontSize(8)
      .text("© 2026 Servon Business Dashboard  •  Confidential", MARGIN, PAGE_H - 26);
-  doc.fillColor(C.textMuted).font("Helvetica").fontSize(8)
+  doc.fillColor(C.faint).font("Helvetica").fontSize(8)
      .text(`Page ${pageNum} of ${totalPages}`, 0, PAGE_H - 26, {
        align: "right",
        width: PAGE_W - MARGIN,
@@ -96,27 +91,23 @@ function drawFooter(doc, pageNum, totalPages) {
 // ── Section / layout helpers ──────────────────────────────────────────────────
 
 function drawSectionTitle(doc, title, y) {
-  doc.rect(MARGIN, y, 3, 18).fill(C.green);
+  doc.rect(MARGIN, y, 3, 18).fill(C.navy);
   doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(13)
      .text(title, MARGIN + 12, y + 2);
   return y + 30;
 }
 
-function drawKpiCard(doc, x, y, w, h, label, value, accentColor, bgColor) {
-  doc.rect(x + 2, y + 2, w, h).fill("#E2E8F0");
-  doc.roundedRect(x, y, w, h, 8).fill(bgColor);
-  doc.roundedRect(x, y, w, 4, 2).fill(accentColor);
-  doc.fillColor(C.textMuted).font("Helvetica-Bold").fontSize(8)
-     .text(label, x + 14, y + 16, { characterSpacing: 1 });
-  doc.fillColor(accentColor).font("Helvetica-Bold").fontSize(18)
-     .text(value, x + 14, y + 30, { width: w - 28 });
+function drawKpiCard(doc, x, y, w, h, label, value) {
+  doc.roundedRect(x, y, w, h, 6).lineWidth(1).stroke(C.border);
+  doc.fillColor(C.muted).font("Helvetica-Bold").fontSize(8)
+     .text(label, x + 14, y + 16, { characterSpacing: 1, width: w - 28 });
+  doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(18)
+     .text(value, x + 14, y + 32, { width: w - 28 });
 }
 
 function drawTableHeader(doc, y, cols) {
   doc.rect(MARGIN, y, CONTENT_W, 30).fill(C.panelBg);
-  doc.moveTo(MARGIN, y + 30).lineTo(MARGIN + CONTENT_W, y + 30)
-     .strokeColor(C.panelBorder).lineWidth(1).stroke();
-  doc.rect(MARGIN, y, 3, 30).fill(C.green);
+  doc.rect(MARGIN, y, CONTENT_W, 30).lineWidth(1).stroke(C.border);
   cols.forEach((col) => {
     doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(8.5)
        .text(col.label, col.x, y + 10, {
@@ -234,9 +225,9 @@ const generateSalesReportPDF = (reportData) => {
     const avgVal = reportData.totalOrders > 0
       ? reportData.totalRevenue / reportData.totalOrders : 0;
 
-    drawKpiCard(doc, MARGIN,                   y, kpiW, kpiH, "TOTAL REVENUE",   fmtRs(reportData.totalRevenue), C.green, C.greenLight);
-    drawKpiCard(doc, MARGIN + kpiW + 12,       y, kpiW, kpiH, "TOTAL ORDERS",    fmtNum(reportData.totalOrders), C.blue,  C.blueLight);
-    drawKpiCard(doc, MARGIN + (kpiW + 12) * 2, y, kpiW, kpiH, "AVG ORDER VALUE", fmtRs(avgVal),                  C.amber, C.amberLight);
+    drawKpiCard(doc, MARGIN,                   y, kpiW, kpiH, "TOTAL REVENUE",   fmtRs(reportData.totalRevenue));
+    drawKpiCard(doc, MARGIN + kpiW + 12,       y, kpiW, kpiH, "TOTAL ORDERS",    fmtNum(reportData.totalOrders));
+    drawKpiCard(doc, MARGIN + (kpiW + 12) * 2, y, kpiW, kpiH, "AVG ORDER VALUE", fmtRs(avgVal));
     y += kpiH + 20;
 
     // Items table
@@ -254,7 +245,7 @@ const generateSalesReportPDF = (reportData) => {
 
     if (items.length === 0) {
       doc.rect(MARGIN, y, CONTENT_W, 48).fill(C.white);
-      doc.fillColor(C.textFaint).font("Helvetica").fontSize(11)
+      doc.fillColor(C.faint).font("Helvetica").fontSize(11)
          .text("No sales data available for this period.", MARGIN, y + 16, { align: "center", width: CONTENT_W });
       y += 48;
     } else {
@@ -263,32 +254,30 @@ const generateSalesReportPDF = (reportData) => {
 
         const rowBg = i % 2 === 0 ? C.rowAlt : C.white;
         doc.rect(MARGIN, y, CONTENT_W, 28).fill(rowBg);
-        if (i === 0) doc.rect(MARGIN, y, 3, 28).fill(C.green);
 
         const name = item.name.length > 38 ? item.name.substring(0, 38) + "..." : item.name;
 
-        doc.fillColor(i === 0 ? C.green : C.textMuted).font("Helvetica-Bold").fontSize(9)
+        doc.fillColor(i === 0 ? C.navy : C.muted).font("Helvetica-Bold").fontSize(9)
            .text(`${i + 1}`, MARGIN + 8, y + 9, { width: 24 });
-        doc.fillColor(C.textMain).font("Helvetica").fontSize(9.5)
+        doc.fillColor(C.ink).font(i === 0 ? "Helvetica-Bold" : "Helvetica").fontSize(9.5)
            .text(name, MARGIN + 38, y + 9, { width: 250 });
-        doc.fillColor(C.textMuted).font("Helvetica").fontSize(9.5)
+        doc.fillColor(C.muted).font("Helvetica").fontSize(9.5)
            .text(item.qty_sold.toString(), MARGIN + 310, y + 9, { width: 80, align: "center" });
-        doc.fillColor(C.textMain).font("Helvetica-Bold").fontSize(9.5)
+        doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(9.5)
            .text(fmtRs(item.revenue), MARGIN + 390, y + 9, { width: 100, align: "right" });
 
         doc.moveTo(MARGIN, y + 28).lineTo(MARGIN + CONTENT_W, y + 28)
-           .strokeColor(C.border).lineWidth(0.5).stroke();
+           .strokeColor(C.borderSoft).lineWidth(0.5).stroke();
         y += 28;
       });
 
       // Items totals row
       y = paginateIfNeeded(y, 32, null);
-      doc.rect(MARGIN, y, CONTENT_W, 32).fill(C.greenLight);
+      doc.rect(MARGIN, y, CONTENT_W, 32).fill(C.panelBg);
       doc.moveTo(MARGIN, y).lineTo(MARGIN + CONTENT_W, y)
-         .strokeColor(C.green).lineWidth(1.5).stroke();
-      doc.rect(MARGIN, y, 3, 32).fill(C.green);
+         .strokeColor(C.navy).lineWidth(1.5).stroke();
       doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9).text("TOTAL", MARGIN + 38, y + 10);
-      doc.fillColor(C.green).font("Helvetica-Bold").fontSize(9)
+      doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9)
          .text(fmtRs(reportData.totalRevenue), MARGIN + 390, y + 10, { width: 100, align: "right" });
       y += 32;
     }
@@ -312,12 +301,11 @@ const generateSalesReportPDF = (reportData) => {
     y = drawSectionTitle(doc, "Per-Day Revenue Summary", y);
     const dkW = (CONTENT_W - 24) / 3;
     const dkH = 64;
-    drawKpiCard(doc, MARGIN,                   y, dkW, dkH, "TOTAL PERIOD REVENUE", fmtRs(dailyTotal), C.green, C.greenLight);
-    drawKpiCard(doc, MARGIN + dkW + 12,        y, dkW, dkH, "DAILY AVERAGE",        fmtRs(dailyAvg),   C.blue,  C.blueLight);
+    drawKpiCard(doc, MARGIN,                   y, dkW, dkH, "TOTAL PERIOD REVENUE", fmtRs(dailyTotal));
+    drawKpiCard(doc, MARGIN + dkW + 12,        y, dkW, dkH, "DAILY AVERAGE",        fmtRs(dailyAvg));
     drawKpiCard(doc, MARGIN + (dkW + 12) * 2,  y, dkW, dkH,
-      peakDay.date ? `PEAK  ${peakDay.date}` : "PEAK DAY",
-      peakDay.date ? fmtRs(peakDay.revenue)  : "No data",
-      C.amber, C.amberLight
+      peakDay.date ? `PEAK DAY  ${peakDay.date}` : "PEAK DAY",
+      peakDay.date ? fmtRs(peakDay.revenue)      : "No data"
     );
     y += dkH + 20;
 
@@ -335,7 +323,7 @@ const generateSalesReportPDF = (reportData) => {
 
     if (daily.length === 0) {
       doc.rect(MARGIN, y, CONTENT_W, 48).fill(C.white);
-      doc.fillColor(C.textFaint).font("Helvetica").fontSize(11)
+      doc.fillColor(C.faint).font("Helvetica").fontSize(11)
          .text("No daily data available for this period.", MARGIN, y + 16, { align: "center", width: CONTENT_W });
       y += 48;
     } else {
@@ -346,43 +334,42 @@ const generateSalesReportPDF = (reportData) => {
         const orders = parseInt(row.orders || 0);
         const avg    = orders > 0 ? rev / orders : 0;
         const isPeak = row.date === peakDay.date;
-        const rowBg  = isPeak ? C.greenLight : i % 2 === 0 ? C.rowAlt : C.white;
+        const rowBg  = i % 2 === 0 ? C.rowAlt : C.white;
 
         doc.rect(MARGIN, y, CONTENT_W, 26).fill(rowBg);
-        if (isPeak) doc.rect(MARGIN, y, 3, 26).fill(C.green);
 
         const dayName = row.date
           ? new Date(row.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short" })
           : "";
+        const dateLabel = (row.date || "—") + (isPeak ? "  ★" : "");
 
-        doc.fillColor(isPeak ? C.green : C.textMain)
+        doc.fillColor(C.ink)
            .font(isPeak ? "Helvetica-Bold" : "Helvetica").fontSize(9)
-           .text(row.date || "—", MARGIN + 8, y + 8, { width: 110 });
-        doc.fillColor(C.textFaint).font("Helvetica").fontSize(9)
+           .text(dateLabel, MARGIN + 8, y + 8, { width: 110 });
+        doc.fillColor(C.faint).font("Helvetica").fontSize(9)
            .text(dayName, MARGIN + 128, y + 8, { width: 80 });
-        doc.fillColor(C.textMuted).font("Helvetica").fontSize(9)
+        doc.fillColor(C.muted).font("Helvetica").fontSize(9)
            .text(fmtNum(orders), MARGIN + 218, y + 8, { width: 70, align: "center" });
-        doc.fillColor(isPeak ? C.green : C.textMain)
+        doc.fillColor(C.ink)
            .font(isPeak ? "Helvetica-Bold" : "Helvetica").fontSize(9)
            .text(fmtRs(rev), MARGIN + 298, y + 8, { width: 110, align: "right" });
-        doc.fillColor(C.textMuted).font("Helvetica").fontSize(9)
+        doc.fillColor(C.muted).font("Helvetica").fontSize(9)
            .text(fmtRs(avg), MARGIN + 418, y + 8, { width: 75, align: "right" });
 
         doc.moveTo(MARGIN, y + 26).lineTo(MARGIN + CONTENT_W, y + 26)
-           .strokeColor(C.border).lineWidth(0.5).stroke();
+           .strokeColor(C.borderSoft).lineWidth(0.5).stroke();
         y += 26;
       });
 
       // Daily totals row
       y = paginateIfNeeded(y, 32, null);
-      doc.rect(MARGIN, y, CONTENT_W, 32).fill(C.greenLight);
+      doc.rect(MARGIN, y, CONTENT_W, 32).fill(C.panelBg);
       doc.moveTo(MARGIN, y).lineTo(MARGIN + CONTENT_W, y)
-         .strokeColor(C.green).lineWidth(1.5).stroke();
-      doc.rect(MARGIN, y, 3, 32).fill(C.green);
+         .strokeColor(C.navy).lineWidth(1.5).stroke();
       doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9).text("TOTAL", MARGIN + 8, y + 11);
       doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9)
          .text(fmtNum(reportData.totalOrders), MARGIN + 218, y + 11, { width: 70, align: "center" });
-      doc.fillColor(C.green).font("Helvetica-Bold").fontSize(9)
+      doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9)
          .text(fmtRs(dailyTotal), MARGIN + 298, y + 11, { width: 110, align: "right" });
       y += 32;
     }
