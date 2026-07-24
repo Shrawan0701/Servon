@@ -1,6 +1,7 @@
 // services/trialService.js
 
-const {query} = require('../db/index')// Your database connection
+const pool = require('../db'); // Import the pool directly
+const query = (text, params) => pool.query(text, params); // Helper wrapper
 const notificationService = require('./notificationService');
 
 const TRIAL_DAYS = 3;
