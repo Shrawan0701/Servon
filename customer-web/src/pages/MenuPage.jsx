@@ -84,6 +84,9 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // State for image lightbox preview
+  const [selectedImage, setSelectedImage] = useState(null);
+
   useEffect(() => {
     // ✅ Safety: Only load if we have both IDs
     if (!businessId || !tableId) {
@@ -182,6 +185,7 @@ export default function MenuPage() {
                       <img
                         src={item.image_url}
                         alt={item.name}
+                        onClick={() => setSelectedImage(item.image_url)}
                         style={{
                           width: "100%",
                           height: 140, // Kept your preferred height
@@ -189,6 +193,7 @@ export default function MenuPage() {
                           borderTopLeftRadius: 12,
                           borderTopRightRadius: 12,
                           display: "block",
+                          cursor: "pointer",
                         }}
                       />
                     ) : (
@@ -273,6 +278,54 @@ export default function MenuPage() {
             {totalItems} item{totalItems > 1 ? "s" : ""}
           </span>
           <span>View Cart · ₹{totalAmount.toFixed(0)} →</span>
+        </div>
+      )}
+
+      {/* Fullscreen Image Preview Overlay Modal */}
+      {selectedImage && (
+        <div
+          onClick={() => setSelectedImage(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(0, 0, 0, 0.85)",
+            zIndex: 9999,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 20,
+          }}
+        >
+          <div style={{ position: "relative", maxWidth: "100%", maxHeight: "100%" }}>
+            <button
+              onClick={() => setSelectedImage(null)}
+              style={{
+                position: "absolute",
+                top: -40,
+                right: 0,
+                background: "transparent",
+                border: "none",
+                color: "#fff",
+                fontSize: 28,
+                cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
+            <img
+              src={selectedImage}
+              alt="Expanded item"
+              style={{
+                maxWidth: "100%",
+                maxHeight: "80vh",
+                borderRadius: 8,
+                objectFit: "contain",
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
