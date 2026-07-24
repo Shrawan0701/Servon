@@ -5,10 +5,10 @@ const jwt = require("jsonwebtoken");
 const pool = require("../db");
 const { generateOTP, sendOTP } = require("../utils/otp");
 const authMiddleware = require("../middleware/auth");
+const TrialService = require("../services/trialService"); // <--- 1. IMPORT TRIAL SERVICE
 
 // Signup
 router.post("/signup", async (req, res) => {
-  // <-- Added referralCode to req.body extraction
   const { businessName, ownerName, email, phone, password, referralCode } = req.body;
 
   if (!businessName || !ownerName || !email || !phone || !password) {
