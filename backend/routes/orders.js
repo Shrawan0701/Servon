@@ -110,8 +110,12 @@ router.post("/place", async (req, res) => {
                 `UPDATE orders SET status = 'CONFIRMED', updated_at = NOW() WHERE id = $1 RETURNING *`,
                 [targetOrderId]
               );
-              const io = getIO();
-              io.to(`business_${businessId}`).emit("order_updated", updated.rows[0]);
+              try {
+                const io = getIO();
+                io.to(`business_${businessId}`).emit("order_updated", updated.rows[0]);
+              } catch (e) {
+                console.warn("Auto-confirm socket emit failed:", e.message);
+              }
             }
           }
         } catch (e) {
@@ -186,26 +190,35 @@ router.post("/place", async (req, res) => {
     );
 
     const order = result.rows[0];
+    let notificationRow = null;
 
-    if (pushToken) {
-      sendPush(
-        pushToken,
-        "New Order! 🍕",
-        `Table ${tableNum} just placed an order for ₹${finalTotal}`
+    // ─── NON-BLOCKING NOTIFICATIONS & SOCKETS ─────────────────────────
+    try {
+      if (pushToken) {
+        sendPush(
+          pushToken,
+          "New Order! 🍕",
+          `Table ${tableNum} just placed an order for ₹${finalTotal}`
+        );
+      }
+
+      const notifMessage = `New order from Table ${tableNum} - ₹${finalTotal}`;
+      
+      // ✅ Explicitly added 'new_order' for the type column
+      const notifResult = await pool.query(
+        "INSERT INTO notifications (business_id, order_id, message, type) VALUES ($1, $2, $3, $4) RETURNING *",
+        [businessId, order.id, notifMessage, 'new_order']
       );
+      notificationRow = notifResult.rows[0];
+    } catch (notifErr) {
+      console.error("Non-critical notification creation failed:", notifErr.message);
     }
-
-    const notifMessage = `New order from Table ${tableNum} - ₹${finalTotal}`;
-    const notifResult = await pool.query(
-      "INSERT INTO notifications (business_id, order_id, message) VALUES ($1, $2, $3) RETURNING *",
-      [businessId, order.id, notifMessage]
-    );
 
     try {
       const io = getIO();
       io.to(`business_${businessId}`).emit("new_order", {
         order,
-        notification: notifResult.rows[0],
+        notification: notificationRow,
         tableNumber: tableNum,
       });
     } catch (e) {
@@ -213,11 +226,11 @@ router.post("/place", async (req, res) => {
     }
 
     triggerAutoConfirm(order.id);
-    res.status(201).json(order);
+    return res.status(201).json(order);
 
   } catch (err) {
     console.error("Place order error:", err);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
@@ -249,7 +262,6 @@ router.put("/edit/:id", async (req, res) => {
     const discValue = parseFloat(discount_value) || parseFloat(order.discount_value) || 0;
 
     // ─── Fetch business GST rates ──────────────────────────────────────
-    // For edit, we need the businessId from the order
     const businessId = order.business_id;
     const gstResult = await pool.query(
       "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
