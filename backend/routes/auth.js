@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 const pool = require("../db");
 const { generateOTP, sendOTP } = require("../utils/otp");
 const authMiddleware = require("../middleware/auth");
-const TrialService = require("../services/trialService"); // <--- 1. IMPORT TRIAL SERVICE
+const TrialService = require("../services/trialService");
 
 // Signup
 router.post("/signup", async (req, res) => {
@@ -40,7 +40,7 @@ router.post("/signup", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // --- 2. ADDED referral_code AND referred_by TO INSERT ---
+    // --- 2. INSERT BUSINESS ---
     const result = await pool.query(
       `INSERT INTO businesses 
       (business_name, owner_name, email, phone, password_hash, subscription_status, referral_code, referred_by)
@@ -51,7 +51,15 @@ router.post("/signup", async (req, res) => {
 
     const business = result.rows[0];
 
-    // --- 3. LOG TO REFERRALS TABLE AS PENDING ---
+    // --- 3. START FREE TRIAL AUTOMATICALLY ---
+    try {
+      await TrialService.startTrial(business.id);
+      business.subscription_status = 'TRIAL';
+    } catch (trialErr) {
+      console.error("Failed to start trial on signup:", trialErr);
+    }
+
+    // --- 4. LOG TO REFERRALS TABLE AS PENDING ---
     if (referrerId) {
       await pool.query(
         `INSERT INTO referrals (referrer_id, referred_id, status) VALUES ($1, $2, 'PENDING')`,
@@ -246,9 +254,8 @@ router.post("/forgot-password/reset", async (req, res) => {
 });
 
 // Get current business (me)
-router.get("/me", require("../middleware/auth"), async (req, res) => {
+router.get("/me", authMiddleware, async (req, res) => {
   try {
-    // <-- ADDED referral_code to this query so the frontend Profile page can use it
     const result = await pool.query(
       `SELECT id, business_name, owner_name, email, phone, logo_url, description,
       address, city, state, pincode, gst_number, referral_code,
@@ -270,6 +277,7 @@ router.get("/me", require("../middleware/auth"), async (req, res) => {
   }
 });
 
+// Update Push Token
 router.post("/update-push-token", authMiddleware, async (req, res) => {
   const { pushToken } = req.body;
   const businessId = req.businessId;

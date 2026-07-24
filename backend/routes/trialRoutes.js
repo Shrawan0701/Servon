@@ -12,7 +12,7 @@ const NotificationService = require('../services/notificationService');
  */
 router.get('/status', auth, async (req, res) => {
     try {
-        const businessId = req.businessId;
+        const businessId = req.businessId || req.query.businessId;
         
         if (!businessId) {
             return res.status(401).json({
