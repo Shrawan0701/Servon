@@ -77,6 +77,7 @@ app.use((req, res, next) => {
 // ─── ROUTES ────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/subscription", require("./routes/subscription"));
+app.use("/api/trial", require("./routes/trialRoutes"));
 app.use("/api/menu", require("./routes/menu"));
 app.use("/api/tables", require("./routes/tables"));
 app.use("/api/orders", require("./routes/orders"));
