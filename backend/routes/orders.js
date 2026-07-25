@@ -39,16 +39,30 @@ router.post("/place", async (req, res) => {
   try {
     // ─── Check business subscription ──────────────────────────────────
     const biz = await pool.query(
-      "SELECT subscription_status, subscription_end_date, push_token FROM businesses WHERE id = $1",
-      [businessId]
-    );
-    if (
-      biz.rows.length === 0 ||
-      biz.rows[0].subscription_status !== "ACTIVE" ||
-      new Date(biz.rows[0].subscription_end_date) < new Date()
-    ) {
-      return res.status(403).json({ error: "Restaurant is currently not accepting orders" });
-    }
+  "SELECT subscription_status, subscription_end_date, trial_end_date, push_token FROM businesses WHERE id = $1",
+  [businessId]
+);
+
+    if (biz.rows.length === 0) {
+  return res.status(403).json({ error: "Restaurant is currently not accepting orders" });
+}
+
+const businessData = biz.rows[0];
+const now = new Date();
+
+const isSubscriptionActive = 
+  businessData.subscription_status === "ACTIVE" && 
+  new Date(businessData.subscription_end_date) > now;
+
+const isTrialActive = 
+  businessData.subscription_status === "TRIAL" && 
+  businessData.trial_end_date && 
+  new Date(businessData.trial_end_date) > now;
+
+if (!isSubscriptionActive && !isTrialActive) {
+  return res.status(403).json({ error: "Restaurant is currently not accepting orders" });
+}
+
     const pushToken = biz.rows[0].push_token;
 
     // ─── Get table number ──────────────────────────────────────────────
