@@ -102,8 +102,10 @@ const PremiumDashboard = () => {
     </View>
 
     <View style={dm.mainLayout}>
-      <View style={dm.sideNav}>
-        <View style={dm.sideLogo} />
+     <View style={dm.sideNav}>
+  <View style={dm.sideLogo}>
+    <Ionicons name="storefront" size={width > 600 ? 16 : 13} color="#FFFFFF" />
+  </View>
         {['grid', 'receipt', 'fast-food', 'people', 'settings'].map((icon, idx) => (
           <View key={idx} style={[dm.sideIcon, idx === 0 && dm.sideIconActive]}>
             <Ionicons name={icon} size={18} color={idx === 0 ? C.green : "#CBD5E0"} />
@@ -154,6 +156,207 @@ const PremiumDashboard = () => {
   </View>
   );
 };
+
+// ─── AI BUSINESS ADVISOR — CHAT MOCKUP ─────────────────────────────────
+
+const AIAdvisorMockup = () => {
+  const { width } = useWindowDimensions();
+  const dm = getAdvisorStyles(width);
+
+  return (
+    <View style={dm.wrapper}>
+      <View style={dm.header}>
+        <View style={dm.headerLeft}>
+          <View style={dm.botIcon}>
+            <Ionicons name="sparkles" size={16} color={C.green} />
+          </View>
+          <Text style={dm.headerTitle}>AI Business Advisor</Text>
+        </View>
+        <Ionicons name="ellipsis-horizontal" size={16} color={C.muted} />
+      </View>
+
+      <View style={dm.chatBody}>
+        <View style={dm.userBubbleWrap}>
+          <View style={dm.userBubble}>
+            <Text style={dm.userBubbleText}>What should I do to increase profitability?</Text>
+          </View>
+        </View>
+
+        <View style={dm.aiBubbleWrap}>
+          <View style={dm.aiBubble}>
+            <Text style={dm.aiBubbleText}>Based on this week's data, here is where to focus:</Text>
+            {[
+              "Push Special Thali and Kadhai Paneer, your top sellers, with combo pricing",
+              "Run offers during your peak hours to pull in more walk-ins",
+              "Roti has low order volume, try bundling it with your main courses",
+            ].map((line, i) => (
+              <View key={i} style={dm.aiBulletRow}>
+                <View style={dm.aiBulletDot} />
+                <Text style={dm.aiBulletText}>{line}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <View style={dm.inputRow}>
+        <Text style={dm.inputPlaceholder}>Ask about your business...</Text>
+        <View style={dm.sendBtn}>
+          <Ionicons name="send" size={14} color="#FFF" />
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// ─── DAILY AI SUMMARY — NOTIFICATION CARD MOCKUP ───────────────────────
+
+const DailySummaryMockup = () => {
+  const { width } = useWindowDimensions();
+  const dm = getAdvisorStyles(width);
+
+  return (
+    <View style={dm.summaryWrapper}>
+      <View style={dm.summaryHeaderRow}>
+        <Text style={dm.summaryTitle}>Daily Summary</Text>
+        <Ionicons name="close" size={16} color={C.muted} />
+      </View>
+      <Text style={dm.summaryDate}>Today, 6:30 PM</Text>
+
+      <View style={dm.summaryNoteBox}>
+        <Ionicons name="bar-chart" size={14} color={C.green} />
+        <Text style={dm.summaryNoteText}>
+          5 orders totaling ₹2,631 today. Top items were Special Thali, Kadhai Paneer and Roti. Keep up the momentum.
+        </Text>
+      </View>
+
+      <View style={dm.summaryStatsRow}>
+        <View style={dm.summaryStatBox}>
+          <Text style={dm.summaryStatVal}>5</Text>
+          <Text style={dm.summaryStatLab}>ORDERS</Text>
+        </View>
+        <View style={dm.summaryStatBox}>
+          <Text style={dm.summaryStatVal}>₹2,631</Text>
+          <Text style={dm.summaryStatLab}>REVENUE</Text>
+        </View>
+        <View style={dm.summaryStatBox}>
+          <Text style={dm.summaryStatVal}>₹526</Text>
+          <Text style={dm.summaryStatLab}>AVG ORDER</Text>
+        </View>
+      </View>
+
+      <View style={dm.summaryBtn}>
+        <Text style={dm.summaryBtnText}>Got It</Text>
+      </View>
+    </View>
+  );
+};
+
+// ─── AI BUSINESS ADVISOR — MARKETING SPOTLIGHT SECTION ─────────────────
+
+const AIAdvisorSection = ({ s }) => (
+  <View style={s.advisorSection}>
+    <View style={s.advisorGlow} />
+    <View style={s.advisorInner}>
+      <View style={s.advisorTextCol}>
+        <View style={s.advisorBadge}>
+          <View style={s.advisorBadgeDot} />
+          <Text style={s.advisorBadgeText}>AI BUSINESS ADVISOR</Text>
+        </View>
+
+        <Text style={s.advisorH2}>
+          Ask your business anything.{"\n"}
+          <Text style={{ color: C.green }}>Get the answer instantly.</Text>
+        </Text>
+
+        <Text style={s.advisorSub}>
+          Servon's AI Business Advisor reads your live sales, menu and expense
+          data so you can talk to your restaurant like a co-pilot, right from
+          the app or the website. No spreadsheets, no digging through reports.
+        </Text>
+
+        <View style={s.advisorFeatureList}>
+          {[
+            {
+              icon: "chatbubble-ellipses-outline",
+              t: "Chat With Your Business",
+              d: "Ask about profit, slow days or best sellers and get a clear, plain-language answer in seconds.",
+            },
+            {
+              icon: "notifications-outline",
+              t: "Daily AI Summary",
+              d: "A smart notification card lands on its own with your orders, revenue and top items for the day.",
+            },
+            {
+              icon: "bulb-outline",
+              t: "Actionable Recommendations",
+              d: "Get specific next steps, like which items to push or which hours need a promotion, not just raw numbers.",
+            },
+          ].map((f, i) => (
+            <View key={i} style={s.advisorFeatureRow}>
+              <View style={s.advisorFeatureIcon}>
+                <Ionicons name={f.icon} size={18} color={C.green} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.advisorFeatureTitle}>{f.t}</Text>
+                <Text style={s.advisorFeatureDesc}>{f.d}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={s.advisorVisualCol}>
+        <AIAdvisorMockup />
+        <View style={s.summaryFloatWrap}>
+          <DailySummaryMockup />
+        </View>
+      </View>
+    </View>
+  </View>
+);
+
+// ─── IN-APP REVIEWS — FEATURE SECTION ───────────────────────────────────
+
+const ReviewFeatureSection = ({ s }) => (
+  <View style={s.reviewFeatureSection}>
+    <View style={s.reviewFeatureHeader}>
+      <SectionTag text="In-App Reviews" styles={s} />
+      <Text style={s.reviewFeatureH2}>Reputation, handled for you</Text>
+      <Text style={s.reviewFeatureSub}>
+        Every bill becomes a feedback opportunity, without asking a single
+        customer to leave a public review on Google.
+      </Text>
+    </View>
+
+    <View style={s.reviewStepsGrid}>
+      {[
+        {
+          n: "STEP 1",
+          icon: "receipt-outline",
+          t: "QR On Every Bill",
+          d: "Each printed bill carries a QR code tied to that exact table, order, date and time.",
+        },
+        {
+          n: "STEP 2",
+          icon: "star-outline",
+          t: "Instant Feedback",
+          d: "Guests scan, rate their experience with stars and add a quick note. No app download, no login required.",
+        },
+        
+      ].map((step, i) => (
+        <View key={i} style={s.reviewStepCard}>
+          <Text style={s.reviewStepNumber}>{step.n}</Text>
+          <View style={s.reviewStepIcon}>
+            <Ionicons name={step.icon} size={22} color={C.green} />
+          </View>
+          <Text style={s.reviewStepTitle}>{step.t}</Text>
+          <Text style={s.reviewStepDesc}>{step.d}</Text>
+        </View>
+      ))}
+    </View>
+  </View>
+);
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────
 
@@ -230,84 +433,64 @@ export default function LandingPage({ onNavigate }) {
   };
 
   // ─── SUBMIT HANDLER ──────────────────────────────────────────────────
-  const handleSubmit = async () => {
-    // Validate
-    if (!validateForm()) return;
+ const handleSubmit = async () => {
+  // 1. Basic UI Validation
+  if (!formData.name || !formData.email || !formData.businessName || !formData.businessType) {
+    setFormErrors({
+      name: !formData.name ? 'Name is required' : '',
+      email: !formData.email ? 'Email is required' : '',
+      businessName: !formData.businessName ? 'Business name is required' : '',
+      businessType: !formData.businessType ? 'Please select a business type' : '',
+    });
+    return;
+  }
 
-    setIsSubmitting(true);
-    setSubmitError('');
-    setSubmitSuccess(false);
+  setIsSubmitting(true);
+  setSubmitError('');
+  setSubmitSuccess(false);
 
-    // TEMP MOCK PATH — remove this whole `if` block once the backend
-    // route exists, and set USE_MOCK_SUBMIT to false above.
-    if (USE_MOCK_SUBMIT) {
-      setTimeout(() => {
-        setIsSubmitting(false);
-        setSubmitSuccess(true);
-        setFormData({
-          name: '',
-          email: '',
-          phone: '',
-          businessName: '',
-          businessType: '',
-          message: '',
-        });
-        setFormErrors({});
-        setTimeout(() => {
-          setSubmitSuccess(false);
-          setDemoModalVisible(false);
-        }, 3000);
-      }, 800);
-      return;
+  try {
+    // Web3Forms standard API endpoint
+    const ENDPOINT_URL = 'https://api.web3forms.com/submit'; 
+
+    const response = await fetch(ENDPOINT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        // PASTE YOUR WEB3FORMS ACCESS KEY HERE
+        access_key: "e02acc71-490b-4dae-a5d2-be08862400dc", 
+        
+        // Email subject line that will show up in your inbox
+        subject: `New Servon Demo Request - ${formData.businessName}`,
+        
+        // Form Data Fields
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || 'Not Provided',
+        businessName: formData.businessName,
+        businessType: formData.businessType,
+        message: formData.message || 'No additional message',
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      setSubmitSuccess(true);
+      // Reset form on success
+      setFormData({ name: '', email: '', phone: '', businessName: '', businessType: '', message: '' });
+    } else {
+      throw new Error(result.message || 'Failed to send request.');
     }
-
-    try {
-      const payload = {
-        name: formData.name.trim(),
-        email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim() || undefined,
-        business_name: formData.businessName.trim(),
-        business_type: formData.businessType.toLowerCase(),
-        message: formData.message.trim() || undefined,
-      };
-
-      const response = await fetch(`${API_URL}/api/demo-request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSubmitSuccess(true);
-        // Reset form
-        setFormData({
-          name: '',
-          email: '',
-          phone: '',
-          businessName: '',
-          businessType: '',
-          message: '',
-        });
-        setFormErrors({});
-        // Close modal after success
-        setTimeout(() => {
-          setSubmitSuccess(false);
-          setDemoModalVisible(false);
-        }, 3000);
-      } else {
-        setSubmitError(data.message || 'Something went wrong. Please try again.');
-      }
-    } catch (error) {
-      console.error('Submit error:', error);
-      setSubmitError('Network error. Please check your connection and try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  } catch (error) {
+    setSubmitError(error.message || 'Something went wrong. Please try again.');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   // ── Web-only head tags (GA + SEO + Favicon) ──────────────────────────
   useEffect(() => {
@@ -336,15 +519,15 @@ export default function LandingPage({ onNavigate }) {
       metaDesc.name = 'description';
       metaDesc.content =
         'Servon is the premium POS and restaurant management system for Indian restaurants. ' +
-        'QR ordering, kitchen sync, Chef Mode privacy, expense tracking, and GST billing — all in one platform.';
+        'QR ordering, kitchen sync, Chef Mode privacy, AI business advisor, in-app reviews, expense tracking, and GST billing — all in one platform.';
       document.head.appendChild(metaDesc);
 
       const metaKeywords = document.createElement('meta');
       metaKeywords.name = 'keywords';
       metaKeywords.content =
         'restaurant POS India, QR menu ordering, restaurant billing software, kitchen order system, ' +
-        'KOT software, GST billing restaurant, restaurant management app, Chef Mode, ' +
-        'expense tracking restaurant, UPI payments restaurant, Servon';
+        'KOT software, GST billing restaurant, restaurant management app, Chef Mode, AI business advisor, ' +
+        'restaurant reviews software, expense tracking restaurant, UPI payments restaurant, Servon';
       document.head.appendChild(metaKeywords);
 
       const metaOGTitle = document.createElement('meta');
@@ -355,7 +538,7 @@ export default function LandingPage({ onNavigate }) {
       const metaOGDesc = document.createElement('meta');
       metaOGDesc.setAttribute('property', 'og:description');
       metaOGDesc.content =
-        'QR ordering, live kitchen sync, Chef Mode privacy, and expense ERP — ' +
+        'QR ordering, live kitchen sync, Chef Mode privacy, an AI business advisor, and expense ERP — ' +
         'the all-in-one operating system built for high-growth Indian restaurants.';
       document.head.appendChild(metaOGDesc);
 
@@ -463,10 +646,7 @@ export default function LandingPage({ onNavigate }) {
           <View style={s.heroGlowBottom} />
 
           <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', width: '100%', zIndex: 2 }}>
-            <View style={s.cursonBadge}>
-              <View style={s.cursonBadgeDot} />
-              <Text style={s.cursonBadgeText}>Live across India</Text>
-            </View>
+            
 
             <Text style={s.heroH1}>
               Command Your{"\n"}
@@ -505,11 +685,14 @@ export default function LandingPage({ onNavigate }) {
               </TouchableOpacity>
             </View>
 
-            <Text style={s.heroFoot}>Trusted by 100+ outlets across the country.</Text>
+            
 
             <PremiumDashboard />
           </Animated.View>
         </View>
+
+                <AIAdvisorSection s={s} />
+
 
         {/* ── CORE CAPABILITIES ── */}
         <View style={s.darkSection}>
@@ -529,10 +712,13 @@ export default function LandingPage({ onNavigate }) {
             {[
               { i: "qr-code-outline",    t: "Smart QR Ordering",    d: "Frictionless ordering via browser. No app installs, no wait times for guests.",            c: "#E6F3EF" },
               { i: "shield-half-outline", t: "Chef Mode™ Privacy",   d: "Hide financial data from staff with a single master toggle instantly.",                    c: "#F3E8FF" },
+                            { i: "chatbubble-ellipses-outline", t: "AI Business Advisor", d: "Chat with an AI that knows your sales, menu and expenses inside out.",             c: "#EDE9FE" },
+
               { i: "receipt-outline",    t: "Seamless Billing",      d: "GST invoicing with integrated digital feedback and reviews.",                               c: "#EBF8FF" },
               { i: "bar-chart-outline",  t: "Granular Analytics",    d: "Real-time insights into best sellers, peak hours, and server performance.",                c: "#FFF4E6" },
               { i: "calculator-outline", t: "Expense ERP",           d: "Log procurement and payroll to see your true net profit daily.",                           c: "#FEE2E2" },
               { i: "flash-outline",      t: "Kitchen Sync",          d: "Zero-lag cloud-based KOT routing to keep your chefs in harmony.",                         c: "#F0FDF4" },
+              { i: "star-outline",       t: "Verified In-App Reviews", d: "QR-based feedback on every bill, with full control over what goes public.",             c: "#FEF3C7" },
             ].map((f, i) => (
               <View key={i} style={s.darkFeatCard}>
                 <View style={[s.featIcon, { backgroundColor: f.c }]}>
@@ -544,6 +730,12 @@ export default function LandingPage({ onNavigate }) {
             ))}
           </View>
         </View>
+
+        {/* ── AI BUSINESS ADVISOR SPOTLIGHT ── */}
+       
+
+        {/* ── IN-APP REVIEWS ── */}
+        <ReviewFeatureSection s={s} />
 
         {/* ── REVIEWS ── */}
         <View style={s.reviewSection}>
@@ -622,6 +814,8 @@ export default function LandingPage({ onNavigate }) {
                 "Unlimited QR Menu Scans & Orders",
                 "Full Chef Mode™ Financial Privacy",
                 "Live Kitchen Dashboard (KOT Sync)",
+                "AI Business Advisor & Daily AI Summary",
+                "Verified In-App Reviews",
                 "Inventory & Expense ERP Suite",
                 "Export PDF & CSV Reports",
                 "24/7 Priority Support"
@@ -662,6 +856,14 @@ export default function LandingPage({ onNavigate }) {
               {
                 q: "What is Chef Mode™?",
                 a: "Chef Mode™ is a privacy feature that hides sensitive business insights like revenue and expense data from staff-facing screens with a single toggle."
+              },
+              {
+                q: "What can the AI Business Advisor actually do?",
+                a: "It reads your live sales, menu and expense data so you can ask plain-language questions like what should I do to increase profitability, and get a clear, specific answer. It also sends an automatic daily summary of your orders, revenue and top items."
+              },
+              {
+                q: "How do in-app reviews work?",
+                a: "Every printed bill carries a QR code tied to that table and order. Guests scan it, leave a star rating and a quick note, no app or login needed, and you see every review inside Servon by order, table, date and items."
               },
               {
                 q: "Does Servon require special hardware?",
@@ -751,8 +953,9 @@ export default function LandingPage({ onNavigate }) {
           <View style={s.fDivider} />
 
           <View style={s.footerBottom}>
-            <Text style={s.copy}>© 2026 Servon. All rights reserved.</Text>
-          </View>
+  <Text style={s.fCompanyLine}>Servon Labs Private Limited, Pune, Maharashtra</Text>
+  <Text style={s.copy}>© 2026 Servon. All rights reserved.</Text>
+</View>
         </View>
 
       </ScrollView>
@@ -916,7 +1119,7 @@ export default function LandingPage({ onNavigate }) {
                 <ActivityIndicator color="#FFF" size="small" />
               ) : (
                 <>
-                  <Text style={s.modalSubmitBtnText}>Send Request</Text>
+                  <Text style={s.modalSubmitBtnText}>Contact Us</Text>
                   <Ionicons name="send" size={16} color="#FFF" />
                 </>
               )}
@@ -932,7 +1135,7 @@ export default function LandingPage({ onNavigate }) {
             {/* Success Message */}
             {submitSuccess ? (
               <Text style={{ color: '#008060', textAlign: 'center', marginTop: 12, fontSize: 14, fontWeight: '600' }}>
-                ✅ Demo request sent successfully! We'll contact you soon.
+                Demo request sent successfully! We'll contact you soon.
               </Text>
             ) : null}
 
@@ -999,12 +1202,14 @@ const getDashboardStyles = (width) => StyleSheet.create({
     paddingTop: 16,
     gap: 16,
   },
-  sideLogo: {
-    width: width > 600 ? 32 : 24,
-    height: width > 600 ? 32 : 24,
-    backgroundColor: C.green,
-    borderRadius: 8,
-  },
+ sideLogo: {
+  width: width > 600 ? 32 : 24,
+  height: width > 600 ? 32 : 24,
+  backgroundColor: C.green,
+  borderRadius: 8,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
   sideIcon: {
     width: width > 600 ? 36 : 28,
     height: width > 600 ? 36 : 28,
@@ -1051,6 +1256,133 @@ const getDashboardStyles = (width) => StyleSheet.create({
   itemText: { flex: 1, fontSize: width > 600 ? 12 : 10, color: C.muted, fontWeight: '600' },
   statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   statusText: { fontSize: 9, fontWeight: '900' },
+});
+
+// ─── AI ADVISOR + DAILY SUMMARY MOCKUP STYLES ──────────────────────────
+
+const getAdvisorStyles = (width) => StyleSheet.create({
+  wrapper: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 30,
+    elevation: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  botIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: C.greenLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: { fontSize: 14, fontWeight: '800', color: C.charcoal },
+  chatBody: { padding: 18, gap: 14 },
+  userBubbleWrap: { alignItems: 'flex-end' },
+  userBubble: {
+    backgroundColor: C.charcoal,
+    borderRadius: 16,
+    borderBottomRightRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    maxWidth: '85%',
+  },
+  userBubbleText: { color: '#FFF', fontSize: 13, fontWeight: '600', lineHeight: 19 },
+  aiBubbleWrap: { alignItems: 'flex-start' },
+  aiBubble: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxWidth: '92%',
+    borderWidth: 1,
+    borderColor: '#EDF2F7',
+  },
+  aiBubbleText: { fontSize: 13, fontWeight: '600', color: C.charcoal, lineHeight: 19, marginBottom: 8 },
+  aiBulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
+  aiBulletDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: C.green, marginTop: 7 },
+  aiBulletText: { flex: 1, fontSize: 12, color: C.muted, lineHeight: 18, fontWeight: '500' },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  inputPlaceholder: { flex: 1, fontSize: 12, color: '#94A3B8', fontWeight: '500' },
+  sendBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: C.green,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Daily summary mockup
+  summaryWrapper: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  summaryHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  summaryTitle: { fontSize: 16, fontWeight: '900', color: C.charcoal },
+  summaryDate: { fontSize: 11, color: C.muted, fontWeight: '600', marginTop: 2, marginBottom: 14 },
+  summaryNoteBox: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: C.greenLight,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  summaryNoteText: { flex: 1, fontSize: 12, color: '#0F5132', lineHeight: 18, fontWeight: '600' },
+  summaryStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  summaryStatBox: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EEF1F5',
+  },
+  summaryStatVal: { fontSize: 15, fontWeight: '900', color: C.charcoal },
+  summaryStatLab: { fontSize: 9, fontWeight: '800', color: C.muted, marginTop: 4, letterSpacing: 0.5 },
+  summaryBtn: {
+    backgroundColor: C.charcoal,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  summaryBtnText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
 });
 
 // ─── MAIN STYLES ──────────────────────────────────────────────────────
@@ -1474,6 +1806,143 @@ const getMainStyles = (width) => StyleSheet.create({
     flexShrink: 1,
   },
 
+  // ── AI BUSINESS ADVISOR SECTION ──
+  advisorSection: {
+    paddingVertical: width > 600 ? 110 : 64,
+    paddingHorizontal: width > 600 ? 30 : 18,
+    backgroundColor: '#FAF9F6',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  advisorGlow: {
+    position: 'absolute',
+    top: '10%',
+    left: '-15%',
+    width: 560,
+    height: 560,
+    borderRadius: 280,
+    backgroundColor: '#E6F3EF',
+    opacity: 0.5,
+  },
+  advisorInner: {
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+    flexDirection: width > 900 ? 'row' : 'column',
+    alignItems: width > 900 ? 'center' : 'stretch',
+    gap: width > 900 ? 60 : 48,
+    zIndex: 2,
+  },
+  advisorTextCol: { flex: width > 900 ? 1 : undefined },
+  advisorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 24,
+    gap: 8,
+  },
+  advisorBadgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green },
+  advisorBadgeText: { fontSize: 11, fontWeight: '900', color: C.green, letterSpacing: 1.5 },
+  advisorH2: {
+    fontSize: width > 800 ? 42 : width > 400 ? 30 : 26,
+    fontWeight: '900',
+    color: C.charcoal,
+    letterSpacing: -1.2,
+    lineHeight: width > 800 ? 50 : width > 400 ? 38 : 33,
+    marginBottom: 20,
+  },
+  advisorSub: {
+    fontSize: width > 600 ? 16 : 14,
+    color: C.muted,
+    lineHeight: width > 600 ? 25 : 22,
+    marginBottom: 36,
+    maxWidth: 520,
+  },
+  advisorFeatureList: { gap: 24 },
+  advisorFeatureRow: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  advisorFeatureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: C.greenLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  advisorFeatureTitle: { fontSize: width > 600 ? 16 : 15, fontWeight: '800', color: C.charcoal, marginBottom: 4 },
+  advisorFeatureDesc: { fontSize: width > 600 ? 14 : 13, color: C.muted, lineHeight: 20, fontWeight: '500' },
+  advisorVisualCol: {
+    flex: width > 900 ? 1 : undefined,
+    alignItems: width > 900 ? 'flex-end' : 'center',
+    position: 'relative',
+    paddingTop: width > 900 ? 0 : 10,
+    paddingBottom: width > 900 ? 90 : 140,
+    width: '100%',
+  },
+  summaryFloatWrap: {
+    position: width > 900 ? 'absolute' : 'relative',
+    left: width > 900 ? -40 : undefined,
+    bottom: width > 900 ? -60 : undefined,
+    marginTop: width > 900 ? 0 : 20,
+  },
+
+  // ── IN-APP REVIEWS SECTION ──
+  reviewFeatureSection: {
+    paddingVertical: width > 600 ? 100 : 60,
+    paddingHorizontal: width > 600 ? 30 : 16,
+    backgroundColor: '#FFFFFF',
+  },
+  reviewFeatureHeader: { alignItems: 'center', marginBottom: width > 600 ? 56 : 36 },
+  reviewFeatureH2: {
+    fontSize: width > 600 ? 30 : 22,
+    fontWeight: '900',
+    color: C.charcoal,
+    textAlign: 'center',
+    letterSpacing: -0.8,
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  reviewFeatureSub: {
+    fontSize: width > 600 ? 16 : 14,
+    color: C.muted,
+    textAlign: 'center',
+    maxWidth: 560,
+    lineHeight: 24,
+  },
+  reviewStepsGrid: {
+    flexDirection: width > 800 ? 'row' : 'column',
+    gap: 20,
+    maxWidth: 1100,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  reviewStepCard: {
+    flex: width > 800 ? 1 : undefined,
+    backgroundColor: '#FAF9F6',
+    borderRadius: 20,
+    padding: width > 600 ? 28 : 22,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  reviewStepNumber: { fontSize: 12, fontWeight: '900', color: C.green, marginBottom: 14, letterSpacing: 1 },
+  reviewStepIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: C.greenLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  reviewStepTitle: { fontSize: width > 600 ? 17 : 16, fontWeight: '800', color: C.charcoal, marginBottom: 10 },
+  reviewStepDesc: { fontSize: width > 600 ? 14 : 13.5, color: C.muted, lineHeight: 21, fontWeight: '500' },
+
   // ── REVIEWS ──
   reviewSection: {
     paddingVertical: width > 600 ? 100 : 60,
@@ -1710,6 +2179,13 @@ const getMainStyles = (width) => StyleSheet.create({
     fontSize: 14,
     maxWidth: width > 768 ? 300 : '100%',
   },
+  fCompanyLine: {
+  fontSize: 13,
+  color: "#64748B",
+  fontWeight: '500',
+  marginBottom: 8,
+},
+
   fLinksGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',

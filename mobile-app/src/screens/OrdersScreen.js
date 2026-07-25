@@ -23,6 +23,11 @@ import { getOrders, updateOrderStatus, getProfile } from "../api";
 import * as Print from "expo-print";
 import { useAuth } from "../context/AuthContext";
 
+// ===== OFFLINE SERVICES =====
+import localDB from "../services/LocalDB";
+import networkMonitor from "../services/NetworkMonitor";
+import syncManager from "../services/SyncManager";
+
 // ─── CONSTANTS ──────────────────────────────────────────────────────────
 
 // How long (ms) we trust a locally-updated order over whatever the server
@@ -44,10 +49,6 @@ const statusColor = (s) =>
   }[s] || "#888");
 
 // Original status filters (for normal mode)
-// NOTE: uses {key, label} — key is always lowercase-safe and matches exactly
-// what getFilteredData() compares against. Previously this was a flat array
-// of display strings (e.g. "All"), which didn't match the "all" (lowercase)
-// check in getFilteredData once re-selected, causing the list to go blank.
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
   { key: "EDITABLE", label: "EDITABLE" },
@@ -448,14 +449,17 @@ export default function OrdersScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [showPicker, setShowPicker] = useState(false);
 
+  // ===== OFFLINE STATE =====
+  const [isOffline, setIsOffline] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [selectedOrderForDiscount, setSelectedOrderForDiscount] = useState(null);
   const [discountType, setDiscountType] = useState("none");
   const [discountValue, setDiscountValue] = useState("");
 
-  // Tracks per-order timestamps of local (optimistic) status changes so a
-  // focus-triggered refetch can't silently revert a change the backend
-  // hasn't finished propagating yet.
+  // Tracks per-order timestamps of local (optimistic) status changes
   const localUpdateTimestamps = useRef({});
 
   const isWeb = Platform.OS === "web";
@@ -465,6 +469,41 @@ export default function OrdersScreen() {
   }
 
   // ─── HOOKS ──────────────────────────────────────────────────────────
+
+  // ===== NETWORK STATUS LISTENER =====
+  useEffect(() => {
+    const unsubscribe = networkMonitor.subscribe((online) => {
+      setIsOffline(!online);
+      if (online) {
+        // Back online - refresh data
+        loadData();
+        syncManager.startSync();
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ===== SYNC STATUS LISTENER =====
+  useEffect(() => {
+    const updatePendingCount = async () => {
+      try {
+        const count = await localDB.getPendingActionsCount();
+        setPendingSyncCount(count);
+      } catch (error) {
+        console.log('Pending count error:', error);
+      }
+    };
+    updatePendingCount();
+
+    syncManager.setStatusCallback((status) => {
+      setIsSyncing(status.isSyncing);
+      updatePendingCount();
+    });
+
+    const interval = setInterval(updatePendingCount, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (isWeb) {
       const updateLayout = () => {
@@ -483,7 +522,23 @@ export default function OrdersScreen() {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-
+  // In OrdersScreen.js - Add this for testing
+useEffect(() => {
+    const checkLocalDB = async () => {
+        try {
+            const stats = await localDB.getStats();
+            console.log(' Local DB Stats:', stats);
+            
+            const orders = await localDB.getOrders();
+            console.log(' Local Orders Count:', orders.length);
+        } catch (error) {
+            console.error('Local DB check error:', error);
+        }
+    };
+    
+    // Check after 2 seconds
+    setTimeout(checkLocalDB, 2000);
+}, []);
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -491,44 +546,111 @@ export default function OrdersScreen() {
   );
 
   // ─── DATA LOADING ──────────────────────────────────────────────────
+
   const loadData = useCallback(async () => {
     try {
-      const [ordersRes, profileRes] = await Promise.all([getOrders(), getProfile()]);
-      const freshOrders = ordersRes.data;
-      const now = Date.now();
+      setLoading(true);
 
-      // Merge fresh server data with any very-recent local optimistic
-      // updates, so a stale read (backend hasn't caught up yet) can't
-      // silently roll back a status change the user just made.
-      setOrders((prev) => {
-        const prevById = new Map(prev.map((o) => [o.id, o]));
-        return freshOrders.map((fresh) => {
-          const updatedAt = localUpdateTimestamps.current[fresh.id];
-          if (updatedAt && now - updatedAt < LOCAL_UPDATE_TRUST_WINDOW_MS) {
-            const local = prevById.get(fresh.id);
-            if (local) return local;
-          }
-          return fresh;
+      // 1. Try to load from local DB first (fast)
+      let localOrders = [];
+      try {
+        if (filter === 'PREVIOUS') {
+          localOrders = await localDB.getOrdersByDate(selectedDate);
+        } else {
+          localOrders = await localDB.getOrders(filter === 'all' ? null : filter);
+        }
+        if (localOrders && localOrders.length > 0) {
+          setOrders(localOrders);
+        }
+      } catch (dbError) {
+        console.log('Local DB read error:', dbError);
+      }
+
+      // 2. Try to fetch from API if online
+      const isOnline = await networkMonitor.checkConnectivity();
+      
+      if (isOnline) {
+        const [ordersRes, profileRes] = await Promise.all([
+          getOrders(),
+          getProfile()
+        ]);
+        
+        const freshOrders = ordersRes.data || [];
+        const now = Date.now();
+
+        // Merge with local updates
+        setOrders((prev) => {
+          const prevById = new Map(prev.map((o) => [o.id, o]));
+          return freshOrders.map((fresh) => {
+            const updatedAt = localUpdateTimestamps.current[fresh.id];
+            if (updatedAt && now - updatedAt < LOCAL_UPDATE_TRUST_WINDOW_MS) {
+              const local = prevById.get(fresh.id);
+              if (local) return local;
+            }
+            return fresh;
+          });
         });
-      });
 
-      setProfile(profileRes.data);
+        // Save to local DB for offline use
+        await localDB.saveOrders(freshOrders);
+        setProfile(profileRes.data);
+        setIsOffline(false);
+      } else {
+        setIsOffline(true);
+        // If we have no local orders, try to load from local DB again
+        if (!localOrders || localOrders.length === 0) {
+          const fallbackOrders = await localDB.getOrders();
+          if (fallbackOrders && fallbackOrders.length > 0) {
+            setOrders(fallbackOrders);
+          }
+        }
+      }
     } catch (err) {
       console.error("Data load error:", err);
+      // Try to load from local DB as fallback
+      try {
+        const fallbackOrders = await localDB.getOrders();
+        if (fallbackOrders && fallbackOrders.length > 0) {
+          setOrders(fallbackOrders);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback load failed:', fallbackError);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [filter, selectedDate]);
 
   // ─── HANDLERS ──────────────────────────────────────────────────────
+
   const handleStatusUpdate = useCallback(async (orderId, status) => {
     try {
-      await updateOrderStatus(orderId, status);
+      // 1. Update local DB immediately (optimistic)
+      await localDB.updateOrderStatus(orderId, status);
+      
+      // 2. Update local state
       localUpdateTimestamps.current[orderId] = Date.now();
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
+
+      // 3. Try to update on server if online
+      const isOnline = await networkMonitor.checkConnectivity();
+      if (isOnline) {
+        try {
+          await updateOrderStatus(orderId, status);
+          await localDB.markAsSynced(orderId);
+        } catch (apiError) {
+          console.log('Server update failed, will sync later:', apiError);
+        }
+      }
+
+      // 4. Update pending count
+      const count = await localDB.getPendingActionsCount();
+      setPendingSyncCount(count);
+
     } catch (err) {
       console.error("Update error:", err);
+      Alert.alert('Error', 'Failed to update order status. Will retry when online.');
     }
   }, []);
 
@@ -649,10 +771,13 @@ export default function OrdersScreen() {
           await Print.printAsync({ html: htmlContent });
         }
 
+        // Update orders to PAID status locally and on server
         await Promise.all(tableOrders.map((o) => updateOrderStatus(o.id, "PAID")));
         const now = Date.now();
         tableOrders.forEach((o) => {
           localUpdateTimestamps.current[o.id] = now;
+          // Also update local DB
+          localDB.updateOrderStatus(o.id, "PAID");
         });
         setOrders((prev) =>
           prev.map((o) => (tableOrders.some((to) => to.id === o.id) ? { ...o, status: "PAID" } : o))
@@ -708,7 +833,21 @@ export default function OrdersScreen() {
     return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   };
 
-  // ─── ORIGINAL RENDER ORDER ITEM (for normal mode) ────────────────
+  const onDateChange = (event, selected) => {
+    if (event.type === "dismissed") {
+      setShowPicker(false);
+      return;
+    }
+    if (Platform.OS === "android") setShowPicker(false);
+    if (selected) {
+      const dateString = selected.toISOString().split("T")[0];
+      setSelectedDate(dateString);
+    }
+  };
+
+  // ─── RENDER ORDER ITEMS ──────────────────────────────────────────────
+
+  // Original render (normal mode)
   const renderOrderItemOld = ({ item }) => {
     const items = Array.isArray(item.items) ? item.items : JSON.parse(item.items || "[]");
     const isProcessing = processingTable === item.table_number;
@@ -806,7 +945,7 @@ export default function OrdersScreen() {
     );
   };
 
-  // ─── CHEF RENDER ORDER ITEM ──────────────────────────────────────
+  // Chef render
   const renderOrderItemChef = useCallback(
     ({ item }) => {
       const orderTime = new Date(item.updated_at || item.created_at).getTime();
@@ -833,6 +972,7 @@ export default function OrdersScreen() {
   );
 
   // ─── FILTER HELPERS ──────────────────────────────────────────────
+
   const getFilteredData = useCallback(() => {
     let result;
     if (filter === "all") {
@@ -870,19 +1010,8 @@ export default function OrdersScreen() {
     return Object.keys(groups).map((date) => ({ title: date, data: groups[date] }));
   };
 
-  const onDateChange = (event, selected) => {
-    if (event.type === "dismissed") {
-      setShowPicker(false);
-      return;
-    }
-    if (Platform.OS === "android") setShowPicker(false);
-    if (selected) {
-      const dateString = selected.toISOString().split("T")[0];
-      setSelectedDate(dateString);
-    }
-  };
-
   // ─── LOADING / PREMIUM ─────────────────────────────────────────────
+
   if (authLoading || isPremium === null) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -896,6 +1025,7 @@ export default function OrdersScreen() {
   }
 
   // ─── RENDER ─────────────────────────────────────────────────────────
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
       {/* Filter Tabs */}
@@ -981,7 +1111,9 @@ export default function OrdersScreen() {
               ListEmptyComponent={
                 <View style={{ alignItems: "center", marginTop: 60 }}>
                   <Ionicons name="archive-outline" size={48} color="#D1D5DB" />
-                  <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>No archived orders for this date</Text>
+                  <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
+                    {isOffline ? '📡 Offline - No cached data for this date' : 'No archived orders for this date'}
+                  </Text>
                 </View>
               }
             />
@@ -997,7 +1129,14 @@ export default function OrdersScreen() {
             ListEmptyComponent={
               <View style={{ alignItems: "center", marginTop: 60 }}>
                 <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
-                <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>No orders found for today</Text>
+                <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
+                  {isOffline ? '📡 Offline - No cached orders' : 'No orders found for today'}
+                </Text>
+                {isOffline && (
+                  <Text style={{ color: "#6B7280", fontSize: 12, marginTop: 4 }}>
+                    Connect to internet to sync orders
+                  </Text>
+                )}
               </View>
             }
             renderItem={isChefMode ? renderOrderItemChef : renderOrderItemOld}
@@ -1025,6 +1164,7 @@ export default function OrdersScreen() {
 }
 
 // ─── STYLES ──────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   // ─── NORMAL MODE STYLES (old) ────────────────────────────────────
   orderCardOld: {
@@ -1131,6 +1271,7 @@ const styles = StyleSheet.create({
   mobileDateBtn: { backgroundColor: "#FAF8F5", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#E8E2D9", flexDirection: "row", alignItems: "center", gap: 6 },
   mobileDateText: { fontSize: 14, fontWeight: "700", color: "#111827" },
 
+  // ─── DISCOUNT MODAL ──────────────────────────────────────────────
   discountModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
   discountModal: { backgroundColor: "#fff", borderRadius: 22, padding: 22, width: "100%", maxWidth: 380 },
   discountModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },

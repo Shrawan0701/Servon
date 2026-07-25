@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context"; 
-import { useAuth } from "../context/AuthContext"; // <-- 1. IMPORT AUTH CONTEXT
+import { useAuth } from "../context/AuthContext";
 
 // Import your screens
 import DashboardScreen from "../screens/DashboardScreen";
@@ -16,13 +16,15 @@ import ProfileScreen from "../screens/ProfileScreen";
 import ReferralsScreen from "../screens/ReferralsScreen"; 
 import ReviewsScreen from '../screens/ReviewsScreen';
 import AdvisorScreen from "../screens/AdvisorScreen";
+// ===== Notification Screen =====
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 // 1. The Premium Bottom Tabs
 function TabNavigator() {
   const insets = useSafeAreaInsets(); 
-  const { isChefMode } = useAuth(); // <-- 2. GRAB CHEF MODE STATE
+  const { isChefMode } = useAuth();
 
   return (
     <Tab.Navigator
@@ -44,7 +46,6 @@ function TabNavigator() {
           backgroundColor: '#fff',
           borderTopWidth: 1,
           borderTopColor: '#E5E7EB',
-          // DYNAMIC HEIGHT AND PADDING FOR SYSTEM NAV BAR:
           height: Platform.OS === 'ios' ? 85 : 65 + insets.bottom,
           paddingBottom: Platform.OS === 'ios' ? 25 : 8 + insets.bottom,
           paddingTop: 8,
@@ -61,7 +62,7 @@ function TabNavigator() {
       <Tab.Screen name="Menu" component={MenuScreen} />
       <Tab.Screen name="Tables" component={TablesScreen} />
       
-      {/* 3. THE LOCK: Hide Analytics completely if Chef Mode is active */}
+      {/* Hide Analytics completely if Chef Mode is active */}
       {!isChefMode && (
         <Tab.Screen name="Analytics" component={AnalyticsScreen} />
       )}
@@ -69,7 +70,7 @@ function TabNavigator() {
   );
 }
 
-// 2. The Main Wrapper (Holds Tabs + Profile Page + Referrals Page)
+// 2. The Main Wrapper
 export default function MainNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -78,6 +79,7 @@ export default function MainNavigator() {
       <Stack.Screen name="Referrals" component={ReferralsScreen} /> 
       <Stack.Screen name="Reviews" component={ReviewsScreen} />
       <Stack.Screen name="Advisor" component={AdvisorScreen} options={{ title: 'AI Business Advisor' }} />
-    </Stack.Navigator>
+      
+      </Stack.Navigator>
   );
 }

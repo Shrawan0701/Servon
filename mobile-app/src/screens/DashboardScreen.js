@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
+
 import {
   View,
   Text,
@@ -26,12 +27,16 @@ import {
   markAllNotificationsRead,
   getDailySummary,
   deleteConversation,
-  clearAllConversations
+  clearAllConversations,
+  getTrialStatus,
+  getTrialNotifications,
+  markTrialNotificationRead,
 } from "../api";
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import io from "socket.io-client";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import ReactDOM from "react-dom";
 
 const isWeb = Platform.OS === "web";
 
@@ -44,9 +49,13 @@ if (isWeb && typeof document !== "undefined") {
     link.href = "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap";
     document.head.appendChild(link);
   }
-  if (!document.getElementById("servon-web-css")) {
-    const style = document.createElement("style");
-    style.id = "servon-web-css";
+  {
+    let style = document.getElementById("servon-web-css");
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "servon-web-css";
+      document.head.appendChild(style);
+    }
     style.textContent = `
       * { box-sizing: border-box; }
       body { font-family: 'DM Sans', sans-serif !important; background: #F5F3EF !important; }
@@ -84,11 +93,12 @@ if (isWeb && typeof document !== "undefined") {
         letter-spacing: 0.04em; text-transform: uppercase; margin-top: 4px;
       }
       
+      /* Fluid grid: cards keep a sensible minimum width and wrap naturally
+         at any viewport size, instead of relying only on fixed breakpoints. */
       .servon-stats-grid {
-        display: grid; grid-template-columns: repeat(4, 1fr);
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 14px; padding: 0 24px; margin-bottom: 28px;
       }
-      @media (max-width: 860px) { .servon-stats-grid { grid-template-columns: repeat(2, 1fr); } }
       @media (max-width: 500px) { .servon-stats-grid { grid-template-columns: 1fr; padding: 0 16px; } }
       
       .servon-order-card {
@@ -105,9 +115,9 @@ if (isWeb && typeof document !== "undefined") {
       }
       
       .servon-notif-panel {
-        position: fixed; top: 0; right: 0; bottom: 0;
+        position: fixed; top: 0; right: 0; bottom: 0; height: 100vh;
         width: 380px; background: #fff; border-left: 1px solid #EAE6E0;
-        z-index: 200; display: flex; flex-direction: column;
+        z-index: 200; display: flex; flex-direction: column; overflow: hidden;
         animation: slideIn 0.22s ease;
       }
       @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -117,6 +127,57 @@ if (isWeb && typeof document !== "undefined") {
         z-index: 199; backdrop-filter: blur(2px); animation: fadeIn 0.2s ease;
       }
       @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+      /* ── Notification panel: modern, day-grouped cards ── */
+      .servon-notif-day-header {
+        position: sticky; top: 0; z-index: 2;
+        background: #fff; padding: 12px 0 8px;
+        font-size: 11px; font-weight: 700; color: #9CA3AF;
+        text-transform: uppercase; letter-spacing: 0.07em;
+      }
+      .servon-notif-item {
+        display: flex; gap: 12px; padding: 13px 14px;
+        border-radius: 14px; margin-bottom: 8px;
+        border: 1px solid #EAE6E0; background: #fff;
+        transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+      }
+      .servon-notif-item.unread {
+        background: linear-gradient(135deg, #F0FDF4 0%, #FBFFFC 100%);
+        border-color: #BBF7D0;
+      }
+      .servon-notif-item:hover {
+        box-shadow: 0 6px 18px rgba(0,0,0,0.07);
+        transform: translateY(-1px);
+      }
+      .servon-notif-icon {
+        width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: #EFF6FF;
+      }
+      .servon-notif-item.unread .servon-notif-icon { background: #DCFCE7; }
+      .servon-notif-body { flex: 1; min-width: 0; }
+      .servon-notif-top-row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 8px; margin-bottom: 3px;
+      }
+      .servon-notif-title-text {
+        font-size: 14px; font-weight: 700; color: #111827;
+        display: flex; align-items: center; gap: 6px; min-width: 0;
+      }
+      .servon-notif-time-text { font-size: 11px; color: #9CA3AF; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+      .servon-notif-msg-text { font-size: 13px; color: #6B7280; line-height: 1.5; }
+      .servon-notif-unread-dot { width: 7px; height: 7px; border-radius: 50%; background: #22C55E; flex-shrink: 0; }
+      .servon-notif-empty {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 60px 20px; color: #9CA3AF; gap: 8px; text-align: center;
+      }
+      .servon-notif-load-more {
+        width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+        background: #F9F8F6; border: 1px dashed #D1C9BC; border-radius: 12px;
+        padding: 12px; font-size: 13px; font-weight: 600; color: #374151;
+        cursor: pointer; margin: 4px 0 10px; transition: background 0.15s ease;
+      }
+      .servon-notif-load-more:hover { background: #F3F1EC; }
       
       .servon-empty {
         display: flex; flex-direction: column;
@@ -214,8 +275,42 @@ if (isWeb && typeof document !== "undefined") {
         display: flex; align-items: center; justify-content: center;
         gap: 6px; font-size: 13px; color: #9CA3AF; margin-top: 14px;
       }
+
+      /* ── In-app trial/subscription toast (replaces browser alert) ── */
+      .servon-trial-toast {
+        position: fixed; top: 78px; left: 50%; transform: translateX(-50%);
+        z-index: 500; max-width: 420px; width: calc(100% - 32px);
+        background: #111827; color: #fff; border-radius: 14px;
+        padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+        box-shadow: 0 12px 32px rgba(0,0,0,0.22);
+        animation: servonToastIn 0.25s ease;
+      }
+      @keyframes servonToastIn {
+        from { transform: translate(-50%, -14px); opacity: 0; }
+        to { transform: translate(-50%, 0); opacity: 1; }
+      }
+      .servon-trial-toast-icon {
+        width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+        background: rgba(255,255,255,0.14);
+        display: flex; align-items: center; justify-content: center;
+      }
+      .servon-trial-toast-text { flex: 1; font-size: 13px; line-height: 1.4; min-width: 0; }
+      .servon-trial-toast-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+      .servon-trial-toast-btn {
+        background: #fff; color: #111827; border: none; border-radius: 8px;
+        padding: 6px 12px; font-size: 12px; font-weight: 700;
+        cursor: pointer; white-space: nowrap;
+      }
+      .servon-trial-toast-close {
+        background: transparent; border: none; color: rgba(255,255,255,0.65);
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        padding: 4px; flex-shrink: 0;
+      }
+      @media (max-width: 500px) {
+        .servon-trial-toast { top: 70px; width: calc(100% - 20px); padding: 10px 12px; }
+        .servon-trial-toast-text { font-size: 12.5px; }
+      }
     `;
-    document.head.appendChild(style);
   }
 }
 
@@ -233,6 +328,55 @@ const getInsightIcon = (type, native = false) => {
   return icons[type] || icons.orders;
 };
 
+// ─── NOTIFICATION HELPERS (grouping by day + icon per type) ────────────────────
+const isSameCalendarDay = (a, b) =>
+  a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+const getNotifDayLabel = (dateStr) => {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (isSameCalendarDay(date, today)) return "Today";
+  if (isSameCalendarDay(date, yesterday)) return "Yesterday";
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+  });
+};
+
+const groupNotificationsByDay = (list) => {
+  const groups = [];
+  const index = {};
+  (list || []).forEach((n) => {
+    const label = getNotifDayLabel(n.created_at);
+    if (!index[label]) {
+      index[label] = { label, items: [] };
+      groups.push(index[label]);
+    }
+    index[label].items.push(n);
+  });
+  return groups;
+};
+
+// Splits day-groups into "recent" (Today/Yesterday, always shown) and "older"
+// (everything else, hidden behind a Load More button until expanded).
+const splitNotificationGroups = (groups) => {
+  const recent = groups.filter((g) => g.label === "Today" || g.label === "Yesterday");
+  const older = groups.filter((g) => g.label !== "Today" && g.label !== "Yesterday");
+  return { recent, older };
+};
+
+const getNotifIcon = (title = "", native = false) => {
+  const size = native ? 18 : 16;
+  const t = (title || "").toLowerCase();
+  if (t.includes("order")) return <Ionicons name="receipt-outline" size={size} color="#3B82F6" />;
+  if (t.includes("payment") || t.includes("paid")) return <Ionicons name="card-outline" size={size} color="#10B981" />;
+  if (t.includes("table")) return <Ionicons name="grid-outline" size={size} color="#F59E0B" />;
+  return <Ionicons name="notifications-outline" size={size} color="#3B82F6" />;
+};
+
 export default function DashboardScreen() {
   const { business, updateBusiness, isChefMode } = useAuth();
   const navigation = useNavigation();
@@ -245,11 +389,29 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showOlderNotifications, setShowOlderNotifications] = useState(false);
   const [dailySummary, setDailySummary] = useState(null);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [nextInsight, setNextInsight] = useState(null);
   const [showInsightModal, setShowInsightModal] = useState(false);
   const [seenInsights, setSeenInsights] = useState(new Set());
+
+  // ===== TRIAL STATE =====
+  const [trialStatus, setTrialStatus] = useState(null);
+  const [trialNotifications, setTrialNotifications] = useState([]);
+  const [trialUnreadCount, setTrialUnreadCount] = useState(0);
+  const [trialLoading, setTrialLoading] = useState(true);
+
+  // ===== IN-APP TRIAL/SUBSCRIPTION TOAST (replaces console-style browser alert) =====
+  const [trialToast, setTrialToast] = useState(null); // { message } | null
+
+  // ─── RESPONSIVE HELPERS (app + web) ────────────────────────────────
+  // Wider screens (tablet / desktop-sized RN window) get more breathing
+  // room and let the stat cards sit 4-across instead of always 2-across.
+  const isTabletWidth = screenWidth >= 700;
+  const isWideWidth = screenWidth >= 1000;
+  const responsiveMaxWidth = isWideWidth ? 960 : isTabletWidth ? 760 : 600;
+  const statCardMinWidth = isTabletWidth ? '23%' : '46%';
 
   const isToday = (date) => {
     const today = new Date();
@@ -281,62 +443,102 @@ export default function DashboardScreen() {
     setShowInsightModal(false);
   };
 
-  const loadData = async () => {
-    try {
-      const [analyticsRes, ordersRes, notifRes, subRes] = await Promise.all([
-        getAnalytics(), getOrders(), getNotifications(), getSubscriptionDetails()
-      ]);
+  const checkAndShowWarning = (endDateStr, status) => {
+  try {
+    if (!endDateStr) return;
+    const endDate = new Date(endDateStr);
+    if (isNaN(endDate.getTime())) return;
 
-      setAnalytics(analyticsRes.data);
-      setLiveOrders(ordersRes.data.filter(o => 
-        isToday(o.created_at) && !["PAID", "REJECTED"].includes(o.status)
-      ));
-      setNotifications(notifRes.data);
+    const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
 
-      if (subRes.data?.subscription_status) {
-        updateBusiness({
-          subscription_status: subRes.data.subscription_status,
-          subscription_end_date: subRes.data.subscription_end_date
-        });
-        checkAndShowWarning(subRes.data.subscription_end_date);
-      }
+    // Show warning if trial or subscription expires in 3 days or less
+    if (daysLeft <= 3 && status !== 'active' && status !== 'ACTIVE') {
+      const msg = daysLeft <= 0 
+        ? "Your Servon free trial has expired!" 
+        : `Your Servon trial expires in ${daysLeft} day${daysLeft > 1 ? 's' : ''}.`;
 
-      // Fetch summary and insight silently
-      try {
-        const summaryRes = await getDailySummary();
-        if (summaryRes.data.hasSummary && summaryRes.data.is_new) {
-          setDailySummary(summaryRes.data);
-          setShowSummaryModal(true);
-        }
-      } catch (err) { console.error('Summary fetch error:', err); }
-
-      await fetchNextInsight(true);
-
-    } catch (err) {
-      console.error("Dashboard load error:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      // In-app popup (works identically on web + native) instead of
+      // window.alert / Alert.alert, which looked like a browser/console dialog.
+      setTrialToast({ message: msg });
     }
-  };
+  } catch (err) { 
+    console.log("Warning popup error:", err); 
+  }
+};
 
-  const checkAndShowWarning = (endDateStr) => {
+const loadData = async () => {
+  try {
+    const [analyticsRes, ordersRes, notifRes, subRes] = await Promise.all([
+      getAnalytics(), getOrders(), getNotifications(), getSubscriptionDetails()
+    ]);
+
+    setAnalytics(analyticsRes.data);
+    setLiveOrders(ordersRes.data.filter(o => 
+      isToday(o.created_at) && !["PAID", "REJECTED"].includes(o.status)
+    ));
+    setNotifications(notifRes.data);
+
+    // Update business state from subscription endpoint
+    if (subRes?.data) {
+      const subData = subRes.data;
+      const endDate = subData.subscription_end_date || subData.trialEnd || subData.trial_end_date;
+      const status = subData.subscription_status || subData.status;
+
+      updateBusiness({
+        subscription_status: status,
+        subscription_end_date: endDate
+      });
+      
+      checkAndShowWarning(endDate, status);
+    }
+
+    // Fetch daily summary
     try {
-      const endDate = new Date(endDateStr || business?.subscription_end_date);
-      const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
-      if (daysLeft <= 3 && daysLeft > 0) {
-        const msg = daysLeft < 0 ? "Your Servon plan has expired!" : `Your Servon plan expires in ${daysLeft} days.`;
-        if (Platform.OS === "web") {
-          window.alert(`${msg} Please renew soon!`);
-        } else {
-          Alert.alert("Subscription Reminder", msg, [
-            { text: "Got it", style: "cancel" },
-            { text: "Renew Now", onPress: () => navigation.navigate("Profile") }
-          ]);
+      const summaryRes = await getDailySummary();
+      if (summaryRes?.data?.hasSummary && summaryRes.data.is_new) {
+        setDailySummary(summaryRes.data);
+        setShowSummaryModal(true);
+      }
+    } catch (err) { 
+      console.error('Summary fetch error:', err); 
+    }
+
+    await fetchNextInsight(true);
+
+    // ===== FETCH TRIAL DATA =====
+    try {
+      const trialStatusRes = await getTrialStatus();
+      
+      // Unwrap response if wrapped in success object or direct
+      const trialData = trialStatusRes?.data || trialStatusRes;
+      if (trialData) {
+        setTrialStatus(trialData);
+        
+        // Secondary check using direct trial endpoint date key (trialEnd)
+        const trialEndDate = trialData.trialEnd || trialData.trial_end_date;
+        if (trialEndDate) {
+          checkAndShowWarning(trialEndDate, trialData.status);
         }
       }
-    } catch (err) { console.log("Warning popup error:", err); }
-  };
+
+      const trialNotifRes = await getTrialNotifications();
+      const notifData = trialNotifRes?.data || trialNotifRes;
+      if (notifData) {
+        setTrialNotifications(notifData.notifications || []);
+        setTrialUnreadCount(notifData.unreadCount || 0);
+      }
+    } catch (trialErr) {
+      console.error('Error fetching trial data:', trialErr);
+    }
+    setTrialLoading(false);
+
+  } catch (err) {
+    console.error("Dashboard load error:", err);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   const handleStatusUpdate = async (orderId, status) => {
     try {
@@ -353,6 +555,7 @@ export default function DashboardScreen() {
 
   const handleOpenNotifications = async () => {
     setShowNotifications(true);
+    setShowOlderNotifications(false);
     if (unreadCount > 0) {
       try {
         await markAllNotificationsRead();
@@ -390,7 +593,27 @@ export default function DashboardScreen() {
     return () => clearInterval(interval);
   }, [loading, showInsightModal]);
 
+  // ─── LOCK BACKGROUND SCROLL WHILE NOTIFICATIONS PANEL IS OPEN (web) ────
+  useEffect(() => {
+    if (isWeb && typeof document !== "undefined") {
+      document.body.style.overflow = showNotifications ? "hidden" : "";
+    }
+    return () => {
+      if (isWeb && typeof document !== "undefined") {
+        document.body.style.overflow = "";
+      }
+    };
+  }, [showNotifications]);
+
+  // ─── AUTO-DISMISS TRIAL/SUBSCRIPTION TOAST ─────────────────────────
+  useEffect(() => {
+    if (!trialToast) return;
+    const t = setTimeout(() => setTrialToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [trialToast]);
+
   const unreadCount = notifications.filter(n => !n.is_read).length;
+  const totalUnread = unreadCount + trialUnreadCount;
   const ownerInitial = business?.owner_name ? business.owner_name.charAt(0).toUpperCase() : "S";
   const activeTableCount = new Set(liveOrders.map(o => o.table_number)).size;
 
@@ -416,14 +639,14 @@ export default function DashboardScreen() {
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <button onClick={handleOpenNotifications} style={{
-                position: "relative", background: unreadCount > 0 ? "#F0FDF4" : "#F9F8F6",
-                border: `1px solid ${unreadCount > 0 ? "#BBF7D0" : "#EAE6E0"}`,
+                position: "relative", background: totalUnread > 0 ? "#F0FDF4" : "#F9F8F6",
+                border: `1px solid ${totalUnread > 0 ? "#BBF7D0" : "#EAE6E0"}`,
                 borderRadius: 10, width: 38, height: 38,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: "pointer"
               }}>
-                <Ionicons name="notifications-outline" size={18} color={unreadCount > 0 ? "#16A34A" : "#374151"} />
-                {unreadCount > 0 && (
+                <Ionicons name="notifications-outline" size={18} color={totalUnread > 0 ? "#16A34A" : "#374151"} />
+                {totalUnread > 0 && (
                   <span style={{
                     position: "absolute", top: -4, right: -4,
                     background: "#EF4444", color: "#fff",
@@ -432,7 +655,7 @@ export default function DashboardScreen() {
                     display: "flex", alignItems: "center", justifyContent: "center",
                     border: "2px solid #F5F3EF"
                   }}>
-                    {unreadCount > 9 ? "9+" : unreadCount}
+                    {totalUnread > 9 ? "9+" : totalUnread}
                   </span>
                 )}
               </button>
@@ -454,7 +677,7 @@ export default function DashboardScreen() {
           <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <div>
               <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#111827", letterSpacing: "-0.4px" }}>
-                Good {getGreeting()}, {business?.owner_name?.split(" ")[0] || "there"} 👋
+                Good {getGreeting()} 👋
               </h1>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9CA3AF" }}>{todayStr}</p>
             </div>
@@ -477,10 +700,12 @@ export default function DashboardScreen() {
             <WebStatCard label="Top Item" value={analytics?.today?.mostOrderedItem?.name || "-"} icon="flame" color="#EF4444" bg="#FEF2F2" accent="red" isText />
           </div>
 
-          <TouchableOpacity style={styles.advisorBtn} onPress={() => navigation.navigate("Advisor")}>
-            <Ionicons name="sparkles-outline" size={20} color="#fff" />
-            <Text style={styles.advisorBtnText}>AI Business Advisor</Text>
-          </TouchableOpacity>
+          {!isChefMode && (
+            <TouchableOpacity style={styles.advisorBtn} onPress={() => navigation.navigate("Advisor")}>
+              <Ionicons name="sparkles-outline" size={20} color="#fff" />
+              <Text style={styles.advisorBtnText}>AI Business Advisor</Text>
+            </TouchableOpacity>
+          )}
 
           <div style={{ marginTop: 8 }}>
             <div className="servon-section-head">
@@ -503,15 +728,16 @@ export default function DashboardScreen() {
           </div>
         </div>
 
-        {/* NOTIFICATION PANEL */}
-        {showNotifications && (
+        {/* NOTIFICATION PANEL — rendered via portal straight into <body> so it's never
+            clipped by a transformed/animated ancestor (e.g. navigation screen wrapper) */}
+        {showNotifications && typeof document !== "undefined" && ReactDOM.createPortal(
           <>
             <div className="servon-notif-overlay" onClick={() => setShowNotifications(false)} />
             <div className="servon-notif-panel">
-              <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #EAE6E0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ flexShrink: 0, padding: "20px 24px 16px", borderBottom: "1px solid #EAE6E0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#111827" }}>Notifications</p>
-                  {unreadCount > 0 && <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9CA3AF" }}>{unreadCount} unread</p>}
+                  {totalUnread > 0 && <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9CA3AF" }}>{totalUnread} unread</p>}
                 </div>
                 <button onClick={() => setShowNotifications(false)} style={{
                   background: "#F3F4F6", border: "none", borderRadius: 8,
@@ -521,89 +747,113 @@ export default function DashboardScreen() {
                   <Ionicons name="close" size={16} color="#374151" />
                 </button>
               </div>
-              <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px" }}>
-                {notifications.length === 0 ? (
-                  <div style={{ textAlign: "center", marginTop: 60, color: "#9CA3AF", fontSize: 14 }}>No notifications yet.</div>
+              <div style={{ flex: 1, height: 0, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", padding: "4px 24px 24px" }}>
+                {notifications.length === 0 && trialNotifications.length === 0 ? (
+                  <div className="servon-notif-empty">
+                    <Ionicons name="notifications-off-outline" size={32} color="#C4BAB0" />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#6B7280" }}>No notifications yet</span>
+                    <span style={{ fontSize: 12, color: "#B3ACA4" }}>You'll see updates here as they come in</span>
+                  </div>
                 ) : (
-                  notifications.map((n, index) => (
-                    <div key={n.id || index} style={{
-                      padding: "14px 16px", borderRadius: 12,
-                      background: n.is_read ? "#FAFAF8" : "#F0FDF4",
-                      border: `1px solid ${n.is_read ? "#EAE6E0" : "#BBF7D0"}`,
-                      marginBottom: 10,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#111827" }}>
-                          {!n.is_read && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#22C55E", marginRight: 6, verticalAlign: "middle" }} />}
-                          {n.title || "New Order"}
-                        </p>
-                        <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>
-                          {new Date(n.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
+                  <>
+                    {notifications.length > 0 && (() => {
+                      const { recent, older } = splitNotificationGroups(groupNotificationsByDay(notifications));
+                      const renderGroup = (group) => (
+                        <div key={group.label}>
+                          <div className="servon-notif-day-header">{group.label}</div>
+                          {group.items.map((n, index) => (
+                            <div key={n.id || index} className={`servon-notif-item${!n.is_read ? " unread" : ""}`}>
+                              <div className="servon-notif-icon">
+                                {getNotifIcon(n.title)}
+                              </div>
+                              <div className="servon-notif-body">
+                                <div className="servon-notif-top-row">
+                                  <span className="servon-notif-title-text">
+                                    {!n.is_read && <span className="servon-notif-unread-dot" />}
+                                    {n.title || "New Order"}
+                                  </span>
+                                  <span className="servon-notif-time-text">
+                                    {new Date(n.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                </div>
+                                <p className="servon-notif-msg-text" style={{ margin: 0 }}>{n.message}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                      return (
+                        <>
+                          {recent.map(renderGroup)}
+                          {older.length > 0 && (
+                            showOlderNotifications ? (
+                              older.map(renderGroup)
+                            ) : (
+                              <button className="servon-notif-load-more" onClick={() => setShowOlderNotifications(true)}>
+                                <Ionicons name="chevron-down-outline" size={14} color="#374151" />
+                                Load older notifications
+                              </button>
+                            )
+                          )}
+                        </>
+                      );
+                    })()}
+
+                    {/* Trial Reminders */}
+                    {trialNotifications.length > 0 && (
+                      <div>
+                        <div className="servon-notif-day-header">Trial Reminders</div>
+                        {trialNotifications.map((n) => (
+                          <div key={`trial-${n.id}`} className="servon-notif-item" style={{ background: "#EFF6FF", borderColor: "#BFDBFE" }}>
+                            <div className="servon-notif-icon" style={{ background: "#DBEAFE" }}>
+                              <Ionicons name="time-outline" size={16} color="#3B82F6" />
+                            </div>
+                            <div className="servon-notif-body">
+                              <div className="servon-notif-top-row">
+                                <span className="servon-notif-title-text">{n.title}</span>
+                                <span className="servon-notif-time-text">
+                                  {new Date(n.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                              <p className="servon-notif-msg-text" style={{ margin: 0 }}>{n.message}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <p style={{ margin: 0, fontSize: 13, color: "#4B5563", lineHeight: 1.5 }}>{n.message}</p>
-                    </div>
-                  ))
+                    )}
+                  </>
                 )}
               </div>
             </div>
-          </>
+          </>,
+          document.body
+        )}
+
+        {/* IN-APP TRIAL/SUBSCRIPTION TOAST — replaces window.alert, portal-rendered so
+            it floats above everything regardless of scroll position */}
+        {trialToast && typeof document !== "undefined" && ReactDOM.createPortal(
+          <div className="servon-trial-toast">
+            <div className="servon-trial-toast-icon">
+              <Ionicons name="time-outline" size={16} color="#fff" />
+            </div>
+            <div className="servon-trial-toast-text">{trialToast.message}</div>
+            <div className="servon-trial-toast-actions">
+              <button
+                className="servon-trial-toast-btn"
+                onClick={() => { setTrialToast(null); navigation.navigate("Profile"); }}
+              >
+                Subscribe
+              </button>
+              <button className="servon-trial-toast-close" onClick={() => setTrialToast(null)}>
+                <Ionicons name="close" size={15} color="rgba(255,255,255,0.7)" />
+              </button>
+            </div>
+          </div>,
+          document.body
         )}
 
         {/* SUMMARY MODAL */}
-        {showSummaryModal && dailySummary && (
-          <div className="servon-summary-overlay" onClick={() => setShowSummaryModal(false)}>
-            <div className="servon-summary-modal" onClick={e => e.stopPropagation()}>
-              <div className="servon-summary-header">
-                <span className="servon-summary-title">Daily Summary</span>
-                <button onClick={() => setShowSummaryModal(false)} className="servon-summary-close" style={{
-                  background: "none", border: "none", fontSize: 20, color: "#6B7280", cursor: "pointer"
-                }}>✕</button>
-              </div>
-              <div className="servon-summary-date" style={{ fontSize: 14, color: "#6B7280", marginBottom: 16, fontWeight: 500 }}>{dailySummary.summary_date}</div>
-              <div className="servon-summary-text">{dailySummary.summary_text}</div>
-              <div className="servon-summary-stats">
-                <div className="servon-summary-stat">
-                  <div className="servon-summary-stat-value">{dailySummary.total_orders}</div>
-                  <div className="servon-summary-stat-label">Orders</div>
-                </div>
-                <div className="servon-summary-stat">
-                  <div className="servon-summary-stat-value">₹{dailySummary.total_revenue}</div>
-                  <div className="servon-summary-stat-label">Revenue</div>
-                </div>
-                <div className="servon-summary-stat">
-                  <div className="servon-summary-stat-value">₹{dailySummary.avg_order_value}</div>
-                  <div className="servon-summary-stat-label">Avg Order</div>
-                </div>
-              </div>
-              <button className="servon-summary-btn" onClick={() => setShowSummaryModal(false)}>Got it!</button>
-            </div>
-          </div>
-        )}
-
-        {/* INSIGHT MODAL */}
-        {showInsightModal && nextInsight && (
-          <div className="servon-insight-overlay" onClick={handleInsightDismiss}>
-            <div className="servon-insight-modal" onClick={e => e.stopPropagation()}>
-              <div className="servon-insight-header">
-                <div className="servon-insight-title-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Ionicons name="bulb-outline" size={24} color="#111827" />
-                  <span className="servon-insight-title">Insight {nextInsight.order} of 6</span>
-                </div>
-                <button onClick={handleInsightDismiss} style={{
-                  background: "none", border: "none", fontSize: 20, color: "#6B7280", cursor: "pointer"
-                }}>✕</button>
-              </div>
-              <div className="servon-insight-icon-wrapper">{getInsightIcon(nextInsight.type)}</div>
-              <div className="servon-insight-text">{nextInsight.insight}</div>
-              <button className="servon-insight-btn" onClick={handleInsightDismiss}>Got it!</button>
-              <div className="servon-insight-footer">
-                <Ionicons name="time-outline" size={14} color="#9CA3AF" />
-                <span>Next insight in ~1 hour</span>
-              </div>
-            </div>
-          </div>
-        )}
+       
       </div>
     );
   }
@@ -617,9 +867,9 @@ export default function DashboardScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.iconBtn} onPress={handleOpenNotifications}>
               <Ionicons name="notifications-outline" size={24} color="#374151" />
-              {unreadCount > 0 && (
+              {totalUnread > 0 && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+                  <Text style={styles.badgeText}>{totalUnread > 9 ? "9+" : totalUnread}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -630,18 +880,92 @@ export default function DashboardScreen() {
         </View>
       </View>
 
+      {/* IN-APP TRIAL/SUBSCRIPTION TOAST — replaces Alert.alert popup */}
+      {trialToast && (
+        <View style={[styles.trialToastWrap, { top: insets.top + 62 }]} pointerEvents="box-none">
+          <View style={styles.trialToast}>
+            <View style={styles.trialToastIcon}>
+              <Ionicons name="time-outline" size={16} color="#fff" />
+            </View>
+            <Text style={styles.trialToastText}>{trialToast.message}</Text>
+            <TouchableOpacity
+              style={styles.trialToastBtn}
+              onPress={() => { setTrialToast(null); navigation.navigate("Profile"); }}
+            >
+              <Text style={styles.trialToastBtnText}>Subscribe</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.trialToastClose} onPress={() => setTrialToast(null)}>
+              <Ionicons name="close" size={15} color="rgba(255,255,255,0.7)" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
       >
-        <View style={styles.responsiveContent}>
+        <View style={[styles.responsiveContent, { maxWidth: responsiveMaxWidth }]}>
           <SubscriptionBanner />
 
-          <View style={[styles.statsGrid, isWeb && screenWidth < 600 && styles.statsGridSmall]}>
-            <StatCard label="Orders Today" value={analytics?.today?.totalOrders ?? 0} icon="cube" color="#3B82F6" bg="#EFF6FF" />
-            {!isChefMode && <StatCard label="Revenue Today" value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`} icon="wallet" color="#10B981" bg="#ECFDF5" />}
-            <StatCard label="Active Tables" value={activeTableCount} icon="grid" color="#F59E0B" bg="#FFFBEB" />
-            <StatCard label="Top Item" value={analytics?.today?.mostOrderedItem?.name || "-"} icon="flame" color="#EF4444" bg="#FEF2F2" isText />
-          </View>
+          <View style={[styles.statsGrid, isTabletWidth && styles.statsGridSmall]}>
+  <StatCard
+    label="Orders Today"
+    value={analytics?.today?.totalOrders ?? 0}
+    icon="cube"
+    color="#3B82F6"
+    bg="#EFF6FF"
+    extraStyle={{ minWidth: statCardMinWidth }}
+  />
+
+  {!isChefMode && (
+    <StatCard
+      label="Revenue Today"
+      value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`}
+      icon="wallet"
+      color="#10B981"
+      bg="#ECFDF5"
+      extraStyle={{ minWidth: statCardMinWidth }}
+    />
+  )}
+
+  <StatCard
+    label="Active Tables"
+    value={activeTableCount}
+    icon="grid"
+    color="#F59E0B"
+    bg="#FFFBEB"
+    extraStyle={{ minWidth: statCardMinWidth }}
+  />
+
+  <StatCard
+    label="Top Item"
+    value={analytics?.today?.mostOrderedItem?.name || "-"}
+    icon="flame"
+    color="#EF4444"
+    bg="#FEF2F2"
+    isText
+    extraStyle={{ minWidth: statCardMinWidth }}
+  />
+</View>
+
+{/* AI BUSINESS ADVISOR BUTTON — hidden in chef mode */}
+{!isChefMode && (
+  <TouchableOpacity
+    style={styles.advisorBtn}
+    onPress={() => navigation.navigate("Advisor")}
+  >
+    <Ionicons
+      name="sparkles-outline"
+      size={20}
+      color="#fff"
+    />
+    <Text style={styles.advisorBtnText}>
+      AI Business Advisor
+    </Text>
+  </TouchableOpacity>
+)}
+
+<View style={styles.section}></View>
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -667,24 +991,91 @@ export default function DashboardScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeaderTop}>
-              <Text style={styles.modalTitleText}>Notifications</Text>
+              <View>
+                <Text style={styles.modalTitleText}>Notifications</Text>
+                {totalUnread > 0 && <Text style={styles.modalSubtitleText}>{totalUnread} unread</Text>}
+              </View>
               <TouchableOpacity onPress={() => setShowNotifications(false)}>
                 <Ionicons name="close-circle" size={28} color="#D1D5DB" />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.notifList}>
-              {notifications.length === 0 ? (
-                <Text style={styles.emptyNotif}>No notifications yet.</Text>
-              ) : (
-                notifications.map((n, index) => (
-                  <View key={n.id || index} style={[styles.notifItem, !n.is_read && styles.notifItemUnread]}>
-                    <Text style={styles.notifTitle}>{n.title || "New Order"}</Text>
-                    <Text style={styles.notifMessage}>{n.message}</Text>
-                    <Text style={styles.notifTime}>
-                      {new Date(n.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
+              {notifications.length === 0 && trialNotifications.length === 0 ? (
+                <View style={styles.emptyNotifWrap}>
+                  <View style={styles.emptyNotifIconCircle}>
+                    <Ionicons name="notifications-off-outline" size={28} color="#9CA3AF" />
                   </View>
-                ))
+                  <Text style={styles.emptyNotif}>No notifications yet</Text>
+                  <Text style={styles.emptyNotifSub}>You'll see updates here as they come in</Text>
+                </View>
+              ) : (
+                <>
+                  {notifications.length > 0 && (() => {
+                    const { recent, older } = splitNotificationGroups(groupNotificationsByDay(notifications));
+                    const renderGroup = (group) => (
+                      <View key={group.label}>
+                        <Text style={styles.notifDayHeader}>{group.label}</Text>
+                        {group.items.map((n, index) => (
+                          <View key={n.id || index} style={[styles.notifItemModern, !n.is_read && styles.notifItemModernUnread]}>
+                            <View style={[styles.notifIconCircle, !n.is_read && styles.notifIconCircleUnread]}>
+                              {getNotifIcon(n.title, true)}
+                            </View>
+                            <View style={styles.notifItemBody}>
+                              <View style={styles.notifTopRow}>
+                                <View style={styles.notifTitleRow}>
+                                  {!n.is_read && <View style={styles.notifUnreadDot} />}
+                                  <Text style={styles.notifTitleModern} numberOfLines={1}>{n.title || "New Order"}</Text>
+                                </View>
+                                <Text style={styles.notifTimeModern}>
+                                  {new Date(n.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                </Text>
+                              </View>
+                              <Text style={styles.notifMessageModern}>{n.message}</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    );
+                    return (
+                      <>
+                        {recent.map(renderGroup)}
+                        {older.length > 0 && (
+                          showOlderNotifications ? (
+                            older.map(renderGroup)
+                          ) : (
+                            <TouchableOpacity style={styles.loadMoreBtn} onPress={() => setShowOlderNotifications(true)}>
+                              <Ionicons name="chevron-down-outline" size={14} color="#374151" />
+                              <Text style={styles.loadMoreBtnText}>Load older notifications</Text>
+                            </TouchableOpacity>
+                          )
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {/* Trial Reminders */}
+                  {trialNotifications.length > 0 && (
+                    <View>
+                      <Text style={styles.notifDayHeader}>Trial Reminders</Text>
+                      {trialNotifications.map((n) => (
+                        <View key={`trial-${n.id}`} style={[styles.notifItemModern, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                          <View style={[styles.notifIconCircle, { backgroundColor: '#DBEAFE' }]}>
+                            <Ionicons name="time-outline" size={18} color="#3B82F6" />
+                          </View>
+                          <View style={styles.notifItemBody}>
+                            <View style={styles.notifTopRow}>
+                              <Text style={styles.notifTitleModern} numberOfLines={1}>{n.title}</Text>
+                              <Text style={styles.notifTimeModern}>
+                                {new Date(n.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                              </Text>
+                            </View>
+                            <Text style={styles.notifMessageModern}>{n.message}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
               )}
             </ScrollView>
           </View>
@@ -692,67 +1083,10 @@ export default function DashboardScreen() {
       </Modal>
 
       {/* SUMMARY MODAL */}
-      <Modal visible={showSummaryModal} transparent animationType="fade" onRequestClose={() => setShowSummaryModal(false)}>
-        <View style={styles.summaryModalOverlay}>
-          <View style={styles.summaryModal}>
-            <View style={styles.summaryModalHeader}>
-              <Text style={styles.summaryModalTitle}>Daily Summary</Text>
-              <TouchableOpacity onPress={() => setShowSummaryModal(false)} hitSlop={10}>
-                <Ionicons name="close" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.summaryModalDate}>{dailySummary?.summary_date}</Text>
-            <View style={styles.summaryModalTextContainer}>
-              <Text style={styles.summaryModalText}>{dailySummary?.summary_text}</Text>
-            </View>
-            <View style={styles.summaryModalStats}>
-              <View style={styles.summaryStat}>
-                <Text style={styles.summaryStatValue}>{dailySummary?.total_orders}</Text>
-                <Text style={styles.summaryStatLabel}>Orders</Text>
-              </View>
-              <View style={styles.summaryStat}>
-                <Text style={styles.summaryStatValue}>₹{dailySummary?.total_revenue}</Text>
-                <Text style={styles.summaryStatLabel}>Revenue</Text>
-              </View>
-              <View style={styles.summaryStat}>
-                <Text style={styles.summaryStatValue}>₹{dailySummary?.avg_order_value}</Text>
-                <Text style={styles.summaryStatLabel}>Avg Order</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.summaryModalBtn} onPress={() => setShowSummaryModal(false)}>
-              <Text style={styles.summaryModalBtnText}>Got it!</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      
 
       {/* INSIGHT MODAL */}
-      <Modal visible={showInsightModal} transparent animationType="fade" onRequestClose={handleInsightDismiss}>
-        <View style={styles.insightModalOverlay}>
-          <View style={styles.insightModal}>
-            <View style={styles.insightModalHeader}>
-              <View style={styles.insightModalTitleRow}>
-                <Ionicons name="bulb-outline" size={22} color="#111827" />
-                <Text style={styles.insightModalTitle}>Insight {nextInsight?.order} of 6</Text>
-              </View>
-              <TouchableOpacity onPress={handleInsightDismiss} hitSlop={10}>
-                <Ionicons name="close" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.insightModalIconWrapper}>
-              {getInsightIcon(nextInsight?.type, true)}
-            </View>
-            <Text style={styles.insightModalText}>{nextInsight?.insight}</Text>
-            <TouchableOpacity style={styles.insightModalBtn} onPress={handleInsightDismiss}>
-              <Text style={styles.insightModalBtnText}>Got it!</Text>
-            </TouchableOpacity>
-            <View style={styles.insightModalFooter}>
-              <Ionicons name="time-outline" size={14} color="#9CA3AF" />
-              <Text style={styles.insightModalFooterText}>Next insight in ~1 hour</Text>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      
     </View>
   );
 }
@@ -915,12 +1249,12 @@ const styles = StyleSheet.create({
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '700', paddingHorizontal: 4 },
   profileAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
   profileAvatarText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  responsiveContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, maxWidth: 600, alignSelf: 'center', width: '100%' },
+  responsiveContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, alignSelf: 'center', width: '100%' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16, marginBottom: 24 },
-  statsGridSmall: { gap: 8 },
+  statsGridSmall: { gap: 12 },
   statCard: {
     flex: 1,
-    minWidth: Platform.OS === 'web' ? 'calc(50% - 5px)' : '45%',
+    minWidth: '45%',
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#EAE6E0',
     borderRadius: 14, padding: 14, flexDirection: 'row',
     alignItems: 'center', gap: 12,
@@ -968,7 +1302,10 @@ const styles = StyleSheet.create({
   },
   modalHeaderTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitleText: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  modalSubtitleText: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
   notifList: { paddingBottom: 24 },
+
+  /* legacy notif item styles (kept, unused by new render but not removed) */
   emptyNotif: { textAlign: 'center', color: '#9CA3AF', marginTop: 40, fontSize: 14 },
   notifItem: {
     paddingVertical: 12, paddingHorizontal: 14,
@@ -980,6 +1317,42 @@ const styles = StyleSheet.create({
   notifTitle: { fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 2 },
   notifMessage: { fontSize: 13, color: '#4B5563', marginBottom: 4 },
   notifTime: { fontSize: 11, color: '#9CA3AF' },
+
+  /* ── Modern, day-grouped notification styles ── */
+  notifDayHeader: {
+    fontSize: 11, fontWeight: '700', color: '#9CA3AF',
+    textTransform: 'uppercase', letterSpacing: 0.6,
+    marginTop: 10, marginBottom: 8,
+  },
+  notifItemModern: {
+    flexDirection: 'row', gap: 12, padding: 13,
+    borderRadius: 14, marginBottom: 8,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#EAE6E0',
+  },
+  notifItemModernUnread: { backgroundColor: '#F3FDF6', borderColor: '#BBF7D0' },
+  notifIconCircle: {
+    width: 38, height: 38, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#EFF6FF', flexShrink: 0,
+  },
+  notifIconCircleUnread: { backgroundColor: '#DCFCE7' },
+  notifItemBody: { flex: 1, minWidth: 0 },
+  notifTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3, gap: 8 },
+  notifTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  notifUnreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#22C55E' },
+  notifTitleModern: { fontSize: 14, fontWeight: '700', color: '#111827', flexShrink: 1 },
+  notifTimeModern: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
+  notifMessageModern: { fontSize: 13, color: '#6B7280', lineHeight: 19 },
+  loadMoreBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#F9F8F6', borderWidth: 1, borderStyle: 'dashed', borderColor: '#D1C9BC',
+    borderRadius: 12, paddingVertical: 12, marginTop: 4, marginBottom: 10,
+  },
+  loadMoreBtnText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  emptyNotifWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 20 },
+  emptyNotifIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  emptyNotifSub: { fontSize: 13, color: '#B3ACA4', marginTop: 4, textAlign: 'center' },
+
   summaryModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   summaryModal: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', maxWidth: 400 },
   summaryModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
@@ -1006,4 +1379,27 @@ const styles = StyleSheet.create({
   insightModalFooterText: { fontSize: 13, color: '#9CA3AF' },
   advisorBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, gap: 8, marginTop: 12, alignSelf: 'center' },
   advisorBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  /* ── In-app trial/subscription toast (native) — replaces Alert.alert ── */
+  trialToastWrap: {
+    position: 'absolute', left: 0, right: 0, alignItems: 'center',
+    zIndex: 999, paddingHorizontal: 16,
+  },
+  trialToast: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#111827', borderRadius: 14,
+    paddingVertical: 11, paddingHorizontal: 13,
+    maxWidth: 480, width: '100%',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22, shadowRadius: 16, elevation: 10,
+  },
+  trialToastIcon: {
+    width: 30, height: 30, borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  trialToastText: { flex: 1, color: '#fff', fontSize: 12.5, lineHeight: 17 },
+  trialToastBtn: { backgroundColor: '#fff', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 11, flexShrink: 0 },
+  trialToastBtnText: { color: '#111827', fontSize: 11.5, fontWeight: '700' },
+  trialToastClose: { padding: 4, flexShrink: 0 },
 });

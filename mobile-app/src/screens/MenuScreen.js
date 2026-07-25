@@ -353,17 +353,36 @@ export default function MenuScreen() {
                       <View style={styles.thaliBadge}><Text style={styles.thaliBadgeText}>Thali</Text></View>
                     )}
                   </View>
-                  <TouchableOpacity
-                    onPress={() => handleToggle(item.id)}
-                    style={[styles.availBadge, { backgroundColor: item.is_available ? "#10B981" : "#A8A29E" }]}
-                  >
-                    <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{item.is_available ? "Available" : "Hidden"}</Text>
-                  </TouchableOpacity>
                 </View>
                 <Text style={styles.catTag}>{item.category}</Text>
+
+                {/* --- Availability Tick Buttons --- */}
+                <View style={styles.availabilityRow}>
+                  <TouchableOpacity
+                    style={[styles.availabilityBtn, item.is_available && styles.availabilityBtnAvailableActive]}
+                    onPress={() => { if (!item.is_available) handleToggle(item.id); }}
+                  >
+                    <Ionicons
+                      name={item.is_available ? "checkmark-circle" : "checkmark-circle-outline"}
+                      size={14}
+                      color={item.is_available ? "#fff" : "#10B981"}
+                    />
+                    <Text style={[styles.availabilityBtnText, item.is_available && { color: "#fff" }]}>Available</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.availabilityBtn, !item.is_available && styles.availabilityBtnUnavailableActive]}
+                    onPress={() => { if (item.is_available) handleToggle(item.id); }}
+                  >
+                    <Ionicons
+                      name={!item.is_available ? "close-circle" : "close-circle-outline"}
+                      size={14}
+                      color={!item.is_available ? "#fff" : "#EF4444"}
+                    />
+                    <Text style={[styles.availabilityBtnText, !item.is_available && { color: "#fff" }]}>Not Available</Text>
+                  </TouchableOpacity>
+                </View>
                 
                 {/* --- Display Thali Items on Card --- */}
-{/* --- Display Thali Items on Card --- */}
 {item.is_thali && (
   <View style={styles.thaliIncludes}>
 
@@ -579,6 +598,24 @@ const styles = StyleSheet.create({
   desc: { fontSize: 13, color: "#78716C", marginTop: 6, lineHeight: 18 },
   price: { fontSize: 18, fontWeight: "800", color: "#111827", marginTop: 8 },
   availBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+
+  // ─── Availability tick buttons ───────────────────────────────────────────
+  availabilityRow: { flexDirection: "row", gap: 6, marginTop: 8 },
+  availabilityBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1.2,
+    borderColor: "#E8E2D9",
+    backgroundColor: "#fff",
+  },
+  availabilityBtnAvailableActive: { backgroundColor: "#10B981", borderColor: "#10B981" },
+  availabilityBtnUnavailableActive: { backgroundColor: "#EF4444", borderColor: "#EF4444" },
+  availabilityBtnText: { fontSize: 11, fontWeight: "700", color: "#374151" },
+
   cardActions: { flexDirection: "row", gap: 10, marginTop: 16, borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 16 },
   editBtn: { flex: 1, borderRadius: 10, borderWidth: 1.5, borderColor: "#111827", padding: 12, alignItems: "center" },
   editBtnText: { fontWeight: "700", color: "#111827", fontSize: 14 },

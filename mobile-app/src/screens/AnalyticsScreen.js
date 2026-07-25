@@ -35,6 +35,18 @@ import { Ionicons } from "@expo/vector-icons";
 const IS_WEB = Platform.OS === "web";
 const toDateStr = (d) => d.toISOString().split("T")[0];
 
+// Resolved once at module load. If EXPO_PUBLIC_API_URL wasn't embedded into
+// this build (e.g. not set in the eas.json build profile used for the Play
+// Store build), this silently falls back to localhost — which is NOT the
+// dev machine on a real device, it's the phone itself, so every network
+// request below fails there and only there (Expo Go, web, and simulators
+// often reach a dev server locally, which is why this can look fine
+// everywhere except the deployed app). See downloadReport() below for the
+// pre-flight check that turns this into a clear error instead of a silent
+// "download failed".
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
+const isLikelyUnreachableHost = !IS_WEB && /localhost|127\.0\.0\.1/i.test(API_BASE_URL);
+
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const PRIMARY      = "#0F172A";
 const ACCENT       = "#10B981";
@@ -62,6 +74,21 @@ const CATEGORIES = [
   { key: "Other",         icon: "ellipsis-horizontal-circle", color: "#6B7280", bg: "#F3F4F6", desc: "Miscellaneous expenses" },
 ];
 
+// Backend currently buckets "peak hour" using a UTC hour (0-23) rather than IST,
+// which is why it can read ~5-6 hours off from when orders are actually shown
+// arriving (those timestamps are already displayed correctly in IST elsewhere).
+// This converts that UTC hour bucket to an IST label for display purposes only.
+// NOTE: for this to be fully correct end-to-end, the analytics query on the
+// backend should ideally group by IST hour directly instead of UTC hour — this
+// is a display-side correction, not a fix to how the bucket itself was chosen.
+const utcHourToISTLabel = (utcHour) => {
+  if (utcHour === undefined || utcHour === null || isNaN(parseInt(utcHour))) return "--:--";
+  const totalMin = (parseInt(utcHour) * 60 + 330) % (24 * 60); // +5:30 offset
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+
 const PERIODS = ["daily", "weekly", "monthly"];
 const getCat  = (key) => CATEGORIES.find((c) => c.key === key) || CATEGORIES[5];
 const fmt     = (n)    => "₹" + parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -79,6 +106,7 @@ export default function AnalyticsScreen() {
   const [downloading,   setDownloading]   = useState(false);
   const [startDate,     setStartDate]     = useState(toDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
   const [endDate,       setEndDate]       = useState(toDateStr(new Date()));
+  const [selectedDay,   setSelectedDay]   = useState(null);
 
   const { width: screenWidth } = useWindowDimensions();
   const isMobileView = screenWidth < 768;
@@ -112,9 +140,23 @@ export default function AnalyticsScreen() {
   };
 
   const downloadReport = async (format) => {
+    if (isLikelyUnreachableHost) {
+      Alert.alert(
+        "Server Not Configured",
+        "This app build is still pointing at localhost for its API, which isn't reachable from a real device. " +
+        "Set EXPO_PUBLIC_API_URL to your deployed API's https:// address in the build profile (e.g. eas.json) " +
+        "and rebuild — this is why report downloads fail only in the installed app.",
+      );
+      return;
+    }
+
     const token = await AsyncStorage.getItem("token");
-    const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
-    const url = `${baseUrl}/api/sales/${format}?startDate=${startDate}&endDate=${endDate}&token=${token}&includeDailyTable=true`;
+    if (!token) {
+      Alert.alert("Session Expired", "Please log in again and retry the download.");
+      return;
+    }
+
+    const url = `${API_BASE_URL}/api/sales/${format}?startDate=${startDate}&endDate=${endDate}&token=${token}&includeDailyTable=true`;
 
     setDownloading(true);
     try {
@@ -133,7 +175,9 @@ export default function AnalyticsScreen() {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (res.status !== 200) throw new Error("Download failed");
+        if (res.status !== 200) {
+          throw new Error(`Server responded with status ${res.status}`);
+        }
 
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(res.uri, {
@@ -144,8 +188,15 @@ export default function AnalyticsScreen() {
         }
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert("Export Error", "Could not download report. Please try again.");
+      console.error("downloadReport error:", error);
+      // Surfacing the real reason (network unreachable vs bad status vs share
+      // failure) instead of a generic message — makes this debuggable if the
+      // API URL fix above isn't the whole story (e.g. an http:// URL being
+      // blocked by Android's cleartext-traffic policy in release builds).
+      Alert.alert(
+        "Export Error",
+        `Could not download the report.\n\n${error?.message || "Unknown error"}`,
+      );
     } finally {
       setDownloading(false);
     }
@@ -166,10 +217,15 @@ export default function AnalyticsScreen() {
   const avgOrderValue = totalOrd ? totalRev / totalOrd : 0;
   const last7         = last30.slice(-7);
   const revenueChartData = last7.map((d) => ({
-    x:     new Date(d.date).getDate().toString(),
-    y:     parseFloat(d.revenue) || 0,
-    label: `₹${(parseFloat(d.revenue) || 0).toLocaleString("en-IN")}`,
+    x:      new Date(d.date).getDate().toString(),
+    y:      parseFloat(d.revenue) || 0,
+    date:   d.date,
+    orders: d.orders || 0,
   }));
+  const maxChartRevenue = revenueChartData.length
+    ? Math.max(...revenueChartData.map((d) => d.y))
+    : 0;
+  const activeDay = selectedDay || revenueChartData.find((d) => d.y === maxChartRevenue) || null;
 
   const maxQty = data?.topItems?.length ? Math.max(...data.topItems.slice(0, 5).map(i => parseInt(i.total_qty) || 0)) : 1;
 
@@ -215,7 +271,7 @@ export default function AnalyticsScreen() {
             <KPICard label="TOTAL REVENUE" value={`₹${totalRev.toLocaleString("en-IN")}`} icon="wallet" color={ACCENT} bg="#ECFDF5" isMobile={isMobileView} />
             <KPICard label="ORDERS FULFILLED" value={totalOrd.toLocaleString("en-IN")} icon="cart" color="#3B82F6" bg="#EFF6FF" isMobile={isMobileView} />
             <KPICard label="AVG ORDER VALUE" value={`₹${avgOrderValue.toFixed(0)}`} icon="receipt" color="#F59E0B" bg="#FFFBEB" isMobile={isMobileView} />
-            <KPICard label="PEAK HOUR ACTIVITY" value={data?.peakHour?.hour ? `${data.peakHour.hour}:00` : "--:--"} icon="time" color="#8B5CF6" bg="#F5F3FF" isMobile={isMobileView} />
+            <KPICard label="PEAK HOUR ACTIVITY (IST)" value={utcHourToISTLabel(data?.peakHour?.hour)} icon="time" color="#8B5CF6" bg="#F5F3FF" isMobile={isMobileView} />
           </View>
 
           {/* SPLIT WORKSPACE FOR CHARTS & TOP ITEMS */}
@@ -224,11 +280,63 @@ export default function AnalyticsScreen() {
               <SectionHeader title="Revenue Insights" subtitle="Daily growth patterns" icon="analytics-outline" />
               <View style={styles.chartSection}>
                 <View style={styles.chartWrapper}>
-                  <VictoryChart theme={VictoryTheme.material} height={250} width={chartWidth} padding={{ top: 20, bottom: 45, left: 55, right: 20 }} containerComponent={<VictoryContainer responsive={false} />}>
+                  <VictoryChart
+                    theme={VictoryTheme.material}
+                    height={250}
+                    width={chartWidth}
+                    padding={{ top: 20, bottom: 45, left: 55, right: 20 }}
+                    containerComponent={<VictoryContainer responsive={false} />}
+                  >
                     <VictoryAxis style={axisStyle} />
                     <VictoryAxis dependentAxis style={axisStyle} tickFormat={(x) => `₹${x >= 1000 ? `${(x / 1000).toFixed(0)}k` : x}`} />
-                    <VictoryBar data={revenueChartData} style={{ data: { fill: PRIMARY, width: isMobileView ? 18 : 26 } }} cornerRadius={{ top: 4 }} />
+                    <VictoryBar
+                      data={revenueChartData}
+                      style={{
+                        data: {
+                          fill: ({ datum }) => (datum.y === maxChartRevenue && maxChartRevenue > 0 ? ACCENT : PRIMARY),
+                          width: isMobileView ? 18 : 26,
+                        },
+                      }}
+                      cornerRadius={{ top: 4 }}
+                      animate={{ duration: 400, onLoad: { duration: 300 } }}
+                      events={[{
+                        target: "data",
+                        eventHandlers: {
+                          onPressIn: () => {
+                            return [{
+                              target: "data",
+                              mutation: (props) => {
+                                setSelectedDay(props.datum);
+                                return null;
+                              },
+                            }];
+                          },
+                        },
+                      }]}
+                    />
                   </VictoryChart>
+                </View>
+                {activeDay && (
+                  <View style={styles.chartInfoCard}>
+                    <View>
+                      <Text style={styles.chartInfoDate}>
+                        {new Date(activeDay.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
+                      </Text>
+                      <Text style={styles.chartInfoSub}>{activeDay.orders} {activeDay.orders === 1 ? "order" : "orders"}</Text>
+                    </View>
+                    <Text style={styles.chartInfoValue}>₹{activeDay.y.toLocaleString("en-IN")}</Text>
+                  </View>
+                )}
+                <View style={styles.chartLegendRow}>
+                  <View style={styles.chartLegendItem}>
+                    <View style={[styles.chartLegendDot, { backgroundColor: ACCENT }]} />
+                    <Text style={styles.chartLegendText}>Best day</Text>
+                  </View>
+                  <View style={styles.chartLegendItem}>
+                    <View style={[styles.chartLegendDot, { backgroundColor: PRIMARY }]} />
+                    <Text style={styles.chartLegendText}>Other days</Text>
+                  </View>
+                  <Text style={styles.chartLegendHint}>Tap a bar for details</Text>
                 </View>
                 {revenueChartData.every(d => d.y === 0) && (
                   <View style={styles.chartEmpty}>
@@ -1013,6 +1121,17 @@ const styles = StyleSheet.create({
   chartWrapper:   { paddingRight: 8 },
   chartEmpty:    { position: "absolute", top: 90, alignItems: "center", gap: 6 },
   chartEmptyText:{ fontSize: 13, color: TEXT_FAINT },
+
+  chartLegendRow:  { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 4, flexWrap: "wrap", justifyContent: "center" },
+  chartLegendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  chartLegendDot:  { width: 8, height: 8, borderRadius: 4 },
+  chartLegendText: { fontSize: 11, color: TEXT_MUTED, fontWeight: "600" },
+  chartLegendHint: { fontSize: 11, color: TEXT_FAINT, fontStyle: "italic" },
+
+  chartInfoCard:  { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingVertical: 10, paddingHorizontal: 14, marginTop: 10, width: "100%" },
+  chartInfoDate:  { fontSize: 13, fontWeight: "700", color: PRIMARY },
+  chartInfoSub:   { fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
+  chartInfoValue: { fontSize: 16, fontWeight: "800", color: ACCENT },
 
   splitRow:   { flexDirection: "row", gap: 20, marginTop: 28 },
   section:    { flex: 1 },

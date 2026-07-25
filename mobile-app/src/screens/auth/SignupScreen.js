@@ -9,7 +9,6 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Dimensions,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import { signup as signupAPI } from "../../api";
@@ -102,7 +101,7 @@ export default function SignupScreen({ navigation }) {
 
   const fields = [
     { key: "businessName", label: "Business Name", placeholder: "e.g. Spice Garden", icon: "business-outline" },
-    { key: "ownerName", label: "Owner Name", placeholder: "Your full name", icon: "person-outline" },
+    { key: "ownerName", label: " Name", placeholder: "Your full name", icon: "person-outline" },
     { key: "email", label: "Email Address", placeholder: "you@gmail.com", type: "email-address", icon: "mail-outline" },
     { key: "phone", label: "Phone Number", placeholder: "10-digit mobile number", type: "phone-pad", icon: "call-outline" },
     { 
@@ -123,71 +122,84 @@ export default function SignupScreen({ navigation }) {
           showsVerticalScrollIndicator={false} 
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.responsiveWrapper}>
-            <TouchableOpacity onPress={() => navigation.navigate("Login")} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={16} color={GREEN} />
-              <Text style={styles.backText}>Back to Login</Text>
-            </TouchableOpacity>
-
-            <View style={styles.headingWrap}>
-              <Text style={styles.title}>Create Account</Text>
-              <Text style={styles.subtitle}>Join Servon and digitize your restaurant.</Text>
-            </View>
-
-            {error && (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorIcon}>⚠</Text>
-                <Text style={styles.errorText}>{error}</Text>
+          {/* Main Layout Container matching Login Screen */}
+          <View style={styles.centeredWrapper}>
+            
+            {/* Top Brand Logo Branding */}
+            <View style={styles.brandHeaderWrap}>
+              <Text style={styles.brandLogoText}>Servon<Text style={{ color: GREEN }}>.</Text></Text>
+              <View style={styles.brandSubLineRow}>
+                <View style={styles.subLineDivider} />
+                <Text style={styles.brandSubText}>BUSINESS SUITE</Text>
+                <View style={styles.subLineDivider} />
               </View>
-            )}
+            </View>
 
+            {/* Clean Centered Floating Card Frame */}
             <View style={styles.formCard}>
-              {fields.map((f, index) => (
-                <View key={f.key} style={[styles.inputGroup, index === fields.length - 1 && { marginBottom: 0 }]}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>{f.label}</Text>
-                    {f.optional && <Text style={styles.optionalBadge}>Optional</Text>}
-                  </View>
-                  <View style={[styles.inputWrap, fieldErrors[f.key] && styles.inputWrapError]}>
-                    <Ionicons name={f.icon} size={16} color={fieldErrors[f.key] ? "#DC2626" : TEXT_MUTED} style={styles.inputIcon} />
-                    <TextInput
-                      style={[styles.input, isWeb && { outlineStyle: 'none' }]}
-                      value={form[f.key]}
-                      onChangeText={(v) => setField(f.key, v)}
-                      placeholder={f.placeholder}
-                      placeholderTextColor="#A8A29E"
-                      keyboardType={f.type || "default"}
-                      secureTextEntry={f.secure || false}
-                      autoCapitalize={f.key === "email" || f.key === "referralCode" ? "none" : "words"}
-                      selectionColor={GREEN}
-                    />
-                  </View>
-                  {fieldErrors[f.key] && (
-                    <View style={styles.fieldErrorRow}>
-                      <Ionicons name="alert-circle-outline" size={12} color="#DC2626" />
-                      <Text style={styles.fieldErrorText}>{fieldErrors[f.key]}</Text>
-                    </View>
-                  )}
+              <View style={styles.headingWrap}>
+                <Text style={styles.title}>Create Account</Text>
+                <Text style={styles.subtitle}>Sign up to digitize your account</Text>
+              </View>
+
+              {error && (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                  <Text style={styles.errorText}>{error}</Text>
                 </View>
-              ))}
+              )}
 
-              <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleSignup} disabled={loading}>
-                {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.btnText}>CREATE ACCOUNT</Text>}
+              {/* Stacked Form Fields Layout */}
+              <View style={styles.fieldsStack}>
+                {fields.map((f) => (
+                  <View key={f.key} style={styles.inputGroup}>
+                    <View style={styles.labelRow}>
+                      <Text style={styles.label}>{f.label.toUpperCase()}</Text>
+                      {f.optional && <Text style={styles.optionalBadge}>Optional</Text>}
+                    </View>
+                    <View style={[styles.inputWrap, fieldErrors[f.key] && styles.inputWrapError]}>
+                      <Ionicons name={f.icon} size={16} color={fieldErrors[f.key] ? "#DC2626" : "#A8A29E"} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, isWeb && { outlineStyle: 'none' }]}
+                        value={form[f.key]}
+                        onChangeText={(v) => setField(f.key, v)}
+                        placeholder={f.placeholder}
+                        placeholderTextColor="#A8A29E"
+                        keyboardType={f.type || "default"}
+                        secureTextEntry={f.secure || false}
+                        autoCapitalize={f.key === "email" || f.key === "referralCode" ? "none" : "words"}
+                        selectionColor={GREEN}
+                      />
+                    </View>
+                    {fieldErrors[f.key] && (
+                      <View style={styles.fieldErrorRow}>
+                        <Text style={styles.fieldErrorText}>{fieldErrors[f.key]}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+
+              {/* High Contrast Black Action Button matches Login style */}
+              <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleSignup} disabled={loading} activeOpacity={0.9}>
+                {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.btnText}>SIGN UP</Text>}
               </TouchableOpacity>
+
+              {/* Bottom Navigation Alternate Link */}
+              <View style={styles.loginRow}>
+                <View style={styles.loginDivider} />
+                <TouchableOpacity 
+                  activeOpacity={0.7} 
+                  onPress={() => navigation.navigate("Login")}
+                >
+                  <Text style={styles.loginText}>
+                    Already have an account? <Text style={styles.loginLink}>Sign In</Text>
+                  </Text>
+                </TouchableOpacity>
+                <View style={styles.loginDivider} />
+              </View>
             </View>
 
-            <View style={styles.loginRow}>
-              <View style={styles.loginDivider} />
-              <TouchableOpacity 
-                activeOpacity={0.7} 
-                onPress={() => navigation.navigate("Login")}
-              >
-                <Text style={styles.loginText}>
-                  Already have an account? <Text style={styles.loginLink}>Sign In</Text>
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.loginDivider} />
-            </View>
             <Text style={styles.footer}>© 2026 Servon</Text>
           </View>
         </ScrollView>
@@ -196,67 +208,139 @@ export default function SignupScreen({ navigation }) {
   );
 }
 
-const GREEN = "#10B981", BG = "#FAF8F5", CARD_BG = "#FFFFFF", BORDER = "#E2E8F0", TEXT_PRIMARY = "#0F172A", TEXT_MUTED = "#475569";
+const GREEN = "#10B981", BG = "#FAF8F5", CARD_BG = "#FFFFFF", BORDER = "#E2E8F0", TEXT_PRIMARY = "#1E1E1E", TEXT_MUTED = "#6B7280";
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: BG },
   scrollContainer: { 
     flexGrow: 1, 
     backgroundColor: BG,
-    justifyContent: isWeb ? 'center' : 'flex-start',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  responsiveWrapper: {
+  centeredWrapper: {
     width: '100%',
-    alignSelf: 'center',
+    maxWidth: 460,
     paddingHorizontal: 20,
-    paddingBottom: 40,
-    ...Platform.select({
-      web: {
-        maxWidth: 480,
-        paddingTop: 40,
-      },
-      default: {
-        paddingTop: 10,
-      }
-    })
+    paddingVertical: 40,
+    alignItems: 'center',
   },
-  backBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", marginBottom: 20, gap: 4, cursor: 'pointer' },
-  backText: { fontSize: 14, color: GREEN, fontWeight: "600" },
-  headingWrap: { marginBottom: 28 },
-  title: { fontSize: 32, fontWeight: "800", color: TEXT_PRIMARY, letterSpacing: -0.75 },
-  subtitle: { fontSize: 14, color: TEXT_MUTED, marginTop: 6, fontWeight: "400" },
-  errorBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: "#FCA5A5" },
-  errorIcon: { fontSize: 15, color: "#DC2626" },
-  errorText: { color: "#DC2626", fontSize: 13, fontWeight: "500", flex: 1 },
+  brandHeaderWrap: {
+    alignItems: 'center',
+    marginBottom: 32,
+    width: '100%',
+  },
+  brandLogoText: {
+    fontSize: 36,
+    fontWeight: "900",
+    color: "#1E1E1E",
+    letterSpacing: -1,
+  },
+  brandSubLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    width: '70%',
+  },
+  subLineDivider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  brandSubText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: GREEN,
+    letterSpacing: 2,
+  },
   formCard: { 
     backgroundColor: CARD_BG, 
-    borderRadius: 16, 
-    padding: 28, 
+    borderRadius: 24, 
+    padding: 36, 
+    width: '100%',
     borderWidth: 1, 
-    borderColor: BORDER, 
-    gap: 20,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: '#F1F5F9', 
+    shadowColor: "#1E1E1E",
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.04,
-    shadowRadius: 16,
-    elevation: 2,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  headingWrap: { 
+    marginBottom: 24,
+  },
+  title: { 
+    fontSize: 26, 
+    fontWeight: "800", 
+    color: TEXT_PRIMARY, 
+    letterSpacing: -0.5 
+  },
+  subtitle: { 
+    fontSize: 14, 
+    color: TEXT_MUTED, 
+    marginTop: 4, 
+    fontWeight: "400" 
+  },
+  errorBox: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 8, 
+    backgroundColor: "#FEF2F2", 
+    borderRadius: 10, 
+    padding: 12, 
+    marginBottom: 20, 
+    borderWidth: 1, 
+    borderColor: "#FCA5A5" 
+  },
+  errorText: { color: "#DC2626", fontSize: 13, fontWeight: "500", flex: 1 },
+  fieldsStack: {
+    gap: 16,
+    marginBottom: 24,
   },
   inputGroup: { gap: 6 },
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  label: { fontSize: 13, fontWeight: "600", color: TEXT_PRIMARY },
-  optionalBadge: { fontSize: 10, color: TEXT_MUTED, backgroundColor: "#F1F5F9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, fontWeight: "500" },
-  inputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#CBD5E1", borderRadius: 10, backgroundColor: "#FFFFFF", paddingHorizontal: 14, paddingVertical: 12 },
-  inputIcon: { marginRight: 8 },
-  inputWrapError: { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
-  fieldErrorRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
-  fieldErrorText: { fontSize: 12, color: "#DC2626", fontWeight: "500" },
+  label: { fontSize: 11, fontWeight: "700", color: GREEN, letterSpacing: 0.5 },
+  optionalBadge: { fontSize: 10, color: TEXT_MUTED, fontStyle: 'italic' },
+  inputWrap: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    backgroundColor: "transparent", 
+    paddingHorizontal: 4, 
+    paddingVertical: 10 
+  },
+  inputIcon: { marginRight: 10, opacity: 0.7 },
+  inputWrapError: { borderBottomColor: "#DC2626" },
+  fieldErrorRow: { marginTop: 4 },
+  fieldErrorText: { fontSize: 11, color: "#DC2626", fontWeight: "500" },
   input: { flex: 1, fontSize: 14, color: TEXT_PRIMARY, padding: 0 },
-  btn: { backgroundColor: GREEN, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginTop: 8, cursor: 'pointer' },
+  
+  // Sleek solid dark background style matching your Login Screen button
+  btn: { 
+    backgroundColor: "#1E1E1E", 
+    borderRadius: 12, 
+    paddingVertical: 15, 
+    alignItems: "center", 
+    marginTop: 8,
+    cursor: 'pointer',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: 14, letterSpacing: 0.5 },
-  loginRow: { flexDirection: "row", alignItems: "center", marginTop: 32, gap: 12 },
-  loginDivider: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  btnText: { color: "#fff", fontWeight: "800", fontSize: 14, letterSpacing: 1 },
+  
+  loginRow: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    marginTop: 24, 
+    justifyContent: 'center' 
+  },
   loginText: { fontSize: 13, color: TEXT_MUTED },
-  loginLink: { color: GREEN, fontWeight: "600" },
+  loginLink: { color: GREEN, fontWeight: "700" },
   footer: { textAlign: "center", fontSize: 12, color: "#94A3B8", marginTop: 32 },
 });

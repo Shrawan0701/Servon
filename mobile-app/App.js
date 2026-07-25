@@ -2,10 +2,16 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
+
+import localDB from "./src/services/LocalDB";
+import syncManager from "./src/services/SyncManager";
+
 import AuthNavigator from "./src/navigation/AuthNavigator";
 import MainNavigator from "./src/navigation/MainNavigator";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, Platform } from "react-native";
+
+
 
 // Web Screens
 import LandingPage from "./src/screens/web/LandingPage";
@@ -78,6 +84,18 @@ function Root() {
 }
 
 export default function App() {
+
+   React.useEffect(() => {
+    async function initOffline() {
+      await localDB.init();
+      console.log(localDB.db);
+      syncManager.init();
+      console.log("Offline initialized");
+    }
+
+    initOffline();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <AuthProvider>

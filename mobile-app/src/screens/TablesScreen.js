@@ -121,7 +121,8 @@ export default function TablesScreen() {
   const SIDE_PADDING = 32;
   const GAP = 16;
   const cols = numColumns;
-  const cardWidth = (screenWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
+ const containerWidth = isWideScreen ? Math.min(screenWidth, 1200) : screenWidth;
+const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
 
   return (
     <SafeAreaView style={styles.container}>

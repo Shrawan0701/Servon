@@ -17,6 +17,11 @@ import { getReferralStats, redeemReferralReward } from "../api";
 
 const IS_WEB = Platform.OS === "web";
 const CONTENT_MAX = 1100;
+const WEB_STACK_MAX = 1040;
+
+const GREEN = "#10B981";
+const GREEN_DARK = "#059669";
+const NAVY = "#0F172A";
 
 export default function ReferralsScreen() {
   const navigation = useNavigation();
@@ -56,7 +61,7 @@ export default function ReferralsScreen() {
     setRedeeming(true);
     try {
       const res = await redeemReferralReward();
-      Alert.alert("Success! 🎉", res.data.message);
+      Alert.alert("Success", res.data.message);
       loadData();
     } catch (err) {
       Alert.alert("Cannot Redeem", err.response?.data?.error || "An error occurred.");
@@ -67,8 +72,8 @@ export default function ReferralsScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FAF8F5" }}>
-        <ActivityIndicator size="large" color="#10B981" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F5F6F8" }}>
+        <ActivityIndicator size="large" color={NAVY} />
       </View>
     );
   }
@@ -87,14 +92,153 @@ export default function ReferralsScreen() {
   const cooldownEnds = data?.cooldownEnds ? new Date(data.cooldownEnds) : null;
 
   const referralsForNextReward = 2 - (successful % 2 === 0 ? 0 : 1);
+  const progressPct = Math.min(100, (successful % 2) * 50);
+
+  // ─── SECTION BLOCKS ─────────────────────────────────────────────
+  // Built once, then arranged differently for web (two-column grid)
+  // vs. app (single stacked column) further down — no duplicated logic.
+
+  const codeCard = (
+    <View style={styles.card}>
+      <View style={styles.cardHeaderRow}>
+        <Text style={styles.label}>Your referral code</Text>
+        <View style={styles.liveDot} />
+      </View>
+      <View style={styles.codeRow}>
+        <Text style={styles.codeText}>{data?.referral_code || "—"}</Text>
+        <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.85}>
+          <Ionicons name="copy-outline" size={15} color="#fff" />
+          <Text style={styles.copyBtnText}>Copy</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const statsSection = (
+    <View style={styles.statsRow}>
+      <View style={styles.statCard}>
+        <View style={[styles.statIconWrap, { backgroundColor: "#ECFDF5" }]}>
+          <Ionicons name="checkmark-done" size={15} color={GREEN_DARK} />
+        </View>
+        <Text style={styles.statNumber}>{successful}</Text>
+        <Text style={styles.statLabel}>Successful</Text>
+      </View>
+      <View style={styles.statCard}>
+        <View style={[styles.statIconWrap, { backgroundColor: "#FFFBEB" }]}>
+          <Ionicons name="time" size={15} color="#D97706" />
+        </View>
+        <Text style={styles.statNumber}>{pending}</Text>
+        <Text style={styles.statLabel}>Pending</Text>
+      </View>
+      <View style={styles.statCard}>
+        <View style={[styles.statIconWrap, { backgroundColor: "#EFF6FF" }]}>
+          <Ionicons name="trophy" size={15} color="#2563EB" />
+        </View>
+        <Text style={styles.statNumber}>{earnedRewards}</Text>
+        <Text style={styles.statLabel}>Rewards earned</Text>
+      </View>
+    </View>
+  );
+
+  const cooldownNotice = isCooldownActive && cooldownEnds ? (
+    <View style={styles.noticeCard}>
+      <Ionicons name="time-outline" size={16} color="#92400E" />
+      <Text style={styles.noticeText}>
+        Cooldown active — you can redeem again on {cooldownEnds.toLocaleDateString()}.
+      </Text>
+    </View>
+  ) : null;
+
+  const progressCard = (
+    <View style={styles.card}>
+      <View style={styles.progressHeader}>
+        <Text style={styles.progressTitle}>Progress to next reward</Text>
+        <View style={styles.progressPill}>
+          <Text style={styles.progressPillText}>{successful % 2} / 2</Text>
+        </View>
+      </View>
+
+      <View style={styles.progressBarBg}>
+        <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
+      </View>
+
+      <Text style={styles.progressSubtext}>
+        {availableRewards > 0
+          ? `${availableRewards} reward${availableRewards > 1 ? 's' : ''} available to redeem`
+          : `${referralsForNextReward} more referral${referralsForNextReward > 1 ? 's' : ''} needed`}
+      </Text>
+    </View>
+  );
+
+  const redeemButton = (
+    <TouchableOpacity
+      style={[styles.redeemBtn, (!availableRewards || isCooldownActive) && styles.redeemBtnDisabled]}
+      disabled={!availableRewards || isCooldownActive || redeeming}
+      onPress={handleRedeem}
+      activeOpacity={0.88}
+    >
+      {redeeming ? (
+        <ActivityIndicator color="#fff" />
+      ) : (
+        <>
+          <Ionicons
+            name={availableRewards > 0 ? "gift-outline" : "lock-closed-outline"}
+            size={16}
+            color={(!availableRewards || isCooldownActive) ? "#9CA3AF" : "#fff"}
+            style={{ marginRight: 8 }}
+          />
+          <Text style={[styles.redeemBtnText, (!availableRewards || isCooldownActive) && styles.redeemBtnTextDisabled]}>
+            {availableRewards > 0
+              ? `Redeem 1 month free (${availableRewards} available)`
+              : isCooldownActive
+                ? "Cooldown active"
+                : `${referralsForNextReward} more needed`}
+          </Text>
+        </>
+      )}
+    </TouchableOpacity>
+  );
+
+  const historySection = (
+    <View style={IS_WEB && styles.historyPanel}>
+      <Text style={styles.historyTitle}>Referral history</Text>
+
+      {!data?.history || data.history.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="people-outline" size={22} color="#94A3B8" />
+          </View>
+          <Text style={styles.emptyText}>You haven't referred anyone yet.</Text>
+        </View>
+      ) : (
+        <View style={{ gap: 10 }}>
+          {data.history.map((item, index) => (
+            <View key={index} style={styles.historyCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.historyName}>{item.business_name}</Text>
+                <Text style={styles.historyDate}>
+                  Joined {new Date(item.created_at).toLocaleDateString()}
+                </Text>
+              </View>
+              <View style={[styles.badge, { backgroundColor: getStatusColor(item.status).bg }]}>
+                <Text style={[styles.badgeText, { color: getStatusColor(item.status).text }]}>
+                  {item.status}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F5F6F8" }}>
       {/* Header */}
       <View style={styles.navHeader}>
         <View style={styles.headerInner}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={22} color="#0F172A" />
+            <Ionicons name="chevron-back" size={20} color={NAVY} />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Referral Program</Text>
@@ -104,138 +248,51 @@ export default function ReferralsScreen() {
 
       <ScrollView contentContainerStyle={[
         styles.scrollContent,
-        IS_WEB && { alignSelf: 'center', width: '100%', maxWidth: 800 }
+        IS_WEB && { alignSelf: 'center', width: '100%', maxWidth: WEB_STACK_MAX }
       ]}>
 
-        {/* Hero Section */}
-        <View style={styles.heroBox}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="gift" size={30} color="#10B981" />
+        {/* Hero Banner (full width either way) */}
+        <View style={styles.heroBanner}>
+          <View style={styles.heroIconWrap}>
+            <Ionicons name="gift" size={20} color={GREEN} />
           </View>
-          <Text style={styles.heroTitle}>Invite & Earn</Text>
+          <Text style={styles.heroTitle}>Invite & earn</Text>
           <Text style={styles.heroSub}>
-            Share Servon with fellow restaurateurs. For every{" "}
-            <Text style={styles.heroHighlight}>2 successful referrals</Text>, get{" "}
-            <Text style={styles.heroHighlight}>1 Month Premium FREE!</Text>
+            Share Servon with fellow restaurateurs and grow together.
           </Text>
-        </View>
-
-        {/* Code Box */}
-        <View style={styles.codeBox}>
-          <Text style={styles.codeLabel}>Your Unique Referral Code</Text>
-          <View style={styles.codeRow}>
-            <Text style={styles.codeText}>{data?.referral_code || "LOADING..."}</Text>
-            <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.8}>
-              <Ionicons name="copy-outline" size={17} color="#fff" />
-              <Text style={styles.copyBtnText}>Copy</Text>
-            </TouchableOpacity>
+          <View style={styles.heroPill}>
+            <Text style={styles.heroPillText}>2 successful referrals</Text>
+            <Ionicons name="arrow-forward" size={13} color={GREEN} style={{ marginHorizontal: 6 }} />
+            <Text style={styles.heroPillText}>1 month Premium free</Text>
           </View>
         </View>
 
-        {/* Stats Cards */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: "#DCFCE7" }]}>
-              <Ionicons name="checkmark-done" size={16} color="#059669" />
+        {IS_WEB ? (
+          // ─── WEB: two-column dashboard layout ──────────────────
+          <View style={styles.webGrid}>
+            <View style={styles.webColLeft}>
+              {codeCard}
+              {statsSection}
+              {cooldownNotice}
+              {progressCard}
+              {redeemButton}
             </View>
-            <Text style={styles.statNumber}>{successful}</Text>
-            <Text style={styles.statLabel}>Successful</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: "#FEF3C7" }]}>
-              <Ionicons name="time" size={16} color="#D97706" />
+            <View style={styles.webColRight}>
+              {historySection}
             </View>
-            <Text style={styles.statNumber}>{pending}</Text>
-            <Text style={styles.statLabel}>Pending</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: "#DBEAFE" }]}>
-              <Ionicons name="trophy" size={16} color="#2563EB" />
-            </View>
-            <Text style={styles.statNumber}>{earnedRewards}</Text>
-            <Text style={styles.statLabel}>Rewards Earned</Text>
-          </View>
-        </View>
-
-        {/* Cooldown Info */}
-        {isCooldownActive && cooldownEnds && (
-          <View style={styles.cooldownCard}>
-            <Ionicons name="time-outline" size={20} color="#92400E" />
-            <Text style={styles.cooldownText}>
-              Cooldown active — you can redeem again on {cooldownEnds.toLocaleDateString()}
-            </Text>
-          </View>
-        )}
-
-        {/* Progress to Next Reward */}
-        <View style={styles.progressBox}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Progress to Next Reward</Text>
-            <View style={styles.progressPill}>
-              <Text style={styles.progressPillText}>
-                {successful % 2 === 0 ? (successful > 0 ? "Ready!" : "0 / 2") : `${successful % 2} / 2`}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${Math.min(100, (successful % 2) * 50)}%` }]} />
-          </View>
-
-          <Text style={styles.progressSubtext}>
-            {availableRewards > 0
-              ? ` You have ${availableRewards} reward${availableRewards > 1 ? 's' : ''} available to redeem!`
-              : `${referralsForNextReward} more referral${referralsForNextReward > 1 ? 's' : ''} needed for next reward`}
-          </Text>
-        </View>
-
-        {/* Redeem Button */}
-        <TouchableOpacity
-          style={[styles.redeemBtn, (!availableRewards || isCooldownActive) && styles.redeemBtnDisabled]}
-          disabled={!availableRewards || isCooldownActive || redeeming}
-          onPress={handleRedeem}
-          activeOpacity={0.85}
-        >
-          {redeeming ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={[styles.redeemBtnText, (!availableRewards || isCooldownActive) && styles.redeemBtnTextDisabled]}>
-              {availableRewards > 0
-                ? ` Redeem 1 Month Free (${availableRewards} available)`
-                : isCooldownActive
-                  ? ` Cooldown active`
-                  : `${referralsForNextReward} more needed`}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* History List */}
-        <Text style={styles.historyTitle}>Referral History</Text>
-
-        {data?.history?.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Ionicons name="people-outline" size={38} color="#94A3B8" />
-            <Text style={styles.emptyText}>You haven't referred anyone yet.</Text>
           </View>
         ) : (
-          <View style={{ gap: 10 }}>
-            {data?.history?.map((item, index) => (
-              <View key={index} style={styles.historyCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.historyName}>{item.business_name}</Text>
-                  <Text style={styles.historyDate}>
-                    Joined: {new Date(item.created_at).toLocaleDateString()}
-                  </Text>
-                </View>
-                <View style={[styles.badge, { backgroundColor: getStatusColor(item.status).bg }]}>
-                  <Text style={[styles.badgeText, { color: getStatusColor(item.status).text }]}>
-                    {item.status}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
+          // ─── APP: original single stacked column, unchanged ────
+          <>
+            {codeCard}
+            {statsSection}
+            {cooldownNotice}
+            {progressCard}
+            {redeemButton}
+            {historySection}
+          </>
         )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -244,64 +301,183 @@ export default function ReferralsScreen() {
 
 const getStatusColor = (status) => {
   switch (status) {
-    case "SUCCESSFUL": return { bg: "#DCFCE7", text: "#059669" };
-    case "PENDING": return { bg: "#FEF3C7", text: "#D97706" };
-    case "EXPIRED": return { bg: "#FEE2E2", text: "#DC2626" };
+    case "SUCCESSFUL": return { bg: "#ECFDF5", text: GREEN_DARK };
+    case "PENDING": return { bg: "#FFFBEB", text: "#92400E" };
+    case "EXPIRED": return { bg: "#FEF2F2", text: "#991B1B" };
     default: return { bg: "#F1F5F9", text: "#64748B" };
   }
 };
 
 const styles = StyleSheet.create({
-  navHeader: { borderBottomWidth: 1, borderBottomColor: "#E2E8F0", backgroundColor: "#fff", paddingVertical: 14 },
+  navHeader: { borderBottomWidth: 1, borderBottomColor: "#E5E7EB", backgroundColor: "#fff", paddingVertical: 14 },
   headerInner: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, maxWidth: CONTENT_MAX, alignSelf: 'center', width: '100%' },
   backBtn: { flexDirection: "row", alignItems: "center", width: 70 },
-  backText: { fontSize: 15, fontWeight: "600", marginLeft: 2, color: "#0F172A" },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  backText: { fontSize: 14, fontWeight: "500", marginLeft: 2, color: NAVY },
+  headerTitle: { fontSize: 15, fontWeight: "700", color: NAVY },
 
   scrollContent: { padding: 20 },
-  heroBox: { alignItems: "center", marginBottom: 28, paddingVertical: 16 },
-  iconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#DCFCE7", alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  heroTitle: { fontSize: 26, fontWeight: "900", color: "#0F172A", marginBottom: 8, letterSpacing: -0.3 },
-  heroSub: { fontSize: 14, color: "#64748B", textAlign: "center", lineHeight: 21, paddingHorizontal: 12 },
-  heroHighlight: { fontWeight: "800", color: "#10B981" },
 
-  codeBox: { backgroundColor: "#fff", padding: 22, borderRadius: 20, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 20, shadowColor: "#0F172A", shadowOpacity: 0.04, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
-  codeLabel: { fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", marginBottom: 14, letterSpacing: 1 },
-  codeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 14, paddingLeft: 16, paddingRight: 6, paddingVertical: 6 },
-  codeText: { fontSize: 19, fontWeight: "900", color: "#0F172A", letterSpacing: 2 },
-  copyBtn: { backgroundColor: "#0F172A", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 11, borderRadius: 10 },
-  copyBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  // ─── WEB GRID ───────────────────────────────────────────────────
+  webGrid: { flexDirection: "row", gap: 20, alignItems: "flex-start" },
+  webColLeft: { flex: 1.3 },
+  webColRight: { flex: 1 },
+  historyPanel: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#EAECF0",
+    padding: 18,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
 
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 18 },
-  statCard: { flex: 1, backgroundColor: "#fff", borderRadius: 16, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#E2E8F0", shadowColor: "#0F172A", shadowOpacity: 0.03, shadowRadius: 6, elevation: 1 },
-  statIconWrap: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  statNumber: { fontSize: 21, fontWeight: "900", color: "#0F172A" },
-  statLabel: { fontSize: 11, color: "#64748B", marginTop: 2, fontWeight: "600" },
+  // ─── HERO BANNER ────────────────────────────────────────────────
+  heroBanner: {
+    backgroundColor: NAVY,
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 20,
+    shadowColor: NAVY,
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  heroIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(16,185,129,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  heroTitle: { fontSize: 22, fontWeight: "800", color: "#fff", marginBottom: 6, letterSpacing: -0.3 },
+  heroSub: { fontSize: 13.5, color: "#CBD5E1", lineHeight: 20, marginBottom: 16, maxWidth: 440 },
+  heroPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(16,185,129,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(16,185,129,0.3)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  heroPillText: { fontSize: 12, fontWeight: "700", color: GREEN },
 
-  cooldownCard: { backgroundColor: "#FEF3C7", padding: 14, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16, borderWidth: 1, borderColor: "#FDE68A" },
-  cooldownText: { fontSize: 13, color: "#92400E", fontWeight: "600", flex: 1, lineHeight: 18 },
+  // ─── SHARED CARD ────────────────────────────────────────────────
+  card: {
+    backgroundColor: "#fff",
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#EAECF0",
+    marginBottom: 16,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  label: { fontSize: 11, fontWeight: "700", color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.6 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN },
 
-  progressBox: { backgroundColor: "#fff", padding: 22, borderRadius: 20, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 20, shadowColor: "#0F172A", shadowOpacity: 0.04, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
-  progressHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  progressTitle: { fontSize: 15, fontWeight: "700", color: "#1E293B" },
-  progressPill: { backgroundColor: "#ECFDF5", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  progressPillText: { fontSize: 13, fontWeight: "800", color: "#10B981" },
-  progressBarBg: { height: 10, backgroundColor: "#F1F5F9", borderRadius: 6, overflow: "hidden", marginBottom: 10 },
-  progressBarFill: { height: "100%", backgroundColor: "#10B981", borderRadius: 6 },
-  progressSubtext: { fontSize: 13, color: "#64748B", textAlign: "center" },
+  // ─── REFERRAL CODE ──────────────────────────────────────────────
+  codeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#EAECF0",
+    borderRadius: 12,
+    paddingLeft: 16,
+    paddingRight: 6,
+    paddingVertical: 6,
+  },
+  codeText: { fontSize: 19, fontWeight: "800", color: NAVY, letterSpacing: 2.5 },
+  copyBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: GREEN, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9 },
+  copyBtnText: { color: "#fff", fontWeight: "700", fontSize: 12.5 },
 
-  redeemBtn: { backgroundColor: "#10B981", padding: 17, borderRadius: 14, alignItems: "center", marginBottom: 24, shadowColor: "#10B981", shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  redeemBtnDisabled: { backgroundColor: "#E2E8F0", shadowOpacity: 0 },
-  redeemBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  redeemBtnTextDisabled: { color: "#94A3B8" },
+  // ─── STATS ──────────────────────────────────────────────────────
+  statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+  statCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#EAECF0",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  statIconWrap: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  statNumber: { fontSize: 19, fontWeight: "800", color: NAVY },
+  statLabel: { fontSize: 11, color: "#6B7280", marginTop: 2, fontWeight: "600" },
 
-  historyTitle: { fontSize: 17, fontWeight: "800", color: "#0F172A", marginBottom: 14 },
-  historyCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", padding: 16, borderRadius: 14, borderWidth: 1, borderColor: "#E2E8F0" },
-  historyName: { fontSize: 15, fontWeight: "700", color: "#1E293B", marginBottom: 3 },
-  historyDate: { fontSize: 12, color: "#94A3B8" },
-  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  badgeText: { fontSize: 10.5, fontWeight: "800" },
+  // ─── COOLDOWN NOTICE ────────────────────────────────────────────
+  noticeCard: { backgroundColor: "#FFFBEB", padding: 13, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 16, borderWidth: 1, borderColor: "#FDE68A" },
+  noticeText: { fontSize: 12.5, color: "#92400E", fontWeight: "500", flex: 1, lineHeight: 17 },
 
-  emptyBox: { alignItems: "center", padding: 36, backgroundColor: "#fff", borderRadius: 20, borderWidth: 2, borderColor: "#E2E8F0", borderStyle: "dashed" },
-  emptyText: { marginTop: 10, color: "#94A3B8", fontSize: 13.5, fontWeight: "500" }
+  // ─── PROGRESS ───────────────────────────────────────────────────
+  progressHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  progressTitle: { fontSize: 13.5, fontWeight: "700", color: "#1E293B" },
+  progressPill: { backgroundColor: "#ECFDF5", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
+  progressPillText: { fontSize: 12, fontWeight: "800", color: GREEN_DARK },
+  progressBarBg: { height: 7, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden", marginBottom: 10 },
+  progressBarFill: { height: "100%", backgroundColor: GREEN, borderRadius: 4 },
+  progressSubtext: { fontSize: 12.5, color: "#6B7280" },
+
+  // ─── REDEEM BUTTON ──────────────────────────────────────────────
+  redeemBtn: {
+    flexDirection: "row",
+    backgroundColor: GREEN,
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+    shadowColor: GREEN,
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  redeemBtnDisabled: { backgroundColor: "#F1F5F9", shadowOpacity: 0, elevation: 0 },
+  redeemBtnText: { color: "#fff", fontWeight: "700", fontSize: 13.5 },
+  redeemBtnTextDisabled: { color: "#9CA3AF" },
+
+  // ─── HISTORY ────────────────────────────────────────────────────
+  historyTitle: { fontSize: 14.5, fontWeight: "700", color: NAVY, marginBottom: 12 },
+  historyCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: "#EAECF0",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  historyName: { fontSize: 13.5, fontWeight: "700", color: "#1E293B", marginBottom: 2 },
+  historyDate: { fontSize: 11.5, color: "#9CA3AF" },
+  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
+  badgeText: { fontSize: 10, fontWeight: "800" },
+
+  emptyBox: { alignItems: "center", padding: 32, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#EAECF0", gap: 8 },
+  emptyIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
+  emptyText: { color: "#9CA3AF", fontSize: 12.5, fontWeight: "500" }
 });

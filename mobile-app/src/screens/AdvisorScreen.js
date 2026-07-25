@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   useWindowDimensions,
   Modal,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,14 +26,53 @@ const COLORS = {
   subtext: '#6B7280',
   muted: '#9CA3AF',
   green: '#10B981',
-  red: '#EF4444',
-  redBg: '#FEF2F2',
-  amber: '#92400E',
+  greenBg: '#ECFDF5',
+  amber: '#B45309',
+  amberBg: '#FEF3C7',
   amberIcon: '#F59E0B',
   inputBg: '#F3F4F6',
+  red: '#EF4444',
+  redBg: '#FEF2F2',
 };
 
+// ─── COMMON / SUGGESTED QUESTIONS ──────────────────────────────────
+// Tapping a chip asks the question the same way typing + sending does.
+const SUGGESTED_QUESTIONS = [
+  { icon: 'trending-up', text: 'How can I increase daily sales?' },
+  { icon: 'pricetag-outline', text: 'How do I price my menu better?' },
+  { icon: 'people-outline', text: 'How can I attract more customers?' },
+  { icon: 'stats-chart-outline', text: "What's my biggest opportunity right now?" },
+  { icon: 'megaphone-outline', text: 'What marketing should I focus on?' },
+  { icon: 'cash-outline', text: 'How can I reduce operating costs?' },
+];
+
 // ─── HELPER: Parse answer into segments ────────────────────────────
+// Long, dense answers were rendering as a blank box on Android — a single
+// Text node that wraps into a very large number of lines can fail to paint
+// on some Android devices (the box reserves the right height, but nothing
+// draws inside it). Splitting long content into several smaller Text nodes
+// avoids ever handing Android one oversized block of text to render.
+const MAX_CHUNK_LENGTH = 320;
+
+const splitIntoChunks = (text) => {
+  if (!text) return [''];
+  if (text.length <= MAX_CHUNK_LENGTH) return [text];
+
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > MAX_CHUNK_LENGTH) {
+    let cut = remaining.lastIndexOf('. ', MAX_CHUNK_LENGTH);
+    if (cut < MAX_CHUNK_LENGTH * 0.4) {
+      cut = remaining.lastIndexOf(' ', MAX_CHUNK_LENGTH);
+    }
+    if (cut <= 0) cut = MAX_CHUNK_LENGTH;
+    chunks.push(remaining.slice(0, cut + 1).trim());
+    remaining = remaining.slice(cut + 1);
+  }
+  if (remaining.trim()) chunks.push(remaining.trim());
+  return chunks;
+};
+
 const parseAnswer = (text) => {
   if (!text) return [{ type: 'text', content: '' }];
   const lines = text.split('\n');
@@ -40,12 +80,34 @@ const parseAnswer = (text) => {
   lines.forEach((line) => {
     const match = line.match(/^(\d+)\.\s*(.*)/);
     if (match) {
-      segments.push({ type: 'step', number: match[1], content: match[2] });
+      segments.push({ type: 'step', number: match[1], chunks: splitIntoChunks(match[2]) });
     } else {
-      segments.push({ type: 'text', content: line });
+      segments.push({ type: 'text', chunks: splitIntoChunks(line) });
     }
   });
   return segments;
+};
+
+// ─── HELPER: Group items into ChatGPT-style date buckets ───────────
+const GROUP_ORDER = ['Today', 'Yesterday', 'Previous 7 Days', 'Older'];
+
+const groupByDate = (list) => {
+  const groups = { Today: [], Yesterday: [], 'Previous 7 Days': [], Older: [] };
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startYesterday = new Date(startToday);
+  startYesterday.setDate(startYesterday.getDate() - 1);
+  const sevenDaysAgo = new Date(startToday);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  [...list].reverse().forEach((item) => {
+    const d = item.created_at ? new Date(item.created_at) : new Date();
+    if (d >= startToday) groups.Today.push(item);
+    else if (d >= startYesterday) groups.Yesterday.push(item);
+    else if (d >= sevenDaysAgo) groups['Previous 7 Days'].push(item);
+    else groups.Older.push(item);
+  });
+  return groups;
 };
 
 export default function AdvisorScreen() {
@@ -56,6 +118,8 @@ export default function AdvisorScreen() {
   const [loading, setLoading] = useState(false);
   const [asking, setAsking] = useState(false);
   const scrollRef = useRef(null);
+  const contentRef = useRef(null);
+  const messageRefs = useRef({});
 
   // ─── DELETE MODAL STATE ─────────────────────────────────────────────
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -70,7 +134,27 @@ export default function AdvisorScreen() {
   const isWide = width >= 1024;
   const contentMaxWidth = isWide ? 760 : isTablet ? 640 : '100%';
   const horizontalPadding = isTablet ? 24 : 16;
-  const bubbleMaxWidth = isTablet ? '70%' : '85%';
+  const bubbleMaxWidth = isTablet ? Math.min(width * 0.7, 520) : width * 0.82;
+
+  // ─── HISTORY SIDEBAR STATE (docked on tablet/web, overlay on mobile) ─
+  const [sidebarOpen, setSidebarOpen] = useState(isTablet);
+  const sidebarAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isTablet && sidebarOpen) {
+      sidebarAnim.setValue(0);
+      Animated.timing(sidebarAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [sidebarOpen, isTablet]);
+
+  const sidebarTranslateX = sidebarAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-320, 0],
+  });
 
   // ─── LOAD INSIGHTS ──────────────────────────────────────────────────
   const loadInsights = async () => {
@@ -96,10 +180,16 @@ export default function AdvisorScreen() {
   };
 
   // ─── ASK QUESTION ──────────────────────────────────────────────────
-  const askQuestion = async () => {
-    if (!question.trim() || asking) return;
+  // Accepts an optional preset string so suggested-question chips can
+  // trigger the exact same flow as typing + sending. When called from an
+  // onPress/onSubmitEditing handler, the first argument is a native event
+  // object (not a string), so we only treat it as the question text when
+  // it's actually a string — otherwise we fall back to the typed value.
+  const askQuestion = async (presetText) => {
+    const textToAsk = (typeof presetText === 'string' ? presetText : question).trim();
+    if (!textToAsk || asking) return;
     setAsking(true);
-    const userQuestion = question.trim();
+    const userQuestion = textToAsk;
     setQuestion('');
 
     setConversations(prev => [
@@ -176,6 +266,37 @@ export default function AdvisorScreen() {
     }
   };
 
+  // ─── JUMP TO A MESSAGE FROM THE HISTORY SIDEBAR ────────────────────
+  const scrollToMessage = (id) => {
+    const node = messageRefs.current[id];
+    if (node) {
+      if (typeof node.scrollIntoView === 'function') {
+        // Web (react-native-web renders a real DOM node)
+        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (
+        scrollRef.current &&
+        contentRef.current &&
+        typeof node.measureLayout === 'function'
+      ) {
+        // Native (iOS/Android) — measure against contentRef, a plain View
+        // (the ScrollView itself is a composite component, not a native
+        // host component, which is what caused the measureLayout warning)
+        try {
+          node.measureLayout(
+            contentRef.current,
+            (x, y) => {
+              scrollRef.current?.scrollTo({ y: Math.max(y - 16, 0), animated: true });
+            },
+            () => {}
+          );
+        } catch (e) {
+          // no-op fallback
+        }
+      }
+    }
+    if (!isTablet) setSidebarOpen(false);
+  };
+
   // ─── AUTO-SCROLL ──────────────────────────────────────────────────
   useEffect(() => {
     if (conversations.length > 0 && !conversations[conversations.length - 1]?.is_loading) {
@@ -188,29 +309,38 @@ export default function AdvisorScreen() {
     loadConversations();
   }, []);
 
+  const sidebarGroups = useMemo(() => groupByDate(conversations), [conversations]);
+
   // ─── SUB-COMPONENTS ─────────────────────────────────────────────────
-  const InsightCard = ({ item }) => (
-    <View style={[styles.insightCard, item.priority >= 2 && styles.insightHighPriority]}>
-      <View style={styles.insightHeader}>
-        <View style={styles.insightTitleRow}>
-          <Ionicons name={item.priority >= 2 ? 'alert-circle' : 'checkmark-circle'} size={16} color={item.priority >= 2 ? COLORS.red : COLORS.green} />
-          <Text style={styles.insightTitle}>{item.title}</Text>
+  const InsightCard = ({ item }) => {
+    // Instead of displaying negative red alerts, prioritize opportunities with a warm, encouraging amber styling
+    const isHighPriority = item.priority >= 2;
+    const accentColor = isHighPriority ? COLORS.amber : COLORS.green;
+    const iconName = isHighPriority ? 'trending-up' : 'analytics';
+
+    return (
+      <View style={[styles.insightCard, isHighPriority ? styles.insightHighPriority : styles.insightNormalPriority]}>
+        <View style={styles.insightHeader}>
+          <View style={styles.insightTitleRow}>
+            <Ionicons name={iconName} size={16} color={accentColor} />
+            <Text style={styles.insightTitle}>{item.title}</Text>
+          </View>
+          {isHighPriority && (
+            <View style={styles.priorityBadge}>
+              <Text style={styles.priorityText}>High Impact</Text>
+            </View>
+          )}
         </View>
-        {item.priority >= 2 && (
-          <View style={styles.priorityBadge}>
-            <Text style={styles.priorityText}>High</Text>
+        <Text style={styles.insightDesc}>{item.description}</Text>
+        {item.action_text && (
+          <View style={styles.actionContainer}>
+            <Ionicons name="bulb-outline" size={16} color={COLORS.amberIcon} />
+            <Text style={styles.actionText}>{item.action_text}</Text>
           </View>
         )}
       </View>
-      <Text style={styles.insightDesc}>{item.description}</Text>
-      {item.action_text && (
-        <View style={styles.actionContainer}>
-          <Ionicons name="bulb-outline" size={16} color={COLORS.amberIcon} />
-          <Text style={styles.actionText}>{item.action_text}</Text>
-        </View>
-      )}
-    </View>
-  );
+    );
+  };
 
   const MessageBubble = ({ item, onDelete }) => {
     const segments = parseAnswer(item.answer || '');
@@ -220,37 +350,46 @@ export default function AdvisorScreen() {
         <TouchableOpacity style={styles.deleteIconWrap} onPress={() => onDelete(item.id)} activeOpacity={0.7}>
           <Ionicons name="close-circle" size={18} color={COLORS.muted} />
         </TouchableOpacity>
-        <View style={[styles.userMessageRow, { maxWidth: bubbleMaxWidth }]}>
-          <View style={styles.userMessage}>
+        <View style={styles.userMessageRow}>
+          <View style={[styles.userMessage, { maxWidth: bubbleMaxWidth }]}>
             <Text style={styles.userMessageText}>{item.question}</Text>
           </View>
         </View>
-        <View style={[styles.aiMessageRow, { maxWidth: bubbleMaxWidth }]}>
+        <View style={styles.aiMessageRow}>
           <View style={styles.aiAvatar}>
             <Ionicons name="sparkles" size={14} color={COLORS.green} />
           </View>
-          <View style={[styles.aiMessage, item.is_error && styles.aiMessageError]}>
+          <View style={[styles.aiMessage, { maxWidth: bubbleMaxWidth }, item.is_error && styles.aiMessageError]}>
             {item.is_loading ? (
               <View style={styles.typingRow}>
                 <ActivityIndicator size="small" color={COLORS.text} />
                 <Text style={styles.typingText}>Thinking...</Text>
               </View>
             ) : (
-              <View>
+              <View style={styles.aiMessageInner}>
                 {segments.map((seg, idx) => {
                   if (seg.type === 'step') {
                     return (
                       <View key={idx} style={styles.stepRow}>
                         <Text style={styles.stepNumber}>{seg.number}.</Text>
-                        <Text style={styles.stepContent}>{seg.content}</Text>
+                        <View style={styles.stepContentWrap}>
+                          {seg.chunks.map((chunk, cIdx) => (
+                            <Text key={cIdx} style={styles.stepContent}>{chunk}</Text>
+                          ))}
+                        </View>
                       </View>
                     );
                   } else {
-                    if (seg.content.trim() === '') return null;
+                    const joined = seg.chunks.join(' ').trim();
+                    if (joined === '') return null;
                     return (
-                      <Text key={idx} style={styles.aiMessageText}>
-                        {seg.content}
-                      </Text>
+                      <View key={idx} style={styles.aiMessageInner}>
+                        {seg.chunks.map((chunk, cIdx) => (
+                          <Text key={cIdx} style={styles.aiMessageText}>
+                            {chunk}
+                          </Text>
+                        ))}
+                      </View>
                     );
                   }
                 })}
@@ -264,34 +403,120 @@ export default function AdvisorScreen() {
 
   const EmptyState = ({ icon, text }) => (
     <View style={styles.emptyState}>
-      <Ionicons name={icon} size={22} color={COLORS.muted} />
+      <View style={styles.emptyIconWrap}>
+        <Ionicons name={icon} size={26} color={COLORS.green} />
+      </View>
       <Text style={styles.emptyText}>{text}</Text>
     </View>
   );
+
+  // ─── SUGGESTED / COMMON QUESTIONS ───────────────────────────────────
+  const SuggestedQuestions = ({ onSelect, disabled }) => (
+    <View style={styles.suggestionsWrap}>
+      <Text style={styles.suggestionsLabel}>Common questions</Text>
+      <View style={styles.suggestionsGrid}>
+        {SUGGESTED_QUESTIONS.map((sq, idx) => (
+          <TouchableOpacity
+            key={idx}
+            style={styles.suggestionChip}
+            activeOpacity={0.7}
+            disabled={disabled}
+            onPress={() => onSelect(sq.text)}
+          >
+            <View style={styles.suggestionChipIconWrap}>
+              <Ionicons name={sq.icon} size={14} color={COLORS.green} />
+            </View>
+            <Text style={styles.suggestionChipText} numberOfLines={2}>{sq.text}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  // ─── HISTORY SIDEBAR (docked on tablet/web, slide-over on mobile) ──
+  const HistorySidebarContent = ({ onClose, showClose }) => {
+    const hasAny = conversations.length > 0;
+    return (
+      <View style={styles.sidebarInner}>
+        <View style={styles.sidebarHeader}>
+          <Text style={styles.sidebarHeaderTitle}>History</Text>
+          <View style={styles.sidebarHeaderActions}>
+            {hasAny && (
+              <TouchableOpacity onPress={confirmClearAll} style={styles.sidebarIconBtn} activeOpacity={0.7}>
+                <Ionicons name="trash-outline" size={17} color={COLORS.muted} />
+              </TouchableOpacity>
+            )}
+            {showClose && (
+              <TouchableOpacity onPress={onClose} style={styles.sidebarIconBtn} activeOpacity={0.7}>
+                <Ionicons name="close" size={20} color={COLORS.muted} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          {!hasAny ? (
+            <View style={styles.sidebarEmpty}>
+              <Ionicons name="time-outline" size={20} color={COLORS.muted} />
+              <Text style={styles.sidebarEmptyText}>No questions yet</Text>
+            </View>
+          ) : (
+            GROUP_ORDER.map((label) => {
+              const items = sidebarGroups[label];
+              if (!items || items.length === 0) return null;
+              return (
+                <View key={label} style={styles.sidebarGroup}>
+                  <Text style={styles.sidebarGroupLabel}>{label}</Text>
+                  {items.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.sidebarItem}
+                      activeOpacity={0.6}
+                      onPress={() => scrollToMessage(item.id)}
+                    >
+                      <Text style={styles.sidebarItemText} numberOfLines={2}>
+                        {item.question}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <View style={[styles.headerInner, { maxWidth: contentMaxWidth, paddingHorizontal: horizontalPadding }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBtn} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          </TouchableOpacity>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBtn} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setSidebarOpen((prev) => !prev)}
+              style={styles.navBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="time-outline" size={22} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.headerCenter}>
             <View style={styles.headerIconWrap}>
               <Ionicons name="sparkles" size={18} color={COLORS.green} />
             </View>
-            <Text style={styles.title}>AI Business Advisor</Text>
+            <View style={styles.headerTitleWrap}>
+              <Text style={styles.title} numberOfLines={1}>AI Business Advisor</Text>
+              <Text style={styles.headerSubtitle} numberOfLines={1}>Ask anything about your business</Text>
+            </View>
           </View>
 
           <View style={styles.headerRight}>
-            {conversations.length > 0 && (
-              <TouchableOpacity onPress={confirmClearAll} activeOpacity={0.7} style={styles.clearBtn}>
-                <Ionicons name="trash-outline" size={18} color={COLORS.muted} />
-                <Text style={styles.clearBtnText}>Clear</Text>
-              </TouchableOpacity>
-            )}
             <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={styles.navBtn} activeOpacity={0.7}>
               <Ionicons name="home-outline" size={24} color={COLORS.text} />
             </TouchableOpacity>
@@ -299,74 +524,103 @@ export default function AdvisorScreen() {
         </View>
       </View>
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.content}
-        contentContainerStyle={{ alignItems: 'center' }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={{ width: '100%', maxWidth: contentMaxWidth, paddingHorizontal: horizontalPadding }}>
-          {/* Insights Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="stats-chart-outline" size={16} color={COLORS.text} />
-              <Text style={styles.sectionTitle}>Proactive Insights</Text>
-            </View>
-            {loading ? (
-              <ActivityIndicator color={COLORS.text} style={{ marginTop: 8 }} />
-            ) : insights.length > 0 ? (
-              <View style={isTablet ? styles.insightGrid : undefined}>
-                {insights.map(item => (
-                  <View key={item.id} style={isTablet ? styles.insightGridItem : undefined}>
-                    <InsightCard item={item} />
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <EmptyState icon="bulb-outline" text="No insights yet. Ask a question to get started." />
-            )}
+      {/* Body: docked sidebar (tablet/web) + main column */}
+      <View style={styles.bodyRow}>
+        {isTablet && sidebarOpen && (
+          <View style={styles.dockedSidebar}>
+            <HistorySidebarContent />
           </View>
+        )}
 
-          {/* Conversations */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="chatbubbles-outline" size={16} color={COLORS.text} />
-              <Text style={styles.sectionTitle}>Your Questions</Text>
-            </View>
-            {conversations.length === 0 ? (
-              <EmptyState icon="chatbox-ellipses-outline" text="Ask your first question below." />
-            ) : (
-              conversations.map(item => <MessageBubble key={item.id} item={item} onDelete={confirmDelete} />)
-            )}
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Input Area */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-        <View style={styles.inputWrap}>
-          <View style={[styles.inputContainer, { maxWidth: contentMaxWidth, marginHorizontal: 'auto', width: '100%' }]}>
-            <TextInput
-              style={styles.input}
-              placeholder="Ask about your business..."
-              placeholderTextColor={COLORS.muted}
-              value={question}
-              onChangeText={setQuestion}
-              onSubmitEditing={askQuestion}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, (!question.trim() || asking) && styles.sendBtnDisabled]}
-              onPress={askQuestion}
-              disabled={!question.trim() || asking}
-              activeOpacity={0.8}
+        <View style={styles.mainColumn}>
+          <ScrollView
+            ref={scrollRef}
+            style={styles.content}
+            contentContainerStyle={{ alignItems: 'center', flexGrow: 1 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View
+              ref={contentRef}
+              collapsable={false}
+              style={{ width: '100%', maxWidth: contentMaxWidth, paddingHorizontal: horizontalPadding }}
             >
-              {asking ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="send" size={18} color="#fff" />}
-            </TouchableOpacity>
-          </View>
+              {/* Conversations */}
+              <View style={styles.section}>
+                {conversations.length > 0 && (
+                  <View style={styles.sectionHeader}>
+                    <Ionicons name="chatbubbles-outline" size={16} color={COLORS.text} />
+                    <Text style={styles.sectionTitle}>Your Questions</Text>
+                  </View>
+                )}
+
+                {conversations.length === 0 ? (
+                  <View style={styles.emptyWrap}>
+                    <EmptyState icon="chatbox-ellipses-outline" text="Ask your first question below, or try one of these." />
+                    <SuggestedQuestions onSelect={askQuestion} disabled={asking} />
+                  </View>
+                ) : (
+                  conversations.map(item => (
+                    <View
+                      key={item.id}
+                      ref={(el) => { messageRefs.current[item.id] = el; }}
+                      collapsable={false}
+                    >
+                      <MessageBubble item={item} onDelete={confirmDelete} />
+                    </View>
+                  ))
+                )}
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* Input Area */}
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+            <View style={styles.inputWrap}>
+              <View style={[styles.inputContainer, { maxWidth: contentMaxWidth, marginHorizontal: 'auto', width: '100%' }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ask about your business..."
+                  placeholderTextColor={COLORS.muted}
+                  value={question}
+                  onChangeText={setQuestion}
+                  onSubmitEditing={() => askQuestion()}
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity
+                  style={[styles.sendBtn, (!question.trim() || asking) && styles.sendBtnDisabled]}
+                  onPress={() => askQuestion()}
+                  disabled={!question.trim() || asking}
+                  activeOpacity={0.8}
+                >
+                  {asking ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="send" size={18} color="#fff" />}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
+
+      {/* ─── MOBILE HISTORY DRAWER ─────────────────────────────────── */}
+      {!isTablet && (
+        <Modal
+          visible={sidebarOpen}
+          transparent
+          animationType="none"
+          onRequestClose={() => setSidebarOpen(false)}
+        >
+          <View style={styles.overlayContainer}>
+            <Animated.View style={[styles.overlayPanel, { transform: [{ translateX: sidebarTranslateX }] }]}>
+              <HistorySidebarContent onClose={() => setSidebarOpen(false)} showClose />
+            </Animated.View>
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              activeOpacity={1}
+              onPress={() => setSidebarOpen(false)}
+            />
+          </View>
+        </Modal>
+      )}
 
       {/* ─── CUSTOM DELETE MODAL ────────────────────────────────────── */}
       <Modal visible={showDeleteModal} transparent animationType="fade">
@@ -436,7 +690,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
+    paddingVertical: 12,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   headerCenter: {
     flexDirection: 'row',
@@ -444,6 +703,7 @@ const styles = StyleSheet.create({
     gap: 10,
     flex: 1,
     justifyContent: 'center',
+    minWidth: 0,
   },
   headerRight: {
     flexDirection: 'row',
@@ -452,24 +712,21 @@ const styles = StyleSheet.create({
   },
   navBtn: { padding: 4 },
   headerIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#ECFDF5',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  clearBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: COLORS.bg,
-  },
-  clearBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.muted },
+  headerTitleWrap: { minWidth: 0, flexShrink: 1 },
+  title: { fontSize: 17, fontWeight: '800', color: COLORS.text, flexShrink: 1 },
+  headerSubtitle: { fontSize: 11.5, color: COLORS.subtext, marginTop: 1 },
+
+  // ─── BODY / LAYOUT ────────────────────────────────────────────────
+  bodyRow: { flex: 1, flexDirection: 'row' },
+  mainColumn: { flex: 1, minWidth: 0 },
+
   content: { flex: 1 },
   section: { marginTop: 20 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
@@ -482,35 +739,37 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.green,
     shadowColor: '#000',
     shadowOpacity: 0.04,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
   },
-  insightHighPriority: { borderLeftColor: COLORS.red },
+  insightHighPriority: { borderLeftColor: COLORS.amber },
+  insightNormalPriority: { borderLeftColor: COLORS.green },
   insightHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   insightTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   insightTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, flexShrink: 1 },
-  priorityBadge: { backgroundColor: COLORS.redBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  priorityText: { fontSize: 10, fontWeight: '700', color: COLORS.red },
+  priorityBadge: { backgroundColor: COLORS.amberBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  priorityText: { fontSize: 10, fontWeight: '700', color: COLORS.amber },
   insightDesc: { fontSize: 13, color: COLORS.subtext, marginTop: 6, lineHeight: 20 },
   actionContainer: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 10, gap: 6 },
   actionText: { fontSize: 12, color: COLORS.amber, flex: 1, lineHeight: 18 },
 
   messageContainer: { marginBottom: 16 },
-  userMessageRow: { alignSelf: 'flex-end', marginBottom: 8 },
+  userMessageRow: { alignSelf: 'flex-end', marginBottom: 8, minWidth: 0 },
   userMessage: {
     backgroundColor: COLORS.text,
     borderRadius: 16,
     borderBottomRightRadius: 4,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    flexShrink: 1,
+    minWidth: 0,
   },
-  userMessageText: { color: '#fff', fontSize: 14, lineHeight: 20 },
+  userMessageText: { color: '#fff', fontSize: 14, lineHeight: 20, flexWrap: 'wrap' },
 
-  aiMessageRow: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  aiMessageRow: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'flex-end', gap: 8, minWidth: 0 },
   aiAvatar: {
     width: 26,
     height: 26,
@@ -529,9 +788,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     flexShrink: 1,
+    minWidth: 0,
   },
+  aiMessageInner: { minWidth: 0 },
   aiMessageError: { borderColor: '#FCA5A5', backgroundColor: COLORS.redBg },
-  aiMessageText: { color: COLORS.text, fontSize: 14, lineHeight: 21 },
+  aiMessageText: { color: COLORS.text, fontSize: 14, lineHeight: 21, flexShrink: 1, flexWrap: 'wrap' },
   aiMessageErrorText: { color: COLORS.red },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typingText: { color: COLORS.subtext, fontSize: 13 },
@@ -541,6 +802,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 6,
     marginTop: 4,
+    minWidth: 0,
   },
   stepNumber: {
     fontSize: 14,
@@ -549,15 +811,80 @@ const styles = StyleSheet.create({
     marginRight: 6,
     minWidth: 20,
   },
+  stepContentWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
   stepContent: {
     fontSize: 14,
     color: COLORS.text,
-    flex: 1,
     lineHeight: 21,
   },
 
-  emptyState: { alignItems: 'center', paddingVertical: 22, gap: 8 },
-  emptyText: { fontSize: 13, color: COLORS.muted, textAlign: 'center' },
+  emptyWrap: {
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 24,
+    paddingHorizontal: 18,
+  },
+  emptyState: { alignItems: 'center', paddingBottom: 18, gap: 10 },
+  emptyIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.greenBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: { fontSize: 13, color: COLORS.subtext, textAlign: 'center' },
+
+  // ─── SUGGESTED QUESTIONS ────────────────────────────────────────────
+  suggestionsWrap: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 16,
+  },
+  suggestionsLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  suggestionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    maxWidth: '100%',
+  },
+  suggestionChipIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: COLORS.greenBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestionChipText: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
 
   inputWrap: {
     backgroundColor: COLORS.card,
@@ -596,6 +923,59 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     padding: 8,
     marginBottom: 2,
+  },
+
+  // ─── HISTORY SIDEBAR (docked + drawer share these) ─────────────────
+  dockedSidebar: {
+    width: 280,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+  sidebarInner: { flex: 1, paddingTop: 12 },
+  sidebarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  sidebarHeaderTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  sidebarHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  sidebarIconBtn: { padding: 6, borderRadius: 8 },
+  sidebarGroup: { marginTop: 14, paddingHorizontal: 12 },
+  sidebarGroupLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    paddingHorizontal: 6,
+  },
+  sidebarItem: {
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginBottom: 2,
+  },
+  sidebarItemText: { fontSize: 13, color: COLORS.text, lineHeight: 18 },
+  sidebarEmpty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, gap: 8 },
+  sidebarEmptyText: { fontSize: 13, color: COLORS.muted },
+
+  // Mobile drawer overlay
+  overlayContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  overlayPanel: {
+    width: '80%',
+    maxWidth: 320,
+    height: '100%',
+    backgroundColor: COLORS.card,
   },
 
   // ─── DELETE MODAL STYLES ──────────────────────────────────────────

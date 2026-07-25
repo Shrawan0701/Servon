@@ -1,3 +1,5 @@
+// src/context/AuthContext.js
+
 import { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api";
@@ -25,9 +27,7 @@ export function AuthProvider({ children }) {
     if (Platform.OS === 'web') return;
 
     try {
-      // Push notifications only work on physical devices
       if (!Device.isDevice) {
-        console.log("Not a physical device, skipping push registration.");
         return;
       }
 
@@ -39,11 +39,9 @@ export function AuthProvider({ children }) {
       }
 
       if (finalStatus !== 'granted') {
-        console.log("Push permissions not granted.");
         return;
       }
 
-      // --- IMPROVED PROJECT ID SELECTION ---
       const projectId = 
         Constants?.expoConfig?.extra?.eas?.projectId ?? 
         Constants?.easConfig?.projectId ?? 
@@ -57,7 +55,6 @@ export function AuthProvider({ children }) {
       const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
       const pushToken = tokenData.data;
 
-      // Sync with your backend
       await API.post("/auth/update-push-token", { pushToken });
       console.log("Push token synced successfully:", pushToken);
 
@@ -70,7 +67,8 @@ export function AuthProvider({ children }) {
         });
       }
     } catch (err) {
-      console.log("Push registration error:", err);
+      // Silently fail or log minimally for debugging if needed
+      // console.log("Push registration error:", err);
     }
   };
 
@@ -83,9 +81,12 @@ export function AuthProvider({ children }) {
       if (storedToken) {
         setToken(storedToken);
         API.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
-        if (storedBusiness) setBusiness(JSON.parse(storedBusiness));
         
-        // Auto-register when app loads if user is logged in
+        if (storedBusiness) {
+          const businessData = JSON.parse(storedBusiness);
+          setBusiness(businessData);
+        }
+        
         registerPush(); 
       }
 
@@ -100,29 +101,33 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (tokenValue, businessData) => {
-  try {
-    await AsyncStorage.setItem("token", tokenValue);
-    await AsyncStorage.setItem("business", JSON.stringify(businessData));
-
-    API.defaults.headers.common["Authorization"] = `Bearer ${tokenValue}`;
-
-    setToken(tokenValue);
-    setBusiness(businessData);
-
-    // 🔥 ADD THIS (VERY IMPORTANT)
     try {
-      const res = await API.get("/auth/me");
-      setBusiness(res.data.business);
-      await AsyncStorage.setItem("business", JSON.stringify(res.data.business));
-    } catch (e) {
-      console.log("Fetch latest business failed:", e);
-    }
+      await AsyncStorage.setItem("token", tokenValue);
+      await AsyncStorage.setItem("business", JSON.stringify(businessData));
 
-    registerPush();
-  } catch (e) {
-    console.error("Login save error:", e);
-  }
-};
+      API.defaults.headers.common["Authorization"] = `Bearer ${tokenValue}`;
+
+      setToken(tokenValue);
+      setBusiness(businessData);
+
+      try {
+        const res = await API.get("/auth/me");
+       
+        // ✅ FIX: The business object is directly in res.data
+        const latestBusiness = res.data;
+      
+        
+        setBusiness(latestBusiness);
+        await AsyncStorage.setItem("business", JSON.stringify(latestBusiness));
+      } catch (e) {
+        console.error("Fetch latest business failed:", e);
+      }
+
+      registerPush();
+    } catch (e) {
+      console.error("Login save error:", e);
+    }
+  };
 
   const logout = async () => {
     try {
@@ -149,10 +154,8 @@ export function AuthProvider({ children }) {
     await AsyncStorage.setItem("isChefMode", value ? "true" : "false");
   };
 
-  // --- PREMIUM STATUS LOGIC (Friend's logic) ---
-  // While loading is true, we return null to avoid UI flickering.
-  // Once loaded: "ACTIVE" = premium, anything else = free.
-  const isPremium = loading ? null : business?.subscription_status === "ACTIVE";
+  // ===== ✅ FIXED: Premium Status (includes TRIAL) =====
+  const isPremium = loading ? null : ['ACTIVE', 'TRIAL'].includes(business?.subscription_status);
 
   return (
     <AuthContext.Provider value={{
@@ -164,7 +167,7 @@ export function AuthProvider({ children }) {
       updateBusiness,
       isChefMode: isChefModeState,
       setIsChefMode,
-      isPremium // Exported for use in components
+      isPremium
     }}>
       {children}
     </AuthContext.Provider>

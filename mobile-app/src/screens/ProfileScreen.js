@@ -15,6 +15,7 @@ import { useAuth } from "../context/AuthContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import ChefPinModal from "../components/ChefPinModal";
+import RazorpayCheckout from 'react-native-razorpay';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const IS_WEB    = Platform.OS === "web";
@@ -213,7 +214,7 @@ const checkPaymentStatus = async () => {
 };
 
 
-// Updated handleRenew logic
+// Updated handleRenew logic with Razorpay SDK for mobile
 
 const handleRenew = async () => {
 
@@ -303,85 +304,113 @@ const handleRenew = async () => {
 
 
 
-    // --- ANDROID / iOS LOGIC ---
+    // --- MOBILE LOGIC (Native Razorpay SDK) ---
 
-    const checkoutUrl = `${process.env.EXPO_PUBLIC_API_URL}/api/subscription/checkout/${orderId}`;
+    console.log('Opening Razorpay SDK on mobile...');
 
+    if (!RazorpayCheckout || typeof RazorpayCheckout.open !== 'function') {
 
+      console.error('RazorpayCheckout is not available:', RazorpayCheckout);
 
-    // 1. Open the browser
+      Alert.alert('Error', 'Payment SDK not loaded. Please restart the app.');
 
-    await WebBrowser.openBrowserAsync(checkoutUrl, {
+      setPaying(false);
 
-      toolbarColor: "#1A1410",
+      return;
 
-      presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+    }
 
-    });
+    const options = {
 
+      description: "Servon Monthly Subscription",
 
+      image: "https://your-app-icon-url.png",
 
-    // 2. Clear any existing interval
+      currency: currency || "INR",
 
-    if (pollingRef.current) clearInterval(pollingRef.current);
+      key: key,
 
+      amount: amount,
 
+      name: "Servon",
 
-    // 3. Start Polling Immediately after browser closes OR when user returns
+      order_id: orderId,
 
-    let attempts = 0;
+      prefill: {
 
-    const checkStatus = async () => {
+        email: profile?.email || '',
 
-      attempts++;
+        contact: profile?.phone || '',
 
-      try {
+      },
 
-        const sub = await getSubscriptionDetails();
+      theme: {
 
-        if (sub.data?.subscription_status === "ACTIVE") {
+        color: "#1A1410",
 
-          clearInterval(pollingRef.current);
+      },
 
-          pollingRef.current = null;
+    };
+
+    console.log('Razorpay options:', options);
+
+    RazorpayCheckout.open(options)
+
+      .then(async (data) => {
+
+        console.log('Payment success:', data);
+
+        try {
+
+          await verifyPayment({
+
+            razorpay_order_id: data.razorpay_order_id,
+
+            razorpay_payment_id: data.razorpay_payment_id,
+
+            razorpay_signature: data.razorpay_signature,
+
+          });
 
           await loadData();
 
           setShowSuccessModal(true);
 
-          setPaying(false);
+        } catch (err) {
 
-        } else if (attempts >= 20) { // Check for 40 seconds
+          console.log('Verification error:', err);
 
-          clearInterval(pollingRef.current);
+          Alert.alert("Error", "Payment verification failed.");
 
-          pollingRef.current = null;
+        } finally {
 
           setPaying(false);
 
         }
 
-      } catch (err) {
+      })
 
-        console.log("Polling error", err);
+      .catch((error) => {
 
-      }
+        console.log('Razorpay error:', error);
 
-    };
+        Alert.alert(
 
+          "Payment Error",
 
+          error?.message || "Payment was cancelled or failed."
 
-    // Run once immediately
+        );
 
-    checkStatus();
+        setPaying(false);
 
-    // Then set interval
-
-    pollingRef.current = setInterval(checkStatus, 2000);
+      });
 
 
 
   } catch (err) {
+
+    console.log('Catch error:', err);
 
     Alert.alert("Error", "Unable to start payment.");
 
