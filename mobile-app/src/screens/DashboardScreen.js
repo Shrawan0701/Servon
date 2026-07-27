@@ -405,6 +405,13 @@ export default function DashboardScreen() {
   // ===== IN-APP TRIAL/SUBSCRIPTION TOAST (replaces console-style browser alert) =====
   const [trialToast, setTrialToast] = useState(null); // { message } | null
 
+  // ─── WHITE-LABEL BRAND NAME ─────────────────────────────────────────
+  // Uses the restaurant's own business_name (captured at signup) instead
+  // of the hardcoded "Servon" platform name. Falls back to "Servon" only
+  // if the business hasn't set a name yet (e.g. still loading / legacy
+  // account with no business_name saved).
+  const businessName = business?.business_name || business?.businessName || "Servon";
+
   // ─── RESPONSIVE HELPERS (app + web) ────────────────────────────────
   // Wider screens (tablet / desktop-sized RN window) get more breathing
   // room and let the stat cards sit 4-across instead of always 2-across.
@@ -454,8 +461,8 @@ export default function DashboardScreen() {
     // Show warning if trial or subscription expires in 3 days or less
     if (daysLeft <= 3 && status !== 'active' && status !== 'ACTIVE') {
       const msg = daysLeft <= 0 
-        ? "Your Servon free trial has expired!" 
-        : `Your Servon trial expires in ${daysLeft} day${daysLeft > 1 ? 's' : ''}.`;
+        ? "Your free trial has expired!" 
+        : `Your trial expires in ${daysLeft} day${daysLeft > 1 ? 's' : ''}.`;
 
       // In-app popup (works identically on web + native) instead of
       // window.alert / Alert.alert, which looked like a browser/console dialog.
@@ -473,9 +480,10 @@ const loadData = async () => {
     ]);
 
     setAnalytics(analyticsRes.data);
-    setLiveOrders(ordersRes.data.filter(o => 
-      isToday(o.created_at) && !["PAID", "REJECTED"].includes(o.status)
-    ));
+    // In DashboardScreen.js inside loadData():
+setLiveOrders(ordersRes.data.filter(o => 
+  isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
+));
     setNotifications(notifRes.data);
 
     // Update business state from subscription endpoint
@@ -575,7 +583,20 @@ const loadData = async () => {
       socket.on("connect", () => business?.id && socket.emit("join_business", business.id));
       socket.on("new_order", ({ order, notification, tableNumber }) => {
         if (isToday(order.created_at)) setLiveOrders(prev => [{ ...order, table_number: tableNumber }, ...prev]);
-        setNotifications(prev => [notification, ...prev]);
+        // Some backend events omit the `notification` payload (or send it
+        // in a slightly different shape). Build a safe local fallback so
+        // the bell/badge reflects new orders immediately instead of
+        // silently getting dropped until the next manual refresh.
+        const finalNotification = notification && notification.id
+          ? notification
+          : {
+              id: `local-order-${order?.id || Date.now()}`,
+              title: "New Order",
+              message: `Table ${tableNumber || order?.table_number || "?"} placed a new order`,
+              is_read: false,
+              created_at: new Date().toISOString(),
+            };
+        setNotifications(prev => [finalNotification, ...prev]);
       });
       socket.on("order_updated", (updatedOrder) => {
         setLiveOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
@@ -635,7 +656,7 @@ const loadData = async () => {
         <div className="servon-web-header">
           <div style={{ maxWidth: 1160, margin: "0 auto", padding: "0 28px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 22, fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>
-              Servon<span style={{ color: "#22C55E" }}>.</span>
+              {businessName}<span style={{ color: "#22C55E" }}>.</span>
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <button onClick={handleOpenNotifications} style={{
@@ -863,7 +884,7 @@ const loadData = async () => {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 15 }]}>
         <View style={styles.headerInner}>
-          <Text style={styles.brandText}>Servon<Text style={styles.brandAccent}>.</Text></Text>
+          <Text style={styles.brandText}>{businessName}<Text style={styles.brandAccent}>.</Text></Text>
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.iconBtn} onPress={handleOpenNotifications}>
               <Ionicons name="notifications-outline" size={24} color="#374151" />

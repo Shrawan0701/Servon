@@ -607,7 +607,7 @@ export default function LandingPage({ onNavigate }) {
           <Text style={s.logo}>Servon<Text style={{ color: C.green }}>.</Text></Text>
           <View style={s.navRight}>
             <TouchableOpacity onPress={() => onNavigate?.("login")}>
-              <Text style={s.navLoginText}>Sign In</Text>
+              <Text style={s.navLoginText}>Login</Text>
             </TouchableOpacity>
 
             {/* ─── DEMO BUTTON (NAV) ─── */}
@@ -620,9 +620,7 @@ export default function LandingPage({ onNavigate }) {
               <Text style={s.demoBtnNavText}>Book Demo</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={s.navCta} onPress={() => onNavigate?.("signup")}>
-              <Text style={s.navCtaText}>Get Started </Text>
-            </TouchableOpacity>
+            
           </View>
         </View>
       </View>

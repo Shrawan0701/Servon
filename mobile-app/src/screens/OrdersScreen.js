@@ -33,8 +33,12 @@ import syncManager from "../services/SyncManager";
 // How long (ms) we trust a locally-updated order over whatever the server
 // returns on the next focus-triggered fetch. This avoids the "status
 // reverts after navigating away and back" bug caused by read-after-write
-// lag on the backend.
-const LOCAL_UPDATE_TRUST_WINDOW_MS = 4000;
+// lag on the backend. Bumped up from 4s -> 20s: the web print flow opens
+// a native browser print dialog which can block the JS thread for longer
+// than a few seconds while the user picks a printer/saves as PDF, so a
+// short window was causing confirmed "PAID" updates to be stomped by a
+// stale server response as soon as the dialog closed.
+const LOCAL_UPDATE_TRUST_WINDOW_MS = 20000;
 
 // Original status colors (for normal mode)
 const statusColor = (s) =>
@@ -148,6 +152,7 @@ const ChefOrderCard = React.memo((props) => {
     onReject,
     onComplete,
     onPrint,
+    onReprint,
     isProcessing,
     timeLeft,
     isChefMode,
@@ -158,12 +163,18 @@ const ChefOrderCard = React.memo((props) => {
   const isPreparing = order.status === "PREPARING";
   const isServed = order.status === "SERVED";
   const isTableActive = order.status === "TABLE_ACTIVE";
+  const isPaid = order.status === "PAID";
 
   const isToday = (date) => {
     const today = new Date();
     const d = new Date(date);
     return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   };
+
+  // Reprint is available any time a bill could plausibly already exist
+  // (served onward), so staff can recover from a printer that failed to
+  // open without re-triggering the paid/checkout flow.
+  const canReprint = !isChefMode && isToday(order.created_at) && ["SERVED", "TABLE_ACTIVE", "PAID"].includes(order.status);
 
   return (
     <View style={styles.chefOrderCard}>
@@ -175,7 +186,19 @@ const ChefOrderCard = React.memo((props) => {
           </View>
           <Text style={styles.chefTableNumber}>Table {order.table_number}</Text>
         </View>
-        <ChefStatusBadge status={order.status} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {canReprint && (
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={styles.chefReprintBtn}
+              onPress={() => onReprint(order)}
+              disabled={isProcessing}
+            >
+              <Ionicons name="print-outline" size={15} color="#6B7280" />
+            </TouchableOpacity>
+          )}
+          <ChefStatusBadge status={order.status} />
+        </View>
       </View>
 
       {/* Items */}
@@ -622,6 +645,13 @@ useEffect(() => {
     }
   }, [filter, selectedDate]);
 
+  // ─── HELPERS ──────────────────────────────────────────────────────
+  const isToday = (date) => {
+    const today = new Date();
+    const d = new Date(date);
+    return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+  };
+
   // ─── HANDLERS ──────────────────────────────────────────────────────
 
   const handleStatusUpdate = useCallback(async (orderId, status) => {
@@ -654,134 +684,206 @@ useEffect(() => {
     }
   }, []);
 
+  // Builds the printable bill HTML for a given set of (already same-table,
+  // same-day) orders. Pulled out of handlePrintAndCheckout so both the
+  // checkout flow and the standalone "Reprint" button share one source of
+  // truth for how a bill is generated.
+  const buildBillHtml = useCallback(
+  (tableOrders, discount) => {
+    let combinedSubtotal = 0;
+    const combinedItems = {};
+
+    tableOrders.forEach((o) => {
+      const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || "[]");
+      items.forEach((item) => {
+        const itemPrice = parseFloat(item.price || 0);
+        const itemQty = parseInt(item.quantity || 1, 10);
+        
+        // Calculate subtotal from real menu item prices
+        combinedSubtotal += itemPrice * itemQty;
+
+        if (combinedItems[item.name]) {
+          combinedItems[item.name].quantity += itemQty;
+        } else {
+          combinedItems[item.name] = { ...item, price: itemPrice, quantity: itemQty };
+        }
+      });
+    });
+
+    const finalItemsList = Object.values(combinedItems);
+
+    let discountAmount = 0;
+    if (discount && discount.type !== "none" && discount.value > 0) {
+      if (discount.type === "percentage") discountAmount = (combinedSubtotal * discount.value) / 100;
+      else if (discount.type === "flat") discountAmount = Math.min(discount.value, combinedSubtotal);
+    }
+
+    const amountAfterDiscount = combinedSubtotal - discountAmount;
+    const cgstPercent = parseFloat(profile?.cgst_percentage || 0);
+    const sgstPercent = parseFloat(profile?.sgst_percentage || 0);
+    const cgstAmount = (amountAfterDiscount * cgstPercent) / 100;
+    const sgstAmount = (amountAfterDiscount * sgstPercent) / 100;
+    
+    // Round grand total cleanly to exact integer or 2 decimal places
+    const grandTotal = Math.round(amountAfterDiscount + cgstAmount + sgstAmount);
+
+    let itemsHtml = "";
+    finalItemsList.forEach((i) => {
+      itemsHtml += `
+        <tr>
+          <td style="padding: 4px 0;">${i.name}</td>
+          <td style="text-align: center;">${i.quantity}</td>
+          <td style="text-align: right;">₹${(i.price * i.quantity).toFixed(2)}</td>
+        </tr>
+      `;
+    });
+
+    const discountHtml =
+      discountAmount > 0
+        ? `<tr><td>Discount (${discount.type === "percentage" ? discount.value + "%" : "Flat"})</td><td class="right">-₹${discountAmount.toFixed(2)}</td></tr>`
+        : "";
+
+   // Change this line inside buildBillHtml:
+// const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${tableOrders[0]?.table_number}`;
+
+// TO THIS:
+const primaryOrderId = tableOrders[tableOrders.length - 1]?.id || tableOrders[0]?.id;
+const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${tableOrders[0]?.table_number}&orderId=${primaryOrderId}`;
+
+    return `
+      <html>
+        <head><style>
+          body { font-family: monospace; width: 80mm; padding: 10px; color: #000; margin: 0 auto; }
+          h2 { text-align: center; margin: 0 0 5px 0; font-size: 24px; }
+          .center { text-align: center; font-size: 14px; margin-bottom: 5px; }
+          .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
+          table { width: 100%; border-collapse: collapse; font-size: 14px; }
+          .right { text-align: right; }
+          .bold { font-weight: bold; }
+        </style></head>
+        <body>
+          <h2>${profile?.business_name || "Restaurant"}</h2>
+          ${profile?.gst_number ? `<div class="center">GSTIN: ${profile.gst_number}</div>` : ""}
+          <div class="center">Table: ${tableOrders[0]?.table_number}</div>
+          <div class="center">Date: ${new Date().toLocaleString("en-IN")}</div>
+          <div class="divider"></div>
+          <table>
+            <tr class="bold" style="border-bottom: 1px solid #000;">
+              <td style="padding-bottom: 5px;">Item</td>
+              <td class="center" style="padding-bottom: 5px;">Qty</td>
+              <td class="right" style="padding-bottom: 5px;">Price</td>
+            </tr>
+            ${itemsHtml}
+          </table>
+          <div class="divider"></div>
+          <table>
+            <tr><td>Subtotal:</td><td class="right">₹${combinedSubtotal.toFixed(2)}</td></tr>
+            ${discountHtml}
+            ${discountAmount > 0 ? `<tr><td>After Discount:</td><td class="right">₹${amountAfterDiscount.toFixed(2)}</td></tr>` : ""}
+            ${cgstPercent > 0 ? `<tr><td>CGST (${cgstPercent}%):</td><td class="right">₹${cgstAmount.toFixed(2)}</td></tr>` : ""}
+            ${sgstPercent > 0 ? `<tr><td>SGST (${sgstPercent}%):</td><td class="right">₹${sgstAmount.toFixed(2)}</td></tr>` : ""}
+            <tr class="bold">
+              <td style="font-size: 18px; padding-top: 10px;">GRAND TOTAL:</td>
+              <td class="right" style="font-size: 18px; padding-top: 10px;">₹${grandTotal.toFixed(2)}</td>
+            </tr>
+          </table>
+          <div class="divider"></div>
+          <div class="center" style="font-weight: bold; font-size: 16px;">Thank You for Visiting!</div>
+          <div class="center" style="margin-top: 15px;">
+            <p style="font-size: 12px; margin-bottom: 5px;">How was your food? Scan to rate us!</p>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(feedbackLink)}" width="100" height="100" />
+          </div>
+        </body>
+      </html>
+    `;
+  },
+  [profile]
+);
+
+  // Sends already-built HTML to the printer (web iframe / native Print).
+  const printHtml = useCallback(async (htmlContent) => {
+    if (Platform.OS === "web") {
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:absolute;width:0px;height:0px;border:none;";
+      document.body.appendChild(iframe);
+      iframe.contentWindow.document.open();
+      iframe.contentWindow.document.write(htmlContent);
+      iframe.contentWindow.document.close();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }, 500);
+      setTimeout(() => {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+      }, 3000);
+    } else {
+      await Print.printAsync({ html: htmlContent });
+    }
+  }, []);
+
   const handlePrintAndCheckout = useCallback(
     async (currentOrder, discount) => {
       setProcessingTable(currentOrder.table_number);
       try {
+        // IMPORTANT: only combine TODAY's unpaid orders for this table.
+        // Without the isToday() check, any stale SERVED/TABLE_ACTIVE order
+        // left over from a previous session (e.g. one that never got
+        // marked PAID because of the race below) would silently get
+        // folded into the next bill, inflating the quantity/total shown
+        // on the printed receipt.
         const tableOrders = orders.filter(
-          (o) => o.table_number === currentOrder.table_number && o.status !== "PAID" && o.status !== "REJECTED"
+          (o) =>
+            o.table_number === currentOrder.table_number &&
+            o.status !== "PAID" &&
+            o.status !== "REJECTED" &&
+            isToday(o.created_at)
         );
         if (tableOrders.length === 0) return;
 
-        let combinedSubtotal = 0;
-        const combinedItems = {};
-        tableOrders.forEach((o) => {
-          combinedSubtotal += parseFloat(o.total_amount);
-          const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || "[]");
-          items.forEach((item) => {
-            if (combinedItems[item.name]) {
-              combinedItems[item.name].quantity += item.quantity;
-            } else {
-              combinedItems[item.name] = { ...item };
-            }
-          });
-        });
-        const finalItemsList = Object.values(combinedItems);
+        const htmlContent = buildBillHtml(tableOrders, discount);
 
-        let discountAmount = 0;
-        if (discount && discount.type !== "none" && discount.value > 0) {
-          if (discount.type === "percentage") discountAmount = (combinedSubtotal * discount.value) / 100;
-          else if (discount.type === "flat") discountAmount = Math.min(discount.value, combinedSubtotal);
-        }
-        const amountAfterDiscount = combinedSubtotal - discountAmount;
-        const cgstPercent = parseFloat(profile?.cgst_percentage || 0);
-        const sgstPercent = parseFloat(profile?.sgst_percentage || 0);
-        const cgstAmount = (amountAfterDiscount * cgstPercent) / 100;
-        const sgstAmount = (amountAfterDiscount * sgstPercent) / 100;
-        const grandTotal = amountAfterDiscount + cgstAmount + sgstAmount;
-
-        let itemsHtml = "";
-        finalItemsList.forEach((i) => {
-          itemsHtml += `
-            <tr>
-              <td style="padding: 4px 0;">${i.name}</td>
-              <td style="text-align: center;">${i.quantity}</td>
-              <td style="text-align: right;">${(i.price * i.quantity).toFixed(2)}</td>
-            </tr>
-          `;
-        });
-        const discountHtml =
-          discountAmount > 0
-            ? `<tr><td>Discount (${discount.type === "percentage" ? discount.value + "%" : "Flat"})</td><td class="right">-₹${discountAmount.toFixed(2)}</td></tr>`
-            : "";
-
-        const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${currentOrder.table_number}`;
-        const htmlContent = `
-          <html>
-            <head><style>
-              body { font-family: monospace; width: 80mm; padding: 10px; color: #000; margin: 0 auto; }
-              h2 { text-align: center; margin: 0 0 5px 0; font-size: 24px; }
-              .center { text-align: center; font-size: 14px; margin-bottom: 5px; }
-              .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
-              table { width: 100%; border-collapse: collapse; font-size: 14px; }
-              .right { text-align: right; }
-              .bold { font-weight: bold; }
-            </style></head>
-            <body>
-              <h2>${profile?.business_name || "Restaurant"}</h2>
-              ${profile?.gst_number ? `<div class="center">GSTIN: ${profile.gst_number}</div>` : ""}
-              <div class="center">Table: ${currentOrder.table_number}</div>
-              <div class="center">Date: ${new Date().toLocaleString("en-IN")}</div>
-              <div class="divider"></div>
-              <table>
-                <tr class="bold" style="border-bottom: 1px solid #000;">
-                  <td style="padding-bottom: 5px;">Item</td>
-                  <td class="center" style="padding-bottom: 5px;">Qty</td>
-                  <td class="right" style="padding-bottom: 5px;">Price</td>
-                </tr>
-                ${itemsHtml}
-              </table>
-              <div class="divider"></div>
-              <table>
-                <tr><td>Subtotal:</td><td class="right">${combinedSubtotal.toFixed(2)}</td></tr>
-                ${discountHtml}
-                <tr><td>Amount After Discount:</td><td class="right">${amountAfterDiscount.toFixed(2)}</td></tr>
-                ${cgstPercent > 0 ? `<tr><td>CGST (${cgstPercent}%):</td><td class="right">${cgstAmount.toFixed(2)}</td></tr>` : ""}
-                ${sgstPercent > 0 ? `<tr><td>SGST (${sgstPercent}%):</td><td class="right">${sgstAmount.toFixed(2)}</td></tr>` : ""}
-                <tr class="bold">
-                  <td style="font-size: 18px; padding-top: 10px;">GRAND TOTAL:</td>
-                  <td class="right" style="font-size: 18px; padding-top: 10px;">₹${grandTotal.toFixed(2)}</td>
-                </tr>
-              </table>
-              <div class="divider"></div>
-              <div class="center" style="font-weight: bold; font-size: 16px;">Thank You for Visiting!</div>
-              <div class="center" style="margin-top: 15px;">
-                <p style="font-size: 12px; margin-bottom: 5px;">How was your food? Scan to rate us!</p>
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(feedbackLink)}" width="100" height="100" />
-              </div>
-            </body>
-          </html>
-        `;
-
-        if (Platform.OS === "web") {
-          const iframe = document.createElement("iframe");
-          iframe.style.cssText = "position:absolute;width:0px;height:0px;border:none;";
-          document.body.appendChild(iframe);
-          iframe.contentWindow.document.open();
-          iframe.contentWindow.document.write(htmlContent);
-          iframe.contentWindow.document.close();
-          setTimeout(() => {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-          }, 500);
-          setTimeout(() => {
-            if (document.body.contains(iframe)) document.body.removeChild(iframe);
-          }, 3000);
-        } else {
-          await Print.printAsync({ html: htmlContent });
-        }
-
-        // Update orders to PAID status locally and on server
-        await Promise.all(tableOrders.map((o) => updateOrderStatus(o.id, "PAID")));
+        // Mark the orders PAID (local DB + local state) FIRST, and push
+        // the update to the server, BEFORE handing off to print(). The
+        // native/browser print dialog can block the JS thread for as
+        // long as the user takes to save/select a printer, so doing the
+        // status update afterwards risked it never completing (or being
+        // overwritten on the next refresh — this was the "shows PAID,
+        // then reverts to SERVED on refresh" bug).
         const now = Date.now();
+        await Promise.all(
+          tableOrders.map(async (o) => {
+            try {
+              await localDB.updateOrderStatus(o.id, "PAID");
+            } catch (dbErr) {
+              console.log("Local DB PAID update error:", dbErr);
+            }
+          })
+        );
         tableOrders.forEach((o) => {
           localUpdateTimestamps.current[o.id] = now;
-          // Also update local DB
-          localDB.updateOrderStatus(o.id, "PAID");
         });
         setOrders((prev) =>
           prev.map((o) => (tableOrders.some((to) => to.id === o.id) ? { ...o, status: "PAID" } : o))
         );
+
+        const isOnline = await networkMonitor.checkConnectivity();
+        if (isOnline) {
+          await Promise.all(
+            tableOrders.map(async (o) => {
+              try {
+                await updateOrderStatus(o.id, "PAID");
+                await localDB.markAsSynced(o.id);
+              } catch (apiError) {
+                console.log("Server PAID update failed, will sync later:", apiError);
+              }
+            })
+          );
+        }
+        const count = await localDB.getPendingActionsCount();
+        setPendingSyncCount(count);
+
+        // Print only after the PAID status has been safely recorded.
+        await printHtml(htmlContent);
       } catch (err) {
         console.error("Print Error", err);
         Alert.alert("Print Failed", "Could not print the bill.");
@@ -789,8 +891,33 @@ useEffect(() => {
         setProcessingTable(null);
       }
     },
-    [orders, profile]
+    [orders, buildBillHtml, printHtml]
   );
+
+  // Reprint: for when the printer didn't open / the user closed the
+  // dialog by mistake. Reprints today's bill for this table WITHOUT
+  // touching order status (the order may already be PAID). Note: any
+  // discount applied on the original checkout isn't persisted per-order,
+  // so a reprint shows the plain (no-discount) subtotal/total.
+ // Reprint: Reprints ONLY the selected order bill without combining other orders on the table
+const handleReprint = useCallback(
+  async (currentOrder) => {
+    setProcessingTable(currentOrder.table_number);
+    try {
+      if (!currentOrder) return;
+      
+      // Pass only this specific order card to buildBillHtml
+      const htmlContent = buildBillHtml([currentOrder], { type: "none", value: 0 });
+      await printHtml(htmlContent);
+    } catch (err) {
+      console.error("Reprint Error", err);
+      Alert.alert("Reprint Failed", "Could not reprint the bill.");
+    } finally {
+      setProcessingTable(null);
+    }
+  },
+  [buildBillHtml, printHtml]
+);
 
   const openDiscountModal = useCallback((order) => {
     setSelectedOrderForDiscount(order);
@@ -814,7 +941,7 @@ useEffect(() => {
   const modalSubtotal = useMemo(() => {
     if (!selectedOrderForDiscount) return 0;
     return orders
-      .filter((o) => o.table_number === selectedOrderForDiscount.table_number && o.status !== "PAID" && o.status !== "REJECTED")
+      .filter((o) => o.table_number === selectedOrderForDiscount.table_number && o.status !== "PAID" && o.status !== "REJECTED" && isToday(o.created_at))
       .reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
   }, [selectedOrderForDiscount, orders]);
 
@@ -825,13 +952,6 @@ useEffect(() => {
     if (discountType === "flat") return Math.min(value, modalSubtotal);
     return 0;
   }, [discountType, discountValue, modalSubtotal, selectedOrderForDiscount]);
-
-  // ─── HELPERS ──────────────────────────────────────────────────────
-  const isToday = (date) => {
-    const today = new Date();
-    const d = new Date(date);
-    return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-  };
 
   const onDateChange = (event, selected) => {
     if (event.type === "dismissed") {
@@ -854,13 +974,27 @@ useEffect(() => {
     const orderTime = new Date(item.updated_at || item.created_at).getTime();
     const secondsPassed = Math.floor((currentTime - orderTime) / 1000);
     const timeLeft = Math.max(0, 60 - secondsPassed);
+    const canReprint = !isChefMode && isToday(item.created_at) && ["SERVED", "TABLE_ACTIVE", "PAID"].includes(item.status);
 
     return (
       <View style={styles.orderCardOld}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <Text style={{ fontSize: 18, fontWeight: "800", color: "#111" }}>Table {item.table_number}</Text>
-          <View style={[styles.badgeOld, { backgroundColor: statusColor(item.status) }]}>
-            <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.4 }}>{item.status.replace("_", " ")}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {canReprint && (
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={styles.reprintBtnOld}
+                onPress={() => handleReprint(item)}
+                disabled={isProcessing}
+              >
+                <Ionicons name="print-outline" size={13} color="#6B7280" />
+                <Text style={styles.reprintBtnTextOld}>Reprint</Text>
+              </TouchableOpacity>
+            )}
+            <View style={[styles.badgeOld, { backgroundColor: statusColor(item.status) }]}>
+              <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.4 }}>{item.status.replace("_", " ")}</Text>
+            </View>
           </View>
         </View>
         {items.map((i, idx) => (
@@ -962,13 +1096,14 @@ useEffect(() => {
             else if (item.status === "SERVED") handleStatusUpdate(id, "TABLE_ACTIVE");
           }}
           onPrint={openDiscountModal}
+          onReprint={handleReprint}
           isProcessing={processingTable === item.table_number}
           timeLeft={timeLeft}
           isChefMode={isChefMode}
         />
       );
     },
-    [currentTime, handleStatusUpdate, processingTable, isChefMode, openDiscountModal]
+    [currentTime, handleStatusUpdate, processingTable, isChefMode, openDiscountModal, handleReprint]
   );
 
   // ─── FILTER HELPERS ──────────────────────────────────────────────
@@ -1191,6 +1326,12 @@ const styles = StyleSheet.create({
   },
   actionBtnOld: { flex: 1, borderRadius: 12, padding: 14, alignItems: "center" },
   actionBtnTextOld: { color: "#fff", fontWeight: "800", fontSize: 15, textAlign: "center" },
+  reprintBtnOld: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#F3F4F6", borderRadius: 8,
+    paddingHorizontal: 9, paddingVertical: 5,
+  },
+  reprintBtnTextOld: { fontSize: 11, fontWeight: "700", color: "#6B7280" },
 
   // ─── CHEF MODE STYLES ─────────────────────────────────────────────
   chefBadge: { flexDirection: "row", alignItems: "center", borderRadius: 12, gap: 4 },
@@ -1212,6 +1353,10 @@ const styles = StyleSheet.create({
   chefTableRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   chefTableIconWrap: { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F9FAFB", alignItems: "center", justifyContent: "center" },
   chefTableNumber: { fontSize: 19, fontWeight: "900", color: "#111" },
+  chefReprintBtn: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center",
+  },
   chefItemsContainer: { marginBottom: 8 },
   chefItemRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5 },
   chefItemRowDivider: { borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
