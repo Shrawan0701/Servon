@@ -342,25 +342,55 @@ router.get("/", auth, async (req, res) => {
 });
 
 // ─── BUSINESS: UPDATE ORDER STATUS ──────────────────────────────────
+// ─── BUSINESS: UPDATE ORDER STATUS ──────────────────────────────────
 router.patch("/:id/status", auth, async (req, res) => {
   const { status } = req.body;
   const validStatuses = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE", "PAID", "REJECTED"];
   if (!validStatuses.includes(status)) return res.status(400).json({ error: "Invalid status" });
 
   try {
+    // 1. First fetch the target order to know its table_id
+    const targetOrder = await pool.query(
+      "SELECT table_id FROM orders WHERE id = $1 AND business_id = $2",
+      [req.params.id, req.businessId]
+    );
+
+    if (targetOrder.rows.length === 0) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const tableId = targetOrder.rows[0].table_id;
+
+    // 2. If status is PAID, update ALL open orders belonging to this table
+    if (status === "PAID" && tableId) {
+      await pool.query(
+        `UPDATE orders 
+         SET status = 'PAID', updated_at = NOW() 
+         WHERE table_id = $1 
+           AND business_id = $2 
+           AND status IN ('EDITABLE', 'CONFIRMED', 'PREPARING', 'SERVED', 'TABLE_ACTIVE')`,
+        [tableId, req.businessId]
+      );
+    }
+
+    // 3. Update the specific target order as requested
     const result = await pool.query(
       `UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3 RETURNING *`,
       [status, req.params.id, req.businessId]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Order not found" });
 
+    // 4. Emit real-time update event via Socket.IO
     try {
       const io = getIO();
       io.to(`business_${req.businessId}`).emit("order_updated", result.rows[0]);
-    } catch (e) {}
-    res.json(result.rows[0]);
+    } catch (e) {
+      console.warn("Socket emit failed:", e.message);
+    }
+
+    return res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("Update status error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
