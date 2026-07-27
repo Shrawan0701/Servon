@@ -199,7 +199,28 @@ export default function CartPage() {
               <span>₹{(item.price * item.quantity).toFixed(0)}</span>
             </div>
           ))}
-         
+          <div style={styles.billSubtotal}>
+            <span>Subtotal</span>
+            <span>₹{subtotal.toFixed(0)}</span>
+          </div>
+          {cgstAmount > 0 && (
+            <div style={styles.billRowMuted}>
+              <span>CGST ({((cgstAmount / subtotal) * 100).toFixed(1)}%)</span>
+              <span>₹{cgstAmount.toFixed(0)}</span>
+            </div>
+          )}
+          {sgstAmount > 0 && (
+            <div style={styles.billRowMuted}>
+              <span>SGST ({((sgstAmount / subtotal) * 100).toFixed(1)}%)</span>
+              <span>₹{sgstAmount.toFixed(0)}</span>
+            </div>
+          )}
+          {gstTotal > 0 && (
+            <div style={{ ...styles.billRowMuted, fontWeight: 600 }}>
+              <span>Total GST</span>
+              <span>₹{gstTotal.toFixed(0)}</span>
+            </div>
+          )}
           <div style={styles.billGrandTotal}>
             <span>Grand Total</span>
             <span>₹{grandTotal.toFixed(0)}</span>
@@ -209,7 +230,7 @@ export default function CartPage() {
         {error && <div className="alert alert-danger mt-3" style={{ fontSize: 14 }}>{error}</div>}
 
         <div style={styles.paymentNotice}>
-          Place your order and pay at the billing counter.
+          Confirm your order and pay on billing counter
         </div>
 
         <button
