@@ -68,23 +68,26 @@ export default function CartPage() {
   }, [businessId]);
 
   // ─── COMPUTE SUBTOTAL & GST ──────────────────────────────────────
-  const subtotal = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [cartItems]
-  );
+// ─── COMPUTE SUBTOTAL & GST ──────────────────────────────────────
+const subtotal = useMemo(
+  () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
+  [cartItems]
+);
 
-  const { cgstAmount, sgstAmount, gstTotal, grandTotal } = useMemo(() => {
-    const cgstPercent = parseFloat(businessProfile?.cgst_percentage) || 0;
-    const sgstPercent = parseFloat(businessProfile?.sgst_percentage) || 0;
-    const cgst = (subtotal * cgstPercent) / 100;
-    const sgst = (subtotal * sgstPercent) / 100;
-    return {
-      cgstAmount: cgst,
-      sgstAmount: sgst,
-      gstTotal: cgst + sgst,
-      grandTotal: subtotal + cgst + sgst,
-    };
-  }, [subtotal, businessProfile]);
+const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent } = useMemo(() => {
+  const cgstP = parseFloat(businessProfile?.cgst_percentage) || 0;
+  const sgstP = parseFloat(businessProfile?.sgst_percentage) || 0;
+  const cgst = (subtotal * cgstP) / 100;
+  const sgst = (subtotal * sgstP) / 100;
+  return {
+    cgstPercent: cgstP,
+    sgstPercent: sgstP,
+    cgstAmount: cgst,
+    sgstAmount: sgst,
+    gstTotal: cgst + sgst,
+    grandTotal: subtotal + cgst + sgst,
+  };
+}, [subtotal, businessProfile]);
 
   // ─── HANDLERS ──────────────────────────────────────────────────────
   const handleConfirmOrder = async () => {
@@ -187,45 +190,36 @@ export default function CartPage() {
         </div>
 
         {/* Bill Summary with GST */}
-        <div style={styles.billSummary}>
-          <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 15 }}>Bill Summary</div>
-          {cartItems.map((item) => (
-            <div key={item.id} style={styles.billRow}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {item.name}
-                {item.is_thali && <span style={styles.thaliBadgeSmall}>Thali</span>}
-                {" "}× {item.quantity}
-              </span>
-              <span>₹{(item.price * item.quantity).toFixed(0)}</span>
-            </div>
-          ))}
-          <div style={styles.billSubtotal}>
-            <span>Subtotal</span>
-            <span>₹{subtotal.toFixed(0)}</span>
-          </div>
-          {cgstAmount > 0 && (
-            <div style={styles.billRowMuted}>
-              <span>CGST ({((cgstAmount / subtotal) * 100).toFixed(1)}%)</span>
-              <span>₹{cgstAmount.toFixed(0)}</span>
-            </div>
-          )}
-          {sgstAmount > 0 && (
-            <div style={styles.billRowMuted}>
-              <span>SGST ({((sgstAmount / subtotal) * 100).toFixed(1)}%)</span>
-              <span>₹{sgstAmount.toFixed(0)}</span>
-            </div>
-          )}
-          {gstTotal > 0 && (
-            <div style={{ ...styles.billRowMuted, fontWeight: 600 }}>
-              <span>Total GST</span>
-              <span>₹{gstTotal.toFixed(0)}</span>
-            </div>
-          )}
-          <div style={styles.billGrandTotal}>
-            <span>Grand Total</span>
-            <span>₹{grandTotal.toFixed(0)}</span>
-          </div>
-        </div>
+       {/* Bill Summary */}
+<div style={styles.billSummary}>
+  <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 15 }}>Bill Summary</div>
+  {cartItems.map((item) => (
+    <div key={item.id} style={styles.billRow}>
+      <span>{item.name} × {item.quantity}</span>
+      <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+    </div>
+  ))}
+  <div style={styles.billSubtotal}>
+    <span>Subtotal</span>
+    <span>₹{subtotal.toFixed(2)}</span>
+  </div>
+  {cgstAmount > 0 && (
+    <div style={styles.billRowMuted}>
+      <span>CGST ({cgstPercent}%)</span>
+      <span>₹{cgstAmount.toFixed(2)}</span>
+    </div>
+  )}
+  {sgstAmount > 0 && (
+    <div style={styles.billRowMuted}>
+      <span>SGST ({sgstPercent}%)</span>
+      <span>₹{sgstAmount.toFixed(2)}</span>
+    </div>
+  )}
+  <div style={styles.billGrandTotal}>
+    <span>Grand Total</span>
+    <span>₹{grandTotal.toFixed(2)}</span>
+  </div>
+</div>
 
         {error && <div className="alert alert-danger mt-3" style={{ fontSize: 14 }}>{error}</div>}
 
