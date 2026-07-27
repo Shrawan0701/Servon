@@ -4,40 +4,64 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 
 // 1. Customer: Submit a Review (Public Route)
+// 1. Customer: Submit a Review (Public Route)
 router.post("/", async (req, res) => {
-  const { businessId, tableNumber, rating, comment } = req.body;
+  const { businessId, tableNumber, orderId, items, rating, comment } = req.body;
 
   if (!businessId || !rating) {
     return res.status(400).json({ error: "Business ID and Rating are required" });
   }
 
   try {
-    // SMART LOGIC: Find the paid orders for this table from the last 2 hours
-   // SMART LOGIC: Join tables to find the paid orders for this table number from the last 2 hours
-    const recentOrders = await pool.query(
-      `SELECT o.items 
-       FROM orders o
-       JOIN tables t ON o.table_id = t.id
-       WHERE o.business_id = $1 
-         AND t.table_number = $2 
-         AND o.status = 'PAID' 
-         AND o.updated_at >= NOW() - INTERVAL '2 hours'`,
-      [businessId, tableNumber]
-    );
-
     let orderedItems = [];
-    recentOrders.rows.forEach(row => {
-      const items = typeof row.items === 'string' ? JSON.parse(row.items) : row.items;
-      if (Array.isArray(items)) {
-        orderedItems = [...orderedItems, ...items];
-      }
-    });
 
-    // Insert the review AND the items they ate!
+    // Option A: If the feedback page sent the exact items in req.body, use them directly
+    if (items && Array.isArray(items) && items.length > 0) {
+      orderedItems = items;
+    } 
+    // Option B: If orderId was passed, fetch ONLY that specific order's items
+    else if (orderId) {
+      const orderResult = await pool.query(
+        `SELECT items FROM orders WHERE id = $1 AND business_id = $2`,
+        [orderId, businessId]
+      );
+
+      if (orderResult.rows.length > 0) {
+        const rawItems = orderResult.rows[0].items;
+        orderedItems = typeof rawItems === "string" ? JSON.parse(rawItems) : rawItems;
+      }
+    } 
+    // Option C: Fallback to the latest single PAID order for this table
+    else if (tableNumber) {
+      const recentOrder = await pool.query(
+        `SELECT o.items 
+         FROM orders o
+         JOIN tables t ON o.table_id = t.id
+         WHERE o.business_id = $1 
+           AND t.table_number = $2 
+           AND o.status = 'PAID'
+         ORDER BY o.updated_at DESC 
+         LIMIT 1`,
+        [businessId, tableNumber]
+      );
+
+      if (recentOrder.rows.length > 0) {
+        const rawItems = recentOrder.rows[0].items;
+        orderedItems = typeof rawItems === "string" ? JSON.parse(rawItems) : rawItems;
+      }
+    }
+
+    // Save the review with ONLY the items from that single receipt
     const result = await pool.query(
       `INSERT INTO reviews (business_id, table_number, rating, comment, ordered_items) 
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [businessId, tableNumber || 'Unknown', rating, comment || null, JSON.stringify(orderedItems)]
+      [
+        businessId,
+        tableNumber || 'Unknown',
+        rating,
+        comment || null,
+        JSON.stringify(orderedItems)
+      ]
     );
 
     res.status(201).json(result.rows[0]);
