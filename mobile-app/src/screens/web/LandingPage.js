@@ -565,6 +565,37 @@ export default function LandingPage({ onNavigate }) {
     appleIcon.rel = 'apple-touch-icon';
     appleIcon.href = servonLogo;
     document.head.appendChild(appleIcon);
+
+    // ── "Book a Demo" modal — visible scrollbar ──────────────────────
+    // The form has several fields and can run below the fold. The
+    // browser's default scrollbar was thin/near-invisible on this white
+    // card, so users didn't realize there was more to fill in below.
+    // This gives just that scroll area a clearly visible right-side bar.
+    if (!document.getElementById('servon-demo-modal-scrollbar-style')) {
+      const modalScrollStyle = document.createElement('style');
+      modalScrollStyle.id = 'servon-demo-modal-scrollbar-style';
+      modalScrollStyle.innerHTML = `
+        #servonDemoModalScroll {
+          scrollbar-width: thin;
+          scrollbar-color: #C7C2B8 #F1EFE9;
+        }
+        #servonDemoModalScroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        #servonDemoModalScroll::-webkit-scrollbar-track {
+          background: #F1EFE9;
+          border-radius: 8px;
+        }
+        #servonDemoModalScroll::-webkit-scrollbar-thumb {
+          background: #C7C2B8;
+          border-radius: 8px;
+        }
+        #servonDemoModalScroll::-webkit-scrollbar-thumb:hover {
+          background: #ADA795;
+        }
+      `;
+      document.head.appendChild(modalScrollStyle);
+    }
     }
   }, []);
   // ─────────────────────────────────────────────────────────────────────
@@ -1012,7 +1043,9 @@ export default function LandingPage({ onNavigate }) {
 
             <ScrollView
               style={s.modalScroll}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
+              persistentScrollbar={Platform.OS === 'android'}
+              nativeID="servonDemoModalScroll"
             >
               {/* Name */}
               <Field
@@ -1547,6 +1580,7 @@ const getMainStyles = (width) => StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     marginBottom: 16,
+    paddingRight: 6,
   },
   formGroup: {
     marginBottom: 20,

@@ -15,7 +15,7 @@ import {
   Dimensions,
   useWindowDimensions,
 } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -377,9 +377,58 @@ const getNotifIcon = (title = "", native = false) => {
   return <Ionicons name="notifications-outline" size={size} color="#3B82F6" />;
 };
 
+// ─── TRIAL TOAST FREQUENCY CONTROL ──────────────────────────────────────────
+// Limits the trial/subscription popup to a MAX of 3 times per day, with at
+// least a 3 hour gap between each showing. Persisted so the limit survives
+// re-focusing the Dashboard tab (web: localStorage, native: in-memory for
+// the current app session).
+const TRIAL_TOAST_STORAGE_KEY = "servon_trial_toast_meta";
+const TRIAL_TOAST_MAX_PER_DAY = 3;
+const TRIAL_TOAST_MIN_GAP_HOURS = 3;
+
+const getTrialToastMeta = () => {
+  try {
+    if (isWeb && typeof window !== "undefined" && window.localStorage) {
+      const raw = window.localStorage.getItem(TRIAL_TOAST_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }
+  } catch (err) { /* ignore storage errors */ }
+  return global.__servonTrialToastMeta || null;
+};
+
+const setTrialToastMeta = (meta) => {
+  try {
+    if (isWeb && typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem(TRIAL_TOAST_STORAGE_KEY, JSON.stringify(meta));
+      return;
+    }
+  } catch (err) { /* ignore storage errors */ }
+  global.__servonTrialToastMeta = meta;
+};
+
+const canShowTrialToast = () => {
+  const meta = getTrialToastMeta();
+  const todayKey = new Date().toDateString();
+  if (!meta || meta.day !== todayKey) return true; // fresh day, allowed
+  if (meta.count >= TRIAL_TOAST_MAX_PER_DAY) return false;
+  const hoursSinceLast = (Date.now() - meta.lastShown) / (1000 * 60 * 60);
+  return hoursSinceLast >= TRIAL_TOAST_MIN_GAP_HOURS;
+};
+
+const recordTrialToastShown = () => {
+  const todayKey = new Date().toDateString();
+  const meta = getTrialToastMeta();
+  if (!meta || meta.day !== todayKey) {
+    setTrialToastMeta({ day: todayKey, count: 1, lastShown: Date.now() });
+  } else {
+    setTrialToastMeta({ day: todayKey, count: meta.count + 1, lastShown: Date.now() });
+  }
+};
+
 export default function DashboardScreen() {
   const { business, updateBusiness, isChefMode } = useAuth();
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
@@ -460,6 +509,10 @@ export default function DashboardScreen() {
 
     // Show warning if trial or subscription expires in 3 days or less
     if (daysLeft <= 3 && status !== 'active' && status !== 'ACTIVE') {
+      // Only show up to TRIAL_TOAST_MAX_PER_DAY times/day, at least
+      // TRIAL_TOAST_MIN_GAP_HOURS apart.
+      if (!canShowTrialToast()) return;
+
       const msg = daysLeft <= 0 
         ? "Your free trial has expired!" 
         : `Your trial expires in ${daysLeft} day${daysLeft > 1 ? 's' : ''}.`;
@@ -467,6 +520,7 @@ export default function DashboardScreen() {
       // In-app popup (works identically on web + native) instead of
       // window.alert / Alert.alert, which looked like a browser/console dialog.
       setTrialToast({ message: msg });
+      recordTrialToastShown();
     }
   } catch (err) { 
     console.log("Warning popup error:", err); 
@@ -851,8 +905,9 @@ setLiveOrders(ordersRes.data.filter(o =>
         )}
 
         {/* IN-APP TRIAL/SUBSCRIPTION TOAST — replaces window.alert, portal-rendered so
-            it floats above everything regardless of scroll position */}
-        {trialToast && typeof document !== "undefined" && ReactDOM.createPortal(
+            it floats above everything regardless of scroll position. Gated by
+            isFocused so it only shows while the Dashboard tab is the active screen. */}
+        {trialToast && isFocused && typeof document !== "undefined" && ReactDOM.createPortal(
           <div className="servon-trial-toast">
             <div className="servon-trial-toast-icon">
               <Ionicons name="time-outline" size={16} color="#fff" />
@@ -901,8 +956,9 @@ setLiveOrders(ordersRes.data.filter(o =>
         </View>
       </View>
 
-      {/* IN-APP TRIAL/SUBSCRIPTION TOAST — replaces Alert.alert popup */}
-      {trialToast && (
+      {/* IN-APP TRIAL/SUBSCRIPTION TOAST — replaces Alert.alert popup. Gated by
+          isFocused so it only shows while the Dashboard tab is the active screen. */}
+      {trialToast && isFocused && (
         <View style={[styles.trialToastWrap, { top: insets.top + 62 }]} pointerEvents="box-none">
           <View style={styles.trialToast}>
             <View style={styles.trialToastIcon}>
