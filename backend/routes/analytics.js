@@ -9,34 +9,34 @@ router.get("/", auth, async (req, res) => {
     const businessId = req.businessId;
 
     // Today stats
-    const todayStats = await pool.query(
+   const todayStats = await pool.query(
       `SELECT COUNT(*) as total_orders,
               COALESCE(SUM(total_amount), 0) as total_revenue
        FROM orders
        WHERE business_id = $1
-       AND DATE(created_at) = CURRENT_DATE
+       AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
        AND status != 'REJECTED'`,
       [businessId]
     );
 
     // Active tables
-    const activeTables = await pool.query(
+   const activeTables = await pool.query(
       `SELECT COUNT(DISTINCT table_id) as count
        FROM orders
        WHERE business_id = $1
-       AND DATE(created_at) = CURRENT_DATE
+       AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
        AND status NOT IN ('REJECTED', 'SERVED')`,
       [businessId]
     );
 
     // Most ordered item today
-    const mostOrdered = await pool.query(
+   const mostOrdered = await pool.query(
       `SELECT item->>'name' as name,
               SUM((item->>'quantity')::int) as total_qty
        FROM orders,
             jsonb_array_elements(items) as item
        WHERE business_id = $1
-       AND DATE(created_at) = CURRENT_DATE
+       AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
        AND status != 'REJECTED'
        GROUP BY item->>'name'
        ORDER BY total_qty DESC
