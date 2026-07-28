@@ -38,7 +38,7 @@
         "projectId": "cc595fcc-0f57-4242-a498-bb317bd6a582"
       }
     },
-    "owner": "shrawan45",
+    "owner": "servon",
     "plugins": [
       "expo-web-browser",
       "@react-native-community/datetimepicker",
