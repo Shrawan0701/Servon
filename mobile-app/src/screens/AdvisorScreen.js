@@ -13,7 +13,7 @@ import {
   Modal,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import API from '../api';
@@ -138,6 +138,7 @@ export default function AdvisorScreen() {
 
   // ─── HISTORY SIDEBAR STATE (docked on tablet/web, overlay on mobile) ─
   const [sidebarOpen, setSidebarOpen] = useState(isTablet);
+  const insets = useSafeAreaInsets();
   const sidebarAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -575,7 +576,7 @@ export default function AdvisorScreen() {
 
           {/* Input Area */}
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-            <View style={styles.inputWrap}>
+           <View style={[styles.inputWrap, { paddingBottom: (Platform.OS === 'android' ? 10 : 0) + insets.bottom }]}>
               <View style={[styles.inputContainer, { maxWidth: contentMaxWidth, marginHorizontal: 'auto', width: '100%' }]}>
                 <TextInput
                   style={styles.input}
@@ -610,7 +611,7 @@ export default function AdvisorScreen() {
           onRequestClose={() => setSidebarOpen(false)}
         >
           <View style={styles.overlayContainer}>
-            <Animated.View style={[styles.overlayPanel, { transform: [{ translateX: sidebarTranslateX }] }]}>
+            <Animated.View style={[styles.overlayPanel, { transform: [{ translateX: sidebarTranslateX }], paddingTop: insets.top, paddingBottom: insets.bottom }]}>
               <HistorySidebarContent onClose={() => setSidebarOpen(false)} showClose />
             </Animated.View>
             <TouchableOpacity

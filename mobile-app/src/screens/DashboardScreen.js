@@ -99,7 +99,7 @@ if (isWeb && typeof document !== "undefined") {
         display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 14px; padding: 0 24px; margin-bottom: 28px;
       }
-      @media (max-width: 500px) { .servon-stats-grid { grid-template-columns: 1fr; padding: 0 16px; } }
+     @media (max-width: 500px) { .servon-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 16px; } }
       
       .servon-order-card {
         background: #fff; border: 1px solid #EAE6E0; border-radius: 16px;
