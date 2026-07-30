@@ -493,7 +493,7 @@ export default function LandingPage({ onNavigate }) {
 };
 
   // ── Web-only head tags (GA + SEO + Favicon) ──────────────────────────
- useEffect(() => {
+useEffect(() => {
   if (Platform.OS === 'web') {
     // 1. Page Title & Canonical URL
     document.title = "Servon | #1 Restaurant Management System & POS Software India";
@@ -524,12 +524,13 @@ export default function LandingPage({ onNavigate }) {
       { name: 'keywords', content: 'restaurant management system, hotel management system, restaurant POS software, GST billing software for restaurants, hotel billing software, QR ordering system, kitchen order ticket software, KOT app, Servon, cafe management software India' },
       { name: 'robots', content: 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' },
       
-      // Open Graph (Facebook / LinkedIn)
+      // Open Graph (Facebook / LinkedIn) & Site Name Override
+      { property: 'og:site_name', content: 'Servon' },
       { property: 'og:title', content: 'Servon | The All-in-One Restaurant OS & POS System' },
       { property: 'og:description', content: 'Streamline billing, QR ordering, KOT sync, and net profit tracking. Built specifically for high-growth Indian restaurants and hotels.' },
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: 'https://www.servon.cloud/' },
-      { property: 'og:image', content: 'https://www.servon.cloud/favicon.png' }, // Replace with a 1200x630 banner image URL
+      { property: 'og:image', content: 'https://www.servon.cloud/favicon.png' },
       
       // Twitter Cards
       { name: 'twitter:card', content: 'summary_large_image' },
@@ -546,12 +547,18 @@ export default function LandingPage({ onNavigate }) {
       document.head.appendChild(meta);
     });
 
-    // 4. Schema.org JSON-LD Structured Data (Crucial for Google Knowledge Panels & Rich Snippets)
+    // 4. Schema.org JSON-LD Structured Data
     const schemaScript = document.createElement('script');
     schemaScript.type = 'application/ld+json';
     schemaScript.innerHTML = JSON.stringify({
       "@context": "https://schema.org",
       "@graph": [
+        {
+          "@type": "WebSite",
+          "name": "Servon",
+          "alternateName": ["Servon Technologies", "Servon POS", "Servon Labs"],
+          "url": "https://www.servon.cloud/"
+        },
         {
           "@type": "SoftwareApplication",
           "name": "Servon",
@@ -582,12 +589,49 @@ export default function LandingPage({ onNavigate }) {
     });
     document.head.appendChild(schemaScript);
 
-    // 5. Favicon Injection (Absolute Paths)
+    // 5. Favicon Injection (PNG & ICO Shortcuts)
     const favicon = document.createElement('link');
     favicon.rel = 'icon';
     favicon.type = 'image/png';
     favicon.href = 'https://www.servon.cloud/favicon.png';
     document.head.appendChild(favicon);
+
+    const faviconIco = document.createElement('link');
+    faviconIco.rel = 'shortcut icon';
+    faviconIco.href = 'https://www.servon.cloud/favicon.ico';
+    document.head.appendChild(faviconIco);
+
+    const appleIcon = document.createElement('link');
+    appleIcon.rel = 'apple-touch-icon';
+    appleIcon.href = 'https://www.servon.cloud/favicon.png';
+    document.head.appendChild(appleIcon);
+
+    // 6. "Book a Demo" Modal Scrollbar
+    if (!document.getElementById('servon-demo-modal-scrollbar-style')) {
+      const modalScrollStyle = document.createElement('style');
+      modalScrollStyle.id = 'servon-demo-modal-scrollbar-style';
+      modalScrollStyle.innerHTML = `
+        #servonDemoModalScroll {
+          scrollbar-width: thin;
+          scrollbar-color: #C7C2B8 #F1EFE9;
+        }
+        #servonDemoModalScroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        #servonDemoModalScroll::-webkit-scrollbar-track {
+          background: #F1EFE9;
+          border-radius: 8px;
+        }
+        #servonDemoModalScroll::-webkit-scrollbar-thumb {
+          background: #C7C2B8;
+          border-radius: 8px;
+        }
+        #servonDemoModalScroll::-webkit-scrollbar-thumb:hover {
+          background: #ADA795;
+        }
+      `;
+      document.head.appendChild(modalScrollStyle);
+    }
   }
 }, []);
 
