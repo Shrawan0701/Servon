@@ -493,112 +493,103 @@ export default function LandingPage({ onNavigate }) {
 };
 
   // ── Web-only head tags (GA + SEO + Favicon) ──────────────────────────
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      // Page title
-      document.title = "Servon | Track Your Business";
+ useEffect(() => {
+  if (Platform.OS === 'web') {
+    // 1. Page Title & Canonical URL
+    document.title = "Servon | #1 Restaurant Management System & POS Software India";
 
-      // ── Google Analytics (gtag.js) ──────────────────────────────────
-      const gtagScript = document.createElement('script');
-      gtagScript.async = true;
-      gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-2D5DS8141R';
-      document.head.appendChild(gtagScript);
+    const canonical = document.createElement('link');
+    canonical.rel = 'canonical';
+    canonical.href = 'https://www.servon.cloud/';
+    document.head.appendChild(canonical);
 
-      const inlineScript = document.createElement('script');
-      inlineScript.innerHTML = `
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-2D5DS8141R');
-      `;
-      document.head.appendChild(inlineScript);
-      // ───────────────────────────────────────────────────────────────
+    // 2. Google Analytics (gtag.js)
+    const gtagScript = document.createElement('script');
+    gtagScript.async = true;
+    gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-2D5DS8141R';
+    document.head.appendChild(gtagScript);
 
-      // ── SEO Meta Tags ───────────────────────────────────────────────
-      const metaDesc = document.createElement('meta');
-      metaDesc.name = 'description';
-      metaDesc.content =
-        'Servon is the premium POS and restaurant management system for Indian restaurants. ' +
-        'QR ordering, kitchen sync, Chef Mode privacy, AI business advisor, in-app reviews, expense tracking, and GST billing — all in one platform.';
-      document.head.appendChild(metaDesc);
+    const inlineScript = document.createElement('script');
+    inlineScript.innerHTML = `
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-2D5DS8141R');
+    `;
+    document.head.appendChild(inlineScript);
 
-      const metaKeywords = document.createElement('meta');
-      metaKeywords.name = 'keywords';
-      metaKeywords.content =
-        'restaurant POS India, QR menu ordering, restaurant billing software, kitchen order system, ' +
-        'KOT software, GST billing restaurant, restaurant management app, Chef Mode, AI business advisor, ' +
-        'restaurant reviews software, expense tracking restaurant, UPI payments restaurant, Servon';
-      document.head.appendChild(metaKeywords);
+    // 3. Essential Meta Tags
+    const metaTags = [
+      { name: 'description', content: 'Servon is the leading all-in-one restaurant management system and POS software in India. Cloud GST billing, QR ordering, kitchen display (KOT), inventory ERP, and AI profit advisor for cafes, fine dining, and hotels.' },
+      { name: 'keywords', content: 'restaurant management system, hotel management system, restaurant POS software, GST billing software for restaurants, hotel billing software, QR ordering system, kitchen order ticket software, KOT app, Servon, cafe management software India' },
+      { name: 'robots', content: 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' },
+      
+      // Open Graph (Facebook / LinkedIn)
+      { property: 'og:title', content: 'Servon | The All-in-One Restaurant OS & POS System' },
+      { property: 'og:description', content: 'Streamline billing, QR ordering, KOT sync, and net profit tracking. Built specifically for high-growth Indian restaurants and hotels.' },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:url', content: 'https://www.servon.cloud/' },
+      { property: 'og:image', content: 'https://www.servon.cloud/favicon.png' }, // Replace with a 1200x630 banner image URL
+      
+      // Twitter Cards
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: 'Servon | #1 Restaurant Operating System' },
+      { name: 'twitter:description', content: 'Flat-fee POS, QR ordering, and ERP for Indian restaurants.' },
+      { name: 'twitter:image', content: 'https://www.servon.cloud/favicon.png' },
+    ];
 
-      const metaOGTitle = document.createElement('meta');
-      metaOGTitle.setAttribute('property', 'og:title');
-      metaOGTitle.content = 'Servon | The Restaurant OS for India';
-      document.head.appendChild(metaOGTitle);
+    metaTags.forEach(tag => {
+      const meta = document.createElement('meta');
+      if (tag.name) meta.name = tag.name;
+      if (tag.property) meta.setAttribute('property', tag.property);
+      meta.content = tag.content;
+      document.head.appendChild(meta);
+    });
 
-      const metaOGDesc = document.createElement('meta');
-      metaOGDesc.setAttribute('property', 'og:description');
-      metaOGDesc.content =
-        'QR ordering, live kitchen sync, Chef Mode privacy, an AI business advisor, and expense ERP — ' +
-        'the all-in-one operating system built for high-growth Indian restaurants.';
-      document.head.appendChild(metaOGDesc);
+    // 4. Schema.org JSON-LD Structured Data (Crucial for Google Knowledge Panels & Rich Snippets)
+    const schemaScript = document.createElement('script');
+    schemaScript.type = 'application/ld+json';
+    schemaScript.innerHTML = JSON.stringify({
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "name": "Servon",
+          "operatingSystem": "Web, Android, iOS",
+          "applicationCategory": "BusinessApplication",
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "ratingCount": "120"
+          },
+          "offers": {
+            "@type": "Offer",
+            "price": "999",
+            "priceCurrency": "INR"
+          },
+          "description": "Premium POS and restaurant management system with GST billing, QR ordering, and live inventory tracking."
+        },
+        {
+          "@type": "Organization",
+          "name": "Servon Labs",
+          "url": "https://www.servon.cloud",
+          "logo": "https://www.servon.cloud/favicon.png",
+          "sameAs": [
+            "https://www.linkedin.com/company/servon"
+          ]
+        }
+      ]
+    });
+    document.head.appendChild(schemaScript);
 
-      const metaOGType = document.createElement('meta');
-      metaOGType.setAttribute('property', 'og:type');
-      metaOGType.content = 'website';
-      document.head.appendChild(metaOGType);
-
-      const metaRobots = document.createElement('meta');
-      metaRobots.name = 'robots';
-      metaRobots.content = 'index, follow';
-      document.head.appendChild(metaRobots);
-      // ───────────────────────────────────────────────────────────────
-
-     // Favicon
+    // 5. Favicon Injection (Absolute Paths)
     const favicon = document.createElement('link');
     favicon.rel = 'icon';
     favicon.type = 'image/png';
-    favicon.href = servonLogo;
+    favicon.href = 'https://www.servon.cloud/favicon.png';
     document.head.appendChild(favicon);
-
-    // Apple touch icon
-    const appleIcon = document.createElement('link');
-    appleIcon.rel = 'apple-touch-icon';
-    appleIcon.href = servonLogo;
-    document.head.appendChild(appleIcon);
-
-    // ── "Book a Demo" modal — visible scrollbar ──────────────────────
-    // The form has several fields and can run below the fold. The
-    // browser's default scrollbar was thin/near-invisible on this white
-    // card, so users didn't realize there was more to fill in below.
-    // This gives just that scroll area a clearly visible right-side bar.
-    if (!document.getElementById('servon-demo-modal-scrollbar-style')) {
-      const modalScrollStyle = document.createElement('style');
-      modalScrollStyle.id = 'servon-demo-modal-scrollbar-style';
-      modalScrollStyle.innerHTML = `
-        #servonDemoModalScroll {
-          scrollbar-width: thin;
-          scrollbar-color: #C7C2B8 #F1EFE9;
-        }
-        #servonDemoModalScroll::-webkit-scrollbar {
-          width: 8px;
-        }
-        #servonDemoModalScroll::-webkit-scrollbar-track {
-          background: #F1EFE9;
-          border-radius: 8px;
-        }
-        #servonDemoModalScroll::-webkit-scrollbar-thumb {
-          background: #C7C2B8;
-          border-radius: 8px;
-        }
-        #servonDemoModalScroll::-webkit-scrollbar-thumb:hover {
-          background: #ADA795;
-        }
-      `;
-      document.head.appendChild(modalScrollStyle);
-    }
-    }
-  }, []);
-  // ─────────────────────────────────────────────────────────────────────
+  }
+}, []);
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }).start();
