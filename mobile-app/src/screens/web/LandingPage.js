@@ -29,34 +29,16 @@ const C = {
   muted:      "#636E72",
   accent:     "#D4AF37",
   error:      "#E63946",
+  paper:      "#FFFDF7",
+  paperBorder:"#E9E4D4",
 };
 
-const REVIEWS = [
-  {
-    quote:
-      "Servon completely cleaned up our restaurant operations. Orders flow smoothly from tables to kitchen, and my staff finally stopped running around in chaos during peak hours.",
-    name: "Arjun Mehta",
-    initials: "AM"
-  },
-  {
-    quote:
-      "The QR ordering experience feels premium and super fast. Customers love how simple it is, and our staff can focus more on service instead of taking manual orders.",
-    name: "Priya Sharma",
-    initials: "PS"
-  },
-  {
-    quote:
-      "Chef Mode™ Privacy is honestly brilliant. Managers get the control they need while kitchen staff stay focused only on operations. It keeps everything professional and organized.",
-    name: "Vikram Rao",
-    initials: "VR"
-  },
-  {
-    quote:
-      "Analytics and expense tracking gave us clarity we never had before. We can actually see what's working, what's wasting money, and make decisions much faster.",
-    name: "Kabir Desai",
-    initials: "KD"
-  }
-];
+const MONO = Platform.select({
+  ios: "Courier",
+  android: "monospace",
+  web: "'SFMono-Regular', 'Menlo', 'Consolas', monospace",
+  default: "monospace",
+});
 
 const BUSINESS_TYPES = ["Hotel", "Restaurant", "Resort", "Cafe", "Other"];
 
@@ -76,8 +58,8 @@ const Field = ({ label, required, value, onChangeText, error, styles, ...inputPr
   </View>
 );
 
-const SectionTag = ({ text, color = C.green, styles }) => (
-  <View style={styles.tagWrap}>
+const SectionTag = ({ text, color = C.green, styles, align = 'center' }) => (
+  <View style={[styles.tagWrap, { alignSelf: align }]}>
     <View style={[styles.tagDot, { backgroundColor: color }]} />
     <Text style={[styles.tagText, { color }]}>{text.toUpperCase()}</Text>
   </View>
@@ -316,44 +298,139 @@ const AIAdvisorSection = ({ s }) => (
   </View>
 );
 
+// ─── FEEDBACK RECEIPT MOCKUP (used by the In-App Reviews section) ──────
+// A small hand-rolled "QR" grid — three solid corner eyes plus a
+// deterministic noise fill. It's a stand-in graphic, not a scannable code.
+
+const QR_GRID_SIZE = 9;
+
+const ReceiptQRMock = ({ s }) => {
+  const cells = [];
+  for (let r = 0; r < QR_GRID_SIZE; r++) {
+    for (let c = 0; c < QR_GRID_SIZE; c++) {
+      const inTL = r < 3 && c < 3;
+      const inTR = r < 3 && c > QR_GRID_SIZE - 4;
+      const inBL = r > QR_GRID_SIZE - 4 && c < 3;
+
+      let filled;
+      if (inTL) {
+        filled = !(r === 1 && c === 1);
+      } else if (inTR) {
+        filled = !(r === 1 && c - (QR_GRID_SIZE - 3) === 1);
+      } else if (inBL) {
+        filled = !(r - (QR_GRID_SIZE - 3) === 1 && c === 1);
+      } else {
+        filled = ((r * 5 + c * 3 + r * c) % 7) < 3;
+      }
+
+      cells.push(
+        <View
+          key={`${r}-${c}`}
+          style={[s.qrCell, filled && s.qrCellFilled]}
+        />
+      );
+    }
+  }
+  return <View style={s.qrGrid}>{cells}</View>;
+};
+
+const FeedbackReceiptMockup = ({ s }) => (
+  <View style={s.receiptMockWrap}>
+    <View style={s.printerBar}>
+      <View style={s.printerSlot} />
+    </View>
+
+    <View style={s.receiptPaper}>
+      <Text style={s.receiptStoreName}>SERVON KITCHEN</Text>
+      <Text style={s.receiptMeta}>TABLE 12 · CHECK #0842</Text>
+
+      <View style={s.receiptDivider} />
+
+      {[
+        { label: "Butter Chicken", value: "₹320" },
+        { label: "Dal Makhani", value: "₹260" },
+        { label: "Roti x4", value: "₹160" },
+      ].map((row, i) => (
+        <View key={i} style={s.receiptLineRow}>
+          <Text style={s.receiptLineLabel}>{row.label}</Text>
+          <View style={s.receiptLineLeader} />
+          <Text style={s.receiptLineValue}>{row.value}</Text>
+        </View>
+      ))}
+
+      <View style={s.receiptDivider} />
+
+      <View style={s.receiptLineRow}>
+        <Text style={s.receiptTotalLabel}>TOTAL</Text>
+        <View style={s.receiptLineLeader} />
+        <Text style={s.receiptTotalValue}>₹740</Text>
+      </View>
+
+      <View style={s.receiptQRSection}>
+        <ReceiptQRMock s={s} />
+        <Text style={s.receiptScanLabel}>SCAN TO RATE YOUR VISIT</Text>
+        <View style={s.receiptStarRow}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <Ionicons key={n} name="star" size={11} color={C.charcoal} />
+          ))}
+        </View>
+      </View>
+    </View>
+
+    <View style={s.receiptTearRow}>
+      {Array.from({ length: 16 }).map((_, i) => (
+        <View key={i} style={s.receiptTearTooth} />
+      ))}
+    </View>
+  </View>
+);
+
 // ─── IN-APP REVIEWS — FEATURE SECTION ───────────────────────────────────
 
 const ReviewFeatureSection = ({ s }) => (
   <View style={s.reviewFeatureSection}>
-    <View style={s.reviewFeatureHeader}>
-      <SectionTag text="In-App Reviews" styles={s} />
-      <Text style={s.reviewFeatureH2}>Reputation, handled for you</Text>
-      <Text style={s.reviewFeatureSub}>
-        Every bill becomes a feedback opportunity, without asking a single
-        customer to leave a public review on Google.
-      </Text>
-    </View>
+    <View style={s.reviewFeatureInner}>
+      <View style={s.reviewFeatureTextCol}>
+        <SectionTag text="In-App Reviews" styles={s} align="flex-start" />
 
-    <View style={s.reviewStepsGrid}>
-      {[
-        {
-          n: "STEP 1",
-          icon: "receipt-outline",
-          t: "QR On Every Bill",
-          d: "Each printed bill carries a QR code tied to that exact table, order, date and time.",
-        },
-        {
-          n: "STEP 2",
-          icon: "star-outline",
-          t: "Instant Feedback",
-          d: "Guests scan, rate their experience with stars and add a quick note. No app download, no login required.",
-        },
-        
-      ].map((step, i) => (
-        <View key={i} style={s.reviewStepCard}>
-          <Text style={s.reviewStepNumber}>{step.n}</Text>
-          <View style={s.reviewStepIcon}>
-            <Ionicons name={step.icon} size={22} color={C.green} />
+        <Text style={s.reviewFeatureH2}>Every bill asks{"\n"}the question for you</Text>
+
+        <Text style={s.reviewFeatureSub}>
+          No follow-up texts, no campaigns, no asking a guest to leave a
+          public review on Google. The feedback loop is already printed
+          on the check.
+        </Text>
+
+        <View style={s.receiptStepsList}>
+          <View style={s.receiptStepRow}>
+            <Text style={s.receiptStepMark}>STEP 1</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.receiptStepTitle}>A code lands on the bill</Text>
+              <Text style={s.receiptStepDesc}>
+                Every printed check carries a QR tied to that exact table,
+                order, date and time. Nothing extra to set up.
+              </Text>
+            </View>
           </View>
-          <Text style={s.reviewStepTitle}>{step.t}</Text>
-          <Text style={s.reviewStepDesc}>{step.d}</Text>
+
+          <View style={s.receiptStepDivider} />
+
+          <View style={s.receiptStepRow}>
+            <Text style={s.receiptStepMark}>STEP 2</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.receiptStepTitle}>Guests rate in seconds</Text>
+              <Text style={s.receiptStepDesc}>
+                A scan opens a star rating and a short note. No app,
+                no account, no login required.
+              </Text>
+            </View>
+          </View>
         </View>
-      ))}
+      </View>
+
+      <View style={s.reviewFeatureVisualCol}>
+        <FeedbackReceiptMockup s={s} />
+      </View>
     </View>
   </View>
 );
@@ -369,8 +446,6 @@ export default function LandingPage({ onNavigate }) {
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const autoScrollRef = useRef(null);
-  const [activeStep, setActiveStep] = useState(0);
   const [activeFaq, setActiveFaq] = useState(null);
 
   // ─── DEMO MODAL STATE ───────────────────────────────────────────────
@@ -637,26 +712,7 @@ useEffect(() => {
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }).start();
-
-    const interval = setInterval(() => {
-      setActiveStep((prev) => {
-        const next = (prev + 1) % REVIEWS.length;
-        autoScrollRef.current?.scrollTo({ x: next * width, animated: true });
-        return next;
-      });
-    }, 3500);
-
-    return () => clearInterval(interval);
   }, []);
-
-  const handleScroll = (event) => {
-    const slideSize = event.nativeEvent.layoutMeasurement.width;
-    const index = event.nativeEvent.contentOffset.x / slideSize;
-    const roundIndex = Math.round(index);
-    if (activeStep !== roundIndex) {
-      setActiveStep(roundIndex);
-    }
-  };
 
   const navOpacity = scrollY.interpolate({
     inputRange: [0, 100],
@@ -795,85 +851,39 @@ useEffect(() => {
           </View>
         </View>
 
-        {/* ── AI BUSINESS ADVISOR SPOTLIGHT ── */}
-       
-
         {/* ── IN-APP REVIEWS ── */}
         <ReviewFeatureSection s={s} />
-
-        {/* ── REVIEWS ── */}
-        <View style={s.reviewSection}>
-          <View style={s.sectionHeader}>
-            <SectionTag text="Success Stories" styles={s} />
-            <Text style={s.sectionH2}>What Our Users Say</Text>
-          </View>
-
-          <ScrollView
-            ref={autoScrollRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleScroll}
-            scrollEventThrottle={16}
-            style={{ width: width }}
-          >
-            {REVIEWS.map((rev, i) => (
-              <View key={i} style={s.slideContainer}>
-                <View style={s.reviewCard}>
-                  <View style={s.starRow}>
-                    {[1,2,3,4,5].map(st => (
-                      <Ionicons key={st} name="star" size={width > 600 ? 20 : 16} color="#FFB84D" />
-                    ))}
-                  </View>
-
-                  <View style={s.quoteWrapper}>
-                    <Ionicons name="quote" size={24} color="#E2E8F0" style={s.quoteIcon} />
-                    <Text style={s.reviewQuote}>{rev.quote}</Text>
-                  </View>
-
-                  <View style={s.reviewerDivider} />
-
-                  <Text style={s.reviewerName}>{rev.name}</Text>
-                  <Text style={s.reviewerHotel}>{rev.hotel}</Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-
-          <View style={s.dotRow}>
-            {REVIEWS.map((_, i) => (
-              <View key={i} style={[s.dot, activeStep === i && s.dotActive]} />
-            ))}
-          </View>
-        </View>
 
         {/* ── PRICING ── */}
         <View style={s.priceSection}>
           <View style={s.priceHeaderCenter}>
-            <View style={s.pricePill}>
-              <Text style={s.pricePillText}>PRICING</Text>
-            </View>
-            <Text style={s.priceTitleMain}>Simple, transparent{"\n"}pricing</Text>
+            <SectionTag text="Pricing" styles={s} />
+            <Text style={s.priceTitleMain}>One check.{"\n"}Everything included.</Text>
             <Text style={s.priceSubMain}>
-              No hidden fees. Upgrade when{"\n"}you're ready.
+              No add-on tiers to decode, no line items that appear later.
             </Text>
           </View>
 
-          <View style={s.proCard}>
-            <View style={s.proCardHeader}>
+          <View style={s.billCard}>
+            <View style={s.billPunchRow}>
+              {Array.from({ length: 14 }).map((_, i) => (
+                <View key={i} style={s.billPunchHole} />
+              ))}
+            </View>
+
+            <View style={s.billHeaderRow}>
               <View>
-                <Text style={s.proCardTag}>RESTAURANT PREMIUM</Text>
-                <View style={s.proPriceRow}>
-                  <Text style={s.proTitle}>Pro</Text>
-                  <Text style={s.proFeaturesLabel}> / Features</Text>
-                </View>
+                <Text style={s.billKicker}>RESTAURANT PREMIUM</Text>
+                <Text style={s.billPlanName}>Pro Plan</Text>
               </View>
-              <View style={s.bluePopularBadge}>
-                <Text style={s.bluePopularText}>POPULAR</Text>
+              <View style={s.billStamp}>
+                <Text style={s.billStampText}>MOST{"\n"}ORDERED</Text>
               </View>
             </View>
 
-            <View style={s.proFeatureList}>
+            <View style={s.billDivider} />
+
+            <View style={s.billItemList}>
               {[
                 "Unlimited QR Menu Scans & Orders",
                 "Full Chef Mode™ Financial Privacy",
@@ -884,18 +894,31 @@ useEffect(() => {
                 "Export PDF & CSV Reports",
                 "24/7 Priority Support"
               ].map((item, idx) => (
-                <View key={idx} style={s.proItem}>
-                  <View style={s.blueCheck}>
-                    <Ionicons name="checkmark-circle" size={20} color="#4F46E5" />
-                  </View>
-                  <Text style={s.proItemText}>{item}</Text>
+                <View key={idx} style={s.billItemRow}>
+                  <Text style={s.billItemLabel}>{item}</Text>
+                  <View style={s.billItemLeader} />
+                  <Ionicons name="checkmark" size={14} color={C.green} />
                 </View>
               ))}
             </View>
 
-            <TouchableOpacity style={s.proBtn} onPress={() => onNavigate?.("signup")}>
-              <Text style={s.proBtnText}>Get Started</Text>
+            <View style={s.billDividerDashed} />
+
+            <View style={s.billTotalRow}>
+              <Text style={s.billTotalLabel}>EVERYTHING, ONE PLAN</Text>
+              <Text style={s.billTotalNote}>Talk to us for pricing</Text>
+            </View>
+
+            <TouchableOpacity style={s.billCta} onPress={() => onNavigate?.("signup")}>
+              <Text style={s.billCtaText}>Get Started</Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFF" />
             </TouchableOpacity>
+
+            <View style={s.billTearRow}>
+              {Array.from({ length: 28 }).map((_, i) => (
+                <View key={i} style={s.billTearTriangle} />
+              ))}
+            </View>
           </View>
         </View>
 
@@ -1959,189 +1982,336 @@ const getMainStyles = (width) => StyleSheet.create({
     marginTop: width > 900 ? 0 : 20,
   },
 
-  // ── IN-APP REVIEWS SECTION ──
+  // ── IN-APP REVIEWS SECTION (receipt / printer motif) ──
   reviewFeatureSection: {
-    paddingVertical: width > 600 ? 100 : 60,
-    paddingHorizontal: width > 600 ? 30 : 16,
+    paddingVertical: width > 600 ? 110 : 64,
+    paddingHorizontal: width > 600 ? 30 : 18,
     backgroundColor: '#FFFFFF',
   },
-  reviewFeatureHeader: { alignItems: 'center', marginBottom: width > 600 ? 56 : 36 },
+  reviewFeatureInner: {
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+    flexDirection: width > 900 ? 'row' : 'column',
+    alignItems: width > 900 ? 'center' : 'stretch',
+    gap: width > 900 ? 60 : 48,
+  },
+  reviewFeatureTextCol: { flex: width > 900 ? 1 : undefined },
+  reviewFeatureVisualCol: {
+    flex: width > 900 ? 1 : undefined,
+    alignItems: width > 900 ? 'flex-start' : 'center',
+    width: '100%',
+  },
   reviewFeatureH2: {
-    fontSize: width > 600 ? 30 : 22,
+    fontSize: width > 800 ? 40 : width > 400 ? 28 : 24,
     fontWeight: '900',
     color: C.charcoal,
-    textAlign: 'center',
-    letterSpacing: -0.8,
-    marginTop: 4,
-    marginBottom: 14,
+    letterSpacing: -1,
+    lineHeight: width > 800 ? 48 : width > 400 ? 36 : 30,
+    marginTop: 18,
+    marginBottom: 18,
   },
   reviewFeatureSub: {
     fontSize: width > 600 ? 16 : 14,
     color: C.muted,
-    textAlign: 'center',
-    maxWidth: 560,
-    lineHeight: 24,
+    lineHeight: width > 600 ? 25 : 22,
+    marginBottom: 40,
+    maxWidth: 480,
+    textAlign: 'left',
   },
-  reviewStepsGrid: {
-    flexDirection: width > 800 ? 'row' : 'column',
-    gap: 20,
-    maxWidth: 1100,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  reviewStepCard: {
-    flex: width > 800 ? 1 : undefined,
-    backgroundColor: '#FAF9F6',
-    borderRadius: 20,
-    padding: width > 600 ? 28 : 22,
+  receiptStepsList: {
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: C.paperBorder,
+    borderRadius: 18,
+    backgroundColor: C.paper,
+    padding: width > 600 ? 28 : 20,
   },
-  reviewStepNumber: { fontSize: 12, fontWeight: '900', color: C.green, marginBottom: 14, letterSpacing: 1 },
-  reviewStepIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: C.greenLight,
+  receiptStepRow: { flexDirection: 'row', gap: 18, alignItems: 'flex-start' },
+  receiptStepMark: {
+    width: 62,
+    fontFamily: MONO,
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.green,
+    letterSpacing: 1,
+    paddingTop: 2,
+  },
+  receiptStepTitle: { fontSize: width > 600 ? 16 : 15, fontWeight: '800', color: C.charcoal, marginBottom: 6 },
+  receiptStepDesc: { fontSize: width > 600 ? 14 : 13, color: C.muted, lineHeight: 20, fontWeight: '500' },
+  receiptStepDivider: {
+    height: 1,
+    borderTopWidth: 1,
+    borderTopColor: C.paperBorder,
+    borderStyle: 'dashed',
+    marginVertical: 20,
+  },
+
+  // Receipt printer mockup
+  receiptMockWrap: { alignItems: 'center', width: '100%', maxWidth: 300 },
+  printerBar: {
+    width: '92%',
+    height: 26,
+    backgroundColor: C.charcoal,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
   },
-  reviewStepTitle: { fontSize: width > 600 ? 17 : 16, fontWeight: '800', color: C.charcoal, marginBottom: 10 },
-  reviewStepDesc: { fontSize: width > 600 ? 14 : 13.5, color: C.muted, lineHeight: 21, fontWeight: '500' },
-
-  // ── REVIEWS ──
-  reviewSection: {
-    paddingVertical: width > 600 ? 100 : 60,
-    backgroundColor: "#FAF9F6",
-    alignItems: 'center',
+  printerSlot: {
+    width: '60%',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
-  sectionHeader: { marginBottom: 40, alignItems: 'center' },
-  sectionH2: {
-    fontSize: width > 600 ? 28 : 20,
-    fontWeight: '900',
+  receiptPaper: {
+    width: '100%',
+    backgroundColor: C.paper,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: C.paperBorder,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 26,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  receiptStoreName: {
+    fontFamily: MONO,
+    fontSize: 14,
+    fontWeight: '700',
     color: C.charcoal,
     textAlign: 'center',
-    letterSpacing: -0.5,
+    letterSpacing: 1,
   },
-  slideContainer: {
-    width: width,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  reviewCard: {
-    width: width > 800 ? 700 : width - 32,
-    backgroundColor: "#FFF",
-    borderRadius: width > 600 ? 28 : 20,
-    padding: width > 600 ? 50 : 28,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 20,
-    elevation: 4,
-  },
-  starRow: { flexDirection: 'row', gap: 4, marginBottom: 20 },
-  quoteWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginVertical: width > 600 ? 24 : 16,
-  },
-  quoteIcon: { marginRight: 8, marginTop: -8 },
-  reviewQuote: {
-    fontSize: width > 600 ? 18 : 15,
-    fontWeight: '600',
-    color: "#121417",
+  receiptMeta: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: C.muted,
     textAlign: 'center',
-    lineHeight: width > 600 ? 28 : 24,
+    marginTop: 4,
+  },
+  receiptDivider: {
+    borderTopWidth: 1,
+    borderTopColor: C.paperBorder,
+    borderStyle: 'dashed',
+    marginVertical: 14,
+  },
+  receiptLineRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 8 },
+  receiptLineLabel: { fontFamily: MONO, fontSize: 12, color: C.charcoal },
+  receiptLineLeader: {
     flex: 1,
+    height: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: C.paperBorder,
+    borderStyle: 'dotted',
+    marginHorizontal: 6,
+    marginBottom: 3,
   },
-  reviewerDivider: { width: 40, height: 2, backgroundColor: "#121417", marginBottom: 16 },
-  reviewerName: { fontSize: width > 600 ? 18 : 16, fontWeight: '900', color: "#121417" },
-  reviewerHotel: { fontSize: 13, color: "#636E72", marginTop: 4, fontWeight: '500' },
-  dotRow: {
+  receiptLineValue: { fontFamily: MONO, fontSize: 12, color: C.charcoal, fontWeight: '700' },
+  receiptTotalLabel: { fontFamily: MONO, fontSize: 12, color: C.charcoal, fontWeight: '900', letterSpacing: 1 },
+  receiptTotalValue: { fontFamily: MONO, fontSize: 13, color: C.green, fontWeight: '900' },
+  receiptQRSection: { alignItems: 'center', marginTop: 20 },
+  qrGrid: {
+    width: 90,
+    height: 90,
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 28,
+    flexWrap: 'wrap',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: C.paperBorder,
+    padding: 4,
   },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#E2E8F0" },
-  dotActive: { backgroundColor: "#121417", width: 28 },
+  qrCell: {
+    width: `${100 / QR_GRID_SIZE}%`,
+    height: `${100 / QR_GRID_SIZE}%`,
+  },
+  qrCellFilled: { backgroundColor: C.charcoal },
+  receiptScanLabel: {
+    fontFamily: MONO,
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.charcoal,
+    letterSpacing: 1.5,
+    marginTop: 12,
+  },
+  receiptStarRow: { flexDirection: 'row', gap: 3, marginTop: 8 },
+  receiptTearRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    marginTop: -1,
+  },
+  receiptTearTooth: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: C.paper,
+  },
 
-  // ── PRICING ──
+  // ── PRICING SECTION (bill / check motif) ──
   priceSection: {
-    paddingVertical: width > 600 ? 100 : 60,
+    paddingVertical: width > 600 ? 110 : 64,
     paddingHorizontal: 16,
     backgroundColor: '#FAF9F6',
     alignItems: 'center',
   },
-  priceHeaderCenter: { alignItems: 'center', marginBottom: 40 },
-  pricePill: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginBottom: 16,
-  },
-  pricePillText: { fontSize: 10, fontWeight: '900', color: '#4F46E5', letterSpacing: 1 },
+  priceHeaderCenter: { alignItems: 'center', marginBottom: 48 },
   priceTitleMain: {
-    fontSize: width > 600 ? 28 : 22,
+    fontSize: width > 600 ? 34 : 24,
     fontWeight: '900',
     color: '#121417',
     textAlign: 'center',
-    lineHeight: width > 600 ? 34 : 28,
+    lineHeight: width > 600 ? 40 : 30,
     letterSpacing: -1,
+    marginTop: 14,
   },
   priceSubMain: {
     fontSize: width > 600 ? 16 : 14,
     color: '#636E72',
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: 14,
     lineHeight: 24,
+    maxWidth: 420,
   },
-  proCard: {
-    width: width > 600 ? 440 : width - 32,
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    padding: width > 600 ? 30 : 22,
+  billCard: {
+    width: width > 600 ? 460 : width - 32,
+    backgroundColor: C.paper,
+    borderRadius: 8,
+    paddingHorizontal: width > 600 ? 34 : 24,
+    paddingTop: 4,
+    paddingBottom: 0,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: "#4F46E5",
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 5,
+    borderColor: C.paperBorder,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 30,
+    elevation: 8,
+    overflow: 'hidden',
   },
-  proCardHeader: {
+  billPunchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: -6,
+    marginBottom: 22,
+  },
+  billPunchHole: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FAF9F6',
+  },
+  billHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  proCardTag: { fontSize: 11, fontWeight: '700', color: '#94A3B8', marginBottom: 6 },
-  proPriceRow: { flexDirection: 'row', alignItems: 'baseline' },
-  proTitle: { fontSize: 30, fontWeight: '900', color: '#121417' },
-  proFeaturesLabel: { fontSize: 14, color: '#94A3B8', fontWeight: '500' },
-  bluePopularBadge: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 12,
+  billKicker: {
+    fontFamily: MONO,
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.muted,
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  billPlanName: { fontSize: 28, fontWeight: '900', color: C.charcoal },
+  billStamp: {
+    borderWidth: 1.5,
+    borderColor: C.accent,
+    borderRadius: 6,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10,
+    transform: [{ rotate: '-7deg' }],
   },
-  bluePopularText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
-  proFeatureList: { gap: 18, marginBottom: 36 },
-  proItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  blueCheck: { width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
-  proItemText: { fontSize: width > 600 ? 15 : 14, fontWeight: '600', color: '#475569', flex: 1 },
-  proBtn: {
-    backgroundColor: '#121417',
-    width: '100%',
-    paddingVertical: 18,
-    borderRadius: 12,
+  billStampText: {
+    fontFamily: MONO,
+    fontSize: 9,
+    fontWeight: '900',
+    color: C.accent,
+    letterSpacing: 1,
+    textAlign: 'center',
+    lineHeight: 12,
+  },
+  billDivider: {
+    borderTopWidth: 1,
+    borderTopColor: C.paperBorder,
+    marginBottom: 20,
+  },
+  billItemList: { gap: 14 },
+  billItemRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  billItemLabel: {
+    fontFamily: MONO,
+    fontSize: width > 600 ? 13.5 : 12.5,
+    color: C.charcoal,
+    fontWeight: '600',
+  },
+  billItemLeader: {
+    flex: 1,
+    height: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: C.paperBorder,
+    borderStyle: 'dotted',
+    marginHorizontal: 8,
+    marginBottom: 4,
+  },
+  billDividerDashed: {
+    borderTopWidth: 1,
+    borderTopColor: C.paperBorder,
+    borderStyle: 'dashed',
+    marginTop: 24,
+    marginBottom: 20,
+  },
+  billTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 24,
   },
-  proBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  billTotalLabel: {
+    fontFamily: MONO,
+    fontSize: 13,
+    fontWeight: '900',
+    color: C.charcoal,
+    letterSpacing: 0.5,
+  },
+  billTotalNote: {
+    fontFamily: MONO,
+    fontSize: 12,
+    color: C.green,
+    fontWeight: '700',
+  },
+  billCta: {
+    backgroundColor: C.charcoal,
+    paddingVertical: 16,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 24,
+  },
+  billCtaText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
+  billTearRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: -34,
+  },
+  billTearTriangle: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 9,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#FAF9F6',
+  },
 
   // ── FAQ ──
   faqSection: {
@@ -2295,7 +2465,6 @@ const getMainStyles = (width) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
-    alignSelf: 'center',
   },
   tagDot: { width: 6, height: 6, borderRadius: 3 },
   tagText: { fontSize: 11, fontWeight: '900', letterSpacing: 2 },
