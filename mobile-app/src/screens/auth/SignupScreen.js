@@ -101,7 +101,7 @@ export default function SignupScreen({ navigation }) {
 
   const fields = [
     { key: "businessName", label: "Business Name", placeholder: "e.g. Spice Garden", icon: "business-outline" },
-    { key: "ownerName", label: " Name", placeholder: "Your full name", icon: "person-outline" },
+    { key: "ownerName", label: " Name", placeholder: "Your name", icon: "person-outline" },
     { key: "email", label: "Email Address", placeholder: "you@gmail.com", type: "email-address", icon: "mail-outline" },
     { key: "phone", label: "Phone Number", placeholder: "10-digit mobile number", type: "phone-pad", icon: "call-outline" },
     { 
