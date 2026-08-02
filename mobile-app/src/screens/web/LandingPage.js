@@ -69,8 +69,11 @@ const PremiumDashboard = () => {
   const { width } = useWindowDimensions();
   const dm = getDashboardStyles(width);
 
-  return (
+ const isMobile = width < 600;
+
+return (
   <View style={dm.wrapper}>
+    {/* Browser Header Bar */}
     <View style={dm.browserChrome}>
       <View style={dm.windowControls}>
         <View style={[dm.wDot, { backgroundColor: "#FF5F56" }]} />
@@ -79,56 +82,108 @@ const PremiumDashboard = () => {
       </View>
       <View style={dm.urlBar}>
         <Ionicons name="shield-checkmark" size={12} color={C.green} />
-        <Text style={dm.urlText}>servon.cloud/dashboard/analytics-live</Text>
+        <Text style={dm.urlText} numberOfLines={1}>servon.cloud/dashboard/analytics-live</Text>
       </View>
     </View>
 
+    {/* Main App Workspace */}
     <View style={dm.mainLayout}>
-     <View style={dm.sideNav}>
-  <View style={dm.sideLogo}>
-    <Ionicons name="storefront" size={width > 600 ? 16 : 13} color="#FFFFFF" />
-  </View>
-        {['grid', 'receipt', 'fast-food', 'people', 'settings'].map((icon, idx) => (
-          <View key={idx} style={[dm.sideIcon, idx === 0 && dm.sideIconActive]}>
-            <Ionicons name={icon} size={18} color={idx === 0 ? C.green : "#CBD5E0"} />
+      {/* Side Navigation - Hidden on mobile screen sizes to give room */}
+      {!isMobile && (
+        <View style={dm.sideNav}>
+          <View style={dm.sideLogo}>
+            <Ionicons name="storefront" size={16} color="#FFFFFF" />
           </View>
-        ))}
-      </View>
+          {['grid', 'receipt', 'fast-food', 'people', 'stats-chart', 'settings'].map((icon, idx) => (
+            <View key={idx} style={[dm.sideIcon, idx === 0 && dm.sideIconActive]}>
+              <Ionicons name={icon} size={18} color={idx === 0 ? C.green : "#CBD5E0"} />
+            </View>
+          ))}
+        </View>
+      )}
 
+      {/* Main Content Pane */}
       <View style={dm.contentPane}>
+        {/* Top Header */}
         <View style={dm.headerRow}>
-          <Text style={dm.paneTitle}>Live Overview</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Text style={dm.paneTitle}>Live Overview</Text>
+            <View style={dm.livePulseBadge}>
+              <View style={dm.pulseDot} />
+              <Text style={dm.liveText}>LIVE</Text>
+            </View>
+          </View>
+
           <View style={dm.datePicker}>
-            <Text style={dm.dateText}>Mar 25, 2026</Text>
+            <Text style={dm.dateText}>Mar 25</Text>
             <Ionicons name="calendar-outline" size={12} color={C.muted} />
           </View>
         </View>
 
+        {/* Responsive KPI Grid: 2 columns on mobile, 4 on desktop */}
         <View style={dm.kpiGrid}>
           <View style={dm.kpiCard}>
             <Text style={dm.kpiLab}>Revenue</Text>
             <Text style={dm.kpiVal}>₹1,84,200</Text>
-            <Text style={[dm.deltaText, {color: C.green}]}>+12.4% ↑</Text>
+            <Text style={[dm.deltaText, { color: C.green }]}>+12.4% ↑</Text>
           </View>
+
           <View style={dm.kpiCard}>
-            <Text style={dm.kpiLab}>Orders</Text>
+            <Text style={dm.kpiLab}>Active Orders</Text>
             <Text style={dm.kpiVal}>142</Text>
-            <Text style={[dm.deltaText, {color: C.accent}]}>Active</Text>
+            <Text style={[dm.deltaText, { color: C.accent }]}>18 in KDS</Text>
+          </View>
+
+          <View style={dm.kpiCard}>
+            <Text style={dm.kpiLab}>Avg Order</Text>
+            <Text style={dm.kpiVal}>₹1,297</Text>
+            <Text style={[dm.deltaText, { color: C.green }]}>+5.2% ↑</Text>
+          </View>
+
+          <View style={dm.kpiCard}>
+            <Text style={dm.kpiLab}>Occupancy</Text>
+            <Text style={dm.kpiVal}>84%</Text>
+            <Text style={[dm.deltaText, { color: "#3182CE" }]}>21/25 Tables</Text>
           </View>
         </View>
 
+        {/* Hourly Sales Visual Chart Bar */}
+        <View style={dm.chartSection}>
+          <View style={dm.chartHeader}>
+            <Text style={dm.sectionSubTitle}>Peak Rush Velocity</Text>
+            <Text style={dm.chartPeakLabel}>8:00 - 9:30 PM</Text>
+          </View>
+          <View style={dm.barChartContainer}>
+            {[35, 45, 60, 80, 100, 70, 90, 65, 40].map((height, i) => (
+              <View key={i} style={dm.barWrapper}>
+                <View style={[dm.chartBar, { height: `${height}%`, backgroundColor: i === 4 ? C.green : '#E2E8F0' }]} />
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Kitchen Live Stream List */}
         <View style={dm.bottomSection}>
-          <Text style={dm.panelTitle}>Kitchen Stream</Text>
+          <View style={dm.bottomHeader}>
+            <Text style={dm.panelTitle}>Kitchen Stream (KDS)</Text>
+            <Text style={dm.viewAllText}>View All (18)</Text>
+          </View>
+
           {[
-            { t: "T-04", i: "Butter Chicken", s: "PREP", c: C.accent },
-            { t: "T-12", i: "Dal Makhani", s: "READY", c: C.green },
-            { t: "T-09", i: "Veg Biryani", s: "NEW", c: "#3182CE" }
+            { t: "T-04", i: "Butter Chicken x2, Naan", s: "PREP", c: C.accent, time: "4m ago", val: "₹1,120" },
+            { t: "T-12", i: "Dal Makhani, Paneer Tikka", s: "READY", c: C.green, time: "12m ago", val: "₹850" },
+            { t: "T-09", i: "Special Veg Biryani", s: "NEW", c: "#3182CE", time: "Just now", val: "₹640" },
           ].map((o, idx) => (
             <View key={idx} style={dm.orderRow}>
-              <Text style={dm.tableText}>{o.t}</Text>
-              <Text style={dm.itemText}>{o.i}</Text>
-              <View style={[dm.statusBadge, {borderColor: o.c}]}>
-                <Text style={[dm.statusText, {color: o.c}]}>{o.s}</Text>
+              <View style={dm.tableBadge}>
+                <Text style={dm.tableText}>{o.t}</Text>
+              </View>
+              <View style={{ flex: 1, marginHorizontal: 8 }}>
+                <Text style={dm.itemText} numberOfLines={1}>{o.i}</Text>
+                <Text style={dm.timeText}>{o.time} • {o.val}</Text>
+              </View>
+              <View style={[dm.statusBadge, { borderColor: o.c, backgroundColor: o.c + '15' }]}>
+                <Text style={[dm.statusText, { color: o.c }]}>{o.s}</Text>
               </View>
             </View>
           ))}
@@ -136,7 +191,7 @@ const PremiumDashboard = () => {
       </View>
     </View>
   </View>
-  );
+);
 };
 
 // ─── AI BUSINESS ADVISOR — CHAT MOCKUP ─────────────────────────────────
@@ -768,11 +823,11 @@ useEffect(() => {
           <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', width: '100%', zIndex: 2 }}>
             
 
-            <Text style={s.heroH1}>
-              Command Your{"\n"}
-              <Text style={{ color: C.green }}>Revenue.</Text> Own{"\n"}
-              Your Data.
-            </Text>
+           <Text style={s.heroH1}>
+  Run Your{"\n"}
+  Restaurant. <Text style={{ color: C.green }}>We Handle</Text>{"\n"}
+  the Chaos.
+</Text>
 
             <Text style={s.heroSub}>
               The premium operating system for high-growth Indian restaurants.
@@ -829,98 +884,336 @@ useEffect(() => {
           </View>
 
           <View style={s.featureGrid}>
-            {[
-              { i: "qr-code-outline",    t: "Smart QR Ordering",    d: "Frictionless ordering via browser. No app installs, no wait times for guests.",            c: "#E6F3EF" },
-              { i: "shield-half-outline", t: "Chef Mode™ Privacy",   d: "Hide financial data from staff with a single master toggle instantly.",                    c: "#F3E8FF" },
-                            { i: "chatbubble-ellipses-outline", t: "AI Business Advisor", d: "Chat with an AI that knows your sales, menu and expenses inside out.",             c: "#EDE9FE" },
+  {[
+    // 🚨 HIGH PRIORITY: NEW FEATURES
+    { 
+      i: "cloud-offline-outline", 
+      t: "Smart Offline Mode", 
+      d: "Zero-downtime billing, orders, & KOTs without internet. Auto-syncs when online.", 
+      c: "#E0F2FE" 
+    },
+    { 
+      i: "mic-outline", 
+      t: "Voice AI Advisor", 
+      d: "Talk directly with your AI. Ask for daily revenue, top items, or insights hands-free.", 
+      c: "#FCE7F3" 
+    },
+    { 
+      i: "notifications-outline", 
+      t: "AI Briefs & Live Alerts", 
+      d: "Proactive business summaries and real-time alerts for spikes, delays, and stock.", 
+      c: "#FEF3C7" 
+    },
 
-              { i: "receipt-outline",    t: "Seamless Billing",      d: "GST invoicing with integrated digital feedback and reviews.",                               c: "#EBF8FF" },
-              { i: "bar-chart-outline",  t: "Granular Analytics",    d: "Real-time insights into best sellers, peak hours, and server performance.",                c: "#FFF4E6" },
-              { i: "calculator-outline", t: "Expense ERP",           d: "Log procurement and payroll to see your true net profit daily.",                           c: "#FEE2E2" },
-              { i: "flash-outline",      t: "Kitchen Sync",          d: "Zero-lag cloud-based KOT routing to keep your chefs in harmony.",                         c: "#F0FDF4" },
-              { i: "star-outline",       t: "Verified In-App Reviews", d: "QR-based feedback on every bill, with full control over what goes public.",             c: "#FEF3C7" },
-            ].map((f, i) => (
-              <View key={i} style={s.darkFeatCard}>
-                <View style={[s.featIcon, { backgroundColor: f.c }]}>
-                  <Ionicons name={f.i} size={24} color={C.charcoal} />
-                </View>
-                <Text style={s.darkFeatTitle}>{f.t}</Text>
-                <Text style={s.darkFeatDesc}>{f.d}</Text>
-              </View>
-            ))}
+    // EXISTING CORE FEATURES
+    { 
+      i: "qr-code-outline", 
+      t: "Smart QR Ordering", 
+      d: "Frictionless ordering via browser. No app installs, no wait times for guests.", 
+      c: "#E6F3EF" 
+    },
+    { 
+      i: "shield-half-outline", 
+      t: "Chef Mode™ Privacy", 
+      d: "Hide financial data from staff with a single master toggle instantly.", 
+      c: "#F3E8FF" 
+    },
+    { 
+      i: "receipt-outline", 
+      t: "Seamless Billing", 
+      d: "GST invoicing with integrated digital feedback and reviews.", 
+      c: "#EBF8FF" 
+    },
+    { 
+      i: "bar-chart-outline", 
+      t: "Granular Analytics", 
+      d: "Real-time insights into best sellers, peak hours, and server performance.", 
+      c: "#FFF4E6" 
+    },
+    { 
+      i: "calculator-outline", 
+      t: "Expense ERP", 
+      d: "Log procurement and payroll to see your true net profit daily.", 
+      c: "#FEE2E2" 
+    },
+    { 
+      i: "flash-outline", 
+      t: "Kitchen Sync", 
+      d: "Zero-lag cloud-based KOT routing to keep your chefs in harmony.", 
+      c: "#F0FDF4" 
+    },
+    { 
+      i: "star-outline", 
+      t: "Verified In-App Reviews", 
+      d: "QR-based feedback on every bill, with full control over what goes public.", 
+      c: "#FEF3C7" 
+    },
+  ].map((f, i) => (
+    <View key={i} style={s.darkFeatCard}>
+      <View style={[s.featIcon, { backgroundColor: f.c }]}>
+        <Ionicons name={f.i} size={24} color={C.charcoal} />
+      </View>
+      <Text style={s.darkFeatTitle}>{f.t}</Text>
+      <Text style={s.darkFeatDesc}>{f.d}</Text>
+    </View>
+  ))}
+</View>
+        </View>
+
+        {/* VOICE AI SHOWCASE SECTION */}
+<View style={s.voiceSectionContainer}>
+  <View style={s.voiceSectionInner}>
+    
+    {/* Left Side: Interactive UI Mockup */}
+    <View style={s.voiceMockupCard}>
+      <View style={s.voiceBadgeHeader}>
+        <Ionicons name="mic" size={16} color={C.green} />
+        <Text style={s.voiceBadgeHeaderText}>Voice AI Active</Text>
+      </View>
+
+      {/* User Prompt Bubble */}
+      <View style={s.userVoiceBubble}>
+        <Text style={s.userVoiceText}>"How much profit did we make today?"</Text>
+      </View>
+
+      {/* Live Waveform Indicator */}
+      <View style={s.waveformCard}>
+        <Ionicons name="sparkles" size={18} color={C.green} />
+        <View style={s.waveformBars}>
+          <View style={[s.bar, { height: 10 }]} />
+          <View style={[s.bar, { height: 22 }]} />
+          <View style={[s.bar, { height: 32 }]} />
+          <View style={[s.bar, { height: 18 }]} />
+          <View style={[s.bar, { height: 28 }]} />
+          <View style={[s.bar, { height: 12 }]} />
+        </View>
+        <Text style={s.listeningText}>Listening...</Text>
+      </View>
+
+      {/* AI Voice Answer Card */}
+      <View style={s.aiVoiceResponseCard}>
+        <View style={s.aiResponseHeader}>
+          <Ionicons name="volume-medium-outline" size={16} color="#4F46E5" />
+          <Text style={s.aiResponseTitle}>Servon</Text>
+        </View>
+        <Text style={s.aiResponseText}>
+          "Today's net profit is ₹14,250-up 18% from yesterday. Paneer Butter Masala was your top margin driver."
+        </Text>
+      </View>
+
+      {/* Suggested Chips */}
+      <View style={s.suggestedPromptsRow}>
+        <Text style={s.suggestedLabel}>Try asking:</Text>
+       
+        <View style={s.promptChip}>
+          <Text style={s.chipText}>"Compare this week with last week"</Text>
+        </View>
+      </View>
+    </View>
+
+    {/* Right Side: Section Copy & Features */}
+    <View style={s.voiceTextContainer}>
+      <SectionTag text="Voice AI " color={C.green} styles={s} align="flex-start" />
+
+      <Text style={s.voiceH2}>
+        Speak to your restaurant.{"\n"}
+       
+      </Text>
+
+      <Text style={s.voiceDesc}>
+        When your hands are full during rush hours, just tap and talk. Servon's Voice AI gives you instant, spoken answers about sales on the spot.
+      </Text>
+
+      <View style={s.voiceFeatureList}>
+        <View style={s.voiceFeatItem}>
+          <View style={[s.voiceIconBox, { backgroundColor: "#FCE7F3" }]}>
+            <Ionicons name="mic-outline" size={20} color="#DB2777" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.voiceFeatTitle}>Tap & Speak Intelligence</Text>
+            <Text style={s.voiceFeatDesc}>
+              Instant speech-to-text conversion optimized for Indian restaurant terminology.
+            </Text>
           </View>
         </View>
+
+        <View style={s.voiceFeatItem}>
+          <View style={[s.voiceIconBox, { backgroundColor: "#E0E7FF" }]}>
+            <Ionicons name="volume-high-outline" size={20} color="#4F46E5" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.voiceFeatTitle}>Audio Responses</Text>
+            <Text style={s.voiceFeatDesc}>
+              Hear clear, actionable business summaries generated by voice synthesis.
+            </Text>
+          </View>
+        </View>
+
+        <View style={s.voiceFeatItem}>
+          <View style={[s.voiceIconBox, { backgroundColor: "#DCFCE7" }]}>
+            <Ionicons name="flash-outline" size={20} color="#16A34A" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.voiceFeatTitle}>Hands-Free Rush Management</Text>
+            <Text style={s.voiceFeatDesc}>
+              Check live sales while walking the kitchen floor or managing service.
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+
+  </View>
+</View>
+
 
         {/* ── IN-APP REVIEWS ── */}
         <ReviewFeatureSection s={s} />
 
         {/* ── PRICING ── */}
-        <View style={s.priceSection}>
-          <View style={s.priceHeaderCenter}>
-            <SectionTag text="Pricing" styles={s} />
-            <Text style={s.priceTitleMain}>One check.{"\n"}Everything included.</Text>
-            <Text style={s.priceSubMain}>
-              No add-on tiers to decode, no line items that appear later.
-            </Text>
-          </View>
+      <View style={s.priceSection}>
+  {/* FIXED HEADER SECTION */}
+  <View style={s.priceHeaderCenter}>
+    <SectionTag text="PRICING PLANS" styles={s} />
+    <Text style={s.priceTitleMain}>
+      Simple, and transparent pricing.{"\n"}
+    </Text>
+    <Text style={s.priceSubMain}>
+      All plans include a 10-day full-access free trial.
+    </Text>
+  </View>
 
-          <View style={s.billCard}>
-            <View style={s.billPunchRow}>
-              {Array.from({ length: 14 }).map((_, i) => (
-                <View key={i} style={s.billPunchHole} />
-              ))}
-            </View>
-
-            <View style={s.billHeaderRow}>
-              <View>
-                <Text style={s.billKicker}>RESTAURANT PREMIUM</Text>
-                <Text style={s.billPlanName}>Pro Plan</Text>
-              </View>
-              <View style={s.billStamp}>
-                <Text style={s.billStampText}>MOST{"\n"}ORDERED</Text>
-              </View>
-            </View>
-
-            <View style={s.billDivider} />
-
-            <View style={s.billItemList}>
-              {[
-                "Unlimited QR Menu Scans & Orders",
-                "Full Chef Mode™ Financial Privacy",
-                "Live Kitchen Dashboard (KOT Sync)",
-                "AI Business Advisor & Daily AI Summary",
-                "Verified In-App Reviews",
-                "Inventory & Expense ERP Suite",
-                "Export PDF & CSV Reports",
-                "24/7 Priority Support"
-              ].map((item, idx) => (
-                <View key={idx} style={s.billItemRow}>
-                  <Text style={s.billItemLabel}>{item}</Text>
-                  <View style={s.billItemLeader} />
-                  <Ionicons name="checkmark" size={14} color={C.green} />
-                </View>
-              ))}
-            </View>
-
-            <View style={s.billDividerDashed} />
-
-            <View style={s.billTotalRow}>
-              <Text style={s.billTotalLabel}>EVERYTHING, ONE PLAN</Text>
-              <Text style={s.billTotalNote}>Talk to us for pricing</Text>
-            </View>
-
-            <TouchableOpacity style={s.billCta} onPress={() => onNavigate?.("signup")}>
-              <Text style={s.billCtaText}>Get Started</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFF" />
-            </TouchableOpacity>
-
-            <View style={s.billTearRow}>
-              {Array.from({ length: 28 }).map((_, i) => (
-                <View key={i} style={s.billTearTriangle} />
-              ))}
-            </View>
-          </View>
+  {/* 3 RECEIPT CARDS CONTAINER */}
+  <View style={s.cardsGridContainer}>
+    {[
+      {
+        id: "monthly",
+        kicker: "MONTHLY FLEX",
+        planName: "Monthly",
+        price: "₹999",
+        period: "/month",
+        savingsNote: "Standard Monthly Plan",
+        stampText: null,
+        isPopular: false,
+      },
+      {
+        id: "quarterly",
+        kicker: "MOST POPULAR",
+        planName: "Quarterly",
+        price: "₹2,500",
+        period: "/4 months",
+        savingsNote: "Save ~₹1,500 (37% OFF)",
+        stampText: "BEST\nVALUE",
+        isPopular: true,
+      },
+      {
+        id: "yearly",
+        kicker: "MAXIMUM SAVINGS",
+        planName: "Yearly",
+        price: "₹6,000",
+        period: "/year",
+        savingsNote: "Save ~₹6,000 (50% OFF)", // Fixed double dash here!
+        stampText: "50%\nOFF",
+        isPopular: false,
+      },
+    ].map((plan) => (
+      <View
+        key={plan.id}
+        style={[s.billCard, plan.isPopular && s.billCardPopular]}
+      >
+        {/* Top Punch Holes */}
+        <View style={s.billPunchRow}>
+          {Array.from({ length: 10 }).map((_, i) => (
+            <View key={i} style={s.billPunchHole} />
+          ))}
         </View>
+
+        {/* Header & Stamp */}
+        <View style={s.billHeaderRow}>
+          <View>
+            <Text style={s.billKicker}>{plan.kicker}</Text>
+            <Text style={s.billPlanName}>{plan.planName}</Text>
+          </View>
+          {plan.stampText && (
+            <View style={s.billStamp}>
+              <Text style={s.billStampText}>{plan.stampText}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Price display */}
+        <View style={s.billPriceBlock}>
+          <View style={{ flexDirection: "row", alignItems: "baseline" }}>
+            <Text style={s.billPriceTag}>{plan.price}</Text>
+            <Text style={s.billPricePeriod}>{plan.period}</Text>
+          </View>
+          <Text style={s.billSavingsText}>{plan.savingsNote}</Text>
+        </View>
+
+        <View style={s.billDivider} />
+
+        {/* Feature List */}
+        <View style={s.billItemList}>
+          {[
+            { text: "10-Day Full Access Free Trial", highlight: true },
+            { text: "Offline-First Mode (Zero Downtime)", highlight: true },
+            { text: "Voice AI Assistance & Commands", highlight: true },
+            { text: "Real-time AI Alerts & Daily Summaries", highlight: true },
+            { text: "Unlimited QR Menu Scans & Orders" },
+            { text: "Full Chef Mode™ Financial Privacy" },
+            { text: "Live Kitchen Dashboard (KOT Sync)" },
+            { text: "Verified In-App Reviews" },
+            { text: "Inventory & Expense ERP Suite" },
+            { text: "Export PDF & CSV Reports" },
+            { text: "24/7 Priority Support" },
+          ].map((item, idx) => (
+            <View key={idx} style={s.billItemRow}>
+              <Text
+                style={[
+                  s.billItemLabel,
+                  item.highlight && s.billItemHighlight,
+                ]}
+              >
+                {item.text}
+              </Text>
+              <View style={s.billItemLeader} />
+              <Ionicons
+                name="checkmark-circle"
+                size={16}
+                color={item.highlight ? "#008060" : "#10B981"}
+              />
+            </View>
+          ))}
+        </View>
+
+        <View style={s.billDividerDashed} />
+
+        {/* CTA Button */}
+        <TouchableOpacity
+          style={[s.billCta, plan.isPopular && s.billCtaPopular]}
+          onPress={() => onNavigate?.("signup")}
+          activeOpacity={0.88}
+        >
+          <Text style={s.billCtaText}>Start 10-Day Free Trial</Text>
+          <Ionicons name="arrow-forward" size={16} color="#FFF" />
+        </TouchableOpacity>
+
+        {/* Sub-badge */}
+        <View style={s.trialSubBadge}>
+          <Ionicons name="shield-checkmark" size={13} color="#008060" />
+          <Text style={s.trialSubText}>No credit card required</Text>
+        </View>
+
+        {/* Bottom Tear Line */}
+        <View style={s.billTearRow}>
+          {Array.from({ length: 22 }).map((_, i) => (
+            <View key={i} style={s.billTearTriangle} />
+          ))}
+        </View>
+      </View>
+    ))}
+  </View>
+</View>
 
         {/* ── FAQ ── */}
         <View style={s.faqSection}>
@@ -988,62 +1281,73 @@ useEffect(() => {
         </View>
 
         {/* ── FOOTER ── */}
-        <View style={s.footer}>
-          <View style={s.footerTop}>
-            <View style={s.fBrand}>
-              <Text style={s.fLogo}>Servon<Text style={{ color: C.green }}>.</Text></Text>
-              <Text style={s.fTag}>
-                The infrastructure for the next generation of Indian hospitality. Built for ownership.
-              </Text>
-            </View>
+      <View style={s.footer}>
+  <View style={s.footerTop}>
+    <View style={s.fBrand}>
+      <Text style={s.fLogo}>
+        Servon<Text style={{ color: C.green }}>.</Text>
+      </Text>
+      <Text style={s.fTag}>
+        The infrastructure for the next generation of Indian hospitality. Built for ownership.
+      </Text>
+    </View>
 
-            <View style={s.fLinksGrid}>
-              <View style={s.fCol}>
-                <Text style={s.fH}>PRODUCT</Text>
-                {[
-                  { name: "Features", slug: "Features" },
-                  { name: "Pricing", slug: "Pricing" },
-                  { name: "FAQ", slug: "FAQ" }
-                ].map(l => (
-                  <TouchableOpacity key={l.slug} onPress={() => onNavigate(l.slug)}>
-                    <Text style={s.fL}>{l.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+    <View style={s.fLinksGrid}>
+      {/* PRODUCT */}
+      <View style={s.fCol}>
+        <Text style={s.fH}>PRODUCT</Text>
+        {[
+          { name: "Features", slug: "Features" },
+          { name: "Pricing", slug: "Pricing" },
+          { name: "FAQ", slug: "FAQ" },
+        ].map((l) => (
+          <TouchableOpacity key={l.slug} onPress={() => onNavigate(l.slug)}>
+            <Text style={s.fL}>{l.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-              <View style={s.fCol}>
-                <Text style={s.fH}>COMPANY</Text>
-                {[
-                  { name: "About", slug: "About" },
-                  { name: "Contact Us", slug: "Contact" }
-                ].map(l => (
-                  <TouchableOpacity key={l.slug} onPress={() => onNavigate(l.slug)}>
-                    <Text style={s.fL}>{l.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+      {/* COMPANY */}
+      <View style={s.fCol}>
+        <Text style={s.fH}>COMPANY</Text>
+        {[
+          { name: "About", slug: "About" },
+          { name: "Careers", slug: "Careers" },
+          { name: "Partner With Us", slug: "Partners" },
+          { name: "Contact Us", slug: "Contact" },
+        ].map((l) => (
+          <TouchableOpacity key={l.slug} onPress={() => onNavigate(l.slug)}>
+            <Text style={s.fL}>{l.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-              <View style={s.fCol}>
-                <Text style={s.fH}>LEGAL</Text>
-                {[
-                  { name: "Privacy", slug: "PrivacyPolicy" },
-                  { name: "Terms", slug: "TermsOfService" }
-                ].map(l => (
-                  <TouchableOpacity key={l.slug} onPress={() => onNavigate(l.slug)}>
-                    <Text style={s.fL}>{l.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
+      {/* LEGAL & COMPLIANCE */}
+      <View style={s.fCol}>
+        <Text style={s.fH}>LEGAL & TRUST</Text>
+        {[
+          { name: "Privacy", slug: "PrivacyPolicy" },
+          { name: "Terms", slug: "TermsOfService" },
+          { name: "Refund Policy", slug: "RefundPolicy" },
+          { name: "Security", slug: "Security" },
+        ].map((l) => (
+          <TouchableOpacity key={l.slug} onPress={() => onNavigate(l.slug)}>
+            <Text style={s.fL}>{l.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  </View>
 
-          <View style={s.fDivider} />
+  <View style={s.fDivider} />
 
-          <View style={s.footerBottom}>
-  <Text style={s.fCompanyLine}>Servon Labs Private Limited, Pune, Maharashtra</Text>
-  <Text style={s.copy}>© 2026 Servon. All rights reserved.</Text>
+  <View style={s.footerBottom}>
+    <Text style={s.fCompanyLine}>
+      Servon Labs Private Limited • Pune, Maharashtra, India
+    </Text>
+    <Text style={s.copy}>© 2026 Servon Labs Private Limited. All rights reserved.</Text>
+  </View>
 </View>
-        </View>
 
       </ScrollView>
 
@@ -1241,111 +1545,270 @@ useEffect(() => {
 
 // ─── DASHBOARD STYLES ─────────────────────────────────────────────────
 
-const getDashboardStyles = (width) => StyleSheet.create({
-  wrapper: {
-    width: '100%',
-    maxWidth: 940,
-    alignSelf: 'center',
-    marginTop: 60,
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: C.border,
-    overflow: 'hidden',
-    shadowOpacity: 0.1,
-    shadowRadius: 30,
-    elevation: 10,
-  },
-  browserChrome: {
-    height: 44,
-    backgroundColor: '#F8FAFC',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EDF2F7',
-  },
-  windowControls: { flexDirection: 'row', gap: 8 },
-  wDot: { width: 10, height: 10, borderRadius: 5 },
-  urlBar: {
-    flex: 1,
-    height: 26,
-    backgroundColor: '#FFF',
-    borderRadius: 6,
-    marginHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#EEE',
-  },
-  urlText: { fontSize: 10, color: C.muted },
-  mainLayout: { height: width > 600 ? 440 : 320, flexDirection: 'row' },
-  sideNav: {
-    width: width > 600 ? 64 : 44,
-    backgroundColor: '#F8FAFC',
-    borderRightWidth: 1,
-    borderRightColor: '#EDF2F7',
-    alignItems: 'center',
-    paddingTop: 16,
-    gap: 16,
-  },
- sideLogo: {
-  width: width > 600 ? 32 : 24,
-  height: width > 600 ? 32 : 24,
-  backgroundColor: C.green,
-  borderRadius: 8,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-  sideIcon: {
-    width: width > 600 ? 36 : 28,
-    height: width > 600 ? 36 : 28,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sideIconActive: { backgroundColor: C.greenLight },
-  contentPane: { flex: 1, padding: width > 600 ? 25 : 14 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  paneTitle: { fontSize: width > 600 ? 20 : 15, fontWeight: '900', color: C.charcoal },
-  datePicker: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    padding: 6,
-    borderRadius: 8,
-  },
-  dateText: { fontSize: 9, fontWeight: '700' },
-  kpiGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  kpiCard: {
-    flex: 1,
-    padding: width > 600 ? 18 : 12,
-    borderRadius: 16,
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#EEE',
-  },
-  kpiLab: { fontSize: 10, color: C.muted, fontWeight: '700' },
-  kpiVal: { fontSize: width > 600 ? 22 : 16, fontWeight: '900', color: C.charcoal, marginVertical: 4 },
-  deltaText: { fontSize: 10, fontWeight: '800' },
-  bottomSection: {
-    flex: 1,
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: width > 600 ? 18 : 12,
-    borderWidth: 1,
-    borderColor: '#EEE',
-  },
-  panelTitle: { fontSize: width > 600 ? 13 : 11, fontWeight: '800', marginBottom: 12 },
-  orderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  tableText: { width: 36, fontWeight: '900', fontSize: width > 600 ? 12 : 10 },
-  itemText: { flex: 1, fontSize: width > 600 ? 12 : 10, color: C.muted, fontWeight: '600' },
-  statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
-  statusText: { fontSize: 9, fontWeight: '900' },
-});
+const getDashboardStyles = (width) => {
+  const isMobile = width < 600;
+
+  return StyleSheet.create({
+    wrapper: {
+      width: '100%',
+      maxWidth: 940,
+      alignSelf: 'center',
+      marginTop: isMobile ? 20 : 60,
+      backgroundColor: '#FFF',
+      borderRadius: isMobile ? 16 : 24,
+      borderWidth: 1,
+      borderColor: C.border,
+      overflow: 'hidden',
+      shadowOpacity: 0.1,
+      shadowRadius: 30,
+      elevation: 10,
+    },
+    browserChrome: {
+      height: 44,
+      backgroundColor: '#F8FAFC',
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: isMobile ? 12 : 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#EDF2F7',
+    },
+    windowControls: {
+      flexDirection: 'row',
+      gap: 6,
+    },
+    wDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+    },
+    urlBar: {
+      flex: 1,
+      height: 26,
+      backgroundColor: '#FFF',
+      borderRadius: 6,
+      marginHorizontal: isMobile ? 10 : 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 6,
+      borderWidth: 1,
+      borderColor: '#EEE',
+      paddingHorizontal: 8,
+    },
+    urlText: {
+      fontSize: 10,
+      color: C.muted,
+    },
+    mainLayout: {
+      flexDirection: 'row',
+      backgroundColor: '#FFF',
+    },
+    sideNav: {
+      width: isMobile ? 44 : 64,
+      backgroundColor: '#F8FAFC',
+      borderRightWidth: 1,
+      borderRightColor: '#EDF2F7',
+      alignItems: 'center',
+      paddingTop: 16,
+      gap: 16,
+    },
+    sideLogo: {
+      width: isMobile ? 24 : 32,
+      height: isMobile ? 24 : 32,
+      backgroundColor: C.green,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sideIcon: {
+      width: isMobile ? 28 : 36,
+      height: isMobile ? 28 : 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sideIconActive: {
+      backgroundColor: C.greenLight,
+    },
+    contentPane: {
+      flex: 1,
+      padding: isMobile ? 12 : 20,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    paneTitle: {
+      fontSize: isMobile ? 16 : 20,
+      fontWeight: '900',
+      color: C.charcoal,
+    },
+    livePulseBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#DEF7EC',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 12,
+      gap: 4,
+    },
+    pulseDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: C.green,
+    },
+    liveText: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: C.green,
+    },
+    datePicker: {
+      flexDirection: 'row',
+      gap: 6,
+      alignItems: 'center',
+      backgroundColor: '#F1F5F9',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    dateText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: C.muted,
+    },
+    kpiGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: isMobile ? 8 : 12,
+      marginBottom: 14,
+    },
+    kpiCard: {
+      width: isMobile ? '48%' : '23.5%',
+      backgroundColor: '#F8FAFC',
+      padding: isMobile ? 10 : 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+    },
+    kpiLab: {
+      fontSize: 10,
+      color: C.muted,
+      fontWeight: '700',
+    },
+    kpiVal: {
+      fontSize: isMobile ? 15 : 18,
+      fontWeight: '900',
+      color: C.charcoal,
+      marginVertical: 2,
+    },
+    deltaText: {
+      fontSize: 9,
+      fontWeight: '700',
+    },
+    chartSection: {
+      backgroundColor: '#F8FAFC',
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      marginBottom: 14,
+    },
+    chartHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    sectionSubTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: C.charcoal,
+    },
+    chartPeakLabel: {
+      fontSize: 9,
+      color: C.muted,
+    },
+    barChartContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      height: 36,
+      gap: 4,
+      paddingTop: 4,
+    },
+    barWrapper: {
+      flex: 1,
+      height: '100%',
+      justifyContent: 'flex-end',
+    },
+    chartBar: {
+      width: '100%',
+      borderRadius: 3,
+    },
+    bottomSection: {
+      backgroundColor: '#F8FAFC',
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+    },
+    bottomHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    panelTitle: {
+      fontSize: isMobile ? 11 : 13,
+      fontWeight: '800',
+      color: C.charcoal,
+    },
+    viewAllText: {
+      fontSize: 10,
+      color: C.green,
+      fontWeight: '700',
+    },
+    orderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: '#EDF2F7',
+    },
+    tableBadge: {
+      backgroundColor: '#E2E8F0',
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    tableText: {
+      fontSize: 10,
+      fontWeight: '900',
+      color: C.charcoal,
+    },
+    itemText: {
+      fontSize: isMobile ? 11 : 12,
+      color: C.charcoal,
+      fontWeight: '600',
+    },
+    timeText: {
+      fontSize: 9,
+      color: C.muted,
+    },
+    statusBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    statusText: {
+      fontSize: 9,
+      fontWeight: '900',
+    },
+  });
+};
 
 // ─── AI ADVISOR + DAILY SUMMARY MOCKUP STYLES ──────────────────────────
 
@@ -1716,6 +2179,183 @@ const getMainStyles = (width) => StyleSheet.create({
     lineHeight: 16,
     flexShrink: 0,
   },
+
+  // Paste these styles inside getMainStyles = (width) => ({ ... })
+
+voiceSectionContainer: {
+  width: "100%",
+  backgroundColor: C.bg,
+  paddingVertical: width > 768 ? 90 : 50,
+  paddingHorizontal: width > 768 ? 40 : 20,
+  alignItems: "center",
+},
+voiceSectionInner: {
+  maxWidth: 1200,
+  width: "100%",
+  flexDirection: width > 900 ? "row" : "column-reverse",
+  gap: width > 900 ? 60 : 40,
+  alignItems: "center",
+},
+
+// Visual Mockup Card Styles (Left Side)
+voiceMockupCard: {
+  flex: width > 900 ? 1 : undefined,
+  width: "100%",
+  backgroundColor: "#FFFFFF",
+  borderRadius: 24,
+  padding: 24,
+  borderWidth: 1,
+  borderColor: C.border,
+  boxShadow: "0px 12px 32px rgba(0, 0, 0, 0.05)",
+  gap: 16,
+},
+voiceBadgeHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+  alignSelf: "flex-start",
+  backgroundColor: C.greenLight,
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 20,
+},
+voiceBadgeHeaderText: {
+  fontSize: 12,
+  fontWeight: "700",
+  color: C.green,
+},
+userVoiceBubble: {
+  alignSelf: "flex-end",
+  backgroundColor: C.charcoal,
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+  borderRadius: 16,
+  borderBottomRightRadius: 4,
+  maxWidth: "85%",
+},
+userVoiceText: {
+  color: "#FFFFFF",
+  fontSize: 14,
+  fontWeight: "500",
+},
+waveformCard: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: C.bg,
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  borderRadius: 14,
+  gap: 12,
+  borderWidth: 1,
+  borderColor: C.border,
+},
+waveformBars: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+  height: 36,
+},
+bar: {
+  width: 4,
+  backgroundColor: C.green,
+  borderRadius: 2,
+},
+listeningText: {
+  fontSize: 13,
+  fontWeight: "600",
+  color: C.muted,
+  marginLeft: "auto",
+},
+aiVoiceResponseCard: {
+  backgroundColor: "#F8FAFC",
+  borderRadius: 16,
+  padding: 16,
+  borderWidth: 1,
+  borderColor: "#E2E8F0",
+  gap: 8,
+},
+aiResponseHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 6,
+},
+aiResponseTitle: {
+  fontSize: 13,
+  fontWeight: "700",
+  color: "#4F46E5",
+},
+aiResponseText: {
+  fontSize: 14,
+  color: C.charcoal,
+  lineHeight: 20,
+},
+suggestedPromptsRow: {
+  gap: 8,
+  marginTop: 4,
+},
+suggestedLabel: {
+  fontSize: 12,
+  fontWeight: "600",
+  color: C.muted,
+},
+promptChip: {
+  backgroundColor: C.bg,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: C.border,
+  alignSelf: "flex-start",
+},
+chipText: {
+  fontSize: 12,
+  color: C.charcoal,
+},
+
+// Right Side Copy Styles
+voiceTextContainer: {
+  flex: width > 900 ? 1 : undefined,
+  width: "100%",
+  gap: 16,
+},
+voiceH2: {
+  fontSize: width > 768 ? 36 : 28,
+  fontWeight: "800",
+  color: C.charcoal,
+  lineHeight: width > 768 ? 44 : 34,
+},
+voiceDesc: {
+  fontSize: 16,
+  color: C.muted,
+  lineHeight: 24,
+},
+voiceFeatureList: {
+  gap: 16,
+  marginTop: 8,
+},
+voiceFeatItem: {
+  flexDirection: "row",
+  alignItems: "flex-start",
+  gap: 14,
+},
+voiceIconBox: {
+  width: 42,
+  height: 42,
+  borderRadius: 12,
+  justifyContent: "center",
+  alignItems: "center",
+},
+voiceFeatTitle: {
+  fontSize: 15,
+  fontWeight: "700",
+  color: C.charcoal,
+  marginBottom: 2,
+},
+voiceFeatDesc: {
+  fontSize: 13,
+  color: C.muted,
+  lineHeight: 18,
+},
 
   // ── HERO ──
   hero: {
@@ -2155,162 +2795,220 @@ const getMainStyles = (width) => StyleSheet.create({
   },
 
   // ── PRICING SECTION (bill / check motif) ──
-  priceSection: {
-    paddingVertical: width > 600 ? 110 : 64,
-    paddingHorizontal: 16,
-    backgroundColor: '#FAF9F6',
-    alignItems: 'center',
-  },
-  priceHeaderCenter: { alignItems: 'center', marginBottom: 48 },
-  priceTitleMain: {
-    fontSize: width > 600 ? 34 : 24,
-    fontWeight: '900',
-    color: '#121417',
-    textAlign: 'center',
-    lineHeight: width > 600 ? 40 : 30,
-    letterSpacing: -1,
-    marginTop: 14,
-  },
-  priceSubMain: {
-    fontSize: width > 600 ? 16 : 14,
-    color: '#636E72',
-    textAlign: 'center',
-    marginTop: 14,
-    lineHeight: 24,
-    maxWidth: 420,
+ cardsGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 24,
+    justifyContent: 'center',
+    alignItems: 'stretch',
+    width: '100%',
+    maxWidth: 1200,
+    marginTop: 12,
   },
   billCard: {
-    width: width > 600 ? 460 : width - 32,
-    backgroundColor: C.paper,
-    borderRadius: 8,
-    paddingHorizontal: width > 600 ? 34 : 24,
-    paddingTop: 4,
-    paddingBottom: 0,
+    flex: 1,
+    minWidth: 320,
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
     borderWidth: 1,
-    borderColor: C.paperBorder,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 30,
-    elevation: 8,
+    borderColor: '#E2E8F0',
+    position: 'relative',
     overflow: 'hidden',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  billCardPopular: {
+    borderColor: '#008060',
+    borderWidth: 2,
+    shadowOpacity: 0.12,
+    shadowRadius: 28,
+    transform: width > 900 ? [{ scale: 1.03 }] : [],
   },
   billPunchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginHorizontal: -6,
-    marginBottom: 22,
+    marginBottom: 14,
+    paddingHorizontal: 4,
   },
   billPunchHole: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FAF9F6',
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#E2E8F0',
   },
   billHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
+    alignItems: 'center',
+    marginBottom: 8,
   },
   billKicker: {
-    fontFamily: MONO,
-    fontSize: 11,
-    fontWeight: '700',
-    color: C.muted,
-    letterSpacing: 1.5,
-    marginBottom: 6,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: '#008060',
   },
-  billPlanName: { fontSize: 28, fontWeight: '900', color: C.charcoal },
+  billPlanName: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  // HEADER STYLES (Restores top title centering and font styling)
+  priceSection: {
+    paddingVertical: 60,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    width: '100%',
+  },
+  priceHeaderCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 40,
+    width: '100%',
+  },
+  priceTitleMain: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 40,
+  },
+  priceSubMain: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 10,
+    maxWidth: 540,
+    lineHeight: 22,
+  },
   billStamp: {
     borderWidth: 1.5,
-    borderColor: C.accent,
+    borderColor: '#D97706',
     borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    transform: [{ rotate: '-7deg' }],
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    transform: [{ rotate: '-4deg' }],
+    backgroundColor: '#FEF3C7',
   },
   billStampText: {
-    fontFamily: MONO,
     fontSize: 9,
     fontWeight: '900',
-    color: C.accent,
-    letterSpacing: 1,
+    color: '#B45309',
     textAlign: 'center',
-    lineHeight: 12,
+    lineHeight: 11,
+  },
+  billPriceBlock: {
+    marginBottom: 10,
+  },
+  billPriceTag: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  billPricePeriod: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+    marginLeft: 4,
+  },
+  billSavingsText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#008060',
+    marginTop: 2,
   },
   billDivider: {
-    borderTopWidth: 1,
-    borderTopColor: C.paperBorder,
-    marginBottom: 20,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 10,
   },
-  billItemList: { gap: 14 },
-  billItemRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  billItemList: {
+    gap: 8,
+    marginVertical: 6,
+  },
+  billItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   billItemLabel: {
-    fontFamily: MONO,
-    fontSize: width > 600 ? 13.5 : 12.5,
-    color: C.charcoal,
+    fontSize: 12,
     fontWeight: '600',
+    color: '#334155',
+  },
+  billItemHighlight: {
+    color: '#008060',
+    fontWeight: '800',
   },
   billItemLeader: {
     flex: 1,
-    height: 0,
     borderBottomWidth: 1,
-    borderBottomColor: C.paperBorder,
-    borderStyle: 'dotted',
-    marginHorizontal: 8,
-    marginBottom: 4,
+    borderBottomColor: '#F1F5F9',
+    borderStyle: 'dashed',
+    marginHorizontal: 6,
   },
   billDividerDashed: {
-    borderTopWidth: 1,
-    borderTopColor: C.paperBorder,
+    borderBottomWidth: 1,
+    borderBottomColor: '#CBD5E1',
     borderStyle: 'dashed',
-    marginTop: 24,
-    marginBottom: 20,
-  },
-  billTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  billTotalLabel: {
-    fontFamily: MONO,
-    fontSize: 13,
-    fontWeight: '900',
-    color: C.charcoal,
-    letterSpacing: 0.5,
-  },
-  billTotalNote: {
-    fontFamily: MONO,
-    fontSize: 12,
-    color: C.green,
-    fontWeight: '700',
+    marginVertical: 14,
   },
   billCta: {
-    backgroundColor: C.charcoal,
-    paddingVertical: 16,
-    borderRadius: 10,
+    backgroundColor: '#0F172A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    marginBottom: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
   },
-  billCtaText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
-  billTearRow: {
+  billCtaPopular: {
+    backgroundColor: '#008060',
+  },
+  billCtaText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  trialSubBadge: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginHorizontal: -34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 10,
+  },
+  trialSubText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  billTearRow: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    overflow: 'hidden',
   },
   billTearTriangle: {
     width: 0,
     height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderBottomWidth: 9,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderBottomColor: '#FAF9F6',
+    borderBottomColor: '#F8FAFC',
   },
 
   // ── FAQ ──

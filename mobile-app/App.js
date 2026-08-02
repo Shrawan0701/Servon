@@ -22,6 +22,10 @@ import PricingPage from "./src/screens/web/PricingPage";
 import FAQPage from "./src/screens/web/FAQPage";
 import AboutPage from "./src/screens/web/AboutPage";
 import ContactPage from "./src/screens/web/ContactPage";
+import RefundPolicy from "./src/screens/web/RefundPolicy";
+import Security from "./src/screens/web/Security";
+import Partners from "./src/screens/web/Partners";
+import Careers from "./src/screens/web/Careers";
 
 function Root() {
   const { token, loading } = useAuth();
@@ -75,6 +79,10 @@ function Root() {
       case "FAQ":           return <FAQPage onNavigate={handleWebNavigate} />;
       case "About":         return <AboutPage onNavigate={handleWebNavigate} />;
       case "Contact":       return <ContactPage onNavigate={handleWebNavigate} />;
+      case "RefundPolicy":       return <RefundPolicy onNavigate={handleWebNavigate} />;
+      case "Security":       return <Security onNavigate={handleWebNavigate} />;
+      case "Partners":       return <Partners onNavigate={handleWebNavigate} />;
+      case "Careers":       return <Careers onNavigate={handleWebNavigate} />;
       default:              return <LandingPage onNavigate={handleWebNavigate} />;
     }
   }
