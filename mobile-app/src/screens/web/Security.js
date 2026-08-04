@@ -19,37 +19,37 @@ export default function Security({ onNavigate }) {
 
   const securityPillars = [
     {
-      icon: "eye-off",
+      icon: "eye-off-outline",
       title: "Chef Mode™ Financial Privacy",
       description:
         "Protect sensitive restaurant revenue and margin data. Kitchen staff and floor servers view operational metrics (KOT, active orders) without access to total collection figures or profitability metrics.",
     },
     {
-      icon: "lock-closed",
+      icon: "lock-closed-outline",
       title: "Bank-Grade Data Encryption",
       description:
         "All data transferred between your mobile app, web terminal, and cloud servers is encrypted using 256-bit TLS/SSL encryption. Databases are encrypted at rest with AES-256 standards.",
     },
     {
-      icon: "card",
+      icon: "card-outline",
       title: "PCI-DSS Compliant Payments",
       description:
         "Servon never stores raw payment card numbers, UPI PINs, or sensitive banking credentials. All payment processing is directly tokenized and handled via Razorpay's PCI-DSS Level 1 infrastructure.",
     },
     {
-      icon: "wifi",
+      icon: "wifi-outline",
       title: "Offline-First Sync Integrity",
       description:
         "Order and billing data captured during internet outages are stored locally using encrypted database storage and synchronized seamlessly with collision-free resolution once connectivity resumes.",
     },
     {
-      icon: "server",
+      icon: "server-outline",
       title: "High-Availability Infrastructure",
       description:
         "Our backend services operate on cloud architecture featuring automated daily backups, redundant multi-region failovers, and a 99.9% uptime target for uninterrupted kitchen operations.",
     },
     {
-      icon: "key-working",
+      icon: "key-outline",
       title: "Role-Based Access Control (RBAC)",
       description:
         "Enforce strict permission hierarchies. Assign specific roles (Owner/Manager and Chef) with granular access limits across menu editing, discounts, reports, and staff management.",
@@ -63,12 +63,13 @@ export default function Security({ onNavigate }) {
       subtitle="How Servon Labs Private Limited safeguards your restaurant's financial privacy, operational data, and customer information."
     >
       <View style={s.container}>
-        {/* Security Shield Banner */}
+        {/* LIGHT SECURITY SHIELD BANNER */}
         <View style={s.bannerCard}>
           <View style={s.bannerIconBox}>
-            <Ionicons name="shield-checkmark" size={32} color="#008060" />
+            <Ionicons name="shield-checkmark-outline" size={28} color="#008060" />
           </View>
           <View style={{ flex: 1 }}>
+            <Text style={s.bannerKicker}>DATA PRIVACY FIRST</Text>
             <Text style={s.bannerTitle}>Built for Absolute Business Privacy</Text>
             <Text style={s.bannerText}>
               Your restaurant's financial figures, inventory margins, and customer data belong exclusively to you. We maintain stringent technical safeguards to ensure uncompromised data integrity.
@@ -76,7 +77,7 @@ export default function Security({ onNavigate }) {
           </View>
         </View>
 
-        {/* 6 Security Pillars Grid */}
+        {/* 6 SECURITY PILLARS GRID */}
         <View style={s.grid}>
           {securityPillars.map((item, idx) => (
             <View key={idx} style={s.card}>
@@ -91,9 +92,9 @@ export default function Security({ onNavigate }) {
           ))}
         </View>
 
-        {/* Responsible Disclosure Box */}
+        {/* RESPONSIBLE DISCLOSURE BOX */}
         <View style={s.disclosureCard}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 260 }}>
             <Text style={s.disclosureTitle}>Report a Security Concern</Text>
             <Text style={s.disclosureText}>
               Have you discovered a potential security vulnerability or data concern? 
@@ -104,7 +105,7 @@ export default function Security({ onNavigate }) {
             onPress={() => onNavigate?.('Contact')}
             activeOpacity={0.85}
           >
-            <Ionicons name="mail-unread" size={16} color="#FFF" />
+            <Ionicons name="mail-unread-outline" size={16} color="#FFF" />
             <Text style={s.emailBtnText}>Report to Security Team</Text>
           </TouchableOpacity>
         </View>
@@ -120,43 +121,59 @@ const s = StyleSheet.create({
     alignSelf: 'center',
     paddingVertical: 12,
   },
+
+  // LIGHT BANNER CARD
   bannerCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0F172A',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 28,
     marginBottom: 32,
     gap: 20,
-    flexWrap: 'wrap',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 1,
   },
   bannerIconBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 128, 96, 0.15)',
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#E6F4EA',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#008060',
+  },
+  bannerKicker: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#008060',
+    letterSpacing: 1.2,
+    marginBottom: 4,
   },
   bannerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#0F172A',
     marginBottom: 6,
+    letterSpacing: -0.3,
   },
   bannerText: {
     fontSize: 14,
-    lineHeight: 22,
-    color: '#94A3B8',
-    maxWidth: 700,
+    lineHeight: 24,
+    color: '#475569',
+    maxWidth: 720,
   },
+
+  // GRID SECTION
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 20,
-    justifyContent: 'spaceBetween',
+    justifyContent: 'space-between',
   },
   card: {
     flexGrow: 1,
@@ -168,10 +185,10 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
+    elevation: 1,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -180,8 +197,8 @@ const s = StyleSheet.create({
     gap: 12,
   },
   iconWrap: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     backgroundColor: '#E6F4EA',
     alignItems: 'center',
@@ -195,14 +212,16 @@ const s = StyleSheet.create({
   },
   cardDesc: {
     fontSize: 13,
-    lineHeight: 20,
+    lineHeight: 21,
     color: '#475569',
-    fontWeight: '500',
+    fontWeight: '400',
   },
+
+  // DISCLOSURE BOX
   disclosureCard: {
     marginTop: 36,
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 24,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -225,18 +244,18 @@ const s = StyleSheet.create({
     lineHeight: 18,
   },
   emailBtn: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#008060',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 10,
     gap: 8,
     cursor: isWeb ? 'pointer' : 'default',
   },
   emailBtnText: {
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: 14,
   },
 });

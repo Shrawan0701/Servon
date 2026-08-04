@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Platform,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 
 import { WebPageLayout } from './WebPageLayout';
@@ -19,38 +20,42 @@ export default function Careers({ onNavigate }) {
 
   const culturePoints = [
     {
-      icon: "rocket",
+      icon: "rocket-outline",
       title: "High Ownership, Fast Scale",
       description:
         "We are building modern core infrastructure for Indian dining. You will work on real-world, high-concurrency systems used daily in bustling kitchens.",
     },
     {
-      icon: "code-working",
+      icon: "code-working-outline",
       title: "Product-Led Engineering",
       description:
         "We value clean code, offline-first reliability, AI automation, and seamless UX over corporate bureaucracy. Good ideas win regardless of title.",
     },
     {
-      icon: "heart-circle",
+      icon: "heart-outline",
       title: "Merchant-First Mindset",
       description:
         "Every feature we ship directly protects restaurant margins, speeds up KOTs, or simplifies owner operations across India.",
     },
   ];
 
+  
+
   return (
     <WebPageLayout
       onNavigate={onNavigate}
-      title="Careers at Servon Labs"
+      title="Careers at Servon"
       subtitle="Help us build the next generation of software infrastructure for Indian hospitality."
     >
       <View style={s.container}>
-        {/* Culture Intro Card */}
+        
+        {/* LIGHT CULTURE INTRO CARD */}
         <View style={s.introCard}>
           <View style={s.introIconWrap}>
-            <Ionicons name="briefcase" size={30} color="#008060" />
+            <Ionicons name="briefcase-outline" size={26} color="#008060" />
           </View>
           <View style={{ flex: 1 }}>
+            <Text style={s.introKicker}>OUR MISSION</Text>
             <Text style={s.introTitle}>Building the Future of Restaurant Tech</Text>
             <Text style={s.introText}>
               At Servon Labs Private Limited, we are mission-driven problem solvers based in Pune, Maharashtra. We empower restaurant owners, cloud kitchens, and cafes with intelligent, offline-capable POS and AI management suites.
@@ -58,7 +63,7 @@ export default function Careers({ onNavigate }) {
           </View>
         </View>
 
-        {/* Culture Grid */}
+        {/* CULTURE GRID */}
         <Text style={s.sectionHeader}>Why Work With Us?</Text>
         <View style={s.cultureGrid}>
           {culturePoints.map((item, idx) => (
@@ -72,11 +77,11 @@ export default function Careers({ onNavigate }) {
           ))}
         </View>
 
-        {/* General Application / Open Inquiries Card */}
+        {/* GENERAL APPLICATION / OPEN INQUIRIES CARD */}
         <View style={s.noJobBox}>
           <View style={s.noJobHeader}>
             <View style={s.badgeWrap}>
-              <Ionicons name="mail-open" size={16} color="#008060" />
+              <Ionicons name="mail-open-outline" size={15} color="#008060" />
               <Text style={s.badgeText}>Direct Talent Pipeline</Text>
             </View>
             <Text style={s.noJobTitle}>Don't see an open role for your skill set?</Text>
@@ -87,7 +92,7 @@ export default function Careers({ onNavigate }) {
           </Text>
 
           <View style={s.contactCard}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 260 }}>
               <Text style={s.contactCardTitle}>Send your resume directly to our team</Text>
               <Text style={s.contactCardSub}>
                 Include your resume, GitHub/portfolio link, and a brief note on what you'd love to build at Servon.
@@ -100,6 +105,7 @@ export default function Careers({ onNavigate }) {
 
           </View>
         </View>
+
       </View>
     </WebPageLayout>
   );
@@ -112,44 +118,62 @@ const s = StyleSheet.create({
     alignSelf: 'center',
     paddingVertical: 12,
   },
+
+  // LIGHT INTRO CARD
   introCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0F172A',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 28,
     marginBottom: 36,
     gap: 20,
-    flexWrap: 'wrap',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 1,
   },
   introIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 128, 96, 0.15)',
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#E6F4EA',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#008060',
+  },
+  introKicker: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#008060',
+    letterSpacing: 1.2,
+    marginBottom: 4,
   },
   introTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 6,
+    color: '#0F172A',
+    marginBottom: 8,
+    letterSpacing: -0.3,
   },
   introText: {
     fontSize: 14,
-    lineHeight: 22,
-    color: '#94A3B8',
-    maxWidth: 700,
+    lineHeight: 24,
+    color: '#475569',
   },
+
+  // SECTION HEADER
   sectionHeader: {
     fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 16,
+    paddingLeft: 2,
   },
+
+  // CULTURE GRID
   cultureGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -161,18 +185,23 @@ const s = StyleSheet.create({
     flexBasis: 260,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 22,
+    padding: 24,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
+    elevation: 1,
   },
   cardIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#E6F4EA',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   cardTitle: {
     fontSize: 16,
@@ -182,9 +211,11 @@ const s = StyleSheet.create({
   },
   cardDesc: {
     fontSize: 13,
-    lineHeight: 20,
-    color: '#475569',
+    lineHeight: 21,
+    color: '#64748B',
   },
+
+  // NO JOB / OPEN PIPELINE BOX
   noJobBox: {
     backgroundColor: '#F8FAFC',
     borderRadius: 20,
@@ -198,7 +229,7 @@ const s = StyleSheet.create({
   badgeWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#E6F4EA',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
@@ -222,12 +253,14 @@ const s = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 20,
   },
+
+  // CONTACT CARD INSIDE PIPELINE
   contactCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#E2E8F0',
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -241,10 +274,11 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   contactCardSub: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#64748B',
-    marginBottom: 10,
+    marginBottom: 12,
     maxWidth: 520,
+    lineHeight: 18,
   },
   emailPill: {
     flexDirection: 'row',
@@ -268,7 +302,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 11,
+    paddingVertical: 12,
     borderRadius: 10,
     gap: 8,
     cursor: isWeb ? 'pointer' : 'default',

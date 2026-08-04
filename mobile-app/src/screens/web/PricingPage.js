@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Text,
   StyleSheet,
@@ -15,6 +15,13 @@ const isWeb = Platform.OS === "web";
 
 export default function PricingPage({ onNavigate }) {
   const { width } = useWindowDimensions();
+  const isMobile = width < 900;
+  
+  const [openFaq, setOpenFaq] = useState(null);
+
+  const toggleFaq = (index) => {
+    setOpenFaq(openFaq === index ? null : index);
+  };
 
   const plans = [
     {
@@ -22,9 +29,9 @@ export default function PricingPage({ onNavigate }) {
       kicker: "MONTHLY FLEX",
       planName: "Monthly",
       price: "₹999",
-      period: "/month",
-      savingsNote: "Standard Monthly Plan",
-      stampText: null,
+      period: "/ month",
+      savingsNote: "Standard flexibility, cancel anytime",
+      badgeText: null,
       isPopular: false,
     },
     {
@@ -32,9 +39,9 @@ export default function PricingPage({ onNavigate }) {
       kicker: "MOST POPULAR",
       planName: "Quarterly",
       price: "₹2,500",
-      period: "/4 months",
-      savingsNote: "Save ~₹1,500 (37% OFF)",
-      stampText: "BEST\nVALUE",
+      period: "/ 4 months",
+      savingsNote: "Effective ~₹625/mo · Save 37%",
+      badgeText: "BEST VALUE",
       isPopular: true,
     },
     {
@@ -42,10 +49,42 @@ export default function PricingPage({ onNavigate }) {
       kicker: "MAXIMUM SAVINGS",
       planName: "Yearly",
       price: "₹6,000",
-      period: "/year",
-      savingsNote: "Save ~₹6,000 (50% OFF)",
-      stampText: "50%\nOFF",
+      period: "/ year",
+      savingsNote: "Effective ₹500/mo · Save 50%",
+      badgeText: "50% OFF",
       isPopular: false,
+    },
+  ];
+
+  const featuresList = [
+    "10-Day Full Access Free Trial",
+    "Offline Mode (Works Without Internet)",
+    "Voice AI Assistance & Smart Commands",
+    "Real-time AI Alerts & Daily Summaries",
+    "Unlimited QR Menu Scans & Orders",
+    "Chef Mode™ Financial Privacy Toggle",
+    "Live Kitchen Display (KDS & KOT Sync)",
+    "Inventory & Recipe Cost Tracking",
+    "Export PDF, Excel & CSV Reports",
+    "24/7 Priority Support & Onboarding",
+  ];
+
+  const faqs = [
+    {
+      q: "Can I try Servon before committing to a paid plan?",
+      a: "Yes! Every account starts with a 10-day unlimited free trial. No credit card or upfront deposit is required.",
+    },
+    {
+      q: "Does Servon work if my restaurant internet goes down?",
+      a: "Yes. Servon includes native Offline Mode. Bills and kitchen orders sync locally and automatically push to the cloud once connectivity resumes.",
+    },
+    {
+      q: "Are there any hidden setup fees or hardware lock-ins?",
+      a: "Zero hidden fees. Servon runs on your existing devices (Android, iOS, PC, thermal printers) without requiring expensive custom hardware.",
+    },
+    {
+      q: "Can I change or upgrade my plan later?",
+      a: "You can switch between Monthly, Quarterly, and Yearly plans at any time directly from your admin panel.",
     },
   ];
 
@@ -53,302 +92,392 @@ export default function PricingPage({ onNavigate }) {
     <WebPageLayout
       onNavigate={onNavigate}
       title="Simple, transparent pricing"
-      subtitle="Choose the billing plan that fits your restaurant. All plans include full feature access."
+      subtitle="Choose the billing plan that fits your business. All plans include complete access to every feature."
     >
-      <View style={ts.container}>
-        {/* 3 RECEIPT CARDS GRID */}
-        <View style={ts.grid}>
+      <View style={s.container}>
+        {/* PRICING CARDS GRID */}
+        <View style={[s.grid, isMobile && s.gridMobile]}>
           {plans.map((plan) => (
             <View
               key={plan.id}
-              style={[ts.billCard, plan.isPopular && ts.billCardPopular]}
+              style={[
+                s.card,
+                plan.isPopular && s.cardPopular,
+                isMobile && s.cardMobileFull,
+              ]}
             >
-              {/* Top Punch Holes */}
-              <View style={ts.billPunchRow}>
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <View key={i} style={ts.billPunchHole} />
-                ))}
-              </View>
-
-              {/* Header & Stamp */}
-              <View style={ts.billHeaderRow}>
-                <View>
-                  <Text style={ts.billKicker}>{plan.kicker}</Text>
-                  <Text style={ts.billPlanName}>{plan.planName}</Text>
+              {/* Popular Badge */}
+              {plan.isPopular && (
+                <View style={s.popularBadge}>
+                  <Ionicons name="sparkles" size={12} color="#FFFFFF" />
+                  <Text style={s.popularBadgeText}>MOST POPULAR</Text>
                 </View>
-                {plan.stampText && (
-                  <View style={ts.billStamp}>
-                    <Text style={ts.billStampText}>{plan.stampText}</Text>
+              )}
+
+              {/* Card Header */}
+              <View style={s.cardHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.kicker, plan.isPopular && s.kickerPopular]}>
+                    {plan.kicker}
+                  </Text>
+                  <Text style={s.planName}>{plan.planName}</Text>
+                </View>
+
+                {plan.badgeText && !plan.isPopular && (
+                  <View style={s.savingsTag}>
+                    <Text style={s.savingsTagText}>{plan.badgeText}</Text>
                   </View>
                 )}
               </View>
 
-              {/* Price Display */}
-              <View style={ts.billPriceBlock}>
-                <View style={{ flexDirection: "row", alignItems: "baseline" }}>
-                  <Text style={ts.billPriceTag}>{plan.price}</Text>
-                  <Text style={ts.billPricePeriod}>{plan.period}</Text>
+              {/* Pricing Section */}
+              <View style={s.priceContainer}>
+                <View style={s.priceRow}>
+                  <Text style={s.priceAmount}>{plan.price}</Text>
+                  <Text style={s.pricePeriod}>{plan.period}</Text>
                 </View>
-                <Text style={ts.billSavingsText}>{plan.savingsNote}</Text>
+                <Text style={s.savingsNote}>{plan.savingsNote}</Text>
               </View>
-
-              <View style={ts.billDivider} />
-
-              {/* Included Features List */}
-              <View style={ts.billItemList}>
-                {[
-                  { text: "10-Day Full Access Free Trial", highlight: true },
-                  { text: "Offline Mode (Works Without Internet)", highlight: true },
-                  { text: "Voice AI Assistance & Commands", highlight: true },
-                  { text: "Real-time AI Alerts & Daily Summaries", highlight: true },
-                  { text: "Unlimited QR Menu Scans & Orders" },
-                  { text: "Full Chef Mode™ Financial Privacy" },
-                  { text: "Live Kitchen Dashboard (KOT Sync)" },
-                  { text: "Verified In-App Reviews" },
-                  { text: "Inventory & Expense ERP Suite" },
-                  { text: "Export PDF & CSV Reports" },
-                  { text: "24/7 Priority Support" },
-                ].map((item, idx) => (
-                  <View key={idx} style={ts.billItemRow}>
-                    <Text
-                      style={[
-                        ts.billItemLabel,
-                        item.highlight && ts.billItemHighlight,
-                      ]}
-                    >
-                      {item.text}
-                    </Text>
-                    <View style={ts.billItemLeader} />
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color={item.highlight ? "#008060" : "#10B981"}
-                    />
-                  </View>
-                ))}
-              </View>
-
-              <View style={ts.billDividerDashed} />
 
               {/* CTA Button */}
               <TouchableOpacity
-                style={[ts.billCta, plan.isPopular && ts.billCtaPopular]}
-                onPress={() => onNavigate?.("signup")}
+                style={[s.ctaButton, plan.isPopular && s.ctaButtonPopular]}
+                onPress={() => onNavigate?.("login")}
                 activeOpacity={0.88}
               >
-                <Text style={ts.billCtaText}>Start 10-Day Free Trial</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFF" />
+                <Text style={s.ctaText}>Start 10-Day Free Trial</Text>
+                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
               </TouchableOpacity>
 
-              {/* Sub Badge */}
-              <View style={ts.trialSubBadge}>
-                <Ionicons name="shield-checkmark" size={13} color="#008060" />
-                <Text style={ts.trialSubText}>No credit card required</Text>
+              <View style={s.subBadge}>
+                <Ionicons name="shield-checkmark-outline" size={14} color="#008060" />
+                <Text style={s.subBadgeText}>No credit card required</Text>
               </View>
 
-              {/* Bottom Tear Line */}
-              <View style={ts.billTearRow}>
-                {Array.from({ length: 22 }).map((_, i) => (
-                  <View key={i} style={ts.billTearTriangle} />
+              <View style={s.divider} />
+
+              {/* Feature Checklist */}
+              <Text style={s.featureHeaderText}>Included in this plan:</Text>
+              <View style={s.featureList}>
+                {featuresList.map((feature, idx) => (
+                  <View key={idx} style={s.featureRow}>
+                    <View style={s.checkBadge}>
+                      <Ionicons name="checkmark" size={13} color="#008060" />
+                    </View>
+                    <Text style={s.featureText}>{feature}</Text>
+                  </View>
                 ))}
               </View>
             </View>
           ))}
         </View>
+
+        {/* FREQUENTLY ASKED QUESTIONS */}
+        <View style={s.faqSection}>
+          <Text style={s.faqSectionTitle}>Frequently Asked Questions</Text>
+          <Text style={s.faqSectionSub}>Everything you need to know about Servon plans and billing.</Text>
+
+          <View style={s.faqList}>
+            {faqs.map((item, idx) => {
+              const isOpen = openFaq === idx;
+              return (
+                <View key={idx} style={s.faqCard}>
+                  <TouchableOpacity
+                    style={s.faqHeader}
+                    onPress={() => toggleFaq(idx)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.faqQuestion}>{item.q}</Text>
+                    <Ionicons
+                      name={isOpen ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color="#0F172A"
+                    />
+                  </TouchableOpacity>
+                  {isOpen && <Text style={s.faqAnswer}>{item.a}</Text>}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* ENTERPRISE / DEMO BANNER */}
+       
       </View>
     </WebPageLayout>
   );
 }
 
-const ts = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 12,
+    width: "100%",
+    alignItems: "center",
+    paddingVertical: 10,
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "stretch",
     gap: 24,
-    justifyContent: 'center',
-    alignItems: 'stretch',
-    width: '100%',
-    maxWidth: 1200,
+    width: "100%",
+    maxWidth: 1140,
   },
-  billCard: {
+  gridMobile: {
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  card: {
     flex: 1,
-    minWidth: 320,
-    maxWidth: 370,
-    backgroundColor: '#FFFFFF',
+    minWidth: 300,
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    paddingBottom: 28,
+    padding: 28,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    position: 'relative',
-    overflow: 'hidden',
-
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    elevation: 4,
+    borderColor: "#E2E8F0",
+    position: "relative",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  billCardPopular: {
-    borderColor: '#008060',
+  cardMobileFull: {
+    width: "100%",
+  },
+  cardPopular: {
+    borderColor: "#008060",
     borderWidth: 2,
-    shadowOpacity: 0.12,
-    shadowRadius: 28,
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
   },
-  billPunchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    paddingHorizontal: 4,
-  },
-  billPunchHole: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#E2E8F0',
-  },
-  billHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  billKicker: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    color: '#008060',
-  },
-  billPlanName: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  billStamp: {
-    borderWidth: 1.5,
-    borderColor: '#D97706',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    transform: [{ rotate: '-4deg' }],
-    backgroundColor: '#FEF3C7',
-  },
-  billStampText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#B45309',
-    textAlign: 'center',
-    lineHeight: 11,
-  },
-  billPriceBlock: {
-    marginBottom: 10,
-  },
-  billPriceTag: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  billPricePeriod: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-    marginLeft: 4,
-  },
-  billSavingsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#008060',
-    marginTop: 2,
-  },
-  billDivider: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginVertical: 10,
-  },
-  billItemList: {
-    gap: 8,
-    marginVertical: 6,
-  },
-  billItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  billItemLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  billItemHighlight: {
-    color: '#008060',
-    fontWeight: '800',
-  },
-  billItemLeader: {
-    flex: 1,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    borderStyle: 'dashed',
-    marginHorizontal: 6,
-  },
-  billDividerDashed: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#CBD5E1',
-    borderStyle: 'dashed',
-    marginVertical: 14,
-  },
-  billCta: {
-    backgroundColor: '#0F172A',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
+  popularBadge: {
+    position: "absolute",
+    top: -14,
+    alignSelf: "center",
+    backgroundColor: "#008060",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    cursor: isWeb ? 'pointer' : 'default',
   },
-  billCtaPopular: {
-    backgroundColor: '#008060',
+  popularBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
-  billCtaText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginTop: 6,
+  },
+  kicker: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+    color: "#64748B",
+    marginBottom: 4,
+  },
+  kickerPopular: {
+    color: "#008060",
+  },
+  planName: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  savingsTag: {
+    backgroundColor: "#E6F4EA",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  savingsTagText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#008060",
+  },
+  priceContainer: {
+    marginVertical: 20,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  priceAmount: {
+    fontSize: 38,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -1,
+  },
+  pricePeriod: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+    marginLeft: 6,
+  },
+  savingsNote: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#008060",
+    marginTop: 4,
+  },
+  ctaButton: {
+    backgroundColor: "#0F172A",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    cursor: isWeb ? "pointer" : "default",
+  },
+  ctaButtonPopular: {
+    backgroundColor: "#008060",
+  },
+  ctaText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
     fontSize: 14,
   },
-  trialSubBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    marginTop: 10,
+  subBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
   },
-  trialSubText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
+  subBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
   },
-  billTearRow: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    overflow: 'hidden',
+  divider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginVertical: 20,
   },
-  billTearTriangle: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
-    borderBottomWidth: 5,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#F8FAFC',
+  featureHeaderText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 12,
+  },
+  featureList: {
+    gap: 10,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  checkBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#E6F4EA",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  featureText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#334155",
+    flex: 1,
+  },
+
+  // FAQ SECTION
+  faqSection: {
+    marginTop: 64,
+    width: "100%",
+    maxWidth: 800,
+    alignItems: "center",
+  },
+  faqSectionTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#0F172A",
+    textAlign: "center",
+  },
+  faqSectionSub: {
+    fontSize: 15,
+    color: "#64748B",
+    marginTop: 6,
+    marginBottom: 32,
+    textAlign: "center",
+  },
+  faqList: {
+    width: "100%",
+    gap: 12,
+  },
+  faqCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  faqHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  faqQuestion: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+    flex: 1,
+    marginRight: 12,
+  },
+  faqAnswer: {
+    fontSize: 14,
+    color: "#475569",
+    marginTop: 12,
+    lineHeight: 22,
+  },
+
+  // ENTERPRISE BANNER
+  contactBanner: {
+    marginTop: 50,
+    maxWidth: 1140,
+    width: "100%",
+    backgroundColor: "#0F172A",
+    borderRadius: 18,
+    padding: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 24,
+  },
+  contactBannerMobile: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    padding: 24,
+  },
+  contactTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginBottom: 6,
+  },
+  contactSub: {
+    fontSize: 14,
+    color: "#94A3B8",
+    lineHeight: 20,
+  },
+  contactBtn: {
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  contactBtnText: {
+    color: "#0F172A",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

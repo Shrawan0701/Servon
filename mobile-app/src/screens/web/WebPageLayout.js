@@ -24,24 +24,48 @@ export const WebPageLayout = ({ title, subtitle, children, onNavigate }) => {
           </TouchableOpacity>
 
           {/* Desktop Links */}
-         
+          {!isMobile && (
+            <View style={s.desktopNavLinks}>
+              <TouchableOpacity onPress={() => onNavigate("features")}>
+                <Text style={s.navLinkText}>Features</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => onNavigate("pricing")}>
+                <Text style={s.navLinkText}>Pricing</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => onNavigate("about")}>
+                <Text style={s.navLinkText}>About</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => onNavigate("contact")}>
+                <Text style={s.navLinkText}>Contact</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Right Action Cluster */}
           <View style={s.navRightGroup}>
             <TouchableOpacity onPress={() => onNavigate("login")} activeOpacity={0.8}>
               <Text style={s.loginText}>Login</Text>
             </TouchableOpacity>
 
-           
+            <TouchableOpacity
+              style={s.bookDemoBtn}
+              onPress={() => onNavigate("contact")}
+              activeOpacity={0.85}
+            >
+              <Text style={s.bookDemoText}>Book Demo</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
         {/* HERO HEADER */}
-        <View style={[s.header, isMobile && s.headerMobile]}>
-          <Text style={[s.pageTitle, isMobile && s.pageTitleMobile]}>{title}</Text>
-          {subtitle && <Text style={[s.pageSub, isMobile && s.pageSubMobile]}>{subtitle}</Text>}
-        </View>
+        {title && (
+          <View style={[s.header, isMobile && s.headerMobile]}>
+            <Text style={[s.pageTitle, isMobile && s.pageTitleMobile]}>{title}</Text>
+            {subtitle && <Text style={[s.pageSub, isMobile && s.pageSubMobile]}>{subtitle}</Text>}
+          </View>
+        )}
 
         {/* MAIN BODY */}
         <View style={[s.mainBody, isMobile && s.mainBodyMobile]}>{children}</View>
@@ -59,12 +83,13 @@ export const WebPageLayout = ({ title, subtitle, children, onNavigate }) => {
             </View>
 
             <View style={[f.fLinksGrid, isMobile && f.fLinksGridMobile]}>
+              {/* PRODUCT */}
               <View style={f.fCol}>
                 <Text style={f.fH}>PRODUCT</Text>
                 {[
-                  { n: "Features", s: "Features" },
-                  { n: "Pricing", s: "Pricing" },
-                  { n: "FAQ", s: "FAQ" },
+                  { n: "Features", s: "features" },
+                  { n: "Pricing", s: "pricing" },
+                  { n: "FAQ", s: "faq" },
                 ].map((l) => (
                   <TouchableOpacity key={l.s} onPress={() => onNavigate(l.s)}>
                     <Text style={f.fL}>{l.n}</Text>
@@ -72,11 +97,14 @@ export const WebPageLayout = ({ title, subtitle, children, onNavigate }) => {
                 ))}
               </View>
 
+              {/* COMPANY */}
               <View style={f.fCol}>
                 <Text style={f.fH}>COMPANY</Text>
                 {[
-                  { n: "About", s: "About" },
-                  { n: "Contact Us", s: "Contact" },
+                  { n: "About", s: "about" },
+                  { n: "Careers", s: "careers" },
+                  { n: "Partner With Us", s: "partners" },
+                  { n: "Contact Us", s: "contact" },
                 ].map((l) => (
                   <TouchableOpacity key={l.s} onPress={() => onNavigate(l.s)}>
                     <Text style={f.fL}>{l.n}</Text>
@@ -84,11 +112,14 @@ export const WebPageLayout = ({ title, subtitle, children, onNavigate }) => {
                 ))}
               </View>
 
+              {/* LEGAL & TRUST */}
               <View style={f.fCol}>
                 <Text style={f.fH}>LEGAL</Text>
                 {[
-                  { n: "Privacy", s: "PrivacyPolicy" },
-                  { n: "Terms", s: "TermsOfService" },
+                  { n: "Privacy", s: "privacypolicy" },
+                  { n: "Terms", s: "termsofservice" },
+                  { n: "Refund Policy", s: "refundpolicy" },
+                  { n: "Security", s: "security" },
                 ].map((l) => (
                   <TouchableOpacity key={l.s} onPress={() => onNavigate(l.s)}>
                     <Text style={f.fL}>{l.n}</Text>
@@ -99,21 +130,27 @@ export const WebPageLayout = ({ title, subtitle, children, onNavigate }) => {
           </View>
 
           <View style={f.divider} />
-          
+
           <Text style={f.subCopy}>Servon Labs Private Limited, Pune, Maharashtra</Text>
           <Text style={f.copy}>© 2026 Servon. All rights reserved.</Text>
         </View>
       </ScrollView>
 
       {/* FLOATING ACTION BUTTON */}
-      
+      <TouchableOpacity
+        style={s.floatingFab}
+        onPress={() => onNavigate("contact")}
+        activeOpacity={0.85}
+      >
+        <Text style={f.floatingFabText}>Book Demo</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#FAF9F6" },
-  
+
   // NAVBAR
   nav: {
     height: 72,
@@ -132,44 +169,43 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 24,
   },
-  logo: { 
-    color: "#000000", 
-    fontSize: 22, 
-    fontWeight: "800", 
-    letterSpacing: -0.5 
+  logo: {
+    color: "#000000",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
-  desktopNavLinks: { 
-    flexDirection: "row", 
-    gap: 36, 
-    alignItems: "center" 
+  desktopNavLinks: {
+    flexDirection: "row",
+    gap: 32,
+    alignItems: "center",
   },
-  navLinkText: { 
-    color: "#555555", 
-    fontSize: 15, 
-    fontWeight: "500" 
+  navLinkText: {
+    color: "#555555",
+    fontSize: 14,
+    fontWeight: "600",
   },
   navRightGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
+    gap: 16,
   },
   loginText: {
     color: "#000000",
     fontWeight: "600",
     fontSize: 14,
+    marginRight: 4,
   },
   bookDemoBtn: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#000000",
+    backgroundColor: "#000000",
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: 8,
   },
-  bookDemoText: { 
-    color: "#000000", 
-    fontWeight: "700", 
-    fontSize: 13 
+  bookDemoText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 13,
   },
 
   scrollContent: { flexGrow: 1 },
@@ -236,24 +272,19 @@ const s = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
   },
-  floatingFabText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
 });
 
 const f = StyleSheet.create({
   // PURE BLACK FOOTER MATCHING LANDING PAGE
-  footer: { 
-    backgroundColor: "#000000", 
-    paddingTop: 80, 
-    paddingBottom: 40, 
-    paddingHorizontal: 32 
+  footer: {
+    backgroundColor: "#000000",
+    paddingTop: 80,
+    paddingBottom: 40,
+    paddingHorizontal: 32,
   },
-  footerMobile: { 
-    paddingTop: 50, 
-    paddingHorizontal: 20 
+  footerMobile: {
+    paddingTop: 50,
+    paddingHorizontal: 20,
   },
   footerTop: {
     maxWidth: 1100,
@@ -266,44 +297,44 @@ const f = StyleSheet.create({
     flexDirection: "column",
     gap: 40,
   },
-  fBrand: { 
-    flex: 1, 
-    maxWidth: 320 
+  fBrand: {
+    flex: 1,
+    maxWidth: 320,
   },
-  fLogo: { 
-    fontSize: 24, 
-    fontWeight: "800", 
-    color: "#FFFFFF" 
+  fLogo: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
-  fTag: { 
-    color: "#888888", 
-    marginTop: 16, 
-    fontSize: 14, 
-    lineHeight: 22 
+  fTag: {
+    color: "#888888",
+    marginTop: 16,
+    fontSize: 14,
+    lineHeight: 22,
   },
-  fLinksGrid: { 
-    flexDirection: "row", 
-    gap: 72 
+  fLinksGrid: {
+    flexDirection: "row",
+    gap: 72,
   },
-  fLinksGridMobile: { 
+  fLinksGridMobile: {
     gap: 32,
     flexWrap: "wrap",
   },
   fCol: {
-    minWidth: 100,
+    minWidth: 120,
   },
-  fH: { 
-    fontWeight: "800", 
-    color: "#FFFFFF", 
-    marginBottom: 20, 
-    fontSize: 12, 
-    letterSpacing: 1.2 
+  fH: {
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginBottom: 20,
+    fontSize: 12,
+    letterSpacing: 1.2,
   },
-  fL: { 
-    color: "#888888", 
-    marginBottom: 14, 
-    fontSize: 14, 
-    fontWeight: "500" 
+  fL: {
+    color: "#888888",
+    marginBottom: 14,
+    fontSize: 14,
+    fontWeight: "500",
   },
   divider: {
     height: 1,
@@ -313,15 +344,20 @@ const f = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
   },
-  subCopy: { 
-    textAlign: "center", 
-    color: "#555555", 
+  subCopy: {
+    textAlign: "center",
+    color: "#555555",
     fontSize: 12,
     marginBottom: 6,
   },
-  copy: { 
-    textAlign: "center", 
-    color: "#555555", 
-    fontSize: 12 
+  copy: {
+    textAlign: "center",
+    color: "#555555",
+    fontSize: 12,
+  },
+  floatingFabText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

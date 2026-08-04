@@ -46,7 +46,7 @@ export default function Partners({ onNavigate }) {
   return (
     <WebPageLayout
       onNavigate={onNavigate}
-      title="Partner With Servon Labs"
+      title="Partner With Servon"
       subtitle="Join our ecosystem of distributors, restaurant consultants, and technology providers empowering modern Indian hospitality."
     >
       <View style={s.container}>

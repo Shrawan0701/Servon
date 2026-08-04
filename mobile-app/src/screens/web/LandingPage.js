@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   useWindowDimensions,
   Animated,
@@ -23,11 +24,13 @@ const C = {
   bg:         "#FAF9F6",
   surface:    "#FFFFFF",
   charcoal:   "#121417",
-  green:      "#008060",
+  green:      "#00785C",
+  greenDeep:  "#005A44",
   greenLight: "#E6F3EF",
   border:     "#EBE9E0",
   muted:      "#636E72",
   accent:     "#D4AF37",
+  ink:        "#0F172A",
   error:      "#E63946",
   paper:      "#FFFDF7",
   paperBorder:"#E9E4D4",
@@ -41,6 +44,125 @@ const MONO = Platform.select({
 });
 
 const BUSINESS_TYPES = ["Hotel", "Restaurant", "Resort", "Cafe", "Other"];
+
+// ─── FEATURE SLIDER DATA (Core Capabilities section) ───────────────────
+const FEATURES = [
+  {
+    i: "cloud-offline-outline",
+    t: "Smart Offline Mode",
+    d: "Zero-downtime billing, orders, & KOTs without internet. Auto-syncs when online.",
+    detail: "Internet drops don't stop service. Billing, order-taking and KOT printing keep running locally, and every record syncs back the moment your connection returns - no lost orders, no re-entry.",
+    c: "#E0F2FE",
+    accent: "#0EA5E9",
+    tag: "RELIABILITY",
+  },
+  {
+    i: "mic-outline",
+    t: "Voice AI Advisor",
+    d: "Talk directly with your AI. Ask for daily revenue, top items, or insights hands-free.",
+    detail: "Tap once and speak. Ask what today's profit looks like or which dish is underperforming, and get a spoken answer back - built for hands full of plates, not spreadsheets.",
+    c: "#FCE7F3",
+    accent: "#DB2777",
+    tag: "AI & VOICE",
+  },
+  {
+    i: "notifications-outline",
+    t: "AI Briefs & Live Alerts",
+    d: "Proactive business summaries and real-time alerts for spikes, delays, and stock.",
+    detail: "Servon watches your floor even when you can't. Get pushed a plain-language summary each evening, and an instant nudge the moment a station stalls or an ingredient runs low.",
+    c: "#FEF3C7",
+    accent: "#D97706",
+    tag: "AI & AUTOMATION",
+  },
+  {
+    i: "qr-code-outline",
+    t: "Smart QR Ordering",
+    d: "Frictionless ordering via browser. No app installs, no wait times for guests.",
+    detail: "Guests scan, browse and order straight from their phone's browser. No app store, no login, no waiting on a server to walk over - orders land in your kitchen the second they're placed.",
+    c: "#E6F3EF",
+    accent: "#00785C",
+    tag: "GUEST EXPERIENCE",
+  },
+  {
+    i: "shield-half-outline",
+    t: "Chef Mode™ Privacy",
+    d: "Hide financial data from staff with a single master toggle instantly.",
+    detail: "One switch hides revenue, margins and expense data from every staff-facing screen instantly, while owners and managers keep full visibility from their own login.",
+    c: "#F3E8FF",
+    accent: "#9333EA",
+    tag: "PRIVACY & CONTROL",
+  },
+  {
+    i: "receipt-outline",
+    t: "Seamless Billing",
+    d: "GST invoicing with integrated digital feedback and reviews.",
+    detail: "Every bill is GST-compliant by default and doubles as a feedback channel, so closing a check and collecting an honest review happen in the same motion.",
+    c: "#EBF8FF",
+    accent: "#2563EB",
+    tag: "BILLING",
+  },
+  {
+    i: "bar-chart-outline",
+    t: "Granular Analytics",
+    d: "Real-time insights into best sellers, peak hours, and server performance.",
+    detail: "See exactly which dishes, hours and staff are driving results, updated live, so decisions about menu, staffing and promotions are backed by today's numbers, not last month's.",
+    c: "#FFF4E6",
+    accent: "#EA580C",
+    tag: "ANALYTICS",
+  },
+  {
+    i: "calculator-outline",
+    t: "Expense ERP",
+    d: "Log procurement and payroll to see your true net profit daily.",
+    detail: "Log procurement, vendor payments and payroll as they happen, and Servon nets it against revenue automatically to show your real daily profit, not just top-line sales.",
+    c: "#FEE2E2",
+    accent: "#DC2626",
+    tag: "FINANCE",
+  },
+  {
+    i: "flash-outline",
+    t: "Kitchen Sync",
+    d: "Zero-lag cloud-based KOT routing to keep your chefs in harmony.",
+    detail: "Orders route to the right kitchen station the instant they're placed, cloud-synced across every device on the floor, so chefs never chase a ticket that already moved.",
+    c: "#F0FDF4",
+    accent: "#16A34A",
+    tag: "KITCHEN OPS",
+  },
+  {
+    i: "star-outline",
+    t: "Verified In-App Reviews",
+    d: "QR-based feedback on every bill, with full control over what goes public.",
+    detail: "A QR code on every printed bill collects a verified rating tied to a real order, and you decide what surfaces publicly, so feedback is honest without being a liability.",
+    c: "#FEF3C7",
+    accent: "#CA8A04",
+    tag: "REPUTATION",
+  },
+];
+
+// ─── HOVERABLE (web-aware lift-on-hover wrapper; degrades gracefully on native) ──
+const Hoverable = ({ children, style, onPress, liftY = 6, disabled }) => {
+  const [hovered, setHovered] = useState(false);
+  const webHoverProps = Platform.OS === 'web'
+    ? { onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false) }
+    : {};
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      {...webHoverProps}
+      style={[
+        style,
+        Platform.OS === 'web' && {
+          transform: [{ translateY: hovered ? -liftY : 0 }],
+          transition: 'transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease',
+          cursor: onPress ? 'pointer' : 'default',
+        },
+      ]}
+    >
+      {children}
+    </Pressable>
+  );
+};
 
 const Field = ({ label, required, value, onChangeText, error, styles, ...inputProps }) => (
   <View style={styles.formGroup}>
@@ -308,8 +430,7 @@ const AIAdvisorSection = ({ s }) => (
 
         <Text style={s.advisorSub}>
           Servon's AI Business Advisor reads your live sales, menu and expense
-          data so you can talk to your restaurant like a co-pilot, right from
-          the app or the website. No spreadsheets, no digging through reports.
+          data so you can talk to your restaurant like a co-pilot.
         </Text>
 
         <View style={s.advisorFeatureList}>
@@ -442,13 +563,17 @@ const FeedbackReceiptMockup = ({ s }) => (
 
 // ─── IN-APP REVIEWS — FEATURE SECTION ───────────────────────────────────
 
-const ReviewFeatureSection = ({ s }) => (
+export const ReviewFeatureSection = ({ s }) => (
   <View style={s.reviewFeatureSection}>
     <View style={s.reviewFeatureInner}>
+      
+      {/* LEFT COLUMN: TEXT & STEPS */}
       <View style={s.reviewFeatureTextCol}>
         <SectionTag text="In-App Reviews" styles={s} align="flex-start" />
 
-        <Text style={s.reviewFeatureH2}>Every bill asks{"\n"}the question for you</Text>
+        <Text style={s.reviewFeatureH2}>
+          Every bill asks{"\n"}the question for you
+        </Text>
 
         <Text style={s.reviewFeatureSub}>
           No follow-up texts, no campaigns, no asking a guest to leave a
@@ -457,8 +582,11 @@ const ReviewFeatureSection = ({ s }) => (
         </Text>
 
         <View style={s.receiptStepsList}>
+          {/* STEP 1 */}
           <View style={s.receiptStepRow}>
-            <Text style={s.receiptStepMark}>STEP 1</Text>
+            <View style={s.stepBadge}>
+              <Text style={s.receiptStepMark}>STEP 1</Text>
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={s.receiptStepTitle}>A code lands on the bill</Text>
               <Text style={s.receiptStepDesc}>
@@ -470,8 +598,11 @@ const ReviewFeatureSection = ({ s }) => (
 
           <View style={s.receiptStepDivider} />
 
+          {/* STEP 2 */}
           <View style={s.receiptStepRow}>
-            <Text style={s.receiptStepMark}>STEP 2</Text>
+            <View style={s.stepBadge}>
+              <Text style={s.receiptStepMark}>STEP 2</Text>
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={s.receiptStepTitle}>Guests rate in seconds</Text>
               <Text style={s.receiptStepDesc}>
@@ -483,17 +614,134 @@ const ReviewFeatureSection = ({ s }) => (
         </View>
       </View>
 
+      {/* RIGHT COLUMN: RECEIPT MOCKUP */}
       <View style={s.reviewFeatureVisualCol}>
         <FeedbackReceiptMockup s={s} />
       </View>
+
     </View>
   </View>
 );
 
+// ─── FEATURE SLIDER — one big feature slide at a time ──────────────────
+// Horizontal, paginated ScrollView: swipe/drag on touch & trackpad, plus
+// arrow buttons and dot indicators. The section's outer size is untouched;
+// only the inner content became one large slide instead of a 3-col grid.
+
+const FeatureCarousel = ({ s, width }) => {
+  const scrollRef = useRef(null);
+  const [index, setIndex] = useState(0);
+  const [slideWidth, setSlideWidth] = useState(0);
+  const isMobile = width < 768;
+
+  // Re-sync scroll offset whenever the measured width changes (resize).
+  useEffect(() => {
+    if (scrollRef.current && slideWidth) {
+      scrollRef.current.scrollTo({ x: index * slideWidth, animated: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideWidth]);
+
+  const goTo = (next) => {
+    const clamped = Math.max(0, Math.min(FEATURES.length - 1, next));
+    setIndex(clamped);
+    scrollRef.current?.scrollTo({ x: clamped * slideWidth, animated: true });
+  };
+
+  // ── AUTO SLIDE EFFECT (3 Seconds) ──
+  useEffect(() => {
+    if (!slideWidth) return;
+
+    const timer = setInterval(() => {
+      setIndex((prevIndex) => {
+        const nextIndex = (prevIndex + 1) % FEATURES.length;
+        scrollRef.current?.scrollTo({ x: nextIndex * slideWidth, animated: true });
+        return nextIndex;
+      });
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [slideWidth]);
+
+  const handleMomentumEnd = (e) => {
+    if (!slideWidth) return;
+    const raw = e.nativeEvent.contentOffset.x / slideWidth;
+    const clamped = Math.max(0, Math.min(FEATURES.length - 1, Math.round(raw)));
+    setIndex(clamped);
+  };
+
+  return (
+    <View>
+      <View
+        style={s.featureCarouselWrap}
+        onLayout={(e) => setSlideWidth(e.nativeEvent.layout.width)}
+      >
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleMomentumEnd}
+          scrollEventThrottle={16}
+        >
+          {FEATURES.map((f, i) => (
+            <View key={i} style={{ width: slideWidth }}>
+              <View style={s.featureSlidePad}>
+                <View style={s.featureSlideCard}>
+                  <View style={s.featureSlideContentCol}>
+                    <View style={s.featureSlideEyebrowRow}>
+                      <Text style={s.featureSlideCount}>
+                        {String(i + 1).padStart(2, "0")} / {String(FEATURES.length).padStart(2, "0")}
+                      </Text>
+                      <View style={[s.featureSlideTagPill, { borderColor: f.accent + "55" }]}>
+                        <View style={[s.featureSlideTagDot, { backgroundColor: f.accent }]} />
+                        <Text style={[s.featureSlideTagText, { color: f.accent }]}>{f.tag}</Text>
+                      </View>
+                    </View>
+
+                    <Text style={s.featureSlideTitle}>{f.t}</Text>
+                    <Text style={s.featureSlideDesc}>{f.detail}</Text>
+
+                    <View style={s.featureSlideIncludedRow}>
+                      <Ionicons name="checkmark-circle" size={16} color={f.accent} />
+                      <Text style={[s.featureSlideIncludedText, { color: f.accent }]}>
+                        Included in every Servon plan
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={s.featureSlideVisualCol}>
+                    <View style={[s.featureSlideVisualPanel, { borderColor: f.accent + "33" }]}>
+                      <View style={[s.featureSlideRing1, { borderColor: f.accent + "22" }]} />
+                      <View style={[s.featureSlideRing2, { borderColor: f.accent + "3A" }]} />
+                      <View style={[s.featureSlideIconBig, { backgroundColor: f.c }]}>
+                        <Ionicons name={f.i} size={isMobile ? 40 : 52} color={C.charcoal} />
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* DOTS ONLY (ARROWS REMOVED) */}
+      <View style={s.featureDotsRow}>
+        {FEATURES.map((_, i) => (
+          <TouchableOpacity key={i} onPress={() => goTo(i)} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
+            <View style={[s.featureDot, i === index && s.featureDotActive]} />
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────
 
-export default function LandingPage({ onNavigate }) {
-  // Live viewport width — re-renders this component whenever the window/
+export default function LandingPage({ onNavigate, openDemo, setOpenDemoOnLanding }) {  // Live viewport width — re-renders this component whenever the window/
   // device size actually changes, unlike the old Dimensions.get() snapshot.
   const { width } = useWindowDimensions();
   const isWide = width > 600;
@@ -506,6 +754,9 @@ export default function LandingPage({ onNavigate }) {
   // ─── DEMO MODAL STATE ───────────────────────────────────────────────
   const [demoModalVisible, setDemoModalVisible] = useState(false);
   const [showFloatingDemo, setShowFloatingDemo] = useState(false);
+
+  // ─── PRICING TOGGLE STATE ────────────────────────────────────────────
+  const [billingCycle, setBillingCycle] = useState('quarterly');
 
   // ─── FORM STATE ──────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
@@ -561,6 +812,16 @@ export default function LandingPage({ onNavigate }) {
     setFormErrors(errors);
     return isValid;
   };
+
+useEffect(() => {
+  if (openDemo) {
+    setDemoModalVisible(true);
+    // Reset the flag so closing/reopening works smoothly
+    if (setOpenDemoOnLanding) {
+      setOpenDemoOnLanding(false);
+    }
+  }
+}, [openDemo]);
 
   // ─── SUBMIT HANDLER ──────────────────────────────────────────────────
  const handleSubmit = async () => {
@@ -626,7 +887,7 @@ export default function LandingPage({ onNavigate }) {
 useEffect(() => {
   if (Platform.OS === 'web') {
     // 1. Page Title & Canonical URL
-    document.title = "Servon | #1 Restaurant Management System & POS Software India";
+    document.title = "Servon |Restaurant Management System & POS Software India";
 
     const canonical = document.createElement('link');
     canonical.rel = 'canonical';
@@ -819,9 +1080,14 @@ useEffect(() => {
         <View style={s.hero}>
           <View style={s.heroGlowTop} />
           <View style={s.heroGlowBottom} />
+          <View style={s.heroGrid} pointerEvents="none" />
 
           <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', width: '100%', zIndex: 2 }}>
-            
+
+            <View style={s.heroEyebrow}>
+              <View style={s.heroEyebrowDotPulse} />
+              <Text style={s.heroEyebrowText}>BUILT FOR HIGH-GROWTH INDIAN RESTAURANTS</Text>
+            </View>
 
            <Text style={s.heroH1}>
   Run Your{"\n"}
@@ -834,16 +1100,8 @@ useEffect(() => {
               Deploy QR ordering, manage live kitchen sync, and protect your margins.
             </Text>
 
-            <View style={[s.heroBtnGroup, { flexDirection: "row", gap: 14, flexWrap: "wrap", justifyContent: "center" }]}>
-              <TouchableOpacity
-                style={s.heroPrimaryBtn}
-                onPress={() => onNavigate("signup")}
-              >
-                <Text style={s.heroPrimaryText}>Start Now</Text>
-                <Ionicons name="arrow-forward" size={18} color="#FFF" />
-              </TouchableOpacity>
-
-              {/* ─── DEMO BUTTON (HERO) ─── */}
+            <View style={s.heroBtnGroup}>
+              {/* ─── DEMO BUTTON (HERO) — sole primary CTA ─── */}
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={() => setDemoModalVisible(true)}
@@ -856,11 +1114,24 @@ useEffect(() => {
                 >
                   <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
                   <Text style={s.demoBtnHeroText}>Book a Demo</Text>
+                  <View style={s.demoBtnHeroArrow}>
+                    <Ionicons name="arrow-forward" size={14} color="#121417" />
+                  </View>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
 
-            
+            <View style={s.heroTrustRow}>
+              <View style={s.heroTrustItem}>
+                <Ionicons name="checkmark-circle" size={14} color={C.green} />
+                <Text style={s.heroTrustText}>10-day free trial</Text>
+              </View>
+              
+              <View style={s.heroTrustItem}>
+                <Ionicons name="checkmark-circle" size={14} color={C.green} />
+                <Text style={s.heroTrustText}>Live in minutes</Text>
+              </View>
+            </View>
 
             <PremiumDashboard />
           </Animated.View>
@@ -883,81 +1154,7 @@ useEffect(() => {
             </Text>
           </View>
 
-          <View style={s.featureGrid}>
-  {[
-    // 🚨 HIGH PRIORITY: NEW FEATURES
-    { 
-      i: "cloud-offline-outline", 
-      t: "Smart Offline Mode", 
-      d: "Zero-downtime billing, orders, & KOTs without internet. Auto-syncs when online.", 
-      c: "#E0F2FE" 
-    },
-    { 
-      i: "mic-outline", 
-      t: "Voice AI Advisor", 
-      d: "Talk directly with your AI. Ask for daily revenue, top items, or insights hands-free.", 
-      c: "#FCE7F3" 
-    },
-    { 
-      i: "notifications-outline", 
-      t: "AI Briefs & Live Alerts", 
-      d: "Proactive business summaries and real-time alerts for spikes, delays, and stock.", 
-      c: "#FEF3C7" 
-    },
-
-    // EXISTING CORE FEATURES
-    { 
-      i: "qr-code-outline", 
-      t: "Smart QR Ordering", 
-      d: "Frictionless ordering via browser. No app installs, no wait times for guests.", 
-      c: "#E6F3EF" 
-    },
-    { 
-      i: "shield-half-outline", 
-      t: "Chef Mode™ Privacy", 
-      d: "Hide financial data from staff with a single master toggle instantly.", 
-      c: "#F3E8FF" 
-    },
-    { 
-      i: "receipt-outline", 
-      t: "Seamless Billing", 
-      d: "GST invoicing with integrated digital feedback and reviews.", 
-      c: "#EBF8FF" 
-    },
-    { 
-      i: "bar-chart-outline", 
-      t: "Granular Analytics", 
-      d: "Real-time insights into best sellers, peak hours, and server performance.", 
-      c: "#FFF4E6" 
-    },
-    { 
-      i: "calculator-outline", 
-      t: "Expense ERP", 
-      d: "Log procurement and payroll to see your true net profit daily.", 
-      c: "#FEE2E2" 
-    },
-    { 
-      i: "flash-outline", 
-      t: "Kitchen Sync", 
-      d: "Zero-lag cloud-based KOT routing to keep your chefs in harmony.", 
-      c: "#F0FDF4" 
-    },
-    { 
-      i: "star-outline", 
-      t: "Verified In-App Reviews", 
-      d: "QR-based feedback on every bill, with full control over what goes public.", 
-      c: "#FEF3C7" 
-    },
-  ].map((f, i) => (
-    <View key={i} style={s.darkFeatCard}>
-      <View style={[s.featIcon, { backgroundColor: f.c }]}>
-        <Ionicons name={f.i} size={24} color={C.charcoal} />
-      </View>
-      <Text style={s.darkFeatTitle}>{f.t}</Text>
-      <Text style={s.darkFeatDesc}>{f.d}</Text>
-    </View>
-  ))}
-</View>
+          <FeatureCarousel s={s} width={width} />
         </View>
 
         {/* VOICE AI SHOWCASE SECTION */}
@@ -1071,147 +1268,183 @@ useEffect(() => {
         <ReviewFeatureSection s={s} />
 
         {/* ── PRICING ── */}
-      <View style={s.priceSection}>
-  {/* FIXED HEADER SECTION */}
+        <View style={s.priceSection}>
   <View style={s.priceHeaderCenter}>
-    <SectionTag text="PRICING PLANS" styles={s} />
-    <Text style={s.priceTitleMain}>
-      Simple, and transparent pricing.{"\n"}
-    </Text>
+    <SectionTag text="PRICING" styles={s} />
+    <Text style={s.priceTitleMain}>One check. Everything included.</Text>
     <Text style={s.priceSubMain}>
-      All plans include a 10-day full-access free trial.
+      No add-on tiers to decode, no line items that appear later.
     </Text>
-  </View>
 
-  {/* 3 RECEIPT CARDS CONTAINER */}
-  <View style={s.cardsGridContainer}>
-    {[
-      {
-        id: "monthly",
-        kicker: "MONTHLY FLEX",
-        planName: "Monthly",
-        price: "₹999",
-        period: "/month",
-        savingsNote: "Standard Monthly Plan",
-        stampText: null,
-        isPopular: false,
-      },
-      {
-        id: "quarterly",
-        kicker: "MOST POPULAR",
-        planName: "Quarterly",
-        price: "₹2,500",
-        period: "/4 months",
-        savingsNote: "Save ~₹1,500 (37% OFF)",
-        stampText: "BEST\nVALUE",
-        isPopular: true,
-      },
-      {
-        id: "yearly",
-        kicker: "MAXIMUM SAVINGS",
-        planName: "Yearly",
-        price: "₹6,000",
-        period: "/year",
-        savingsNote: "Save ~₹6,000 (50% OFF)", // Fixed double dash here!
-        stampText: "50%\nOFF",
-        isPopular: false,
-      },
-    ].map((plan) => (
-      <View
-        key={plan.id}
-        style={[s.billCard, plan.isPopular && s.billCardPopular]}
-      >
-        {/* Top Punch Holes */}
-        <View style={s.billPunchRow}>
-          {Array.from({ length: 10 }).map((_, i) => (
-            <View key={i} style={s.billPunchHole} />
-          ))}
-        </View>
-
-        {/* Header & Stamp */}
-        <View style={s.billHeaderRow}>
-          <View>
-            <Text style={s.billKicker}>{plan.kicker}</Text>
-            <Text style={s.billPlanName}>{plan.planName}</Text>
-          </View>
-          {plan.stampText && (
-            <View style={s.billStamp}>
-              <Text style={s.billStampText}>{plan.stampText}</Text>
+    {/* Billing cycle toggle */}
+    <View style={s.cycleToggleWrap}>
+      {[
+        { id: 'monthly', label: 'Monthly' },
+        { id: 'quarterly', label: 'Quarterly', tag: 'Save 37%' },
+        { id: 'yearly', label: 'Yearly', tag: 'Save 50%' },
+      ].map((opt) => (
+        <TouchableOpacity
+          key={opt.id}
+          onPress={() => setBillingCycle(opt.id)}
+          activeOpacity={0.85}
+          style={[s.cycleOption, billingCycle === opt.id && s.cycleOptionActive]}
+        >
+          <Text style={[s.cycleOptionText, billingCycle === opt.id && s.cycleOptionTextActive]}>
+            {opt.label}
+          </Text>
+          {opt.tag && (
+            <View style={[s.cycleTag, billingCycle === opt.id && s.cycleTagActive]}>
+              <Text style={[s.cycleTagText, billingCycle === opt.id && s.cycleTagTextActive]}>{opt.tag}</Text>
             </View>
           )}
-        </View>
-
-        {/* Price display */}
-        <View style={s.billPriceBlock}>
-          <View style={{ flexDirection: "row", alignItems: "baseline" }}>
-            <Text style={s.billPriceTag}>{plan.price}</Text>
-            <Text style={s.billPricePeriod}>{plan.period}</Text>
-          </View>
-          <Text style={s.billSavingsText}>{plan.savingsNote}</Text>
-        </View>
-
-        <View style={s.billDivider} />
-
-        {/* Feature List */}
-        <View style={s.billItemList}>
-          {[
-            { text: "10-Day Full Access Free Trial", highlight: true },
-            { text: "Offline-First Mode (Zero Downtime)", highlight: true },
-            { text: "Voice AI Assistance & Commands", highlight: true },
-            { text: "Real-time AI Alerts & Daily Summaries", highlight: true },
-            { text: "Unlimited QR Menu Scans & Orders" },
-            { text: "Full Chef Mode™ Financial Privacy" },
-            { text: "Live Kitchen Dashboard (KOT Sync)" },
-            { text: "Verified In-App Reviews" },
-            { text: "Inventory & Expense ERP Suite" },
-            { text: "Export PDF & CSV Reports" },
-            { text: "24/7 Priority Support" },
-          ].map((item, idx) => (
-            <View key={idx} style={s.billItemRow}>
-              <Text
-                style={[
-                  s.billItemLabel,
-                  item.highlight && s.billItemHighlight,
-                ]}
-              >
-                {item.text}
-              </Text>
-              <View style={s.billItemLeader} />
-              <Ionicons
-                name="checkmark-circle"
-                size={16}
-                color={item.highlight ? "#008060" : "#10B981"}
-              />
-            </View>
-          ))}
-        </View>
-
-        <View style={s.billDividerDashed} />
-
-        {/* CTA Button */}
-        <TouchableOpacity
-          style={[s.billCta, plan.isPopular && s.billCtaPopular]}
-          onPress={() => onNavigate?.("signup")}
-          activeOpacity={0.88}
-        >
-          <Text style={s.billCtaText}>Start 10-Day Free Trial</Text>
-          <Ionicons name="arrow-forward" size={16} color="#FFF" />
         </TouchableOpacity>
+      ))}
+    </View>
+  </View>
 
-        {/* Sub-badge */}
-        <View style={s.trialSubBadge}>
-          <Ionicons name="shield-checkmark" size={13} color="#008060" />
-          <Text style={s.trialSubText}>No credit card required</Text>
-        </View>
+  {/* SINGLE UNIFIED PLAN CARD */}
+  {(() => {
+    const PLAN_BY_CYCLE = {
+      monthly:   { price: "₹999",   period: "/month",   note: "Standard monthly billing" },
+      quarterly: { price: "₹2,500", period: "/4 months", note: "Save ~₹1,500 (37% off)" },
+      yearly:    { price: "₹6,000", period: "/year",    note: "Save ~₹6,000 (50% off)" },
+    };
+    const plan = PLAN_BY_CYCLE[billingCycle];
+    return (
+      <View style={s.singlePlanWrap}>
+        <View style={s.singlePlanCard}>
+          {/* Top punch holes — receipt motif */}
+          <View style={s.billPunchRow}>
+            {Array.from({ length: 14 }).map((_, i) => (
+              <View key={i} style={s.billPunchHole} />
+            ))}
+          </View>
 
-        {/* Bottom Tear Line */}
-        <View style={s.billTearRow}>
-          {Array.from({ length: 22 }).map((_, i) => (
-            <View key={i} style={s.billTearTriangle} />
-          ))}
+          <View style={s.singlePlanHeaderRow}>
+            <View>
+              <Text style={s.billKicker}>RESTAURANT PREMIUM</Text>
+              <Text style={s.singlePlanName}>Pro Plan</Text>
+            </View>
+            <View style={s.billStamp}>
+              <Text style={s.billStampText}>MOST{"\n"}ORDERED</Text>
+            </View>
+          </View>
+
+          <View style={s.billDivider} />
+
+          <View style={s.billItemList}>
+            {[
+              "Unlimited QR Menu Scans & Orders",
+              "Full Chef Mode™ Financial Privacy",
+              "Live Kitchen Dashboard (KOT Sync)",
+              "AI Business Advisor & Voice AI",
+              "Real-time AI Alerts & Daily Summaries",
+              "Smart Offline Mode (Zero Downtime)",
+              "Verified In-App Reviews",
+              "Inventory & Expense ERP Suite",
+              "Export PDF & CSV Reports",
+              "24/7 Priority Support",
+            ].map((item, idx) => (
+              <View key={idx} style={s.billItemRow}>
+                <Text style={s.billItemLabel}>{item}</Text>
+                <View style={s.billItemLeader} />
+                <Ionicons name="checkmark" size={15} color="#10B981" />
+              </View>
+            ))}
+          </View>
+
+          <View style={s.billDividerDashed} />
+
+          <View style={s.singlePlanPriceRow}>
+            <View>
+              <Text style={s.singlePlanEverythingText}>EVERYTHING, ONE PLAN</Text>
+              <Text style={s.singlePlanSavingsText}>{plan.note}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                <Text style={s.singlePlanPrice}>{plan.price}</Text>
+                <Text style={s.billPricePeriod}>{plan.period}</Text>
+              </View>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={s.billCta}
+            onPress={() => onNavigate?.("login")}
+            activeOpacity={0.88}
+          >
+            <Text style={s.billCtaText}>Get Started</Text>
+            <Ionicons name="arrow-forward" size={16} color="#FFF" />
+          </TouchableOpacity>
+
+          <View style={s.trialSubBadge}>
+            <Ionicons name="shield-checkmark-outline" size={13} color="#10B981" />
+            <Text style={s.trialSubText}>10-day free trial · No credit card required</Text>
+          </View>
+
+          {/* Bottom tear line */}
+          <View style={s.billTearRow}>
+            {Array.from({ length: 26 }).map((_, i) => (
+              <View key={i} style={s.billTearTriangle} />
+            ))}
+          </View>
         </View>
       </View>
-    ))}
+    );
+  })()}
+</View>
+
+ <View style={s.finalCtaSection}>
+  {/* Ambient Background Glows */}
+  <View style={s.finalCtaGlowTop} />
+  <View style={s.finalCtaGlowBottom} />
+  <View style={s.finalCtaGridOverlay} />
+
+  {/* Pill Eyebrow */}
+  <View style={s.finalCtaBadge}>
+    <View style={s.finalCtaBadgeDot} />
+    <Text style={s.finalCtaEyebrow}>READY WHEN YOU ARE</Text>
+  </View>
+
+  {/* Main Heading & Subtitle */}
+  <Text style={s.finalCtaH2}>
+    See Servon running{"\n"}
+    <Text style={s.finalCtaH2Accent}>on your own menu.</Text>
+  </Text>
+
+  <Text style={s.finalCtaSub}>
+    Book a 20-minute walkthrough. We'll set it up with your dishes, your tables, and your exact workflow.
+  </Text>
+
+  {/* CTA Button */}
+  <TouchableOpacity
+    activeOpacity={0.88}
+    onPress={() => setDemoModalVisible(true)}
+    style={s.finalCtaBtnWrap}
+  >
+    <View style={s.finalCtaBtn}>
+      <Ionicons name="calendar" size={18} color="#0F172A" />
+      <Text style={s.finalCtaBtnText}>Book a Live Demo</Text>
+      <Ionicons name="arrow-forward" size={16} color="#0F172A" />
+    </View>
+  </TouchableOpacity>
+
+  {/* Trust Signals Footer */}
+  <View style={s.ctaTrustRow}>
+    <View style={s.ctaTrustItem}>
+      <Ionicons name="flash-outline" size={13} color="#10B981" />
+      <Text style={s.ctaTrustText}>Instant Setup</Text>
+    </View>
+    <View style={s.ctaTrustDot} />
+    <View style={s.ctaTrustItem}>
+      <Ionicons name="shield-checkmark-outline" size={13} color="#10B981" />
+      <Text style={s.ctaTrustText}>Zero Commitment</Text>
+    </View>
+    <View style={s.ctaTrustDot} />
+    <View style={s.ctaTrustItem}>
+      <Ionicons name="sparkles-outline" size={13} color="#10B981" />
+      <Text style={s.ctaTrustText}>100% Free</Text>
+    </View>
   </View>
 </View>
 
@@ -1262,11 +1495,13 @@ useEffect(() => {
               >
                 <View style={s.faqQuestionRow}>
                   <Text style={s.faqQ}>{f.q}</Text>
-                  <Ionicons
-                    name={activeFaq === i ? "chevron-up" : "chevron-down"}
-                    size={20}
-                    color={activeFaq === i ? C.charcoal : C.muted}
-                  />
+                  <View style={[s.faqIconWrap, activeFaq === i && s.faqIconWrapActive]}>
+                    <Ionicons
+                      name={activeFaq === i ? "remove" : "add"}
+                      size={16}
+                      color={activeFaq === i ? "#FFFFFF" : C.charcoal}
+                    />
+                  </View>
                 </View>
 
                 {activeFaq === i && (
@@ -1279,6 +1514,9 @@ useEffect(() => {
             ))}
           </View>
         </View>
+
+        {/* ── FINAL CTA BAND ── */}
+      
 
         {/* ── FOOTER ── */}
       <View style={s.footer}>
@@ -1324,7 +1562,7 @@ useEffect(() => {
 
       {/* LEGAL & COMPLIANCE */}
       <View style={s.fCol}>
-        <Text style={s.fH}>LEGAL & TRUST</Text>
+        <Text style={s.fH}>LEGAL</Text>
         {[
           { name: "Privacy", slug: "PrivacyPolicy" },
           { name: "Terms", slug: "TermsOfService" },
@@ -1343,9 +1581,9 @@ useEffect(() => {
 
   <View style={s.footerBottom}>
     <Text style={s.fCompanyLine}>
-      Servon Labs Private Limited • Pune, Maharashtra, India
+      Servon Labs Private Limited • Pune, India
     </Text>
-    <Text style={s.copy}>© 2026 Servon Labs Private Limited. All rights reserved.</Text>
+    <Text style={s.copy}>© 2026 Servon . All rights reserved.</Text>
   </View>
 </View>
 
@@ -1989,7 +2227,8 @@ const getMainStyles = (width) => StyleSheet.create({
     fontSize: width > 600 ? 13 : 11,
   },
   demoBtnHero: {
-    paddingHorizontal: width > 600 ? 32 : 22,
+    paddingHorizontal: width > 600 ? 14 : 22,
+    paddingLeft: width > 600 ? 34 : 22,
     paddingVertical: width > 600 ? 18 : 14,
     borderRadius: 100,
     flexDirection: 'row',
@@ -2004,7 +2243,16 @@ const getMainStyles = (width) => StyleSheet.create({
   demoBtnHeroText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: width > 600 ? 16 : 14,
+    fontSize: width > 600 ? 17 : 14,
+  },
+  demoBtnHeroArrow: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
   floatingBtnWrap: {
     position: 'absolute',
@@ -2387,6 +2635,39 @@ voiceFeatDesc: {
     backgroundColor: '#F3E8FF',
     opacity: 0.4,
   },
+  heroGrid: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 420,
+    backgroundImage: Platform.OS === 'web'
+      ? 'linear-gradient(rgba(18,20,23,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(18,20,23,0.035) 1px, transparent 1px)'
+      : undefined,
+    backgroundSize: '42px 42px',
+  },
+  heroEyebrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 26,
+    gap: 9,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+  },
+  heroEyebrowDotPulse: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.green,
+  },
+  heroEyebrowText: { fontSize: 11, fontWeight: '800', color: C.muted, letterSpacing: 1.2 },
   cursonBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2427,7 +2708,7 @@ voiceFeatDesc: {
     marginBottom: 32,
     paddingHorizontal: 4,
   },
-  heroBtnGroup: { marginBottom: 20 },
+  heroBtnGroup: { marginBottom: 22, alignItems: 'center' },
   heroPrimaryBtn: {
     backgroundColor: '#121417',
     paddingHorizontal: width > 600 ? 40 : 30,
@@ -2448,6 +2729,19 @@ voiceFeatDesc: {
     fontWeight: '500',
     marginTop: 8,
     marginBottom: 0,
+  },
+  heroTrustRow: {
+    flexDirection: width > 500 ? 'row' : 'column',
+    alignItems: 'center',
+    gap: width > 500 ? 16 : 8,
+    marginBottom: 8,
+  },
+  heroTrustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroTrustText: { fontSize: 13, fontWeight: '600', color: C.muted },
+  heroTrustDivider: {
+    width: width > 500 ? 1 : 0,
+    height: width > 500 ? 12 : 0,
+    backgroundColor: '#D8D5CB',
   },
 
   // ── DARK FEATURES SECTION ──
@@ -2513,6 +2807,18 @@ voiceFeatDesc: {
     padding: width > 600 ? 36 : 24,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
+    position: 'relative',
+  },
+  darkFeatArrowWrap: {
+    position: 'absolute',
+    top: width > 600 ? 30 : 20,
+    right: width > 600 ? 30 : 20,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   featIcon: {
     width: 52,
@@ -2534,6 +2840,164 @@ voiceFeatDesc: {
     color: '#94A3B8',
     lineHeight: 22,
     flexShrink: 1,
+  },
+
+  // ── FEATURE SLIDER (one big feature at a time) ──
+  featureCarouselWrap: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    position: 'relative',
+    zIndex: 2,
+  },
+  featureSlidePad: {
+    paddingHorizontal: width > 600 ? 4 : 0,
+  },
+  featureSlideCard: {
+    minHeight: width > 900 ? 440 : width > 600 ? 480 : 560,
+    flexDirection: width > 900 ? 'row' : 'column',
+    alignItems: 'stretch',
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderRadius: width > 600 ? 32 : 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: width > 900 ? 56 : width > 600 ? 40 : 26,
+    gap: width > 900 ? 40 : 28,
+  },
+  featureSlideContentCol: {
+    flex: width > 900 ? 1.15 : undefined,
+    justifyContent: 'center',
+  },
+  featureSlideEyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 22,
+  },
+  featureSlideCount: {
+    fontFamily: MONO,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 1,
+  },
+  featureSlideTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  featureSlideTagDot: { width: 5, height: 5, borderRadius: 2.5 },
+  featureSlideTagText: { fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  featureSlideTitle: {
+    fontSize: width > 900 ? 40 : width > 600 ? 32 : 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+    lineHeight: width > 900 ? 46 : width > 600 ? 38 : 32,
+    marginBottom: 18,
+  },
+  featureSlideDesc: {
+    fontSize: width > 600 ? 16 : 14,
+    color: '#94A3B8',
+    lineHeight: width > 600 ? 26 : 22,
+    maxWidth: 480,
+  },
+  featureSlideIncludedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 28,
+  },
+  featureSlideIncludedText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  featureSlideVisualCol: {
+    flex: width > 900 ? 1 : undefined,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureSlideVisualPanel: {
+    width: '100%',
+    maxWidth: width > 900 ? 340 : 300,
+    aspectRatio: 1,
+    borderRadius: 28,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  featureSlideRing1: {
+    position: 'absolute',
+    width: '78%',
+    height: '78%',
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  featureSlideRing2: {
+    position: 'absolute',
+    width: '58%',
+    height: '58%',
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  featureSlideIconBig: {
+    width: width > 900 ? 108 : 88,
+    height: width > 900 ? 108 : 88,
+    borderRadius: width > 900 ? 32 : 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureArrow: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  featureArrowLeft: { left: width > 900 ? -22 : 6 },
+  featureArrowRight: { right: width > 900 ? -22 : 6 },
+  featureArrowDisabled: { opacity: 0.35 },
+  featureDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 28,
+  },
+  featureMiniArrow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 6,
+  },
+  featureDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  featureDotActive: {
+    width: 22,
+    backgroundColor: '#FFFFFF',
   },
 
   // ── AI BUSINESS ADVISOR SECTION ──
@@ -2626,7 +3090,7 @@ voiceFeatDesc: {
   reviewFeatureSection: {
     paddingVertical: width > 600 ? 110 : 64,
     paddingHorizontal: width > 600 ? 30 : 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAFAFA', // Subtle contrast against white background
   },
   reviewFeatureInner: {
     maxWidth: 1200,
@@ -2639,144 +3103,213 @@ voiceFeatDesc: {
   reviewFeatureTextCol: { flex: width > 900 ? 1 : undefined },
   reviewFeatureVisualCol: {
     flex: width > 900 ? 1 : undefined,
-    alignItems: width > 900 ? 'flex-start' : 'center',
+    alignItems: width > 900 ? 'center' : 'center',
+    justifyContent: 'center',
     width: '100%',
   },
   reviewFeatureH2: {
-    fontSize: width > 800 ? 40 : width > 400 ? 28 : 24,
+    fontSize: width > 800 ? 42 : width > 400 ? 30 : 26,
     fontWeight: '900',
-    color: C.charcoal,
-    letterSpacing: -1,
-    lineHeight: width > 800 ? 48 : width > 400 ? 36 : 30,
+    color: '#0F172A',
+    letterSpacing: -1.2,
+    lineHeight: width > 800 ? 50 : width > 400 ? 38 : 32,
     marginTop: 18,
     marginBottom: 18,
   },
   reviewFeatureSub: {
     fontSize: width > 600 ? 16 : 14,
-    color: C.muted,
-    lineHeight: width > 600 ? 25 : 22,
-    marginBottom: 40,
+    color: '#475569',
+    lineHeight: width > 600 ? 26 : 22,
+    marginBottom: 36,
     maxWidth: 480,
     textAlign: 'left',
   },
+
+  // Steps container
   receiptStepsList: {
     borderWidth: 1,
-    borderColor: C.paperBorder,
-    borderRadius: 18,
-    backgroundColor: C.paper,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     padding: width > 600 ? 28 : 20,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  receiptStepRow: { flexDirection: 'row', gap: 18, alignItems: 'flex-start' },
+  receiptStepRow: { 
+    flexDirection: 'row', 
+    gap: 16, 
+    alignItems: 'flex-start' 
+  },
+  stepBadge: {
+    backgroundColor: '#E6F4EA',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
   receiptStepMark: {
-    width: 62,
     fontFamily: MONO,
     fontSize: 11,
-    fontWeight: '700',
-    color: C.green,
+    fontWeight: '800',
+    color: '#008060',
     letterSpacing: 1,
-    paddingTop: 2,
   },
-  receiptStepTitle: { fontSize: width > 600 ? 16 : 15, fontWeight: '800', color: C.charcoal, marginBottom: 6 },
-  receiptStepDesc: { fontSize: width > 600 ? 14 : 13, color: C.muted, lineHeight: 20, fontWeight: '500' },
+  receiptStepTitle: { 
+    fontSize: width > 600 ? 16 : 15, 
+    fontWeight: '800', 
+    color: '#0F172A', 
+    marginBottom: 4 
+  },
+  receiptStepDesc: { 
+    fontSize: width > 600 ? 14 : 13, 
+    color: '#64748B', 
+    lineHeight: 21, 
+    fontWeight: '400' 
+  },
   receiptStepDivider: {
     height: 1,
     borderTopWidth: 1,
-    borderTopColor: C.paperBorder,
+    borderTopColor: '#CBD5E1',
     borderStyle: 'dashed',
-    marginVertical: 20,
+    marginVertical: 22,
   },
 
   // Receipt printer mockup
-  receiptMockWrap: { alignItems: 'center', width: '100%', maxWidth: 300 },
+  receiptMockWrap: { 
+    alignItems: 'center', 
+    width: '100%', 
+    maxWidth: 320,
+  },
   printerBar: {
     width: '92%',
-    height: 26,
-    backgroundColor: C.charcoal,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+    height: 30,
+    backgroundColor: '#0F172A',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    borderBottomWidth: 0,
   },
   printerSlot: {
-    width: '60%',
+    width: '55%',
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: '#334155',
   },
   receiptPaper: {
     width: '100%',
-    backgroundColor: C.paper,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: C.paperBorder,
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: 26,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-    elevation: 6,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 28,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   receiptStoreName: {
     fontFamily: MONO,
-    fontSize: 14,
-    fontWeight: '700',
-    color: C.charcoal,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
     textAlign: 'center',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   receiptMeta: {
     fontFamily: MONO,
     fontSize: 11,
-    color: C.muted,
+    color: '#64748B',
     textAlign: 'center',
     marginTop: 4,
+    fontWeight: '500',
   },
   receiptDivider: {
     borderTopWidth: 1,
-    borderTopColor: C.paperBorder,
+    borderTopColor: '#CBD5E1',
     borderStyle: 'dashed',
-    marginVertical: 14,
+    marginVertical: 16,
   },
-  receiptLineRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 8 },
-  receiptLineLabel: { fontFamily: MONO, fontSize: 12, color: C.charcoal },
+  receiptLineRow: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-end', 
+    marginBottom: 8 
+  },
+  receiptLineLabel: { 
+    fontFamily: MONO, 
+    fontSize: 12, 
+    color: '#334155', 
+    fontWeight: '600' 
+  },
   receiptLineLeader: {
     flex: 1,
     height: 0,
     borderBottomWidth: 1,
-    borderBottomColor: C.paperBorder,
+    borderBottomColor: '#CBD5E1',
     borderStyle: 'dotted',
-    marginHorizontal: 6,
-    marginBottom: 3,
+    marginHorizontal: 8,
+    marginBottom: 4,
   },
-  receiptLineValue: { fontFamily: MONO, fontSize: 12, color: C.charcoal, fontWeight: '700' },
-  receiptTotalLabel: { fontFamily: MONO, fontSize: 12, color: C.charcoal, fontWeight: '900', letterSpacing: 1 },
-  receiptTotalValue: { fontFamily: MONO, fontSize: 13, color: C.green, fontWeight: '900' },
-  receiptQRSection: { alignItems: 'center', marginTop: 20 },
+  receiptLineValue: { 
+    fontFamily: MONO, 
+    fontSize: 12, 
+    color: '#0F172A', 
+    fontWeight: '700' 
+  },
+  receiptTotalLabel: { 
+    fontFamily: MONO, 
+    fontSize: 12, 
+    color: '#0F172A', 
+    fontWeight: '900', 
+    letterSpacing: 1 
+  },
+  receiptTotalValue: { 
+    fontFamily: MONO, 
+    fontSize: 14, 
+    color: '#008060', 
+    fontWeight: '900' 
+  },
+  receiptQRSection: { 
+    alignItems: 'center', 
+    marginTop: 20 
+  },
   qrGrid: {
-    width: 90,
-    height: 90,
+    width: 96,
+    height: 96,
     flexDirection: 'row',
     flexWrap: 'wrap',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: C.paperBorder,
-    padding: 4,
+    borderColor: '#E2E8F0',
+    padding: 6,
+    borderRadius: 8,
   },
   qrCell: {
     width: `${100 / QR_GRID_SIZE}%`,
     height: `${100 / QR_GRID_SIZE}%`,
   },
-  qrCellFilled: { backgroundColor: C.charcoal },
+  qrCellFilled: { backgroundColor: '#0F172A' },
   receiptScanLabel: {
     fontFamily: MONO,
     fontSize: 10,
-    fontWeight: '700',
-    color: C.charcoal,
+    fontWeight: '800',
+    color: '#0F172A',
     letterSpacing: 1.5,
     marginTop: 12,
   },
-  receiptStarRow: { flexDirection: 'row', gap: 3, marginTop: 8 },
+  receiptStarRow: { 
+    flexDirection: 'row', 
+    gap: 4, 
+    marginTop: 8 
+  },
   receiptTearRow: {
     flexDirection: 'row',
     width: '100%',
@@ -2791,95 +3324,34 @@ voiceFeatDesc: {
     borderTopWidth: 10,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: C.paper,
+    borderTopColor: '#FFFFFF',
   },
 
-  // ── PRICING SECTION (bill / check motif) ──
- cardsGridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 24,
-    justifyContent: 'center',
-    alignItems: 'stretch',
-    width: '100%',
-    maxWidth: 1200,
-    marginTop: 12,
-  },
-  billCard: {
-    flex: 1,
-    minWidth: 320,
-    maxWidth: 380,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    position: 'relative',
-    overflow: 'hidden',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    elevation: 4,
-  },
-  billCardPopular: {
-    borderColor: '#008060',
-    borderWidth: 2,
-    shadowOpacity: 0.12,
-    shadowRadius: 28,
-    transform: width > 900 ? [{ scale: 1.03 }] : [],
-  },
-  billPunchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    paddingHorizontal: 4,
-  },
-  billPunchHole: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#E2E8F0',
-  },
-  billHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  billKicker: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    color: '#008060',
-  },
-  billPlanName: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  // HEADER STYLES (Restores top title centering and font styling)
-  priceSection: {
-    paddingVertical: 60,
+  // ── PRICING SECTION (single receipt / bill-style plan card) ──
+priceSection: {
+    paddingTop: width > 600 ? 160 : 120, // 👈 Increased to 160 to clear top navbar
+    paddingBottom: width > 600 ? 100 : 64,
     paddingHorizontal: 16,
     alignItems: 'center',
     width: '100%',
+    backgroundColor: '#FAFAF8',
   },
   priceHeaderCenter: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 40,
+    marginBottom: 36,
     width: '100%',
   },
   priceTitleMain: {
-    fontSize: 32,
+    fontSize: width > 600 ? 38 : 28,
     fontWeight: '900',
     color: '#0F172A',
     textAlign: 'center',
     marginTop: 12,
-    lineHeight: 40,
+    lineHeight: width > 600 ? 46 : 34,
+    letterSpacing: -1.2,
+    maxWidth: 520,
+    fontFamily: Platform.OS === 'web' ? 'Inter, system-ui, sans-serif' : undefined,
   },
   priceSubMain: {
     fontSize: 15,
@@ -2887,8 +3359,113 @@ voiceFeatDesc: {
     color: '#64748B',
     textAlign: 'center',
     marginTop: 10,
-    maxWidth: 540,
+    maxWidth: 480,
     lineHeight: 22,
+    marginBottom: 30,
+  },
+  cycleToggleWrap: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 100,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+  },
+  cycleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: width > 500 ? 20 : 14,
+    paddingVertical: 8,
+    borderRadius: 100,
+  },
+  cycleOptionActive: {
+    backgroundColor: '#0F172A',
+  },
+  cycleOptionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  cycleOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  cycleTag: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  cycleTagActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  cycleTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  cycleTagTextActive: {
+    color: '#86EFAC',
+  },
+
+  singlePlanWrap: {
+    width: '100%',
+    maxWidth: 460,
+    alignItems: 'center',
+  },
+  singlePlanCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    paddingTop: 24,
+    paddingHorizontal: 28,
+    paddingBottom: 48,       // 👈 Increased from 40 to 48
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.05,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+  billPunchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 2,
+  },
+  billPunchHole: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F1F5F9',
+  },
+  singlePlanHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  billKicker: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  singlePlanName: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 4,
+    letterSpacing: -0.8,
   },
   billStamp: {
     borderWidth: 1.5,
@@ -2896,98 +3473,105 @@ voiceFeatDesc: {
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    transform: [{ rotate: '-4deg' }],
-    backgroundColor: '#FEF3C7',
+    transform: [{ rotate: '-6deg' }],
+    backgroundColor: '#FFFBEB',
   },
   billStampText: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontWeight: '900',
     color: '#B45309',
     textAlign: 'center',
-    lineHeight: 11,
-  },
-  billPriceBlock: {
-    marginBottom: 10,
-  },
-  billPriceTag: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  billPricePeriod: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-    marginLeft: 4,
-  },
-  billSavingsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#008060',
-    marginTop: 2,
+    lineHeight: 10,
+    letterSpacing: 0.5,
   },
   billDivider: {
     height: 1,
-    backgroundColor: '#E2E8F0',
-    marginVertical: 10,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 12,
   },
   billItemList: {
-    gap: 8,
+    gap: 12,
     marginVertical: 6,
   },
   billItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justify: 'space-between',
   },
   billItemLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  billItemHighlight: {
-    color: '#008060',
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+    letterSpacing: -0.2,
   },
   billItemLeader: {
     flex: 1,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#E2E8F0',
     borderStyle: 'dashed',
-    marginHorizontal: 6,
+    marginHorizontal: 8,
   },
   billDividerDashed: {
     borderBottomWidth: 1,
-    borderBottomColor: '#CBD5E1',
+    borderBottomColor: '#E2E8F0',
     borderStyle: 'dashed',
-    marginVertical: 14,
+    marginVertical: 16,
+  },
+  singlePlanPriceRow: {
+    flexDirection: 'row',
+    justify: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 16,
+  },
+  singlePlanEverythingText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#059669',
+    letterSpacing: 1.2,
+  },
+  singlePlanSavingsText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 3,
+  },
+  singlePlanPrice: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -1,
+  },
+  billPricePeriod: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+    marginLeft: 3,
   },
   billCta: {
     backgroundColor: '#0F172A',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-    gap: 6,
-  },
-  billCtaPopular: {
-    backgroundColor: '#008060',
+    justify: 'center',
+    paddingVertical: 15,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 4,
   },
   billCtaText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 14,
+    fontSize: 15,
   },
   trialSubBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    marginTop: 10,
+    justify: 'center',
+    gap: 6,
+    marginTop: 14,
+    marginBottom: 20,       // 👈 Increased from 8 to 20 so text sits clear above tear line
   },
   trialSubText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
   },
@@ -2997,7 +3581,7 @@ voiceFeatDesc: {
     left: 0,
     right: 0,
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justify: 'space-around',
     overflow: 'hidden',
   },
   billTearTriangle: {
@@ -3008,9 +3592,8 @@ voiceFeatDesc: {
     borderBottomWidth: 5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderBottomColor: '#F8FAFC',
+    borderBottomColor: '#FAFAF8',
   },
-
   // ── FAQ ──
   faqSection: {
     paddingVertical: width > 600 ? 100 : 60,
@@ -3061,12 +3644,24 @@ voiceFeatDesc: {
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  faqItemActive: { borderColor: C.charcoal, borderBottomWidth: 3 },
+  faqItemActive: { borderColor: C.charcoal },
   faqQuestionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
+  },
+  faqIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  faqIconWrapActive: {
+    backgroundColor: C.charcoal,
   },
   faqQ: {
     fontSize: width > 600 ? 17 : 15,
@@ -3081,6 +3676,148 @@ voiceFeatDesc: {
     color: C.muted,
     lineHeight: 24,
     fontWeight: '500',
+  },
+
+  // ── FINAL CTA BAND ──
+ finalCtaSection: {
+    marginHorizontal: width > 600 ? 30 : 16,
+    marginBottom: width > 600 ? 60 : 32,
+    backgroundColor: '#0F172A', // Deep modern slate charcoal
+    borderRadius: 32,
+    paddingVertical: width > 600 ? 80 : 54,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.12,
+    shadowRadius: 32,
+    elevation: 8,
+  },
+  finalCtaGlowTop: {
+    position: 'absolute',
+    top: -180,
+    alignSelf: 'center',
+    width: 500,
+    height: 350,
+    borderRadius: 250,
+    backgroundColor: '#10B981',
+    opacity: 0.18,
+  },
+  finalCtaGlowBottom: {
+    position: 'absolute',
+    bottom: -150,
+    right: -100,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: '#059669',
+    opacity: 0.12,
+  },
+  finalCtaGridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    opacity: 0.03,
+  },
+  finalCtaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    marginBottom: 22,
+    zIndex: 2,
+  },
+  finalCtaBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34D399',
+  },
+  finalCtaEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#34D399',
+    letterSpacing: 1.5,
+    zIndex: 2,
+  },
+  finalCtaH2: {
+    fontSize: width > 600 ? 42 : 28,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: width > 600 ? 50 : 36,
+    letterSpacing: -1.2,
+    marginBottom: 16,
+    zIndex: 2,
+  },
+  finalCtaH2Accent: {
+    color: '#34D399',
+  },
+  finalCtaSub: {
+    fontSize: width > 600 ? 16 : 14,
+    fontWeight: '500',
+    color: '#94A3B8',
+    textAlign: 'center',
+    maxWidth: 500,
+    lineHeight: 24,
+    marginBottom: 36,
+    zIndex: 2,
+  },
+  finalCtaBtnWrap: {
+    zIndex: 2,
+  },
+  finalCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 32,
+    paddingVertical: 18,
+    borderRadius: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  finalCtaBtnText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  ctaTrustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justify: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 28,
+    zIndex: 2,
+  },
+  ctaTrustItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ctaTrustText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#CBD5E1',
+  },
+  ctaTrustDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#475569',
   },
 
   // ── FOOTER ──

@@ -1,4 +1,3 @@
-// src/services/SyncManager.js
 import localDB from './LocalDB';
 import networkMonitor from './NetworkMonitor';
 import { getOrders, updateOrderStatus } from '../api';
@@ -39,11 +38,11 @@ class SyncManager {
             clearInterval(this.syncInterval);
             this.syncInterval = null;
         }
+        this.isInitialized = false; // Reset so it can re-initialize on login
     }
 
     setStatusCallback(callback) {
         this.onSyncStatusChange = callback;
-        // Return unsubscribe function
         return () => {
             this.onSyncStatusChange = null;
         };
@@ -66,26 +65,25 @@ class SyncManager {
 
             console.log(`✅ Sync: Uploaded ${uploaded}, Downloaded ${downloaded}`);
 
-this.pendingActions = await localDB.getPendingActionsCount();
-this.lastSyncStatus = 'success';
+            this.pendingActions = await localDB.getPendingActionsCount();
+            this.lastSyncStatus = 'success';
 
-this.updateStatus('success', {
-    uploaded,
-    downloaded
-});
+            this.updateStatus('success', {
+                uploaded,
+                downloaded
+            });
 
         } catch (error) {
-            console.error('❌ Sync failed:', error.message);
+            // Silently skip if it's unauthorized (401)
+            if (error?.response?.status !== 401) {
+                console.error('❌ Sync failed:', error.message);
+            }
             this.lastSyncStatus = 'error';
             this.updateStatus('error', { error: error.message });
-            this.syncErrors.push({
-                timestamp: new Date().toISOString(),
-                error: error.message
-            });
         } finally {
-    this.isSyncing = false;
-    this.updateStatus('idle');
-}
+            this.isSyncing = false;
+            this.updateStatus('idle');
+        }
     }
 
     async uploadPendingActions() {
@@ -116,12 +114,13 @@ this.updateStatus('success', {
             await localDB.saveOrders(freshOrders);
             return freshOrders.length;
         } catch (error) {
-            console.error('Download failed:', error.message);
+            if (error?.response?.status !== 401) {
+                console.error('Download failed:', error.message);
+            }
             return 0;
         }
     }
 
-    // ===== ADD THIS METHOD =====
     async getSyncStatus() {
         const pendingActions = await localDB.getPendingActionsCount();
         const unsyncedOrders = await localDB.getUnsyncedOrders();
@@ -134,7 +133,7 @@ this.updateStatus('success', {
             unsyncedOrders: unsyncedOrders.length || 0,
             lastSyncTime: lastSyncTime,
             isOnline: networkMonitor.isOnline,
-            errors: this.syncErrors.slice(-5) // Last 5 errors
+            errors: this.syncErrors.slice(-5)
         };
     }
 
