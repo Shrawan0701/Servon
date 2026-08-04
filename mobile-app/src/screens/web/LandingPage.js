@@ -887,7 +887,7 @@ useEffect(() => {
 useEffect(() => {
   if (Platform.OS === 'web') {
     // 1. Page Title & Canonical URL
-    document.title = "Servon |Restaurant Management System & POS Software India";
+    document.title = "Servon | Restaurant Management System & POS Software India";
 
     const canonical = document.createElement('link');
     canonical.rel = 'canonical';
@@ -1086,7 +1086,7 @@ useEffect(() => {
 
             <View style={s.heroEyebrow}>
               <View style={s.heroEyebrowDotPulse} />
-              <Text style={s.heroEyebrowText}>BUILT FOR HIGH-GROWTH INDIAN RESTAURANTS</Text>
+              <Text style={s.heroEyebrowText}>BUILT FOR HIGH-GROWTH RESTAURANTS</Text>
             </View>
 
            <Text style={s.heroH1}>
