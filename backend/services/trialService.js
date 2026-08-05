@@ -111,6 +111,7 @@ class TrialService {
                 trial_start_date,
                 trial_end_date,
                 is_trial_used
+             FROM businesses
              WHERE id = $1`,
             [businessId]
         );
