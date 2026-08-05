@@ -4,7 +4,8 @@ const pool = require('../db'); // Import the pool directly
 const query = (text, params) => pool.query(text, params); // Helper wrapper
 const notificationService = require('./notificationService');
 
-const TRIAL_DAYS = 3;
+// 1. CHANGE HERE: Update trial days from 3 to 10
+const TRIAL_DAYS = 10;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 class TrialService {
@@ -66,27 +67,27 @@ class TrialService {
             businessId: businessId,
             type: 'trial_started',
             title: '🎉 Free Trial Activated!',
-            message: 'Enjoy 3 days of full access to Servon. Explore all features!',
+            message: 'Enjoy 10 days of full access to Servon. Explore all features!', // Updated copy
             scheduledFor: now
         });
         
-        // 2. Reminder notification (Day 2 - 24 hours from now)
-        const reminderDate = new Date(now.getTime() + (1 * MS_PER_DAY));
+        // 2. Reminder notification (Day 7 - 7 days from start, 3 days remaining)
+        const reminderDate = new Date(now.getTime() + (7 * MS_PER_DAY));
         await notificationService.queueNotification({
             businessId: businessId,
             type: 'trial_reminder',
-            title: '⏳ Your Trial Ends Tomorrow',
+            title: '⏳ 3 Days Left on Your Free Trial', // Updated copy
             message: "Don't miss out! Subscribe now to continue using Servon.",
             scheduledFor: reminderDate
         });
         
-        // 3. Expiring notification (Day 3 - 48 hours from now)
-        const expiringDate = new Date(now.getTime() + (2 * MS_PER_DAY));
+        // 3. Expiring notification (Day 9 - 9 days from start, last day)
+        const expiringDate = new Date(now.getTime() + (9 * MS_PER_DAY));
         await notificationService.queueNotification({
             businessId: businessId,
             type: 'trial_expiring',
             title: '⚠️ Your Trial Expires Today!',
-            message: 'Your 3-day trial ends today. Subscribe to keep access.',
+            message: 'Your 10-day trial ends today. Subscribe to keep access.', // Updated copy
             scheduledFor: expiringDate
         });
         
@@ -110,7 +111,6 @@ class TrialService {
                 trial_start_date,
                 trial_end_date,
                 is_trial_used
-             FROM businesses 
              WHERE id = $1`,
             [businessId]
         );
