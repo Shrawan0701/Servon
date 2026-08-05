@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
-  "https://servon.onrender.com";
+  "http://172.23.130.12:5000";  // Add port if needed
 
 // Main Production API (Render)
 const API = axios.create({
@@ -100,28 +100,71 @@ export const resetPassword = (resetToken, newPassword) =>
 
 // -------------------- SUBSCRIPTION --------------------
 
-export const createPaymentOrder = () =>
-  API.post("/subscription/create-order");
+// Update createPaymentOrder to accept planType
+export const createPaymentOrder = (planType = 'monthly') =>
+  API.post("/subscription/create-order", { planType });
 
 export const verifyPayment = (data) =>
   API.post("/subscription/verify-payment", data);
+
+
+
+// Get available plans
+export const getPlans = () =>
+  API.get("/subscription/plans");
 
 export const getSubscriptionDetails = () =>
   API.get("/subscription/details");
 
 // -------------------- REFERRALS --------------------
 
-export const getReferrals = () => API.get("/referrals");
+// ==========================================================
+// ✅ FIXED REFERRAL API FUNCTIONS
+// ==========================================================
 
-export const redeemReferrals = () =>
-  API.post("/referrals/redeem");
+// Get referral statistics
+export const getReferralStats = async () => {
+  try {
+    const response = await API.get("/referrals/stats");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching referral stats:", error);
+    throw error;
+  }
+};
 
-export const getReferralStats = () =>
-  API.get("/referrals/stats");
+// Redeem referral reward
+export const redeemReferralReward = async () => {
+  try {
+    const response = await API.post("/referrals/redeem");
+    return response.data;
+  } catch (error) {
+    console.error("Error redeeming reward:", error);
+    throw error;
+  }
+};
 
-export const redeemReferralReward = () =>
-  API.post("/referrals/redeem");
+// Get referral history (optional)
+export const getReferralHistory = async () => {
+  try {
+    const response = await API.get("/referrals/history");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching referral history:", error);
+    throw error;
+  }
+};
 
+// Get referral code (if needed separately)
+export const getReferralCode = async () => {
+  try {
+    const response = await API.get("/referrals/code");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching referral code:", error);
+    throw error;
+  }
+};
 // -------------------- MENU --------------------
 
 export const getMenu = () => API.get("/menu");

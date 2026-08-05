@@ -2,14 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Image,
-  Platform, Switch, useWindowDimensions, Modal, AppState // Add AppState here
+  Platform, Switch, useWindowDimensions, Modal, AppState
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import * as WebBrowser from "expo-web-browser";
 import {
   getProfile, updateProfile, getSubscriptionDetails,
-  createPaymentOrder, verifyPayment, setAdminPin, uploadLogo
+  createPaymentOrder, verifyPayment, setAdminPin, uploadLogo,
+  getPlans
 } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -29,6 +30,17 @@ const T_MUTED   = "#6B6560";
 const T_FAINT   = "#A8A29E";
 const ACCENT    = "#10B981";
 const SIDEBAR_W = 260;
+
+// ─── Currency + savings helpers ──────────────────────────────────────────────
+const formatINR = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+
+const getSavingsPct = (plan, monthlyPlan) => {
+  if (!monthlyPlan || !plan || plan.id === "monthly" || !plan.days || !monthlyPlan.days) return null;
+  const monthlyDailyRate = monthlyPlan.amount / monthlyPlan.days;
+  const equivalentCost = monthlyDailyRate * plan.days;
+  const pct = Math.round(((equivalentCost - plan.amount) / equivalentCost) * 100);
+  return pct > 0 ? pct : null;
+};
 
 // ─── Load Razorpay JS SDK on web once ────────────────────────────────────────
 function loadRazorpayScript() {
@@ -67,7 +79,11 @@ export default function ProfileScreen({ onNavigate }) {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showSuccessModal, setShowSuccessModal]   = useState(false);
 
-  // ─── Custom confirm modals (replace window.confirm) ───────────────────────
+  // ─── PLAN SELECTION STATE ──────────────────────────────────────────────────
+  const [plans, setPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState('monthly');
+
+  // ─── Custom confirm modals ────────────────────────────────────────────────
   const [showLogoutModal, setShowLogoutModal]     = useState(false);
   const [showChefModeModal, setShowChefModeModal] = useState(false);
 
@@ -75,8 +91,23 @@ export default function ProfileScreen({ onNavigate }) {
 
   useEffect(() => {
     loadData();
+    fetchPlans();
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
+
+  // ─── FETCH PLANS ──────────────────────────────────────────────────────────
+  const fetchPlans = async () => {
+    try {
+      const res = await getPlans();
+      if (res.data && res.data.data) {
+        setPlans(res.data.data);
+        const currentPlan = subDetails?.plan_type || 'monthly';
+        setSelectedPlan(currentPlan);
+      }
+    } catch (err) {
+      console.error('Error fetching plans:', err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -87,6 +118,11 @@ export default function ProfileScreen({ onNavigate }) {
       setProfile(profileRes.data);
       setForm({ ...profileRes.data });
       setSubDetails(subRes.data);
+      
+      if (subRes.data?.plan_type) {
+        setSelectedPlan(subRes.data.plan_type);
+      }
+      
       return subRes.data;
     } catch (err) {
       console.log("Load error:", err?.message);
@@ -167,7 +203,6 @@ export default function ProfileScreen({ onNavigate }) {
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
-      // Show custom modal instead of window.confirm
       setShowLogoutModal(true);
     } else {
       Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -179,246 +214,127 @@ export default function ProfileScreen({ onNavigate }) {
 
   // ─── PAYMENT ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-  const subscription = AppState.addEventListener("change", (nextAppState) => {
-    // ONLY check if the user is actually in the middle of a payment process
-    if (nextAppState === "active" && paying) { 
-      checkPaymentStatus();
-    }
-  });
-
-  return () => subscription.remove();
-}, [paying]); // Add paying to dependency array
-
-
-
-const checkPaymentStatus = async () => {
-  // If we aren't even trying to pay, don't do anything
-  if (!paying) return false; 
-
-  try {
-    const sub = await getSubscriptionDetails();
-    if (sub.data?.subscription_status === "ACTIVE") {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active" && paying) { 
+        checkPaymentStatus();
       }
-      await loadData();
-      setShowSuccessModal(true);
-      setPaying(false); // This sets paying to false, so it won't trigger again!
-      return true;
-    }
-    return false;
-  } catch (err) {
-    return false;
-  }
-};
+    });
+    return () => subscription.remove();
+  }, [paying]);
 
-
-// Updated handleRenew logic with Razorpay SDK for mobile
-
-const handleRenew = async () => {
-
-  try {
-
-    setPaying(true);
-
-    const orderRes = await createPaymentOrder();
-
-    const { orderId, key, amount, currency } = orderRes.data;
-
-
-
-    // --- WEB LOGIC (Keep as is) ---
-
-    if (IS_WEB) {
-
-      const loaded = await loadRazorpayScript();
-
-      if (!loaded || !window.Razorpay) {
-
-        Alert.alert("Error", "Could not load payment gateway.");
-
+  const checkPaymentStatus = async () => {
+    if (!paying) return false; 
+    try {
+      const sub = await getSubscriptionDetails();
+      if (sub.data?.subscription_status === "ACTIVE") {
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+        await loadData();
+        setShowSuccessModal(true);
         setPaying(false);
-
-        return;
-
+        return true;
       }
-
-
-
-      const rzp = new window.Razorpay({
-
-        key,
-
-        order_id: orderId,
-
-        amount: String(amount),
-
-        currency,
-
-        name: "Servon",
-
-        description: "Servon Monthly Subscription",
-
-        theme: { color: "#1A1410" },
-
-        modal: { ondismiss: () => setPaying(false) },
-
-        handler: async (response) => {
-
-          try {
-
-            await verifyPayment({
-
-              razorpay_order_id: response.razorpay_order_id,
-
-              razorpay_payment_id: response.razorpay_payment_id,
-
-              razorpay_signature: response.razorpay_signature,
-
-            });
-
-            await loadData();
-
-            setShowSuccessModal(true);
-
-          } catch {
-
-            Alert.alert("Error", "Verification failed.");
-
-          } finally {
-
-            setPaying(false);
-
-          }
-
-        },
-
-      });
-
-      rzp.open();
-
-      return;
-
+      return false;
+    } catch (err) {
+      return false;
     }
+  };
 
+  // ─── UPDATED HANDLE RENEW WITH PLAN SELECTION ────────────────────────────
+  const handleRenew = async () => {
+    try {
+      setPaying(true);
+      
+      const orderRes = await createPaymentOrder(selectedPlan);
+      const { orderId, key, amount, currency, planType } = orderRes.data;
 
-
-    // --- MOBILE LOGIC (Native Razorpay SDK) ---
-
-    console.log('Opening Razorpay SDK on mobile...');
-
-    if (!RazorpayCheckout || typeof RazorpayCheckout.open !== 'function') {
-
-      console.error('RazorpayCheckout is not available:', RazorpayCheckout);
-
-      Alert.alert('Error', 'Payment SDK not loaded. Please restart the app.');
-
-      setPaying(false);
-
-      return;
-
-    }
-
-    const options = {
-
-      description: "Servon Monthly Subscription",
-
-      image: "https://your-app-icon-url.png",
-
-      currency: currency || "INR",
-
-      key: key,
-
-      amount: amount,
-
-      name: "Servon",
-
-      order_id: orderId,
-
-      prefill: {
-
-        email: profile?.email || '',
-
-        contact: profile?.phone || '',
-
-      },
-
-      theme: {
-
-        color: "#1A1410",
-
-      },
-
-    };
-
-    console.log('Razorpay options:', options);
-
-    RazorpayCheckout.open(options)
-
-      .then(async (data) => {
-
-        console.log('Payment success:', data);
-
-        try {
-
-          await verifyPayment({
-
-            razorpay_order_id: data.razorpay_order_id,
-
-            razorpay_payment_id: data.razorpay_payment_id,
-
-            razorpay_signature: data.razorpay_signature,
-
-          });
-
-          await loadData();
-
-          setShowSuccessModal(true);
-
-        } catch (err) {
-
-          console.log('Verification error:', err);
-
-          Alert.alert("Error", "Payment verification failed.");
-
-        } finally {
-
+      // --- WEB LOGIC ---
+      if (IS_WEB) {
+        const loaded = await loadRazorpayScript();
+        if (!loaded || !window.Razorpay) {
+          Alert.alert("Error", "Could not load payment gateway.");
           setPaying(false);
-
+          return;
         }
 
-      })
+        const rzp = new window.Razorpay({
+          key,
+          order_id: orderId,
+          amount: String(amount),
+          currency,
+          name: "Servon",
+          description: `Servon ${planType.charAt(0).toUpperCase() + planType.slice(1)} Subscription`,
+          theme: { color: "#1A1410" },
+          modal: { ondismiss: () => setPaying(false) },
+          handler: async (response) => {
+            try {
+              await verifyPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              });
+              await loadData();
+              setShowSuccessModal(true);
+            } catch {
+              Alert.alert("Error", "Verification failed.");
+            } finally {
+              setPaying(false);
+            }
+          },
+        });
+        rzp.open();
+        return;
+      }
 
-      .catch((error) => {
+      // --- MOBILE LOGIC (Razorpay SDK) ---
+      const options = {
+        description: `Servon ${planType.charAt(0).toUpperCase() + planType.slice(1)} Subscription`,
+        image: "https://your-app-icon-url.png",
+        currency: currency || "INR",
+        key: key,
+        amount: amount,
+        name: "Servon",
+        order_id: orderId,
+        prefill: {
+          email: profile?.email || '',
+          contact: profile?.phone || '',
+        },
+        theme: {
+          color: "#1A1410",
+        },
+      };
 
-        console.log('Razorpay error:', error);
+      RazorpayCheckout.open(options)
+        .then(async (data) => {
+          try {
+            await verifyPayment({
+              razorpay_order_id: data.razorpay_order_id,
+              razorpay_payment_id: data.razorpay_payment_id,
+              razorpay_signature: data.razorpay_signature,
+            });
+            await loadData();
+            setShowSuccessModal(true);
+          } catch {
+            Alert.alert("Error", "Verification failed.");
+          } finally {
+            setPaying(false);
+          }
+        })
+        .catch((error) => {
+          Alert.alert(
+            "Payment Error",
+            error?.message || "Payment was cancelled or failed."
+          );
+          setPaying(false);
+        });
 
-        Alert.alert(
-
-          "Payment Error",
-
-          error?.message || "Payment was cancelled or failed."
-
-        );
-
-        setPaying(false);
-
-      });
-
-
-
-  } catch (err) {
-
-    console.log('Catch error:', err);
-
-    Alert.alert("Error", "Unable to start payment.");
-
-    setPaying(false);
-
-  }
-
-};
+    } catch (err) {
+      Alert.alert("Error", "Unable to start payment.");
+      setPaying(false);
+    }
+  };
 
   const handleSetPin = async () => {
     if (newPin.length !== 4) return Alert.alert("Invalid", "PIN must be exactly 4 digits");
@@ -444,7 +360,6 @@ const handleRenew = async () => {
         return Alert.alert("Hold on!", "You must set an Admin PIN below before turning on Chef Mode.");
       }
       if (Platform.OS === "web") {
-        // Show custom modal instead of window.confirm
         setShowChefModeModal(true);
       } else {
         Alert.alert(
@@ -526,6 +441,71 @@ const handleRenew = async () => {
     { id: "security",     label: "Security",         icon: "shield-outline" },
   ];
 
+  // ─── PLAN SELECTION COMPONENT ─────────────────────────────────────────────
+  const monthlyPlan = plans.find((p) => p.id === "monthly");
+  const plansWithSavings = plans.map((p) => ({
+    ...p,
+    savingsPct: getSavingsPct(p, monthlyPlan),
+  }));
+  const bestSavingsId = plansWithSavings.reduce(
+    (best, p) => (p.savingsPct && p.savingsPct > (best?.savingsPct || 0) ? p : best),
+    null
+  )?.id;
+
+  const PlanSelection = () => (
+    <View style={styles.planContainer}>
+      <Text style={styles.planSectionTitle}>Choose Your Plan</Text>
+      <View style={styles.planGrid}>
+        {plansWithSavings.map((plan) => {
+          const isSelected = selectedPlan === plan.id;
+          const isPopular = plan.id === bestSavingsId;
+
+          return (
+            <TouchableOpacity
+              key={plan.id}
+              style={[
+                styles.planCard,
+                isSelected && styles.planCardSelected,
+                isPopular && styles.planCardPopular,
+                paying && styles.planCardDisabled,
+              ]}
+              onPress={() => setSelectedPlan(plan.id)}
+              disabled={paying}
+              activeOpacity={0.8}
+            >
+              {isPopular && (
+                <View style={styles.popularBadge}>
+                  <Text style={styles.popularBadgeText}>⭐ Best Value</Text>
+                </View>
+              )}
+              <Text style={[
+                styles.planLabel,
+                isSelected && styles.planLabelSelected,
+              ]}>
+                {plan.label}
+              </Text>
+              <Text style={[
+                styles.planPrice,
+                isSelected && styles.planPriceSelected,
+              ]}>
+                {formatINR(plan.amount)}
+              </Text>
+              <Text style={styles.planDuration}>{plan.days} days</Text>
+              {plan.savingsPct ? (
+                <Text style={styles.planSaving}>Save {plan.savingsPct}%</Text>
+              ) : (
+                <View style={{ height: 16 }} />
+              )}
+              <View style={styles.planRadio}>
+                {isSelected && <View style={styles.planRadioSelected} />}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+
   // ─── SUCCESS MODAL ────────────────────────────────────────────────────────────
   const SuccessModal = () => (
     <View style={styles.successOverlay}>
@@ -535,7 +515,7 @@ const handleRenew = async () => {
         </View>
         <Text style={styles.successTitle}>You're All Set!</Text>
         <Text style={styles.successSub}>
-          Payment received. Your Servon subscription is now active for the next 30 days.
+          Payment received. Your Servon subscription is now active.
         </Text>
         <View style={styles.successDivider} />
         <TouchableOpacity style={styles.successBtn} onPress={() => setShowSuccessModal(false)} activeOpacity={0.85}>
@@ -613,10 +593,17 @@ const handleRenew = async () => {
                 </View>
 
                 <View style={styles.sidebarFooter}>
+                  {/* ✅ AI SUPPORT BUTTON (Web) */}
+                  <TouchableOpacity style={styles.sidebarFooterBtn} onPress={() => navigation.navigate("Support")} activeOpacity={0.7}>
+                    <Ionicons name="chatbubbles-outline" size={15} color="#10B981" />
+                    <Text style={styles.sidebarFooterBtnText}> Support</Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity style={styles.sidebarFooterBtn} onPress={() => navigation.navigate("Reviews")} activeOpacity={0.7}>
                     <Ionicons name="star-outline" size={15} color="#F59E0B" />
                     <Text style={styles.sidebarFooterBtnText}>Ratings & Reviews</Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity style={styles.sidebarLogoutBtn} onPress={handleLogout} activeOpacity={0.7}>
                     <Ionicons name="log-out-outline" size={15} color="#DC2626" />
                     <Text style={styles.sidebarLogoutText}>Logout</Text>
@@ -648,11 +635,14 @@ const handleRenew = async () => {
                 {activeSection === "subscription" && (
                   <View>
                     <WebSectionHeader title="Subscription" subtitle="Manage your plan and billing" />
+                    
+                    <PlanSelection />
+
                     <View style={[styles.webPlanCard, isSmallWeb && styles.webPlanCardSmall]}>
                       <View style={[styles.webPlanCardLeft, isSmallWeb && { width: "100%" }]}>
-                        <Text style={styles.webPlanLabel}>SERVON MONTHLY</Text>
+                        <Text style={styles.webPlanLabel}>SERVON PLAN</Text>
                         <Text style={[styles.webPlanPrice, isSmallWeb && { fontSize: 28 }]}>
-                          ₹999 <Text style={styles.webPlanPriceSub}>/ month</Text>
+                          {subDetails?.subscription_plan || subDetails?.plan_label || 'Monthly'}
                         </Text>
                         {endDate && (
                           <View style={styles.planDateRow}>
@@ -675,7 +665,19 @@ const handleRenew = async () => {
                         </View>
                         {(subStatus !== "ACTIVE" || (daysLeft !== null && daysLeft <= 5)) && (
                           <TouchableOpacity style={styles.webRenewBtn} onPress={handleRenew} disabled={paying} activeOpacity={0.85}>
-                            {paying ? <ActivityIndicator color="#fff" /> : <><Ionicons name="flash" size={15} color="#fff" /><Text style={styles.webRenewBtnText}>{subStatus === "ACTIVE" ? "Renew" : "Activate"} · ₹999</Text></>}
+                            {paying ? (
+                              <>
+                                <ActivityIndicator color="#fff" size="small" />
+                                <Text style={styles.webRenewBtnText}>Processing...</Text>
+                              </>
+                            ) : (
+                              <>
+                                <Ionicons name="flash" size={15} color="#fff" />
+                                <Text style={styles.webRenewBtnText}>
+                                  {subStatus === "ACTIVE" ? "Renew" : "Activate"} · {formatINR(plans.find(p => p.id === selectedPlan)?.amount || 999)}
+                                </Text>
+                              </>
+                            )}
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity style={styles.webReferBtn} onPress={() => navigation.navigate("Referrals")} activeOpacity={0.85}>
@@ -781,7 +783,6 @@ const handleRenew = async () => {
         {showPinModal && <ChefPinModal visible={showPinModal} onClose={() => setShowPinModal(false)} onSuccess={() => { setShowPinModal(false); setIsChefMode(false); }} />}
         {showSuccessModal && <SuccessModal />}
 
-        {/* ─── CHEF MODE CONFIRM MODAL (web only) ─── */}
         <Modal visible={showChefModeModal} transparent animationType="fade">
           <View style={styles.confirmOverlay}>
             <View style={styles.confirmBox}>
@@ -812,7 +813,6 @@ const handleRenew = async () => {
           </View>
         </Modal>
 
-        {/* ─── LOGOUT CONFIRM MODAL (web only) ─── */}
         <Modal visible={showLogoutModal} transparent animationType="fade">
           <View style={styles.confirmOverlay}>
             <View style={styles.confirmBox}>
@@ -893,11 +893,15 @@ const handleRenew = async () => {
                 <Text style={styles.heroEmail}>{profile?.email}</Text>
               </View>
 
-              <View style={styles.planCard}>
+              <PlanSelection />
+
+              <View style={styles.subCard}>
                 <View style={styles.planTop}>
                   <View>
-                    <Text style={styles.planName}>Servon Monthly</Text>
-                    <Text style={styles.planPrice}>₹999 <Text style={styles.planPriceSub}>/ month</Text></Text>
+                    <Text style={styles.planName}>Servon Plan</Text>
+                    <Text style={styles.planPriceOld}>
+                      {subDetails?.subscription_plan || subDetails?.plan_label || 'Monthly'}
+                    </Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusBgMap[subStatus] || "#F3F4F6" }]}>
                     <View style={[styles.statusDot, { backgroundColor: statusColorMap[subStatus] || "#9CA3AF" }]} />
@@ -921,7 +925,7 @@ const handleRenew = async () => {
                   <TouchableOpacity style={styles.renewBtn} onPress={handleRenew} disabled={paying} activeOpacity={0.85}>
                     {paying
                       ? <><ActivityIndicator color="#fff" size="small" /><Text style={[styles.renewBtnText, { marginLeft: 8 }]}>Processing...</Text></>
-                      : <><Ionicons name="flash" size={16} color="#fff" /><Text style={styles.renewBtnText}>{subStatus === "ACTIVE" ? "Renew Subscription" : "Activate Subscription"} · ₹999</Text></>
+                      : <><Ionicons name="flash" size={16} color="#fff" /><Text style={styles.renewBtnText}>{subStatus === "ACTIVE" ? "Renew Subscription" : "Activate Subscription"} · {formatINR(plans.find(p => p.id === selectedPlan)?.amount || 999)}</Text></>
                     }
                   </TouchableOpacity>
                 )}
@@ -998,6 +1002,13 @@ const handleRenew = async () => {
                   </View>
                 )}
               </View>
+
+              {/* ✅ AI SUPPORT BUTTON (Mobile) - ADDED */}
+              <TouchableOpacity style={styles.ghostBtn} onPress={() => navigation.navigate("Support")} activeOpacity={0.8}>
+                <Ionicons name="chatbubbles-outline" size={16} color="#10B981" />
+                <Text style={styles.ghostBtnText}>AI Support</Text>
+                <Ionicons name="chevron-forward" size={15} color={T_FAINT} style={{ marginLeft: "auto" }} />
+              </TouchableOpacity>
 
               <TouchableOpacity style={styles.ghostBtn} onPress={() => navigation.navigate("Reviews")} activeOpacity={0.8}>
                 <Ionicons name="star" size={16} color="#F59E0B" />
@@ -1138,78 +1149,610 @@ const styles = StyleSheet.create({
   logo: { width: 88, height: 88, borderRadius: 22 },
   heroName: { fontSize: 20, fontWeight: "900", color: T_PRIMARY, textAlign: "center" },
   heroEmail: { fontSize: 13, color: T_MUTED, marginTop: 3, textAlign: "center" },
-  planCard: { backgroundColor: CARD, borderRadius: 18, padding: 20, borderWidth: 1, borderColor: BORDER, ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }, android: { elevation: 2 } }) },
-  planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
-  planName: { fontSize: 13, fontWeight: "700", color: T_MUTED, letterSpacing: 0.3, textTransform: "uppercase", marginBottom: 6 },
-  planPrice: { fontSize: 28, fontWeight: "900", color: T_PRIMARY, letterSpacing: -0.5 },
-  planPriceSub: { fontSize: 14, fontWeight: "500", color: T_MUTED },
-  statusBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  statusText: { fontSize: 12, fontWeight: "800" },
-  planDateRow: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: BG, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, marginBottom: 12 },
-  planDateLabel: { fontSize: 12, color: T_MUTED, fontWeight: "600" },
-  planDateValue: { fontSize: 13, fontWeight: "700", color: T_PRIMARY, marginLeft: 4 },
-  daysLeftPill: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, marginBottom: 14 },
-  daysLeftText: { fontSize: 13, fontWeight: "700" },
-  renewBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: T_PRIMARY, borderRadius: 12, paddingVertical: 15, marginBottom: 10, ...Platform.select({ ios: { shadowColor: T_PRIMARY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 }, android: { elevation: 4 } }) },
-  renewBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  referBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: GREEN, borderRadius: 12, paddingVertical: 14, marginBottom: 12 },
-  referBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  note: { fontSize: 11, color: T_FAINT, textAlign: "center", fontWeight: "500" },
-  card: { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: "hidden", ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6 }, android: { elevation: 1 } }) },
-  fieldRow: { paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#F1F0ED" },
-  fieldLabelRow: { flexDirection: "row", alignItems: "center", marginBottom: 8, gap: 6 },
-  fieldLabel: { fontSize: 11, fontWeight: "800", color: T_MUTED, letterSpacing: 0.5, textTransform: "uppercase" },
-  lockedTag: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F8FAFC", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: BORDER },
-  lockedTagText: { fontSize: 9, color: T_FAINT, fontWeight: "600" },
-  inputWrapper: { flexDirection: "row", alignItems: "center", backgroundColor: "#FAFAF8", borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  inputWrapperLocked: { backgroundColor: "#F8F6F3", borderColor: "#EDE9E3" },
-  textInput: { flex: 1, fontSize: 15, color: T_PRIMARY, fontWeight: "600", padding: 0 },
-  textInputMultiline: { height: 72, textAlignVertical: "top" },
-  textInputLocked: { color: T_FAINT, fontWeight: "500" },
-  saveBar: { marginTop: 16, backgroundColor: "#FFFBEB", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#FCD34D" },
-  saveBarTop: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 12 },
-  saveBarText: { fontSize: 13, color: "#92400E", fontWeight: "700" },
-  saveBarBtns: { flexDirection: "row", gap: 10 },
-  discardBtn: { flex: 1, backgroundColor: "#F1F0ED", borderRadius: 10, padding: 14, alignItems: "center", justifyContent: "center" },
-  discardBtnText: { color: T_MUTED, fontWeight: "700", fontSize: 14 },
-  saveBtn: { flex: 2, backgroundColor: T_PRIMARY, borderRadius: 10, padding: 14, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
-  saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  chefToggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, gap: 12 },
-  chefToggleLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  chefToggleIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: BG, borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" },
-  chefToggleTitle: { fontSize: 15, fontWeight: "700", color: T_PRIMARY },
-  chefToggleSub: { fontSize: 12, color: T_MUTED, marginTop: 2, lineHeight: 17 },
-  pinSection: { borderTopWidth: 1, borderTopColor: "#F1F0ED", padding: 16 },
-  pinLabel: { fontSize: 11, fontWeight: "800", color: T_MUTED, letterSpacing: 0.5, textTransform: "uppercase" },
-  pinDisplay: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: BG, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: BORDER },
-  pinShieldWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" },
-  pinDots: { fontSize: 22, fontWeight: "900", color: T_PRIMARY, letterSpacing: 6, paddingTop: 4 },
-  pinUpdateBtn: { backgroundColor: CARD, borderWidth: 1.5, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  pinUpdateBtnText: { color: T_PRIMARY, fontWeight: "700", fontSize: 13 },
-  pinInputRow: { flexDirection: "row", gap: 10 },
-  ghostBtn: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 14, padding: 16, ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 }, android: { elevation: 1 } }) },
-  ghostBtnText: { color: T_PRIMARY, fontWeight: "700", fontSize: 15 },
-  logoutBtn: { marginTop: 10, marginBottom: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, borderWidth: 1.5, borderColor: "#FECACA", backgroundColor: "#FFF5F5", padding: 16 },
-  logoutText: { color: "#DC2626", fontWeight: "700", fontSize: 15 },
-  successOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", zIndex: 9999 },
-  successCard: { backgroundColor: CARD, padding: 40, borderRadius: 24, alignItems: "center", width: "85%", maxWidth: 400, ...Platform.select({ web: { boxShadow: "0 20px 60px rgba(0,0,0,0.2)" } }) },
-  successIconWrap: { width: 96, height: 96, borderRadius: 48, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  successTitle: { fontSize: 22, fontWeight: "900", marginTop: 16, color: T_PRIMARY, textAlign: "center" },
-  successSub: { fontSize: 14, color: T_MUTED, textAlign: "center", marginTop: 10, lineHeight: 22 },
-  successDivider: { width: "100%", height: 1, backgroundColor: BORDER, marginVertical: 24 },
-  successBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: T_PRIMARY, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
-  successBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
 
-  // ─── Confirm modal styles (chef mode + logout) ────────────────────────────
-  confirmOverlay: { flex: 1, backgroundColor: "rgba(28, 25, 23, 0.7)", justifyContent: "center", padding: 20 },
-  confirmBox: { backgroundColor: CARD, borderRadius: 20, padding: 28, width: "100%", maxWidth: 400, alignSelf: "center", alignItems: "center" },
-  confirmIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEF3C7", justifyContent: "center", alignItems: "center", marginBottom: 16 },
-  confirmTitle: { fontSize: 18, fontWeight: "800", color: T_PRIMARY, marginBottom: 8 },
-  confirmSub: { fontSize: 13, color: T_MUTED, textAlign: "center", lineHeight: 20, marginBottom: 24 },
-  confirmActions: { flexDirection: "row", gap: 12, width: "100%" },
-  confirmCancelBtn: { flex: 1, borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  confirmCancelText: { fontSize: 14, fontWeight: "700", color: T_MUTED },
-  confirmOkBtn: { flex: 1, backgroundColor: T_PRIMARY, borderRadius: 12, paddingVertical: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
-  confirmOkText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  // ─── PLAN SELECTION STYLES ────────────────────────────────────────────────────
+  planContainer: {
+    marginBottom: 20,
+    paddingTop: 12,
+  },
+  planSectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: T_PRIMARY,
+    marginBottom: 12,
+  },
+  planGrid: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  planCard: {
+    flex: 1,
+    backgroundColor: CARD,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: BORDER,
+    alignItems: "center",
+    position: "relative",
+  },
+  planCardSelected: {
+    borderColor: GREEN,
+    backgroundColor: "#F0FDF9",
+  },
+  planCardPopular: {
+    borderColor: "#F59E0B",
+  },
+  planCardDisabled: {
+    opacity: 0.5,
+  },
+  popularBadge: {
+    position: "absolute",
+    top: -10,
+    right: -5,
+    backgroundColor: "#F59E0B",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  popularBadgeText: {
+    fontSize: 9,
+    color: "#fff",
+    fontWeight: "700",
+  },
+  planLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: T_MUTED,
+    marginBottom: 4,
+  },
+  planLabelSelected: {
+    color: T_PRIMARY,
+  },
+  planPrice: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: T_PRIMARY,
+    marginBottom: 2,
+  },
+  planPriceSelected: {
+    color: GREEN,
+  },
+  planDuration: {
+    fontSize: 12,
+    color: T_MUTED,
+    marginBottom: 4,
+  },
+  planSaving: {
+    fontSize: 10,
+    color: GREEN,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  planRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: BORDER,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  planRadioSelected: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: GREEN,
+  },
+
+  subCard: {
+    backgroundColor: CARD,
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
+      android: { elevation: 2 },
+    }),
+  },
+  planTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  planName: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: T_MUTED,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  planPriceOld: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: T_PRIMARY,
+    letterSpacing: -0.5,
+  },
+  planPriceSubOld: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: T_MUTED,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  planDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: BG,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  planDateLabel: {
+    fontSize: 12,
+    color: T_MUTED,
+    fontWeight: "600",
+  },
+  planDateValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: T_PRIMARY,
+    marginLeft: 4,
+  },
+  daysLeftPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  daysLeftText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  renewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: T_PRIMARY,
+    borderRadius: 12,
+    paddingVertical: 15,
+    marginBottom: 10,
+    ...Platform.select({
+      ios: { shadowColor: T_PRIMARY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+      android: { elevation: 4 },
+    }),
+  },
+  renewBtnText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  referBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: GREEN,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  referBtnText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  note: {
+    fontSize: 11,
+    color: T_FAINT,
+    textAlign: "center",
+    fontWeight: "500",
+  },
+  card: {
+    backgroundColor: CARD,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6 },
+      android: { elevation: 1 },
+    }),
+  },
+  fieldRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F0ED",
+  },
+  fieldLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: T_MUTED,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  lockedTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  lockedTagText: {
+    fontSize: 9,
+    color: T_FAINT,
+    fontWeight: "600",
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FAFAF8",
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  inputWrapperLocked: {
+    backgroundColor: "#F8F6F3",
+    borderColor: "#EDE9E3",
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 15,
+    color: T_PRIMARY,
+    fontWeight: "600",
+    padding: 0,
+  },
+  textInputMultiline: {
+    height: 72,
+    textAlignVertical: "top",
+  },
+  textInputLocked: {
+    color: T_FAINT,
+    fontWeight: "500",
+  },
+  saveBar: {
+    marginTop: 16,
+    backgroundColor: "#FFFBEB",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  saveBarTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 12,
+  },
+  saveBarText: {
+    fontSize: 13,
+    color: "#92400E",
+    fontWeight: "700",
+  },
+  saveBarBtns: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  discardBtn: {
+    flex: 1,
+    backgroundColor: "#F1F0ED",
+    borderRadius: 10,
+    padding: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  discardBtnText: {
+    color: T_MUTED,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  saveBtn: {
+    flex: 2,
+    backgroundColor: T_PRIMARY,
+    borderRadius: 10,
+    padding: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  saveBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  chefToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    gap: 12,
+  },
+  chefToggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  chefToggleIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chefToggleTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: T_PRIMARY,
+  },
+  chefToggleSub: {
+    fontSize: 12,
+    color: T_MUTED,
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  pinSection: {
+    borderTopWidth: 1,
+    borderTopColor: "#F1F0ED",
+    padding: 16,
+  },
+  pinLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: T_MUTED,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  pinDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: BG,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  pinShieldWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinDots: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: T_PRIMARY,
+    letterSpacing: 6,
+    paddingTop: 4,
+  },
+  pinUpdateBtn: {
+    backgroundColor: CARD,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  pinUpdateBtnText: {
+    color: T_PRIMARY,
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  pinInputRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  ghostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 16,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 14,
+    padding: 16,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
+      android: { elevation: 1 },
+    }),
+  },
+  ghostBtnText: {
+    color: T_PRIMARY,
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  logoutBtn: {
+    marginTop: 10,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#FECACA",
+    backgroundColor: "#FFF5F5",
+    padding: 16,
+  },
+  logoutText: {
+    color: "#DC2626",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  successOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  successCard: {
+    backgroundColor: CARD,
+    padding: 40,
+    borderRadius: 24,
+    alignItems: "center",
+    width: "85%",
+    maxWidth: 400,
+    ...Platform.select({
+      web: { boxShadow: "0 20px 60px rgba(0,0,0,0.2)" },
+    }),
+  },
+  successIconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    marginTop: 16,
+    color: T_PRIMARY,
+    textAlign: "center",
+  },
+  successSub: {
+    fontSize: 14,
+    color: T_MUTED,
+    textAlign: "center",
+    marginTop: 10,
+    lineHeight: 22,
+  },
+  successDivider: {
+    width: "100%",
+    height: 1,
+    backgroundColor: BORDER,
+    marginVertical: 24,
+  },
+  successBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: T_PRIMARY,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  successBtnText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(28, 25, 23, 0.7)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  confirmBox: {
+    backgroundColor: CARD,
+    borderRadius: 20,
+    padding: 28,
+    width: "100%",
+    maxWidth: 400,
+    alignSelf: "center",
+    alignItems: "center",
+  },
+  confirmIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FEF3C7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: T_PRIMARY,
+    marginBottom: 8,
+  },
+  confirmSub: {
+    fontSize: 13,
+    color: T_MUTED,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: T_MUTED,
+  },
+  confirmOkBtn: {
+    flex: 1,
+    backgroundColor: T_PRIMARY,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  confirmOkText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
+  },
 });
