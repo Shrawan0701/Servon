@@ -52,38 +52,88 @@ router.post('/ask', auth, async (req, res) => {
 // Audio is kept in memory only and is never written to disk by this endpoint.
 router.post('/voice', auth, async (req, res) => {
   try {
+    console.log("========== VOICE ADVISOR REQUEST ==========");
+    console.log("Business ID:", req.businessId);
+
+    console.log("req.files:", req.files);
+
     const audio = req.files?.audio;
-    if (!audio || Array.isArray(audio) || !audio.data?.length) {
-      return res.status(400).json({ error: 'A short audio recording is required.' });
+
+    console.log("audio exists:", !!audio);
+
+    if (audio) {
+      console.log("audio.name:", audio.name);
+      console.log("audio.mimetype:", audio.mimetype);
+      console.log("audio.size:", audio.size);
+      console.log("audio.data length:", audio.data?.length);
     }
 
-    if (!audio.mimetype?.startsWith('audio/') && audio.mimetype !== 'video/webm') {
-      return res.status(400).json({ error: 'Please upload a valid audio recording.' });
+    if (!audio || Array.isArray(audio) || !audio.data?.length) {
+      console.log("❌ No valid audio uploaded.");
+      return res.status(400).json({
+        error: "A short audio recording is required.",
+      });
     }
+
+    if (
+      !audio.mimetype?.startsWith("audio/") &&
+      audio.mimetype !== "video/webm"
+    ) {
+      console.log("❌ Invalid mimetype:", audio.mimetype);
+      return res.status(400).json({
+        error: "Please upload a valid audio recording.",
+      });
+    }
+
+    console.log("🎤 Starting transcription...");
 
     const transcription = await openai.audio.transcriptions.create({
-      file: await toFile(audio.data, audio.name || 'voice-question.webm', {
-        type: audio.mimetype || 'audio/webm',
+      file: await toFile(audio.data, audio.name || "voice-question.webm", {
+        type: audio.mimetype || "audio/webm",
       }),
-      model: 'gpt-4o-mini-transcribe',
-      prompt: 'Restaurant orders, sales, revenue, menu, customers, pricing, and Servon business metrics.',
+      model: "gpt-4o-mini-transcribe",
+      prompt:
+        "Restaurant orders, sales, revenue, menu, customers, pricing, and Servon business metrics.",
     });
+
+    console.log("✅ Transcription:", transcription);
 
     const question = transcription.text?.trim();
+
+    console.log("Question:", question);
+
     if (!question) {
-      return res.status(422).json({ error: 'I could not understand that recording. Please try again.' });
+      return res.status(422).json({
+        error: "I could not understand that recording. Please try again.",
+      });
     }
 
+    console.log("🤖 Asking advisor...");
+
     const result = await askAdvisor(req.businessId, question);
+
+    console.log("✅ Advisor response generated.");
+
     const id = await saveConversation(req.businessId, question, result);
+
+    console.log("🔊 Generating speech...");
+
     const speech = await openai.audio.speech.create({
-      model: 'gpt-4o-mini-tts',
-      voice: 'coral',
+      model: "gpt-4o-mini-tts",
+      voice: "coral",
       input: result.answer.slice(0, 4096),
-      response_format: 'mp3',
-      instructions: 'Speak clearly, warmly, and confidently as a restaurant business advisor.',
+      response_format: "mp3",
+      instructions:
+        "Speak clearly, warmly, and confidently as a restaurant business advisor.",
     });
-    const audioBase64 = Buffer.from(await speech.arrayBuffer()).toString('base64');
+
+    console.log("✅ Speech generated.");
+
+    const audioBase64 = Buffer.from(
+      await speech.arrayBuffer()
+    ).toString("base64");
+
+    console.log("✅ Returning response.");
 
     res.json({
       success: true,
@@ -95,8 +145,37 @@ router.post('/voice', auth, async (req, res) => {
       audio: `data:audio/mpeg;base64,${audioBase64}`,
     });
   } catch (err) {
-    console.error('Voice advisor error:', err);
-    res.status(500).json({ error: 'Unable to process the voice question. Please try again.' });
+    console.error("========== VOICE ADVISOR ERROR ==========");
+
+    console.error("Message:", err.message);
+    console.error("Name:", err.name);
+
+    if (err.status) {
+      console.error("Status:", err.status);
+    }
+
+    if (err.code) {
+      console.error("Code:", err.code);
+    }
+
+    if (err.response) {
+      console.error("Response Status:", err.response.status);
+      console.error("Response Data:", err.response.data);
+    }
+
+    if (err.error) {
+      console.error("Error Object:", err.error);
+    }
+
+    console.error("Full Error:");
+    console.error(err);
+
+    console.error("Stack:");
+    console.error(err.stack);
+
+    return res.status(500).json({
+      error: err.message || "Unable to process the voice question.",
+    });
   }
 });
 
