@@ -3,6 +3,20 @@ const router = express.Router();
 const pool = require('../db');
 const auth = require('../middleware/auth');
 const { askAdvisor, generateInsights } = require('../services/advisorService');
+const OpenAI = require('openai');
+const { toFile } = require('openai');
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const saveConversation = async (businessId, question, result) => {
+  const insertResult = await pool.query(
+    `INSERT INTO advisor_conversations (business_id, question, answer, context_data, tokens_used)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id`,
+    [businessId, question, result.answer, {}, result.tokensUsed]
+  );
+  return insertResult.rows[0].id;
+};
 
 // ─── ASK A QUESTION ──────────────────────────────────────────────────
 router.post('/ask', auth, async (req, res) => {
@@ -19,16 +33,11 @@ router.post('/ask', auth, async (req, res) => {
     const result = await askAdvisor(businessId, question);
 
     // Save conversation
-    const insertResult = await pool.query(
-      `INSERT INTO advisor_conversations (business_id, question, answer, context_data, tokens_used)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id`,
-      [businessId, question, result.answer, {}, result.tokensUsed]
-    );
+    const id = await saveConversation(businessId, question, result);
 
     res.json({
       success: true,
-      id: insertResult.rows[0].id,
+      id,
       question,
       answer: result.answer,
       tokensUsed: result.tokensUsed,
@@ -36,6 +45,58 @@ router.post('/ask', auth, async (req, res) => {
   } catch (err) {
     console.error('Ask advisor error:', err);
     res.status(500).json({ error: 'Failed to get advisor response.' });
+  }
+});
+
+// VOICE ADVISOR: audio upload -> transcription -> existing advisor -> spoken reply.
+// Audio is kept in memory only and is never written to disk by this endpoint.
+router.post('/voice', auth, async (req, res) => {
+  try {
+    const audio = req.files?.audio;
+    if (!audio || Array.isArray(audio) || !audio.data?.length) {
+      return res.status(400).json({ error: 'A short audio recording is required.' });
+    }
+
+    if (!audio.mimetype?.startsWith('audio/') && audio.mimetype !== 'video/webm') {
+      return res.status(400).json({ error: 'Please upload a valid audio recording.' });
+    }
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: await toFile(audio.data, audio.name || 'voice-question.webm', {
+        type: audio.mimetype || 'audio/webm',
+      }),
+      model: 'gpt-4o-mini-transcribe',
+      prompt: 'Restaurant orders, sales, revenue, menu, customers, pricing, and Servon business metrics.',
+    });
+
+    const question = transcription.text?.trim();
+    if (!question) {
+      return res.status(422).json({ error: 'I could not understand that recording. Please try again.' });
+    }
+
+    const result = await askAdvisor(req.businessId, question);
+    const id = await saveConversation(req.businessId, question, result);
+    const speech = await openai.audio.speech.create({
+      model: 'gpt-4o-mini-tts',
+      voice: 'coral',
+      input: result.answer.slice(0, 4096),
+      response_format: 'mp3',
+      instructions: 'Speak clearly, warmly, and confidently as a restaurant business advisor.',
+    });
+    const audioBase64 = Buffer.from(await speech.arrayBuffer()).toString('base64');
+
+    res.json({
+      success: true,
+      id,
+      transcript: question,
+      question,
+      answer: result.answer,
+      tokensUsed: result.tokensUsed,
+      audio: `data:audio/mpeg;base64,${audioBase64}`,
+    });
+  } catch (err) {
+    console.error('Voice advisor error:', err);
+    res.status(500).json({ error: 'Unable to process the voice question. Please try again.' });
   }
 });
 
