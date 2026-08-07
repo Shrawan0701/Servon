@@ -135,6 +135,9 @@ router.post('/voice', auth, async (req, res) => {
 
     console.log("✅ Returning response.");
 
+    console.log("Base64 length:", audioBase64.length);
+console.log("Sending response to client...");
+
     res.json({
       success: true,
       id,
