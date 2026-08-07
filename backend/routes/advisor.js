@@ -58,6 +58,7 @@ router.post('/voice', auth, async (req, res) => {
     console.log("req.files:", req.files);
 
     const audio = req.files?.audio;
+    const language = ['en', 'hi', 'mr'].includes(req.body?.language) ? req.body.language : 'en';
 
     console.log("audio exists:", !!audio);
 
@@ -92,6 +93,7 @@ router.post('/voice', auth, async (req, res) => {
         type: audio.mimetype || "audio/webm",
       }),
       model: "gpt-4o-mini-transcribe",
+      language,
       prompt:
         "Restaurant orders, sales, revenue, menu, customers, pricing, and Servon business metrics.",
     });
@@ -110,7 +112,7 @@ router.post('/voice', auth, async (req, res) => {
 
     console.log("🤖 Asking advisor...");
 
-    const result = await askAdvisor(req.businessId, question);
+    const result = await askAdvisor(req.businessId, question, language);
 
     console.log("✅ Advisor response generated.");
 
@@ -123,8 +125,9 @@ router.post('/voice', auth, async (req, res) => {
       voice: "coral",
       input: result.answer.slice(0, 4096),
       response_format: "mp3",
-      instructions:
-        "Speak clearly, warmly, and confidently as a restaurant business advisor.",
+      instructions: `Speak clearly, warmly, and confidently as a restaurant business advisor in ${
+        { en: 'English', hi: 'Hindi', mr: 'Marathi' }[language]
+      }.`,
     });
 
     console.log("✅ Speech generated.");

@@ -8,29 +8,30 @@ const openai = new OpenAI({
 /**
  * Generate an AI response to a business question – Consultant-style, actionable guidance
  */
-const askAdvisor = async (businessId, question) => {
+const askAdvisor = async (businessId, question, selectedLanguage = null) => {
   const q = question.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+  const responseLanguage = { en: 'English', hi: 'Hindi', mr: 'Marathi' }[selectedLanguage] || null;
 
   // 1. Dynamic Multilingual Greeting Guard
   const englishGreetings = ["hi", "hello", "hey", "yo", "good morning", "good afternoon", "greetings"];
   const hindiGreetings = ["namaste", "namaskar", "hello sir", "hello mam", "ram ram"];
   const marathiGreetings = ["namaskar", "jay hari", "ram ram mam", "ram ram sir"];
 
-  if (englishGreetings.includes(q)) {
+  if (!responseLanguage && englishGreetings.includes(q)) {
     return {
       answer: "Hey there! Great to see you. I'm your AI Business Advisor. Ask me anything about your restaurant's sales, menu pricing, operating costs, or general restaurant industry strategies, and let's scale your business together!",
       tokensUsed: 0,
     };
   }
   
-  if (hindiGreetings.includes(q) || q.includes("kaise ho") || q.includes("kaise hain")) {
+  if (!responseLanguage && (hindiGreetings.includes(q) || q.includes("kaise ho") || q.includes("kaise hain"))) {
     return {
       answer: "Namaste! Aapka swagat hai. Main aapka AI Business Advisor hoon. Aap apne restaurant ke sales, menu, pricing ya general restaurant trends ke baare mein kuch bhi pooch sakte hain. Bataiye, aaj kaise help karu?",
       tokensUsed: 0,
     };
   }
 
-  if (marathiGreetings.includes(q) || q.includes("kase ahat") || q.includes("kasa aahe")) {
+  if (!responseLanguage && (marathiGreetings.includes(q) || q.includes("kase ahat") || q.includes("kasa aahe"))) {
     return {
       answer: "Namaskar! Tumche swagat aahe. Me tumcha AI Business Advisor aahe. Tumhi tumchya hotel chya sales, menu, ani generic industry updates baddal kahihi vicharu shakta. Sanga, aaj business kasa vadhvaycha?",
       tokensUsed: 0,
@@ -72,6 +73,7 @@ CRITICAL REPETITION BAN:
 Avoid regurgitating the exact same standard templates (like only mentioning customer feedback, peak hour staffing, menu diversification, or basic marketing) if the question allows for deeper business logic. Be creative, analytical, and diverse in your tactical suggestions.
 
 CRITICAL OUTPUT INSTRUCTIONS:
+- Voice response language is ${responseLanguage || 'automatically detected from the owner question'}. ${responseLanguage ? `Respond entirely in ${responseLanguage}; do not switch languages.` : ''}
 - Default language is professional English. If the question is in English, you must respond in English.
 - If the question is in Roman Hindi / Hinglish, respond completely in Roman Hindi / Hinglish.
 - If the question is in Roman Marathi, respond completely in Roman Marathi.
@@ -87,6 +89,8 @@ CRITICAL OUTPUT INSTRUCTIONS:
           content: `You are Servon's AI Business Advisor, an expert restaurant consultant.
 
 CRITICAL DIRECTIVE: You must dynamically detect the language of the owner's text and perfectly mirror it.
+
+VOICE LANGUAGE OVERRIDE: ${responseLanguage ? `This is a voice request. Respond entirely in ${responseLanguage}, even if the transcribed question uses another language.` : 'No voice language was selected; detect the owner language normally.'}
 
 1. ENGLISH DETECTION: If the question is in English (e.g., "What's my analytics till today", "how to increase sales", or "Can you answer in english"), you MUST respond entirely in professional English.
 2. HINGLISH DETECTION: If the question is in Roman Hindi / Hinglish (e.g., "sales kaise badhau"), respond completely in Roman Hindi / Hinglish text.
