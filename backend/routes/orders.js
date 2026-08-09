@@ -4,6 +4,7 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 const sendPush = require('../utils/pushNotify');
 const { getIO } = require("../socket");
+const { deductInventoryForOrder, reverseDeductionsForOrder } = require("../utils/inventoryHelper");
 
 // ─── DISCOUNT CALCULATION (GST removed, handled separately) ──────────
 function calculateDiscount(subtotal, discountType = 'none', discountValue = 0) {
@@ -37,42 +38,39 @@ router.post("/place", async (req, res) => {
   }
 
   try {
-    // ─── Check business subscription ──────────────────────────────────
     const biz = await pool.query(
-  "SELECT subscription_status, subscription_end_date, trial_end_date, push_token FROM businesses WHERE id = $1",
-  [businessId]
-);
+      "SELECT subscription_status, subscription_end_date, trial_end_date, push_token FROM businesses WHERE id = $1",
+      [businessId]
+    );
 
     if (biz.rows.length === 0) {
-  return res.status(403).json({ error: "Restaurant is currently not accepting orders" });
-}
+      return res.status(403).json({ error: "Restaurant is currently not accepting orders" });
+    }
 
-const businessData = biz.rows[0];
-const now = new Date();
+    const businessData = biz.rows[0];
+    const now = new Date();
 
-const isSubscriptionActive = 
-  businessData.subscription_status === "ACTIVE" && 
-  new Date(businessData.subscription_end_date) > now;
+    const isSubscriptionActive =
+      businessData.subscription_status === "ACTIVE" &&
+      new Date(businessData.subscription_end_date) > now;
 
-const isTrialActive = 
-  businessData.subscription_status === "TRIAL" && 
-  businessData.trial_end_date && 
-  new Date(businessData.trial_end_date) > now;
+    const isTrialActive =
+      businessData.subscription_status === "TRIAL" &&
+      businessData.trial_end_date &&
+      new Date(businessData.trial_end_date) > now;
 
-if (!isSubscriptionActive && !isTrialActive) {
-  return res.status(403).json({ error: "Restaurant is currently not accepting orders" });
-}
+    if (!isSubscriptionActive && !isTrialActive) {
+      return res.status(403).json({ error: "Restaurant is currently not accepting orders" });
+    }
 
     const pushToken = biz.rows[0].push_token;
 
-    // ─── Get table number ──────────────────────────────────────────────
     const tableInfo = await pool.query(
       "SELECT table_number FROM tables WHERE id = $1",
       [tableId]
     );
     const tableNum = tableInfo.rows[0]?.table_number || "Unknown";
 
-    // ─── Calculate subtotal ────────────────────────────────────────────
     let subtotal = 0;
     if (Array.isArray(items)) {
       subtotal = items.reduce((sum, item) => {
@@ -93,7 +91,6 @@ if (!isSubscriptionActive && !isTrialActive) {
       } catch (e) {}
     }
 
-    // ─── Fetch business GST rates ──────────────────────────────────────
     const gstResult = await pool.query(
       "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
       [businessId]
@@ -101,7 +98,6 @@ if (!isSubscriptionActive && !isTrialActive) {
     const cgstPercent = parseFloat(gstResult.rows[0]?.cgst_percentage || 0);
     const sgstPercent = parseFloat(gstResult.rows[0]?.sgst_percentage || 0);
 
-    // ─── Apply discount and compute GST ────────────────────────────────
     const { discountAmount, amountAfterDiscount } = calculateDiscount(subtotal, discount_type, discount_value);
     const cgst = (amountAfterDiscount * cgstPercent) / 100;
     const sgst = (amountAfterDiscount * sgstPercent) / 100;
@@ -112,7 +108,6 @@ if (!isSubscriptionActive && !isTrialActive) {
     const discountValue = parseFloat(discount_value) || 0;
     const subtotalBeforeDiscount = subtotal;
 
-    // ─── Smart timer ────────────────────────────────────────────────────
     const triggerAutoConfirm = (targetOrderId) => {
       setTimeout(async () => {
         try {
@@ -168,6 +163,16 @@ if (!isSubscriptionActive && !isTrialActive) {
             orderId
           ]
         );
+
+        // Reverse the stock deducted for the old item list, then deduct
+        // for the new one, so an edited order never double-counts stock.
+        try {
+          await reverseDeductionsForOrder(businessId, orderId, "order_edit_refund");
+          await deductInventoryForOrder(businessId, orderId, items);
+        } catch (invErr) {
+          console.error("Inventory adjustment on edit failed:", invErr.message);
+        }
+
         try {
           const io = getIO();
           io.to(`business_${businessId}`).emit("order_updated", updatedOrder.rows[0]);
@@ -206,7 +211,14 @@ if (!isSubscriptionActive && !isTrialActive) {
     const order = result.rows[0];
     let notificationRow = null;
 
-    // ─── NON-BLOCKING NOTIFICATIONS & SOCKETS ─────────────────────────
+    // Deduct stock for the new order's items. Non-blocking on failure —
+    // an inventory hiccup should never stop an order from being placed.
+    try {
+      await deductInventoryForOrder(businessId, order.id, items);
+    } catch (invErr) {
+      console.error("Inventory deduction failed:", invErr.message);
+    }
+
     try {
       if (pushToken) {
         sendPush(
@@ -217,8 +229,6 @@ if (!isSubscriptionActive && !isTrialActive) {
       }
 
       const notifMessage = `New order from Table ${tableNum} - ₹${finalTotal}`;
-      
-      // ✅ Explicitly added 'new_order' for the type column
       const notifResult = await pool.query(
         "INSERT INTO notifications (business_id, order_id, message, type) VALUES ($1, $2, $3, $4) RETURNING *",
         [businessId, order.id, notifMessage, 'new_order']
@@ -275,7 +285,6 @@ router.put("/edit/:id", async (req, res) => {
     const discType = discount_type || order.discount_type || 'none';
     const discValue = parseFloat(discount_value) || parseFloat(order.discount_value) || 0;
 
-    // ─── Fetch business GST rates ──────────────────────────────────────
     const businessId = order.business_id;
     const gstResult = await pool.query(
       "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
@@ -316,6 +325,14 @@ router.put("/edit/:id", async (req, res) => {
         req.params.id
       ]
     );
+
+    try {
+      await reverseDeductionsForOrder(businessId, req.params.id, "order_edit_refund");
+      await deductInventoryForOrder(businessId, req.params.id, items);
+    } catch (invErr) {
+      console.error("Inventory adjustment on edit failed:", invErr.message);
+    }
+
     res.json(updated.rows[0]);
   } catch (err) {
     console.error("Edit order error:", err);
@@ -342,16 +359,14 @@ router.get("/", auth, async (req, res) => {
 });
 
 // ─── BUSINESS: UPDATE ORDER STATUS ──────────────────────────────────
-// ─── BUSINESS: UPDATE ORDER STATUS ──────────────────────────────────
 router.patch("/:id/status", auth, async (req, res) => {
   const { status } = req.body;
   const validStatuses = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE", "PAID", "REJECTED"];
   if (!validStatuses.includes(status)) return res.status(400).json({ error: "Invalid status" });
 
   try {
-    // 1. First fetch the target order to know its table_id
     const targetOrder = await pool.query(
-      "SELECT table_id FROM orders WHERE id = $1 AND business_id = $2",
+      "SELECT table_id, status FROM orders WHERE id = $1 AND business_id = $2",
       [req.params.id, req.businessId]
     );
 
@@ -360,8 +375,8 @@ router.patch("/:id/status", auth, async (req, res) => {
     }
 
     const tableId = targetOrder.rows[0].table_id;
+    const previousStatus = targetOrder.rows[0].status;
 
-    // 2. If status is PAID, update ALL open orders belonging to this table
     if (status === "PAID" && tableId) {
       await pool.query(
         `UPDATE orders 
@@ -373,13 +388,21 @@ router.patch("/:id/status", auth, async (req, res) => {
       );
     }
 
-    // 3. Update the specific target order as requested
     const result = await pool.query(
       `UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3 RETURNING *`,
       [status, req.params.id, req.businessId]
     );
 
-    // 4. Emit real-time update event via Socket.IO
+    // Rejected orders never get made — refund the stock that was deducted
+    // when they were placed. Guarded so re-saving REJECTED doesn't double-refund.
+    if (status === "REJECTED" && previousStatus !== "REJECTED") {
+      try {
+        await reverseDeductionsForOrder(req.businessId, req.params.id, "order_reject_refund");
+      } catch (invErr) {
+        console.error("Inventory refund on reject failed:", invErr.message);
+      }
+    }
+
     try {
       const io = getIO();
       io.to(`business_${req.businessId}`).emit("order_updated", result.rows[0]);
@@ -407,7 +430,6 @@ router.get("/notifications", auth, async (req, res) => {
   }
 });
 
-// ─── BUSINESS: MARK NOTIFICATION READ ──────────────────────────────
 router.patch("/notifications/:id/read", auth, async (req, res) => {
   try {
     await pool.query("UPDATE notifications SET is_read = true WHERE id = $1 AND business_id = $2", [req.params.id, req.businessId]);
@@ -417,7 +439,6 @@ router.patch("/notifications/:id/read", auth, async (req, res) => {
   }
 });
 
-// ─── BUSINESS: MARK ALL NOTIFICATIONS READ ──────────────────────────
 router.patch("/notifications/read-all", auth, async (req, res) => {
   try {
     await pool.query("UPDATE notifications SET is_read = true WHERE business_id = $1", [req.businessId]);
