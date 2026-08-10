@@ -17,6 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import API from '../api';
+import VoiceAdvisorTab from '../components/VoiceAdvisorTab';
 
 const COLORS = {
   bg: '#FAF8F5',
@@ -112,6 +113,7 @@ const groupByDate = (list) => {
 
 export default function AdvisorScreen() {
   const navigation = useNavigation();
+  const [activeTab, setActiveTab] = useState('chat');
   const [question, setQuestion] = useState('');
   const [conversations, setConversations] = useState([]);
   const [insights, setInsights] = useState([]);
@@ -525,6 +527,17 @@ export default function AdvisorScreen() {
         </View>
       </View>
 
+      <View style={styles.tabBar}>
+        <TouchableOpacity style={[styles.tab, activeTab === 'chat' && styles.tabActive]} onPress={() => setActiveTab('chat')}>
+          <Ionicons name="chatbubble-ellipses-outline" size={16} color={activeTab === 'chat' ? COLORS.green : COLORS.subtext} />
+          <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>Chat</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tab, activeTab === 'voice' && styles.tabActive]} onPress={() => setActiveTab('voice')}>
+          <Ionicons name="mic-outline" size={16} color={activeTab === 'voice' ? COLORS.green : COLORS.subtext} />
+          <Text style={[styles.tabText, activeTab === 'voice' && styles.tabTextActive]}>Voice</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Body: docked sidebar (tablet/web) + main column */}
       <View style={styles.bodyRow}>
         {isTablet && sidebarOpen && (
@@ -534,6 +547,10 @@ export default function AdvisorScreen() {
         )}
 
         <View style={styles.mainColumn}>
+          {activeTab === 'voice' ? (
+            <VoiceAdvisorTab onConversationSaved={loadConversations} />
+          ) : (
+            <>
           <ScrollView
             ref={scrollRef}
             style={styles.content}
@@ -599,6 +616,8 @@ export default function AdvisorScreen() {
               </View>
             </View>
           </KeyboardAvoidingView>
+            </>
+          )}
         </View>
       </View>
 
@@ -693,6 +712,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
   },
+  tabBar: { flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 10 },
+  tabActive: { backgroundColor: COLORS.greenBg },
+  tabText: { color: COLORS.subtext, fontSize: 13, fontWeight: '700' },
+  tabTextActive: { color: COLORS.green },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',

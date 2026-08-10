@@ -22,7 +22,8 @@
       },
       "package": "com.servon.business",
       "permissions": [
-        "NOTIFICATIONS"
+        "NOTIFICATIONS",
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -43,7 +44,13 @@
       "expo-web-browser",
       "@react-native-community/datetimepicker",
       "expo-notifications",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Servon to use your microphone for Voice AI Business Advisor."
+        }
+      ]
     ]
   }
 }

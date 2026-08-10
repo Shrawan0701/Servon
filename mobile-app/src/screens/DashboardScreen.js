@@ -31,6 +31,7 @@ import {
   getTrialStatus,
   getTrialNotifications,
   markTrialNotificationRead,
+  getInventoryAlertsCount,
 } from "../api";
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
@@ -454,6 +455,9 @@ export default function DashboardScreen() {
   // ===== IN-APP TRIAL/SUBSCRIPTION TOAST (replaces console-style browser alert) =====
   const [trialToast, setTrialToast] = useState(null); // { message } | null
 
+  // ===== INVENTORY LOW-STOCK BADGE =====
+  const [lowStockCount, setLowStockCount] = useState(0);
+
   // ─── WHITE-LABEL BRAND NAME ─────────────────────────────────────────
   // Uses the restaurant's own business_name (captured at signup) instead
   // of the hardcoded "Servon" platform name. Falls back to "Servon" only
@@ -593,6 +597,14 @@ setLiveOrders(ordersRes.data.filter(o =>
       console.error('Error fetching trial data:', trialErr);
     }
     setTrialLoading(false);
+
+    // ===== FETCH INVENTORY LOW-STOCK COUNT =====
+    try {
+      const alertRes = await getInventoryAlertsCount();
+      setLowStockCount(alertRes?.data?.count || 0);
+    } catch (invErr) {
+      console.error("Inventory alert fetch error:", invErr);
+    }
 
   } catch (err) {
     console.error("Dashboard load error:", err);
@@ -928,6 +940,32 @@ setLiveOrders(ordersRes.data.filter(o =>
           document.body
         )}
 
+        {/* INVENTORY FLOATING BUTTON */}
+       <button
+  onClick={() => navigation.navigate("Inventory")}
+  style={{
+    position: "fixed", bottom: 100, right: 28, zIndex: 999,
+            width: 58, height: 58, borderRadius: 18,
+            background: "#111827", border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 10px 28px rgba(17,24,39,0.28)",
+          }}
+        >
+          <Ionicons name="cube-outline" size={24} color="#fff" />
+          {lowStockCount > 0 && (
+            <span style={{
+              position: "absolute", top: -4, right: -4,
+              background: "#EF4444", color: "#fff",
+              fontSize: 10, fontWeight: 700,
+              width: 18, height: 18, borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: "2px solid #F5F3EF",
+            }}>
+              {lowStockCount > 9 ? "9+" : lowStockCount}
+            </span>
+          )}
+        </button>
+
         {/* SUMMARY MODAL */}
        
       </div>
@@ -1158,6 +1196,20 @@ setLiveOrders(ordersRes.data.filter(o =>
           </View>
         </View>
       </Modal>
+
+      {/* INVENTORY FLOATING BUTTON */}
+      <TouchableOpacity
+        style={[styles.inventoryFab, { bottom: insets.bottom + 24 }]}
+        onPress={() => navigation.navigate("Inventory")}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="cube-outline" size={24} color="#fff" />
+        {lowStockCount > 0 && (
+          <View style={styles.inventoryFabBadge}>
+            <Text style={styles.inventoryFabBadgeText}>{lowStockCount > 9 ? "9+" : lowStockCount}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
       {/* SUMMARY MODAL */}
       
@@ -1479,4 +1531,22 @@ const styles = StyleSheet.create({
   trialToastBtn: { backgroundColor: '#fff', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 11, flexShrink: 0 },
   trialToastBtnText: { color: '#111827', fontSize: 11.5, fontWeight: '700' },
   trialToastClose: { padding: 4, flexShrink: 0 },
+
+  /* ── Inventory floating action button (native) ── */
+  inventoryFab: {
+    position: 'absolute', right: 20,
+    width: 58, height: 58, borderRadius: 18,
+    backgroundColor: '#111827',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25, shadowRadius: 16, elevation: 8,
+    zIndex: 50,
+  },
+  inventoryFabBadge: {
+    position: 'absolute', top: -4, right: -4,
+    backgroundColor: '#EF4444', borderRadius: 10,
+    minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#F5F3EF', paddingHorizontal: 3,
+  },
+  inventoryFabBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
 });

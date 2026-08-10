@@ -9,13 +9,15 @@ const BASE_URL =
 // Main Production API (Render)
 const API = axios.create({
   baseURL: `${BASE_URL}/api`,
-  timeout: 15000,
+  timeout: 120000,
 });
 
 // Local backend ONLY for AI Advisor
+export const ADVISOR_API_BASE_URL = "https://servon.onrender.com/api";
+
 const AdvisorAPI = axios.create({
-  baseURL: "http://10.124.125.38:5000/api",
-  timeout: 15000,
+  baseURL: ADVISOR_API_BASE_URL,
+  timeout: 120000,
 });
 
 // Helper function to get business ID from storage
@@ -97,6 +99,18 @@ export const resetPassword = (resetToken, newPassword) =>
     resetToken,
     newPassword,
   });
+
+
+export const getInventory = () => API.get("/inventory");
+export const getInventoryAlertsCount = () => API.get("/inventory/alerts/count");
+export const addInventoryItem = (data) => API.post("/inventory", data);
+export const updateInventoryItem = (id, data) => API.put(`/inventory/${id}`, data);
+export const restockInventoryItem = (id, amount) => API.patch(`/inventory/${id}/restock`, { amount });
+export const adjustInventoryItem = (id, new_stock) => API.patch(`/inventory/${id}/adjust`, { new_stock });
+export const deleteInventoryItem = (id) => API.delete(`/inventory/${id}`);
+export const getMenuRecipes = () => API.get("/inventory/recipes");
+export const getRecipeForItem = (menuItemId) => API.get(`/inventory/recipes/${menuItemId}`);
+export const setRecipeForItem = (menuItemId, ingredients) => API.put(`/inventory/recipes/${menuItemId}`, { ingredients });
 
 // -------------------- SUBSCRIPTION --------------------
 
@@ -306,6 +320,13 @@ export const updateExpense = (id, formData) =>
 
 export const askAdvisor = (question) =>
   AdvisorAPI.post("/advisor/ask", { question });
+
+export const askAdvisorByVoice = (formData) =>
+  API.post("/advisor/voice", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
 
 export const getAdvisorInsights = () =>
   AdvisorAPI.get("/advisor/insights");
