@@ -234,4 +234,147 @@ router.get("/next-insight", auth, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+// ══════════════════════════════════════════════════════════════════════
+// AI BUSINESS SUMMARY + ALERTS  (new additive feature)
+// ══════════════════════════════════════════════════════════════════════
+const { generateAndSaveBrief, runAlertsCheck } = require("../jobs/scheduler");
+
+// ─── GET CURRENT BUSINESS SUMMARY (today / current hour) ──────────────
+// If no row exists yet, generate it on demand.
+router.get("/business-summary/current", auth, async (req, res) => {
+  try {
+    const businessId = req.businessId;
+    const now = new Date();
+    const summaryDate = now.toISOString().split("T")[0];
+    const summaryHour = now.getHours();
+
+    let result = await pool.query(
+      `SELECT * FROM business_summaries
+       WHERE business_id = $1 AND summary_date = $2 AND summary_hour = $3`,
+      [businessId, summaryDate, summaryHour]
+    );
+
+    let row = result.rows[0];
+    let isNew = false;
+
+    if (!row) {
+      console.log(`🔄 Generating on-demand business summary for ${businessId}...`);
+      row = await generateAndSaveBrief(businessId);
+      isNew = true;
+    }
+
+    // Mark read after viewing
+    if (!row.is_read) {
+      await pool.query(
+        `UPDATE business_summaries SET is_read = true WHERE id = $1`,
+        [row.id]
+      );
+      row = { ...row, is_read: true };
+    }
+
+    res.json({
+      hasSummary: true,
+      ...row,
+      is_new: isNew,
+    });
+  } catch (err) {
+    console.error("Business summary current error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── POST GENERATE BUSINESS SUMMARY (manual button) ──────────────────
+router.post("/business-summary/generate", auth, async (req, res) => {
+  try {
+    const businessId = req.businessId;
+    const row = await generateAndSaveBrief(businessId);
+    res.json({ ...row, is_new: true });
+  } catch (err) {
+    console.error("Business summary generate error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── GET ALERTS (recent alerts + unread count) ───────────────────────
+router.get("/alerts", auth, async (req, res) => {
+  try {
+    const businessId = req.businessId;
+    const limit = parseInt(req.query.limit, 10) || 30;
+
+    const alertsResult = await pool.query(
+      `SELECT * FROM business_alerts
+       WHERE business_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [businessId, limit]
+    );
+
+    const unreadResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM business_alerts
+       WHERE business_id = $1 AND is_read = false`,
+      [businessId]
+    );
+
+    res.json({
+      alerts: alertsResult.rows,
+      unreadCount: unreadResult.rows[0].count,
+    });
+  } catch (err) {
+    console.error("Get alerts error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── POST MARK SINGLE ALERT READ ─────────────────────────────────────
+router.post("/alerts/:id/read", auth, async (req, res) => {
+  try {
+    const businessId = req.businessId;
+    const result = await pool.query(
+      `UPDATE business_alerts SET is_read = true
+       WHERE id = $1 AND business_id = $2
+       RETURNING *`,
+      [req.params.id, businessId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Alert not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Mark alert read error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── POST MARK ALL ALERTS READ ───────────────────────────────────────
+router.post("/alerts/read-all", auth, async (req, res) => {
+  try {
+    const businessId = req.businessId;
+    const result = await pool.query(
+      `UPDATE business_alerts SET is_read = true
+       WHERE business_id = $1 AND is_read = false
+       RETURNING id`,
+      [businessId]
+    );
+
+    res.json({ updated: result.rows.length });
+  } catch (err) {
+    console.error("Mark all alerts read error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── POST CHECK-ALERTS-NOW (manual trigger for testing) ──────────────
+router.post("/alerts/check-now", auth, async (req, res) => {
+  try {
+    const businessId = req.businessId;
+    const newAlerts = await runAlertsCheck(businessId);
+    res.json({ newAlerts, count: newAlerts.length });
+  } catch (err) {
+    console.error("Check alerts now error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;

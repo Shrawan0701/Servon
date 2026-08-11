@@ -3,7 +3,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const fileUpload = require("express-fileupload");
-const { init: initSocket } = require("./socket");
+const { init: initSocket, getIO } = require("./socket");
 const pool = require("./db");
 const app = express();
 const server = http.createServer(app);
@@ -15,8 +15,15 @@ const auth = require("./middleware/auth");
 const { collectDailyData } = require("./utils/dailySummary");
 const { generateSummary, generateInsights } = require("./services/aiSummaryService");
 
+// AI Business Summary + Alerts scheduler
+const { initScheduler, startCronJobs } = require("./jobs/scheduler");
+
 // Init socket
 initSocket(server);
+
+// Init & start AI Business Summary + Alerts cron jobs
+initScheduler(getIO());
+startCronJobs();
 
 // ─── CORS ──────────────────────────────────────────────────────────────
 const allowedOrigins = [

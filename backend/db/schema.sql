@@ -77,3 +77,39 @@ CREATE INDEX IF NOT EXISTS idx_orders_business_id ON orders(business_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at); 
 CREATE INDEX IF NOT EXISTS idx_menu_items_business_id ON menu_items(business_id); 
 CREATE INDEX IF NOT EXISTS idx_notifications_business_id ON notifications(business_id);
+
+-- ─── business_summaries: hourly AI business brief ─────────────────────────────
+CREATE TABLE IF NOT EXISTS business_summaries (
+  id SERIAL PRIMARY KEY,
+  business_id UUID NOT NULL REFERENCES businesses(id),
+  summary_date DATE NOT NULL,
+  summary_hour INTEGER NOT NULL,        -- 0–23, the hour this brief was generated for
+  summary_text TEXT,                    -- short plain-text fallback (push/toast)
+  summary_json JSONB,                   -- structured brief shown in the UI
+  key_metrics JSONB,                    -- raw metrics snapshot used to generate it
+  is_read BOOLEAN DEFAULT FALSE,
+  generated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(business_id, summary_date, summary_hour)
+);
+
+CREATE INDEX IF NOT EXISTS idx_business_summaries_lookup
+  ON business_summaries(business_id, summary_date, summary_hour);
+
+-- ─── business_alerts: real-time alert engine ─────────────────────────────────
+CREATE TABLE IF NOT EXISTS business_alerts (
+  id SERIAL PRIMARY KEY,
+  business_id UUID NOT NULL REFERENCES businesses(id),
+  alert_type VARCHAR(50) NOT NULL,      -- e.g. 'revenue_spike', 'rating_drop'
+  severity VARCHAR(20) NOT NULL DEFAULT 'info', -- 'info' | 'warning' | 'critical'
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  metric_data JSONB,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_business_alerts_lookup
+  ON business_alerts(business_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_business_alerts_cooldown
+  ON business_alerts(business_id, alert_type, created_at DESC);
