@@ -148,6 +148,44 @@ class NotificationService {
         
         return parseInt(result.rows[0].count);
     }
+
+    // ===== PUSH TOKEN MANAGEMENT =====
+
+    /**
+     * Save/register an Expo push token for a business
+     */
+    static async savePushToken(businessId, token, platform = 'unknown') {
+        const result = await query(
+            `INSERT INTO push_tokens (business_id, token, platform)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (business_id, token)
+             DO UPDATE SET platform = EXCLUDED.platform, created_at = NOW()
+             RETURNING *`,
+            [businessId, token, platform]
+        );
+        return result.rows[0];
+    }
+
+    /**
+     * Get all push tokens for a business
+     */
+    static async getPushTokens(businessId) {
+        const result = await query(
+            `SELECT token FROM push_tokens WHERE business_id = $1`,
+            [businessId]
+        );
+        return result.rows.map(r => r.token);
+    }
+
+    /**
+     * Remove a push token (e.g. on logout)
+     */
+    static async removePushToken(businessId, token) {
+        await query(
+            `DELETE FROM push_tokens WHERE business_id = $1 AND token = $2`,
+            [businessId, token]
+        );
+    }
 }
 
 module.exports = NotificationService;

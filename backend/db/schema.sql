@@ -113,3 +113,16 @@ CREATE INDEX IF NOT EXISTS idx_business_alerts_lookup
 
 CREATE INDEX IF NOT EXISTS idx_business_alerts_cooldown
   ON business_alerts(business_id, alert_type, created_at DESC);
+
+-- ─── push_tokens: stores Expo push tokens for each business ────────────────
+CREATE TABLE IF NOT EXISTS push_tokens (
+  id SERIAL PRIMARY KEY,
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  platform VARCHAR(20),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(business_id, token)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_tokens_business
+  ON push_tokens(business_id);

@@ -97,6 +97,7 @@ app.use("/api/expenses", require("./routes/expenses"));
 app.use("/api/business", require("./routes/profile"));
 app.use("/api/advisor", require("./routes/advisor"));
 app.use("/api/inventory", require("./routes/inventory"));
+app.use("/api/notifications", require("./routes/notifications"));
 app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date() }));
 
 // ─── DAILY AI SUMMARY CRON (6:00 AM) ────────────────────────────────

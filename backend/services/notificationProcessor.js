@@ -1,6 +1,8 @@
 // services/notificationProcessor.js
 
 const NotificationService = require('./notificationService');
+const sendPush = require('./utils/pushNotify');
+const { getIO } = require('../socket');
 
 class NotificationProcessor {
     
@@ -27,8 +29,24 @@ class NotificationProcessor {
             
             for (const notification of notifications) {
                 try {
-                    // Here you would send push notification
-                    // For now, just mark as sent
+                    // 1) Emit socket event to business room for real-time in-app notification
+                    try {
+                        const io = getIO();
+                        io.to(`business_${notification.business_id}`).emit('new_notification', notification);
+                    } catch (socketErr) {
+                        console.warn('Socket emit failed:', socketErr.message);
+                    }
+
+                    // 2) Send push notification to the business owner's device(s)
+                    try {
+                        const tokens = await NotificationService.getPushTokens(notification.business_id);
+                        if (tokens.length > 0) {
+                            await sendPush(tokens, notification.title || 'Servon', notification.message);
+                        }
+                    } catch (pushErr) {
+                        console.warn('Push send failed:', pushErr.message);
+                    }
+
                     await NotificationService.markAsSent(notification.id);
                     processed++;
                     console.log(`✅ Sent notification: ${notification.id} (${notification.type})`);
