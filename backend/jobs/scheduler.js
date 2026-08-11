@@ -19,9 +19,13 @@ const generateAndSaveBrief = async (businessId) => {
 
     const brief = await generateHourlyBrief(metrics);
 
-    const now = new Date();
-    const summaryDate = now.toISOString().split("T")[0];
-    const summaryHour = now.getHours();
+    // Use IST (Asia/Kolkata) for date & hour — server may run in UTC
+    // toLocaleDateString("en-CA") yields exactly YYYY-MM-DD
+    const summaryDate = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const summaryHour = parseInt(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }),
+      10
+    );
 
     const result = await pool.query(
       `INSERT INTO business_summaries

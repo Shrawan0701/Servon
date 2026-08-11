@@ -244,9 +244,12 @@ const { generateAndSaveBrief, runAlertsCheck } = require("../jobs/scheduler");
 router.get("/business-summary/current", auth, async (req, res) => {
   try {
     const businessId = req.businessId;
-    const now = new Date();
-    const summaryDate = now.toISOString().split("T")[0];
-    const summaryHour = now.getHours();
+    // Use IST (Asia/Kolkata) for date & hour — server may run in UTC
+    const summaryDate = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const summaryHour = parseInt(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }),
+      10
+    );
 
     let result = await pool.query(
       `SELECT * FROM business_summaries

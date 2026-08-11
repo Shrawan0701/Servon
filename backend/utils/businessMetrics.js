@@ -24,6 +24,11 @@ const getYesterdayRange = () => {
   return { yesterdayStart, yesterdayEnd };
 };
 
+const getISTHour = () => {
+  const hourStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false });
+  return parseInt(hourStr, 10);
+};
+
 const collectBusinessMetrics = async (businessId) => {
   const todayStart = getTodayStart();
   const yesterdayStart = new Date(todayStart);
@@ -65,9 +70,9 @@ const collectBusinessMetrics = async (businessId) => {
     [businessId, todayStart]
   );
 
-  // ─── 4. Peak hours (today) ───────────────────────────────────────────────
+  // ─── 4. Peak hours (today) — IST (Asia/Kolkata) ──────────────────────────
   const peakHoursPromise = pool.query(
-    `SELECT EXTRACT(HOUR FROM created_at)::int AS hour,
+    `SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Kolkata')::int AS hour,
             COUNT(*)::int AS orders
      FROM orders
      WHERE business_id = $1
@@ -99,7 +104,7 @@ const collectBusinessMetrics = async (businessId) => {
     [businessId]
   );
 
-  // ─── 7. Yesterday same-time comparison (up to current hour) ──────────────
+  // ─── 7. Yesterday same-time comparison (up to current IST hour) ──────────
   const yesterdayPromise = pool.query(
     `SELECT
        COUNT(*) FILTER (WHERE status != 'REJECTED')::int AS total_orders,
@@ -108,7 +113,7 @@ const collectBusinessMetrics = async (businessId) => {
      WHERE business_id = $1
        AND created_at >= $2
        AND created_at < $3
-       AND EXTRACT(HOUR FROM created_at) <= EXTRACT(HOUR FROM NOW())`,
+       AND EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Kolkata') <= EXTRACT(HOUR FROM NOW() AT TIME ZONE 'Asia/Kolkata')`,
     [businessId, yesterdayStart, yesterdayEnd]
   );
 
@@ -156,7 +161,8 @@ const collectBusinessMetrics = async (businessId) => {
   }));
 
   const y = yesterday.rows[0];
-  const currentHour = new Date().getHours();
+  // Current hour in IST (Asia/Kolkata) — server may run in UTC
+  const currentHour = getISTHour();
 
   return {
     businessId,
@@ -184,7 +190,7 @@ const collectBusinessMetrics = async (businessId) => {
     yesterday: {
       totalOrders: parseInt(y?.total_orders || 0, 10),
       totalRevenue: parseFloat(y?.total_revenue || 0),
-      // Same time-of-day window: we fetched up to `currentHour`
+      // Same time-of-day window: we fetched up to `currentHour` (IST)
       sameTimeWindowHour: currentHour,
     },
     trend: (trend.rows || []).map(d => ({
