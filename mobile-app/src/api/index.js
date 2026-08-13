@@ -252,6 +252,31 @@ export const getDailySummary = () =>
 export const getNextInsight = () =>
   API.get("/analytics/next-insight");
 
+// -------------------- AI BUSINESS SUMMARY & ALERTS --------------------
+
+export const getBusinessSummary = () =>
+  API.get("/analytics/business-summary/current");
+
+export const generateBusinessSummary = () =>
+  API.post("/analytics/business-summary/generate");
+
+export const getBusinessAlerts = (limit = 30) =>
+  API.get(`/analytics/alerts?limit=${limit}`);
+
+export const markAlertRead = (id) =>
+  API.post(`/analytics/alerts/${id}/read`);
+
+export const markAllAlertsRead = () =>
+  API.post("/analytics/alerts/read-all");
+
+// -------------------- PUSH NOTIFICATIONS --------------------
+
+export const savePushToken = (token, platform = "unknown") =>
+  API.post("/notifications/push-token", { token, platform });
+
+export const removePushToken = (token) =>
+  API.post("/notifications/push-token/remove", { token });
+
 // -------------------- SALES --------------------
 
 export const getSalesCSVUrl = (startDate, endDate) =>

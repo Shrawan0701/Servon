@@ -10,6 +10,8 @@ import AuthNavigator from "./src/navigation/AuthNavigator";
 import MainNavigator from "./src/navigation/MainNavigator";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, Platform, LogBox } from "react-native";
+import * as Notifications from "expo-notifications";
+import { savePushToken, removePushToken } from "./src/api";
 
 // Ignore non-critical web dev logs in console
 if (Platform.OS === "web") {
@@ -43,6 +45,7 @@ function Root() {
   React.useEffect(() => {
     if (token) {
       syncManager.init();
+      registerPushToken();
     } else {
       syncManager.stopPeriodicSync();
     }
@@ -57,7 +60,7 @@ function Root() {
   }, []);
 
  const handleWebNavigate = (screenName, params = {}) => {
-  setWebScreen(screenName); // 👈 Removed .toLowerCase()
+  setWebScreen(screenName);
   setOpenDemoOnLanding(!!params?.openDemo);
 
   if (Platform.OS === "web") {
@@ -140,13 +143,36 @@ function Root() {
   return <AuthNavigator />;
 }
 
+const registerPushToken = async () => {
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") {
+      console.log("Push notification permission not granted");
+      return;
+    }
+
+    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const pushToken = tokenData.data;
+
+    if (pushToken) {
+      await savePushToken(pushToken, Platform.OS);
+      console.log("Push token registered:", pushToken);
+    }
+  } catch (err) {
+    console.error("Push token registration error:", err);
+  }
+};
+
 export default function App() {
   React.useEffect(() => {
     async function initOffline() {
       await localDB.init();
-      // Removed syncManager.init() from here
     }
-
     initOffline();
   }, []);
 

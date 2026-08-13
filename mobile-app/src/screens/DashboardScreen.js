@@ -32,6 +32,11 @@ import {
   getTrialNotifications,
   markTrialNotificationRead,
   getInventoryAlertsCount,
+  getBusinessSummary,
+  generateBusinessSummary,
+  getBusinessAlerts,
+  markAlertRead,
+  markAllAlertsRead,
 } from "../api";
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
@@ -378,6 +383,26 @@ const getNotifIcon = (title = "", native = false) => {
   return <Ionicons name="notifications-outline" size={size} color="#3B82F6" />;
 };
 
+// ─── AI ALERT ICON HELPERS (severity-based) ───────────────────────────────────
+const getAlertIcon = (severity = "info", native = false) => {
+  const size = native ? 18 : 16;
+  if (severity === "critical") return <Ionicons name="alert-circle" size={size} color="#EF4444" />;
+  if (severity === "warning") return <Ionicons name="warning-outline" size={size} color="#F59E0B" />;
+  return <Ionicons name="information-circle-outline" size={size} color="#3B82F6" />;
+};
+
+const getAlertSeverityColor = (severity = "info") => {
+  if (severity === "critical") return "#EF4444";
+  if (severity === "warning") return "#F59E0B";
+  return "#3B82F6";
+};
+
+const getAlertSeverityBg = (severity = "info") => {
+  if (severity === "critical") return "#FEF2F2";
+  if (severity === "warning") return "#FFFBEB";
+  return "#EFF6FF";
+};
+
 // ─── TRIAL TOAST FREQUENCY CONTROL ──────────────────────────────────────────
 // Limits the trial/subscription popup to a MAX of 3 times per day, with at
 // least a 3 hour gap between each showing. Persisted so the limit survives
@@ -457,6 +482,14 @@ export default function DashboardScreen() {
 
   // ===== INVENTORY LOW-STOCK BADGE =====
   const [lowStockCount, setLowStockCount] = useState(0);
+
+  // ===== AI BUSINESS SUMMARY + ALERTS =====
+  const [businessSummary, setBusinessSummary] = useState(null);
+  const [showBusinessSummaryModal, setShowBusinessSummaryModal] = useState(false);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [aiAlerts, setAiAlerts] = useState([]);
+  const [alertUnreadCount, setAlertUnreadCount] = useState(0);
+  const [alertToast, setAlertToast] = useState(null); // { title, message, severity } | null
 
   // ─── WHITE-LABEL BRAND NAME ─────────────────────────────────────────
   // Uses the restaurant's own business_name (captured at signup) instead
@@ -606,6 +639,29 @@ setLiveOrders(ordersRes.data.filter(o =>
       console.error("Inventory alert fetch error:", invErr);
     }
 
+    // ===== FETCH AI BUSINESS SUMMARY =====
+    try {
+      const summaryRes = await getBusinessSummary();
+      if (summaryRes?.data?.hasSummary) {
+        setBusinessSummary(summaryRes.data);
+        if (summaryRes.data.is_new) {
+          setShowBusinessSummaryModal(true);
+        }
+      }
+    } catch (summaryErr) {
+      console.error("Business summary fetch error:", summaryErr);
+    }
+
+    // ===== FETCH AI ALERTS =====
+    try {
+      const alertsRes = await getBusinessAlerts();
+      const alertsData = alertsRes?.data || {};
+      setAiAlerts(alertsData.alerts || []);
+      setAlertUnreadCount(alertsData.unreadCount || 0);
+    } catch (alertsErr) {
+      console.error("Business alerts fetch error:", alertsErr);
+    }
+
   } catch (err) {
     console.error("Dashboard load error:", err);
   } finally {
@@ -613,6 +669,33 @@ setLiveOrders(ordersRes.data.filter(o =>
     setRefreshing(false);
   }
 };
+
+  const handleGenerateSummary = async () => {
+    setGeneratingSummary(true);
+    try {
+      const res = await generateBusinessSummary();
+      if (res?.data) {
+        setBusinessSummary(res.data);
+        setShowBusinessSummaryModal(true);
+      }
+    } catch (err) {
+      console.error("Generate business summary error:", err);
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
+  const handleOpenAlert = async (alert) => {
+    if (!alert.is_read) {
+      try {
+        await markAlertRead(alert.id);
+        setAiAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, is_read: true } : a));
+        setAlertUnreadCount(prev => Math.max(0, prev - 1));
+      } catch (err) {
+        console.error("Mark alert read error:", err);
+      }
+    }
+  };
 
   const handleStatusUpdate = async (orderId, status) => {
     try {
@@ -667,6 +750,18 @@ setLiveOrders(ordersRes.data.filter(o =>
       socket.on("order_updated", (updatedOrder) => {
         setLiveOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
       });
+      socket.on("new_summary", (summaryRow) => {
+        setBusinessSummary(summaryRow);
+        setShowBusinessSummaryModal(true);
+      });
+      socket.on("new_alert", (alertRow) => {
+        setAiAlerts(prev => [alertRow, ...prev]);
+        setAlertUnreadCount(prev => prev + 1);
+        setAlertToast({ title: alertRow.title, message: alertRow.message, severity: alertRow.severity });
+      });
+      socket.on("new_notification", (notificationRow) => {
+        setNotifications(prev => [notificationRow, ...prev]);
+      });
       return () => socket.disconnect();
     }, [business?.id])
   );
@@ -699,8 +794,15 @@ setLiveOrders(ordersRes.data.filter(o =>
     return () => clearTimeout(t);
   }, [trialToast]);
 
+  // ─── AUTO-DISMISS AI ALERT TOAST ──────────────────────────────────
+  useEffect(() => {
+    if (!alertToast) return;
+    const t = setTimeout(() => setAlertToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [alertToast]);
+
   const unreadCount = notifications.filter(n => !n.is_read).length;
-  const totalUnread = unreadCount + trialUnreadCount;
+  const totalUnread = unreadCount + trialUnreadCount + alertUnreadCount;
   const ownerInitial = business?.owner_name ? business.owner_name.charAt(0).toUpperCase() : "S";
   const activeTableCount = new Set(liveOrders.map(o => o.table_number)).size;
 
@@ -788,10 +890,24 @@ setLiveOrders(ordersRes.data.filter(o =>
           </div>
 
           {!isChefMode && (
-            <TouchableOpacity style={styles.advisorBtn} onPress={() => navigation.navigate("Advisor")}>
-              <Ionicons name="sparkles-outline" size={20} color="#fff" />
-              <Text style={styles.advisorBtnText}>AI Business Advisor</Text>
-            </TouchableOpacity>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <TouchableOpacity style={styles.advisorBtn} onPress={() => navigation.navigate("Advisor")}>
+                <Ionicons name="sparkles-outline" size={20} color="#fff" />
+                <Text style={styles.advisorBtnText}>AI Business Advisor</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.advisorBtn, { backgroundColor: "#111827" }]}
+                onPress={handleGenerateSummary}
+                disabled={generatingSummary}
+              >
+                {generatingSummary ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="analytics-outline" size={20} color="#fff" />
+                )}
+                <Text style={styles.advisorBtnText}>Generate Summary</Text>
+              </TouchableOpacity>
+            </div>
           )}
 
           <div style={{ marginTop: 8 }}>
@@ -908,6 +1024,37 @@ setLiveOrders(ordersRes.data.filter(o =>
                         ))}
                       </div>
                     )}
+
+                    {/* AI Alerts */}
+                    {aiAlerts.length > 0 && (
+                      <div>
+                        <div className="servon-notif-day-header">AI Alerts</div>
+                        {aiAlerts.map((a) => (
+                          <div
+                            key={`alert-${a.id}`}
+                            className={`servon-notif-item${!a.is_read ? " unread" : ""}`}
+                            style={{ cursor: "pointer", background: !a.is_read ? getAlertSeverityBg(a.severity) : undefined, borderColor: !a.is_read ? getAlertSeverityColor(a.severity) : undefined }}
+                            onClick={() => handleOpenAlert(a)}
+                          >
+                            <div className="servon-notif-icon" style={{ background: getAlertSeverityBg(a.severity) }}>
+                              {getAlertIcon(a.severity)}
+                            </div>
+                            <div className="servon-notif-body">
+                              <div className="servon-notif-top-row">
+                                <span className="servon-notif-title-text">
+                                  {!a.is_read && <span className="servon-notif-unread-dot" />}
+                                  {a.title}
+                                </span>
+                                <span className="servon-notif-time-text">
+                                  {new Date(a.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                              <p className="servon-notif-msg-text" style={{ margin: 0 }}>{a.message}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -966,8 +1113,93 @@ setLiveOrders(ordersRes.data.filter(o =>
           )}
         </button>
 
-        {/* SUMMARY MODAL */}
-       
+        {/* AI BUSINESS SUMMARY MODAL */}
+        {showBusinessSummaryModal && businessSummary && typeof document !== "undefined" && ReactDOM.createPortal(
+          <div className="servon-summary-overlay" onClick={() => setShowBusinessSummaryModal(false)}>
+            <div className="servon-summary-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="servon-summary-header">
+                <div>
+                  <div className="servon-summary-title">AI Business Summary</div>
+                  <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>
+                    {businessSummary.summary_date} · Hour {businessSummary.summary_hour}:00
+                  </div>
+                </div>
+                <button onClick={() => setShowBusinessSummaryModal(false)} style={{
+                  background: "#F3F4F6", border: "none", borderRadius: 8,
+                  width: 32, height: 32, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center"
+                }}>
+                  <Ionicons name="close" size={16} color="#374151" />
+                </button>
+              </div>
+
+              {(() => {
+                const j = businessSummary.summary_json || {};
+                const rows = [
+                  { label: "Revenue", value: j.revenue },
+                  { label: "Profit", value: j.profit },
+                  { label: "Orders", value: j.orders },
+                  { label: "Avg Order Value", value: j.avgOrderValue },
+                  { label: "Best Seller", value: j.bestSeller },
+                  { label: "Needs Attention", value: j.needsAttention },
+                  { label: "Peak Hours", value: j.peakHours },
+                  { label: "Customer Feedback", value: j.customerFeedback },
+                ].filter(r => r.value);
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+                    {rows.map((r) => (
+                      <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 12px", background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>{r.label}</span>
+                        <span style={{ fontSize: 13, color: "#111827", fontWeight: 500, textAlign: "right" }}>{r.value}</span>
+                      </div>
+                    ))}
+                    {Array.isArray(j.recommendations) && j.recommendations.length > 0 && (
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Recommendations</div>
+                        {j.recommendations.map((rec, i) => (
+                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                            <Ionicons name="bulb-outline" size={14} color="#F59E0B" style={{ marginTop: 2 }} />
+                            <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>{rec}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {j.todaysFocus && (
+                      <div style={{ marginTop: 8, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "12px 14px" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Today's Focus</div>
+                        <div style={{ fontSize: 14, color: "#166534", fontWeight: 600, lineHeight: 1.5 }}>{j.todaysFocus}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <button className="servon-summary-btn" style={{ marginTop: 20 }} onClick={() => setShowBusinessSummaryModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* AI ALERT TOAST */}
+        {alertToast && isFocused && typeof document !== "undefined" && ReactDOM.createPortal(
+          <div className="servon-trial-toast" style={{ background: getAlertSeverityColor(alertToast.severity) }}>
+            <div className="servon-trial-toast-icon">
+              {getAlertIcon(alertToast.severity)}
+            </div>
+            <div className="servon-trial-toast-text">
+              <strong style={{ display: "block", marginBottom: 2 }}>{alertToast.title}</strong>
+              {alertToast.message}
+            </div>
+            <div className="servon-trial-toast-actions">
+              <button className="servon-trial-toast-close" onClick={() => setAlertToast(null)}>
+                <Ionicons name="close" size={15} color="rgba(255,255,255,0.7)" />
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     );
   }
@@ -1063,21 +1295,37 @@ setLiveOrders(ordersRes.data.filter(o =>
   />
 </View>
 
-{/* AI BUSINESS ADVISOR BUTTON — hidden in chef mode */}
+{/* AI BUSINESS ADVISOR + GENERATE SUMMARY BUTTONS — hidden in chef mode */}
 {!isChefMode && (
-  <TouchableOpacity
-    style={styles.advisorBtn}
-    onPress={() => navigation.navigate("Advisor")}
-  >
-    <Ionicons
-      name="sparkles-outline"
-      size={20}
-      color="#fff"
-    />
-    <Text style={styles.advisorBtnText}>
-      AI Business Advisor
-    </Text>
-  </TouchableOpacity>
+  <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+    <TouchableOpacity
+      style={styles.advisorBtn}
+      onPress={() => navigation.navigate("Advisor")}
+    >
+      <Ionicons
+        name="sparkles-outline"
+        size={20}
+        color="#fff"
+      />
+      <Text style={styles.advisorBtnText}>
+        AI Business Advisor
+      </Text>
+    </TouchableOpacity>
+    <TouchableOpacity
+      style={[styles.advisorBtn, { backgroundColor: "#111827" }]}
+      onPress={handleGenerateSummary}
+      disabled={generatingSummary}
+    >
+      {generatingSummary ? (
+        <ActivityIndicator size="small" color="#fff" />
+      ) : (
+        <Ionicons name="analytics-outline" size={20} color="#fff" />
+      )}
+      <Text style={styles.advisorBtnText}>
+        Generate Summary
+      </Text>
+    </TouchableOpacity>
+  </View>
 )}
 
 <View style={styles.section}></View>
@@ -1190,6 +1438,36 @@ setLiveOrders(ordersRes.data.filter(o =>
                       ))}
                     </View>
                   )}
+
+                  {/* AI Alerts */}
+                  {aiAlerts.length > 0 && (
+                    <View>
+                      <Text style={styles.notifDayHeader}>AI Alerts</Text>
+                      {aiAlerts.map((a) => (
+                        <TouchableOpacity
+                          key={`alert-${a.id}`}
+                          style={[styles.notifItemModern, !a.is_read && { backgroundColor: getAlertSeverityBg(a.severity), borderColor: getAlertSeverityColor(a.severity) }]}
+                          onPress={() => handleOpenAlert(a)}
+                        >
+                          <View style={[styles.notifIconCircle, { backgroundColor: getAlertSeverityBg(a.severity) }]}>
+                            {getAlertIcon(a.severity, true)}
+                          </View>
+                          <View style={styles.notifItemBody}>
+                            <View style={styles.notifTopRow}>
+                              <View style={styles.notifTitleRow}>
+                                {!a.is_read && <View style={styles.notifUnreadDot} />}
+                                <Text style={styles.notifTitleModern} numberOfLines={1}>{a.title}</Text>
+                              </View>
+                              <Text style={styles.notifTimeModern}>
+                                {new Date(a.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                              </Text>
+                            </View>
+                            <Text style={styles.notifMessageModern}>{a.message}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </>
               )}
             </ScrollView>
@@ -1211,8 +1489,87 @@ setLiveOrders(ordersRes.data.filter(o =>
         )}
       </TouchableOpacity>
 
-      {/* SUMMARY MODAL */}
-      
+      {/* AI BUSINESS SUMMARY MODAL (native) */}
+      <Modal visible={showBusinessSummaryModal} transparent animationType="fade">
+        <View style={styles.summaryModalOverlay}>
+          <View style={styles.summaryModal}>
+            <View style={styles.summaryModalHeader}>
+              <Text style={styles.summaryModalTitle}>AI Business Summary</Text>
+              <TouchableOpacity onPress={() => setShowBusinessSummaryModal(false)}>
+                <Ionicons name="close-circle" size={28} color="#D1D5DB" />
+              </TouchableOpacity>
+            </View>
+            {businessSummary && (
+              <>
+                <Text style={styles.summaryModalDate}>
+                  {businessSummary.summary_date} · Hour {businessSummary.summary_hour}:00
+                </Text>
+                {(() => {
+                  const j = businessSummary.summary_json || {};
+                  const rows = [
+                    { label: "Revenue", value: j.revenue },
+                    { label: "Profit", value: j.profit },
+                    { label: "Orders", value: j.orders },
+                    { label: "Avg Order Value", value: j.avgOrderValue },
+                    { label: "Best Seller", value: j.bestSeller },
+                    { label: "Needs Attention", value: j.needsAttention },
+                    { label: "Peak Hours", value: j.peakHours },
+                    { label: "Customer Feedback", value: j.customerFeedback },
+                  ].filter(r => r.value);
+                  return (
+                    <ScrollView style={{ maxHeight: 320 }}>
+                      {rows.map((r) => (
+                        <View key={r.label} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, padding: 10, backgroundColor: "#F9FAFB", borderRadius: 10, borderWidth: 1, borderColor: "#F3F4F6", marginBottom: 8 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0 }}>{r.label}</Text>
+                          <Text style={{ fontSize: 13, color: "#111827", fontWeight: "500", textAlign: "right", flexShrink: 1 }}>{r.value}</Text>
+                        </View>
+                      ))}
+                      {Array.isArray(j.recommendations) && j.recommendations.length > 0 && (
+                        <View style={{ marginTop: 4 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Recommendations</Text>
+                          {j.recommendations.map((rec, i) => (
+                            <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                              <Ionicons name="bulb-outline" size={14} color="#F59E0B" style={{ marginTop: 2 }} />
+                              <Text style={{ fontSize: 13, color: "#374151", lineHeight: 18, flex: 1 }}>{rec}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                      {j.todaysFocus && (
+                        <View style={{ marginTop: 8, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 12, padding: 12 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#16A34A", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Today's Focus</Text>
+                          <Text style={{ fontSize: 14, color: "#166534", fontWeight: "600", lineHeight: 20 }}>{j.todaysFocus}</Text>
+                        </View>
+                      )}
+                    </ScrollView>
+                  );
+                })()}
+                <TouchableOpacity style={styles.summaryModalBtn} onPress={() => setShowBusinessSummaryModal(false)}>
+                  <Text style={styles.summaryModalBtnText}>Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* AI ALERT TOAST (native) */}
+      {alertToast && isFocused && (
+        <View style={[styles.trialToastWrap, { top: insets.top + 62 }]} pointerEvents="box-none">
+          <View style={[styles.trialToast, { backgroundColor: getAlertSeverityColor(alertToast.severity) }]}>
+            <View style={styles.trialToastIcon}>
+              {getAlertIcon(alertToast.severity, true)}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.trialToastText, { fontWeight: "700", marginBottom: 2 }]}>{alertToast.title}</Text>
+              <Text style={styles.trialToastText}>{alertToast.message}</Text>
+            </View>
+            <TouchableOpacity style={styles.trialToastClose} onPress={() => setAlertToast(null)}>
+              <Ionicons name="close" size={15} color="rgba(255,255,255,0.7)" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* INSIGHT MODAL */}
       
