@@ -45,7 +45,7 @@ export default function Careers({ onNavigate }) {
     <WebPageLayout
       onNavigate={onNavigate}
       title="Careers at Servon"
-      subtitle="Help us build the next generation of software infrastructure for Indian hospitality."
+      subtitle="Help us build the next generation of software infrastructure for Indian Restaurants."
     >
       <View style={s.container}>
         
