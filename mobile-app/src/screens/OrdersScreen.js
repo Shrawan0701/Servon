@@ -68,49 +68,49 @@ const STATUS_FILTERS = [
 
 const CHEF_STATUSES = {
   EDITABLE: {
-    label: "New",
+    label: "EDITABLE", // Changed from "New"
     color: "#6B7280",
     bg: "#F3F4F6",
     icon: "time-outline",
     priority: 4,
   },
   CONFIRMED: {
-    label: "Confirmed",
+    label: "CONFIRMED", // Changed from "Confirmed"
     color: "#3B82F6",
     bg: "#EFF6FF",
     icon: "checkmark-circle-outline",
     priority: 3,
   },
   PREPARING: {
-    label: "Cooking",
+    label: "PREPARING", // Changed from "Cooking"
     color: "#F59E0B",
     bg: "#FFFBEB",
     icon: "flame-outline",
     priority: 2,
   },
   SERVED: {
-    label: "Ready",
+    label: "SERVED", // Changed from "Ready"
     color: "#10B981",
     bg: "#ECFDF5",
     icon: "checkmark-done-outline",
     priority: 1,
   },
   TABLE_ACTIVE: {
-    label: "Active",
+    label: "TABLE ACTIVE", // Changed from "Active"
     color: "#8B5CF6",
     bg: "#F5F3FF",
     icon: "people-outline",
     priority: 0,
   },
   PAID: {
-    label: "Paid",
+    label: "PAID",
     color: "#9CA3AF",
     bg: "#F1F5F9",
     icon: "cash-outline",
     priority: -1,
   },
   REJECTED: {
-    label: "Rejected",
+    label: "REJECTED",
     color: "#EF4444",
     bg: "#FEF2F2",
     icon: "close-circle-outline",
@@ -121,13 +121,14 @@ const CHEF_STATUSES = {
 const getChefStatusConfig = (status) => CHEF_STATUSES[status] || CHEF_STATUSES.EDITABLE;
 const CHEF_PRIORITY_ORDER = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"];
 
+// ─── CHEF FILTERS - NOW SHOWS SAME STATUS NAMES ──────────────────────
 const CHEF_FILTERS = [
   { key: "all", label: "All" },
-  { key: "EDITABLE", label: "New" },
-  { key: "CONFIRMED", label: "Confirmed" },
-  { key: "PREPARING", label: "Cooking" },
-  { key: "SERVED", label: "Ready" },
-  { key: "TABLE_ACTIVE", label: "Active" },
+  { key: "EDITABLE", label: "EDITABLE" },
+  { key: "CONFIRMED", label: "CONFIRMED" },
+  { key: "PREPARING", label: "PREPARING" },
+  { key: "SERVED", label: "SERVED" },
+  { key: "TABLE_ACTIVE", label: "TABLE ACTIVE" },
 ];
 
 // ─── CHEF‑MODE SUB‑COMPONENTS ─────────────────────────────────────────
@@ -137,10 +138,13 @@ const ChefStatusBadge = React.memo(({ status, size = "medium" }) => {
   const fontSize = size === "small" ? 10 : 12;
   const padding = size === "small" ? 4 : 8;
 
+  // Show the actual status name (not friendly label)
+  const label = status.replace("_", " ");
+
   return (
     <View style={[styles.chefBadge, { backgroundColor: config.bg, paddingHorizontal: padding, paddingVertical: padding }]}>
       <Ionicons name={config.icon} size={fontSize + 2} color={config.color} />
-      <Text style={[styles.chefBadgeLabel, { color: config.color, fontSize }]}>{config.label}</Text>
+      <Text style={[styles.chefBadgeLabel, { color: config.color, fontSize }]}>{label}</Text>
     </View>
   );
 });

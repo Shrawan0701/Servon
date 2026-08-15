@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const cron = require("node-cron");
 const sendPush = require("./utils/pushNotify");
-
+const adminRoutes = require('./routes/admin');
 // ─── IMPORT AUTH & UTILITIES ──────────────────────────────────────────
 const auth = require("./middleware/auth");
 const { collectDailyData } = require("./utils/dailySummary");
@@ -46,11 +46,11 @@ const allowedOrigins = [
   "http://10.61.96.12:3000",
 
   // ─── YOUR NEW IP ─────────────────────────────────────────────
-  "http://10.90.45.12:3000",
-  "http://10.90.45.12:3001",
-  "http://10.90.45.12:8081",
-  "http://10.90.45.12:19000",
-  "exp://10.90.45.12:19000",
+  "http://10.198.185.12:3000",
+  "http://10.198.185.12:3001",
+  "http://10.198.185.12:8081",
+  "http://10.198.185.12:19000",
+  "exp://10.198.185.12:19000",
 ];
 
 app.use(
@@ -98,6 +98,7 @@ app.use("/api/business", require("./routes/profile"));
 app.use("/api/advisor", require("./routes/advisor"));
 app.use("/api/inventory", require("./routes/inventory"));
 app.use("/api/notifications", require("./routes/notifications"));
+app.use('/api/admin', adminRoutes);
 app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date() }));
 
 // ─── DAILY AI SUMMARY CRON (6:00 AM) ────────────────────────────────
@@ -270,6 +271,8 @@ app.post("/api/admin/trigger-summary", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.use('/api/admin', adminRoutes);
+console.log('✅ Admin routes registered at /api/admin');  // ← ADD THIS
 
 // ─── 404 HANDLER ──────────────────────────────────────────────────────
 app.use("*", (req, res) => {

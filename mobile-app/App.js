@@ -13,6 +13,9 @@ import { View, ActivityIndicator, Platform, LogBox } from "react-native";
 import * as Notifications from "expo-notifications";
 import { savePushToken, removePushToken } from "./src/api";
 
+// ✅ Import Admin Panel
+import Admin from "./src/screens/web/Admin";
+
 // Ignore non-critical web dev logs in console
 if (Platform.OS === "web") {
   LogBox.ignoreLogs([
@@ -41,6 +44,9 @@ function Root() {
   const [webScreen, setWebScreen] = React.useState("landing");
   const [openDemoOnLanding, setOpenDemoOnLanding] = React.useState(false);
 
+  // ✅ Check if admin route
+  const isAdminRoute = Platform.OS === "web" && window.location.pathname === "/admin";
+
   // 🔴 FIX: ONLY START SYNC MANAGER IF USER IS AUTHENTICATED
   React.useEffect(() => {
     if (token) {
@@ -51,30 +57,40 @@ function Root() {
     }
   }, [token]);
 
+  // ✅ Web route detection with admin
   React.useEffect(() => {
     if (Platform.OS === "web") {
       const path = window.location.pathname;
-      if (path === "/privacy") setWebScreen("PrivacyPolicy");
-      else if (path === "/terms") setWebScreen("TermsOfService");
+      console.log("📍 Web path detected:", path);
+      
+      if (path === "/admin") {
+        setWebScreen("Admin");
+      } else if (path === "/privacy") {
+        setWebScreen("PrivacyPolicy");
+      } else if (path === "/terms") {
+        setWebScreen("TermsOfService");
+      }
     }
   }, []);
 
- const handleWebNavigate = (screenName, params = {}) => {
-  setWebScreen(screenName);
-  setOpenDemoOnLanding(!!params?.openDemo);
+  const handleWebNavigate = (screenName, params = {}) => {
+    setWebScreen(screenName);
+    setOpenDemoOnLanding(!!params?.openDemo);
 
-  if (Platform.OS === "web") {
-    const lower = screenName.toLowerCase();
-    if (lower === "privacypolicy" || lower === "privacy") {
-      window.history.pushState({}, "", "/privacy");
-    } else if (lower === "termsofservice" || lower === "terms") {
-      window.history.pushState({}, "", "/terms");
-    } else {
-      window.history.pushState({}, "", `/${lower === "landing" ? "" : lower}`);
+    if (Platform.OS === "web") {
+      const lower = screenName.toLowerCase();
+      if (lower === "admin") {
+        window.history.pushState({}, "", "/admin");
+      } else if (lower === "privacypolicy" || lower === "privacy") {
+        window.history.pushState({}, "", "/privacy");
+      } else if (lower === "termsofservice" || lower === "terms") {
+        window.history.pushState({}, "", "/terms");
+      } else {
+        window.history.pushState({}, "", `/${lower === "landing" ? "" : lower}`);
+      }
+      window.scrollTo(0, 0);
     }
-    window.scrollTo(0, 0);
-  }
-};
+  };
 
   if (loading) {
     return (
@@ -84,59 +100,67 @@ function Root() {
     );
   }
 
-  // ─── Authenticated: always go to MainNavigator ────────────────────────────
-  if (token) {
+  // ─── ✅ FIXED: Skip auth for admin route ────────────────────────────
+  if (token && !isAdminRoute) {
     return <MainNavigator />;
+  }
+
+  // ─── ✅ Show admin even if logged in ──────────────────────────────
+  if (isAdminRoute) {
+    return <Admin onNavigate={handleWebNavigate} />;
   }
 
   // ─── Unauthenticated web ──────────────────────────────────────────────────
   if (Platform.OS === "web") {
     switch (webScreen.toLowerCase()) {
-  case "landing":
-    return (
-      <LandingPage
-        onNavigate={handleWebNavigate}
-        openDemo={openDemoOnLanding}
-        setOpenDemoOnLanding={setOpenDemoOnLanding}
-      />
-    );
-  case "login":
-    return <AuthNavigator initialRoute="Login" onNavigateWeb={handleWebNavigate} />;
-  case "signup":
-    return <AuthNavigator initialRoute="Signup" onNavigateWeb={handleWebNavigate} />;
-  case "privacypolicy":
-  case "privacy":
-    return <PrivacyPolicy onNavigate={handleWebNavigate} />;
-  case "termsofservice":
-  case "terms":
-    return <TermsOfService onNavigate={handleWebNavigate} />;
-  case "features":
-    return <FeaturesPage onNavigate={handleWebNavigate} />;
-  case "pricing":
-    return <PricingPage onNavigate={handleWebNavigate} />;
-  case "faq":
-    return <FAQPage onNavigate={handleWebNavigate} />;
-  case "about":
-    return <AboutPage onNavigate={handleWebNavigate} />;
-  case "contact":
-    return <ContactPage onNavigate={handleWebNavigate} />;
-  case "refundpolicy":
-    return <RefundPolicy onNavigate={handleWebNavigate} />;
-  case "security":
-    return <Security onNavigate={handleWebNavigate} />;
-  case "partners":
-    return <Partners onNavigate={handleWebNavigate} />;
-  case "careers":
-    return <Careers onNavigate={handleWebNavigate} />;
-  default:
-    return (
-      <LandingPage
-        onNavigate={handleWebNavigate}
-        openDemo={openDemoOnLanding}
-        setOpenDemoOnLanding={setOpenDemoOnLanding}
-      />
-    );
-}
+      case "landing":
+        return (
+          <LandingPage
+            onNavigate={handleWebNavigate}
+            openDemo={openDemoOnLanding}
+            setOpenDemoOnLanding={setOpenDemoOnLanding}
+          />
+        );
+      case "login":
+        return <AuthNavigator initialRoute="Login" onNavigateWeb={handleWebNavigate} />;
+      case "signup":
+        return <AuthNavigator initialRoute="Signup" onNavigateWeb={handleWebNavigate} />;
+      case "privacypolicy":
+      case "privacy":
+        return <PrivacyPolicy onNavigate={handleWebNavigate} />;
+      case "termsofservice":
+      case "terms":
+        return <TermsOfService onNavigate={handleWebNavigate} />;
+      case "features":
+        return <FeaturesPage onNavigate={handleWebNavigate} />;
+      case "pricing":
+        return <PricingPage onNavigate={handleWebNavigate} />;
+      case "faq":
+        return <FAQPage onNavigate={handleWebNavigate} />;
+      case "about":
+        return <AboutPage onNavigate={handleWebNavigate} />;
+      case "contact":
+        return <ContactPage onNavigate={handleWebNavigate} />;
+      case "refundpolicy":
+        return <RefundPolicy onNavigate={handleWebNavigate} />;
+      case "security":
+        return <Security onNavigate={handleWebNavigate} />;
+      case "partners":
+        return <Partners onNavigate={handleWebNavigate} />;
+      case "careers":
+        return <Careers onNavigate={handleWebNavigate} />;
+      // ✅ Admin case
+      case "admin":
+        return <Admin onNavigate={handleWebNavigate} />;
+      default:
+        return (
+          <LandingPage
+            onNavigate={handleWebNavigate}
+            openDemo={openDemoOnLanding}
+            setOpenDemoOnLanding={setOpenDemoOnLanding}
+          />
+        );
+    }
   }
 
   // ─── Unauthenticated native ───────────────────────────────────────────────
