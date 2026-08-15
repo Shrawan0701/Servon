@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
-  Dimensions,
   TouchableOpacity,
   Alert,
   Platform,
@@ -14,11 +13,15 @@ import {
   TextInput,
   Modal,
   Image,
+  Animated,
+  Easing,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
-import { getAnalytics, getExpenses, addExpense, deleteExpense, updateExpense } from "../api";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { getAnalytics, getExpenses, addExpense, deleteExpense, updateExpense, askAdvisor } from "../api";
 import {
-  VictoryBar,
+  VictoryArea,
+  VictoryLine,
+  VictoryScatter,
   VictoryChart,
   VictoryAxis,
   VictoryTheme,
@@ -35,21 +38,13 @@ import { Ionicons } from "@expo/vector-icons";
 const IS_WEB = Platform.OS === "web";
 const toDateStr = (d) => d.toISOString().split("T")[0];
 
-// Resolved once at module load. If EXPO_PUBLIC_API_URL wasn't embedded into
-// this build (e.g. not set in the eas.json build profile used for the Play
-// Store build), this silently falls back to localhost — which is NOT the
-// dev machine on a real device, it's the phone itself, so every network
-// request below fails there and only there (Expo Go, web, and simulators
-// often reach a dev server locally, which is why this can look fine
-// everywhere except the deployed app). See downloadReport() below for the
-// pre-flight check that turns this into a clear error instead of a silent
-// "download failed".
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 const isLikelyUnreachableHost = !IS_WEB && /localhost|127\.0\.0\.1/i.test(API_BASE_URL);
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const PRIMARY      = "#0F172A";
 const ACCENT       = "#10B981";
+const DANGER       = "#EF4444";
 const BG           = "#F8FAFC";
 const CARD_BG      = "#FFFFFF";
 const BORDER       = "#E2E8F0";
@@ -74,16 +69,9 @@ const CATEGORIES = [
   { key: "Other",         icon: "ellipsis-horizontal-circle", color: "#6B7280", bg: "#F3F4F6", desc: "Miscellaneous expenses" },
 ];
 
-// Backend currently buckets "peak hour" using a UTC hour (0-23) rather than IST,
-// which is why it can read ~5-6 hours off from when orders are actually shown
-// arriving (those timestamps are already displayed correctly in IST elsewhere).
-// This converts that UTC hour bucket to an IST label for display purposes only.
-// NOTE: for this to be fully correct end-to-end, the analytics query on the
-// backend should ideally group by IST hour directly instead of UTC hour — this
-// is a display-side correction, not a fix to how the bucket itself was chosen.
 const utcHourToISTLabel = (utcHour) => {
   if (utcHour === undefined || utcHour === null || isNaN(parseInt(utcHour))) return "--:--";
-  const totalMin = (parseInt(utcHour) * 60 + 330) % (24 * 60); // +5:30 offset
+  const totalMin = (parseInt(utcHour) * 60 + 330) % (24 * 60);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -94,6 +82,98 @@ const getCat  = (key) => CATEGORIES.find((c) => c.key === key) || CATEGORIES[5];
 const fmt     = (n)    => "₹" + parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const dayOf   = (d)    => new Date(d).getDate();
 const monOf   = (d)    => new Date(d).toLocaleDateString("en-IN", { month: "short" }).toUpperCase();
+
+const pctChange = (curr, prev) => {
+  if (!prev && !curr) return null;
+  if (!prev) return 100;
+  return ((curr - prev) / prev) * 100;
+};
+
+const buildChartData = (last30, period) => {
+  if (!last30.length) return [];
+
+  if (period === "weekly") {
+    const weeks = [];
+    for (let i = 0; i < last30.length; i += 7) {
+      const chunk = last30.slice(i, i + 7);
+      if (!chunk.length) continue;
+      weeks.push({
+        x: `Wk ${weeks.length + 1}`,
+        y: chunk.reduce((s, d) => s + (parseFloat(d.revenue) || 0), 0),
+        orders: chunk.reduce((s, d) => s + (parseInt(d.orders) || 0), 0),
+        date: chunk[chunk.length - 1].date,
+      });
+    }
+    return weeks;
+  }
+
+  if (period === "monthly") {
+    const last = last30[last30.length - 1];
+    return [{
+      x: monOf(last.date),
+      y: last30.reduce((s, d) => s + (parseFloat(d.revenue) || 0), 0),
+      orders: last30.reduce((s, d) => s + (parseInt(d.orders) || 0), 0),
+      date: last.date,
+    }];
+  }
+
+  return last30.slice(-7).map((d) => ({
+    x: dayOf(d.date).toString(),
+    y: parseFloat(d.revenue) || 0,
+    date: d.date,
+    orders: d.orders || 0,
+  }));
+};
+
+const HIGHLIGHT_RE = /(\d+%|\d{1,2}(:\d{2})?\s?[AP]M)/gi;
+const renderHighlightedInsight = (text) => {
+  const parts = text.split(HIGHLIGHT_RE).filter((p) => p !== undefined);
+  return parts.map((part, i) =>
+    HIGHLIGHT_RE.test(part) ? (
+      <Text key={i} style={advStyles.highlight}>{part}</Text>
+    ) : (
+      <Text key={i} style={advStyles.body}>{part}</Text>
+    )
+  );
+};
+
+const DEFAULT_INSIGHT =
+  "Your sales are 18% higher on weekends. Consider increasing staffing between 7 PM and 10 PM to keep pace with peak demand.";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANIMATED NUMBER
+// ═══════════════════════════════════════════════════════════════════════════════
+function AnimatedNumber({ value, formatter, style, numberOfLines = 1 }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  const [display, setDisplay] = useState(0);
+  const prevValue = useRef(0);
+
+  useEffect(() => {
+    const target = Number.isFinite(value) ? value : 0;
+    anim.setValue(prevValue.current);
+    
+    const id = anim.addListener(({ value: v }) => setDisplay(v));
+    
+    Animated.timing(anim, {
+      toValue: target,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+    
+    prevValue.current = target;
+    
+    return () => {
+      anim.removeListener(id);
+    };
+  }, [value]);
+
+  return (
+    <Text style={style} numberOfLines={numberOfLines} adjustsFontSizeToFit>
+      {formatter(display)}
+    </Text>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ROOT SCREEN
@@ -107,6 +187,10 @@ export default function AnalyticsScreen() {
   const [startDate,     setStartDate]     = useState(toDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
   const [endDate,       setEndDate]       = useState(toDateStr(new Date()));
   const [selectedDay,   setSelectedDay]   = useState(null);
+  const [chartPeriod,   setChartPeriod]   = useState("daily");
+
+  const navigation = useNavigation();
+  const tabFade = useRef(new Animated.Value(1)).current;
 
   const { width: screenWidth } = useWindowDimensions();
   const isMobileView = screenWidth < 768;
@@ -118,6 +202,23 @@ export default function AnalyticsScreen() {
     : screenWidth - 64;
 
   useFocusEffect(useCallback(() => { loadAnalytics(); }, []));
+
+  useEffect(() => {
+    tabFade.setValue(0);
+    Animated.timing(tabFade, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [activeMainTab]);
+
+  useEffect(() => { setSelectedDay(null); }, [chartPeriod]);
+
+  const revenueChartData = useMemo(
+    () => buildChartData(data?.last30Days || [], chartPeriod),
+    [data, chartPeriod]
+  );
 
   const loadAnalytics = async () => {
     try {
@@ -189,10 +290,6 @@ export default function AnalyticsScreen() {
       }
     } catch (error) {
       console.error("downloadReport error:", error);
-      // Surfacing the real reason (network unreachable vs bad status vs share
-      // failure) instead of a generic message — makes this debuggable if the
-      // API URL fix above isn't the whole story (e.g. an http:// URL being
-      // blocked by Android's cleartext-traffic policy in release builds).
       Alert.alert(
         "Export Error",
         `Could not download the report.\n\n${error?.message || "Unknown error"}`,
@@ -215,19 +312,56 @@ export default function AnalyticsScreen() {
   const totalRev      = last30.reduce((s, d) => s + (parseFloat(d.revenue) || 0), 0) || 0;
   const totalOrd      = last30.reduce((s, d) => s + (parseInt(d.orders)    || 0), 0) || 0;
   const avgOrderValue = totalOrd ? totalRev / totalOrd : 0;
-  const last7         = last30.slice(-7);
-  const revenueChartData = last7.map((d) => ({
-    x:      new Date(d.date).getDate().toString(),
-    y:      parseFloat(d.revenue) || 0,
-    date:   d.date,
-    orders: d.orders || 0,
-  }));
+
+  const today     = last30[last30.length - 1] || null;
+  const yesterday = last30[last30.length - 2] || null;
+  const todayRev  = parseFloat(today?.revenue) || 0;
+  const yestRev   = parseFloat(yesterday?.revenue) || 0;
+  const todayOrd  = parseInt(today?.orders) || 0;
+  const yestOrd   = parseInt(yesterday?.orders) || 0;
+  const todayAOV  = todayOrd ? todayRev / todayOrd : 0;
+  const yestAOV   = yestOrd ? yestRev / yestOrd : 0;
+
+  const revTrend = pctChange(todayRev, yestRev);
+  const ordTrend = pctChange(todayOrd, yestOrd);
+  const aovTrend = pctChange(todayAOV, yestAOV);
+
+  const tablesOccupied = data?.tablesOccupied ?? null;
+  const totalTables    = data?.totalTables ?? null;
+  const hasTableData    = tablesOccupied !== null && totalTables !== null;
+
+  const kpis = [
+    {
+      key: "sales", label: "Total Sales", icon: "wallet", color: ACCENT, bg: "#ECFDF5",
+      rawValue: totalRev, formatter: fmt, trend: revTrend,
+    },
+    {
+      key: "orders", label: "Orders", icon: "cart", color: "#3B82F6", bg: "#EFF6FF",
+      rawValue: totalOrd, formatter: (v) => Math.round(v).toLocaleString("en-IN"), trend: ordTrend,
+    },
+    {
+      key: "aov", label: "Avg. Order Value", icon: "receipt", color: "#F59E0B", bg: "#FFFBEB",
+      rawValue: avgOrderValue, formatter: fmt, trend: aovTrend,
+    },
+  ];
+
   const maxChartRevenue = revenueChartData.length
     ? Math.max(...revenueChartData.map((d) => d.y))
     : 0;
   const activeDay = selectedDay || revenueChartData.find((d) => d.y === maxChartRevenue) || null;
 
-  const maxQty = data?.topItems?.length ? Math.max(...data.topItems.slice(0, 5).map(i => parseInt(i.total_qty) || 0)) : 1;
+  const topItems = data?.topItems?.slice(0, 5) || [];
+  const maxQty = topItems.length ? Math.max(...topItems.map(i => parseInt(i.total_qty) || 0)) : 1;
+
+  const goToAdvisor = () => {
+    try { navigation.navigate("Advisor"); }
+    catch { Alert.alert("AI Advisor", "Open the AI Business Advisor tab for the full breakdown."); }
+  };
+
+  const goToAllItems = () => {
+    try { navigation.navigate("Menu"); }
+    catch { Alert.alert("Top Items", "Full item list is available on the Menu screen."); }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -249,6 +383,7 @@ export default function AnalyticsScreen() {
 
       {/* ── ANALYTICS TAB ── */}
       {activeMainTab === "Analytics" && (
+        <Animated.View style={{ flex: 1, opacity: tabFade }}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { alignSelf: "center", width: "100%", maxWidth: CONTENT_MAX }]}
@@ -268,16 +403,34 @@ export default function AnalyticsScreen() {
 
           {/* KPI GRID */}
           <View style={[styles.kpiGrid, { paddingHorizontal: H_PAD }]}>
-            <KPICard label="TOTAL REVENUE" value={`₹${totalRev.toLocaleString("en-IN")}`} icon="wallet" color={ACCENT} bg="#ECFDF5" isMobile={isMobileView} />
-            <KPICard label="ORDERS FULFILLED" value={totalOrd.toLocaleString("en-IN")} icon="cart" color="#3B82F6" bg="#EFF6FF" isMobile={isMobileView} />
-            <KPICard label="AVG ORDER VALUE" value={`₹${avgOrderValue.toFixed(0)}`} icon="receipt" color="#F59E0B" bg="#FFFBEB" isMobile={isMobileView} />
-            <KPICard label="PEAK HOUR ACTIVITY (IST)" value={utcHourToISTLabel(data?.peakHour?.hour)} icon="time" color="#8B5CF6" bg="#F5F3FF" isMobile={isMobileView} />
+            {kpis.map((k) => (
+              <KPICard key={k.key} {...k} isMobile={isMobileView} />
+            ))}
+            <TablesCard
+              occupied={tablesOccupied}
+              total={totalTables}
+              hasData={hasTableData}
+              isMobile={isMobileView}
+            />
           </View>
 
           {/* SPLIT WORKSPACE FOR CHARTS & TOP ITEMS */}
           <View style={[styles.splitWorkspace, { paddingHorizontal: H_PAD }, isMobileView && { flexDirection: "column" }]}>
             <View style={isMobileView ? { width: "100%" } : { flex: 1.5 }}>
-              <SectionHeader title="Revenue Insights" subtitle="Daily growth patterns" icon="analytics-outline" />
+              <View style={styles.chartHeaderRow}>
+                <Text style={styles.premiumCardTitle}>Sales Overview</Text>
+                <View style={styles.periodTabs}>
+                  {[["daily", "Day"], ["weekly", "Week"], ["monthly", "Month"]].map(([key, label]) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.periodTab, chartPeriod === key && styles.periodTabActive]}
+                      onPress={() => setChartPeriod(key)}
+                    >
+                      <Text style={[styles.periodTabText, chartPeriod === key && styles.periodTabTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
               <View style={styles.chartSection}>
                 <View style={styles.chartWrapper}>
                   <VictoryChart
@@ -289,28 +442,35 @@ export default function AnalyticsScreen() {
                   >
                     <VictoryAxis style={axisStyle} />
                     <VictoryAxis dependentAxis style={axisStyle} tickFormat={(x) => `₹${x >= 1000 ? `${(x / 1000).toFixed(0)}k` : x}`} />
-                    <VictoryBar
+                    <VictoryArea
                       data={revenueChartData}
+                      interpolation="monotoneX"
+                      style={{ data: { fill: ACCENT, fillOpacity: 0.12, stroke: "transparent" } }}
+                      animate={{ duration: 500, onLoad: { duration: 400 } }}
+                    />
+                    <VictoryLine
+                      data={revenueChartData}
+                      interpolation="monotoneX"
+                      style={{ data: { stroke: ACCENT, strokeWidth: 2.5 } }}
+                      animate={{ duration: 500, onLoad: { duration: 400 } }}
+                    />
+                    <VictoryScatter
+                      data={revenueChartData}
+                      size={({ datum }) => (datum === selectedDay ? 6 : datum.y === maxChartRevenue && maxChartRevenue > 0 ? 5 : 3.5)}
                       style={{
                         data: {
-                          fill: ({ datum }) => (datum.y === maxChartRevenue && maxChartRevenue > 0 ? ACCENT : PRIMARY),
-                          width: isMobileView ? 18 : 26,
+                          fill: ({ datum }) => (datum === selectedDay || (datum.y === maxChartRevenue && maxChartRevenue > 0) ? ACCENT : "#fff"),
+                          stroke: ACCENT,
+                          strokeWidth: 2,
                         },
                       }}
-                      cornerRadius={{ top: 4 }}
-                      animate={{ duration: 400, onLoad: { duration: 300 } }}
                       events={[{
                         target: "data",
                         eventHandlers: {
-                          onPressIn: () => {
-                            return [{
-                              target: "data",
-                              mutation: (props) => {
-                                setSelectedDay(props.datum);
-                                return null;
-                              },
-                            }];
-                          },
+                          onPressIn: () => [{
+                            target: "data",
+                            mutation: (props) => { setSelectedDay(props.datum); return null; },
+                          }],
                         },
                       }]}
                     />
@@ -320,48 +480,43 @@ export default function AnalyticsScreen() {
                   <View style={styles.chartInfoCard}>
                     <View>
                       <Text style={styles.chartInfoDate}>
-                        {new Date(activeDay.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
+                        {chartPeriod === "daily"
+                          ? new Date(activeDay.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
+                          : activeDay.x}
                       </Text>
                       <Text style={styles.chartInfoSub}>{activeDay.orders} {activeDay.orders === 1 ? "order" : "orders"}</Text>
                     </View>
                     <Text style={styles.chartInfoValue}>₹{activeDay.y.toLocaleString("en-IN")}</Text>
                   </View>
                 )}
-                <View style={styles.chartLegendRow}>
-                  <View style={styles.chartLegendItem}>
-                    <View style={[styles.chartLegendDot, { backgroundColor: ACCENT }]} />
-                    <Text style={styles.chartLegendText}>Best day</Text>
-                  </View>
-                  <View style={styles.chartLegendItem}>
-                    <View style={[styles.chartLegendDot, { backgroundColor: PRIMARY }]} />
-                    <Text style={styles.chartLegendText}>Other days</Text>
-                  </View>
-                  <Text style={styles.chartLegendHint}>Tap a bar for details</Text>
-                </View>
-                {revenueChartData.every(d => d.y === 0) && (
+                {revenueChartData.length === 0 || revenueChartData.every(d => d.y === 0) ? (
                   <View style={styles.chartEmpty}>
-                    <Ionicons name="bar-chart-outline" size={36} color={TEXT_FAINT} />
+                    <Ionicons name="trending-up-outline" size={36} color={TEXT_FAINT} />
                     <Text style={styles.chartEmptyText}>No sales activity recorded</Text>
                   </View>
-                )}
+                ) : null}
               </View>
             </View>
 
-            <View style={isMobileView ? { width: "100%" } : { flex: 1 }}>
-              <SectionHeader title="Top Products" subtitle="Highest volume items" icon="trophy-outline" />
+            <View style={isMobileView ? { width: "100%", marginTop: 28 } : { flex: 1 }}>
+              <View style={styles.topItemsHeaderRow}>
+                <Text style={styles.premiumCardTitle}>Top Items</Text>
+                <TouchableOpacity onPress={goToAllItems} activeOpacity={0.7}>
+                  <Text style={styles.viewAllText}>View all</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.premiumCard}>
-                {data?.topItems?.length ? (
-                  data.topItems.slice(0, 4).map((item, i) => {
+                {topItems.length ? (
+                  topItems.map((item, i) => {
                     const pct = maxQty > 0 ? (parseInt(item.total_qty) || 0) / maxQty : 0;
                     return (
-                      <View key={i} style={styles.itemRow}>
-                        <View style={styles.itemHeader}>
-                          <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                          <Text style={styles.itemQty}>{item.total_qty} Units</Text>
-                        </View>
+                      <View key={i} style={[styles.itemRow, i === topItems.length - 1 && { marginBottom: 0 }]}>
+                        <Text style={styles.itemRank}>{i + 1}.</Text>
+                        <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
                         <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${pct * 100}%`, backgroundColor: i === 0 ? ACCENT : PRIMARY }]} />
+                          <View style={[styles.progressFill, { width: `${pct * 100}%` }]} />
                         </View>
+                        <Text style={styles.itemQty}>{item.total_qty}</Text>
                       </View>
                     );
                   })
@@ -369,6 +524,16 @@ export default function AnalyticsScreen() {
                   <View style={styles.emptyItems}><Text style={styles.emptyText}>Data compiling...</Text></View>
                 )}
               </View>
+            </View>
+          </View>
+
+          {/* AI BUSINESS ADVISOR + ASK BAR */}
+          <View style={[styles.advisorRow, { paddingHorizontal: H_PAD }, isMobileView && { flexDirection: "column" }]}>
+            <View style={isMobileView ? { width: "100%" } : { flex: 1.2 }}>
+              <AdvisorCard insight={data?.aiInsight || DEFAULT_INSIGHT} onViewMore={goToAdvisor} />
+            </View>
+            <View style={isMobileView ? { width: "100%", marginTop: 16 } : { flex: 1 }}>
+              <AskAdvisorBox />
             </View>
           </View>
 
@@ -402,13 +567,21 @@ export default function AnalyticsScreen() {
           </View>
           <View style={{ height: 40 }} />
         </ScrollView>
+        </Animated.View>
       )}
 
-      {activeMainTab === "Expenses" && <ExpensesTab />}
+      {activeMainTab === "Expenses" && (
+        <Animated.View style={{ flex: 1, opacity: tabFade }}>
+          <ExpensesTab />
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION HEADER
+// ═══════════════════════════════════════════════════════════════════════════════
 function SectionHeader({ title, subtitle, icon }) {
   return (
     <View style={secStyles.container}>
@@ -418,7 +591,19 @@ function SectionHeader({ title, subtitle, icon }) {
   );
 }
 
-function KPICard({ label, value, icon, color, bg, isMobile }) {
+const secStyles = StyleSheet.create({
+  container:{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 18, marginTop: 12 },
+  iconBox:  { width: 34, height: 34, borderRadius: 8, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: BORDER },
+  title:    { fontSize: 16, fontWeight: "700", color: PRIMARY, letterSpacing: -0.2 },
+  sub:      { fontSize: 12, color: TEXT_MUTED },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KPI CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+function KPICard({ label, rawValue, formatter, trend, icon, color, bg, isMobile }) {
+  const hasTrend = trend !== null && trend !== undefined && !isNaN(trend);
+  const isUp = hasTrend && trend >= 0;
   return (
     <View style={[styles.kpiCard, isMobile ? styles.kpiCardMobile : styles.kpiCardWeb]}>
       <View style={styles.kpiTopRow}>
@@ -427,10 +612,231 @@ function KPICard({ label, value, icon, color, bg, isMobile }) {
           <Ionicons name={icon} size={16} color={color} />
         </View>
       </View>
-      <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      <AnimatedNumber value={rawValue} formatter={formatter} style={styles.kpiValue} />
+      {hasTrend && (
+        <View style={styles.trendRow}>
+          <Ionicons name={isUp ? "arrow-up" : "arrow-down"} size={11} color={isUp ? ACCENT : DANGER} />
+          <Text style={[styles.trendText, { color: isUp ? ACCENT : DANGER }]}>
+            {Math.abs(trend).toFixed(1)}% vs yesterday
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TABLES CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+function TablesCard({ occupied, total, hasData, isMobile }) {
+  return (
+    <View style={[styles.kpiCard, isMobile ? styles.kpiCardMobile : styles.kpiCardWeb]}>
+      <View style={styles.kpiTopRow}>
+        <Text style={styles.kpiLabel} numberOfLines={1}>Tables Occupied</Text>
+        <View style={[styles.kpiIconBox, { backgroundColor: "#F5F3FF" }]}>
+          <Ionicons name="restaurant" size={16} color="#8B5CF6" />
+        </View>
+      </View>
+      <Text style={styles.kpiValue} numberOfLines={1}>
+        {hasData ? `${occupied}/${total}` : "—/—"}
+      </Text>
+      <View style={styles.liveBadge}>
+        <View style={styles.liveDot} />
+        <Text style={styles.liveBadgeText}>{hasData ? "Live" : "Awaiting data"}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADVISOR CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+function AdvisorCard({ insight, onViewMore }) {
+  return (
+    <View style={advStyles.card}>
+      <View style={advStyles.topRow}>
+        <View style={advStyles.iconBox}>
+          <Ionicons name="sparkles" size={16} color={ACCENT} />
+        </View>
+        <Text style={advStyles.eyebrow}>AI Business Advisor</Text>
+      </View>
+      <Text style={advStyles.insight}>{renderHighlightedInsight(insight)}</Text>
+      <TouchableOpacity style={advStyles.linkBtn} onPress={onViewMore} activeOpacity={0.8}>
+        <Text style={advStyles.linkText}>View Full Insights</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const advStyles = StyleSheet.create({
+  card:     { backgroundColor: "#fff", borderRadius: 14, padding: 18, borderWidth: 1, borderColor: BORDER, height: "100%" },
+  topRow:   { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  iconBox:  { width: 26, height: 26, borderRadius: 13, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" },
+  eyebrow:  { fontSize: 13.5, fontWeight: "700", color: PRIMARY },
+  insight:  { fontSize: 13.5, lineHeight: 20, marginBottom: 16 },
+  body:     { color: TEXT_MUTED, fontWeight: "500" },
+  highlight:{ color: TEXT_MAIN, fontWeight: "700" },
+  linkBtn:  { backgroundColor: ACCENT, borderRadius: 8, paddingVertical: 10, alignItems: "center", alignSelf: "flex-start", paddingHorizontal: 16 },
+  linkText: { fontSize: 12.5, fontWeight: "700", color: "#fff" },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ASK ADVISOR BOX (FIXED - Actually Sends Questions)
+// ═══════════════════════════════════════════════════════════════════════════════
+function AskAdvisorBox() {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [response, setResponse] = useState(null);
+  const [showResponse, setShowResponse] = useState(false);
+  const navigation = useNavigation();
+
+  const submit = async () => {
+    if (!query.trim()) return;
+    
+    setLoading(true);
+    setShowResponse(false);
+    
+    try {
+      const response = await askAdvisor(query.trim());
+      setResponse(response.data);
+      setShowResponse(true);
+      setQuery("");
+    } catch (error) {
+      console.error("❌ Advisor error:", error);
+      Alert.alert("Error", "Could not get response. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={askStyles.card}>
+      <View style={askStyles.inputRow}>
+        <TextInput
+          style={askStyles.input}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Ask anything about your business..."
+          placeholderTextColor={TEXT_FAINT}
+          onSubmitEditing={submit}
+          returnKeyType="send"
+          editable={!loading}
+        />
+        <TouchableOpacity 
+          style={[askStyles.sendBtn, loading && askStyles.sendBtnLoading]} 
+          onPress={submit} 
+          activeOpacity={0.8}
+          disabled={loading || !query.trim()}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons name="send" size={15} color="#fff" />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {showResponse && response && (
+        <View style={askStyles.responseContainer}>
+          <View style={askStyles.responseHeader}>
+            <Ionicons name="sparkles" size={14} color={ACCENT} />
+            <Text style={askStyles.responseLabel}>AI Response</Text>
+          </View>
+          <Text style={askStyles.responseText} numberOfLines={4} ellipsizeMode="tail">
+            {response.answer || response.message}
+          </Text>
+          <TouchableOpacity 
+            style={askStyles.viewFullBtn}
+            onPress={() => navigation.navigate("Advisor")}
+          >
+            <Text style={askStyles.viewFullText}>View Full Conversation</Text>
+            <Ionicons name="arrow-forward" size={12} color={ACCENT} />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const askStyles = StyleSheet.create({
+  card: { 
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 10,
+    backgroundColor: "#fff", 
+    borderRadius: 14, 
+    borderWidth: 1, 
+    borderColor: BORDER, 
+    padding: 12,
+    minHeight: 60,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  input: { 
+    flex: 1, 
+    fontSize: 13.5, 
+    color: TEXT_MAIN, 
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  sendBtn: { 
+    width: 34, 
+    height: 34, 
+    borderRadius: 8, 
+    backgroundColor: ACCENT, 
+    alignItems: "center", 
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  sendBtnLoading: {
+    backgroundColor: "#9CA3AF",
+  },
+  responseContainer: {
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    paddingTop: 10,
+    marginTop: 4,
+    maxHeight: 140,
+  },
+  responseHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  responseLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: TEXT_MUTED,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  responseText: {
+    fontSize: 13,
+    color: TEXT_MAIN,
+    lineHeight: 19,
+    marginBottom: 8,
+  },
+  viewFullBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+  },
+  viewFullText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: ACCENT,
+  },
+});
 
 const axisStyle = {
   axis:       { stroke: "transparent" },
@@ -439,7 +845,98 @@ const axisStyle = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// EXPENSES TAB
+// STYLES
+// ═══════════════════════════════════════════════════════════════════════════════
+const styles = StyleSheet.create({
+  container:    { flex: 1, backgroundColor: BG },
+  scrollContent:{ paddingVertical: 20 },
+  center:       { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: BG },
+  loadingText:  { fontSize: 14, fontWeight: "600", color: TEXT_MUTED },
+
+  mainTabBar:       { borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD_BG, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2 },
+  tabBarInner:      { flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
+  mainTab:          { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  mainTabActive:    { backgroundColor: PRIMARY },
+  mainTabText:      { fontSize: 14, fontWeight: "600", color: TEXT_MUTED },
+  mainTabTextActive:{ color: "#fff" },
+
+  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 24 },
+  greeting:  { fontSize: 11, fontWeight: "700", color: ACCENT, letterSpacing: 1 },
+  headerTitle:{ fontSize: 28, fontWeight: "800", color: PRIMARY, marginTop: 2 },
+  headerSub: { fontSize: 13, color: TEXT_MUTED, marginTop: 4 },
+  refreshBtn:{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
+
+  kpiGrid:      { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
+  kpiCard:      { backgroundColor: CARD_BG, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
+  kpiCardWeb:   { width: "23.5%" },
+  kpiCardMobile:{ width: "48%", marginBottom: 4 },
+
+  kpiTopRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  kpiIconBox:   { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  kpiLabel:     { fontSize: 12.5, color: TEXT_MUTED, fontWeight: "600", flex: 1, marginRight: 4 },
+  kpiValue:     { fontSize: 24, fontWeight: "800", color: PRIMARY, letterSpacing: -0.5 },
+
+  trendRow:  { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
+  trendText: { fontSize: 11.5, fontWeight: "700" },
+
+  liveBadge:     { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8, alignSelf: "flex-start", backgroundColor: "#F5F3FF", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  liveDot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: "#8B5CF6" },
+  liveBadgeText: { fontSize: 10.5, fontWeight: "700", color: "#8B5CF6" },
+
+  chartHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 },
+  periodTabs:      { flexDirection: "row", backgroundColor: "#F1F5F9", padding: 3, borderRadius: 8, marginBottom: 12 },
+  periodTab:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+  periodTabActive: { backgroundColor: PRIMARY },
+  periodTabText:   { fontSize: 12, fontWeight: "600", color: TEXT_MUTED },
+  periodTabTextActive: { color: "#fff" },
+
+  splitWorkspace: { flexDirection: "row", gap: 24, marginTop: 12 },
+  chartSection:   { backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER, alignItems: "center", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1 },
+  chartWrapper:   { paddingRight: 8 },
+  chartEmpty:    { position: "absolute", top: 90, alignItems: "center", gap: 6 },
+  chartEmptyText:{ fontSize: 13, color: TEXT_FAINT },
+
+  advisorRow: { flexDirection: "row", gap: 16, marginTop: 28 },
+
+  topItemsHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18, marginTop: 12 },
+  premiumCardTitle:  { fontSize: 16, fontWeight: "700", color: PRIMARY, letterSpacing: -0.2 },
+
+  chartInfoCard:  { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingVertical: 10, paddingHorizontal: 14, marginTop: 10, width: "100%" },
+  chartInfoDate:  { fontSize: 13, fontWeight: "700", color: PRIMARY },
+  chartInfoSub:   { fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
+  chartInfoValue: { fontSize: 16, fontWeight: "800", color: ACCENT },
+
+  premiumCard:{ backgroundColor: "#fff", borderRadius: 16, padding: 20, borderWidth: 1, borderColor: BORDER, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1 },
+
+  itemRow:      { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 },
+  itemRank:     { fontSize: 13, fontWeight: "600", color: TEXT_MUTED, width: 16 },
+  itemName:     { fontSize: 13.5, fontWeight: "600", color: TEXT_MAIN, width: 108 },
+  itemQty:      { fontSize: 12.5, color: TEXT_MUTED, fontWeight: "600", width: 26, textAlign: "right" },
+  progressTrack:{ flex: 1, height: 6, backgroundColor: "#F1F5F9", borderRadius: 3, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3, backgroundColor: ACCENT },
+
+  viewAllText: { fontSize: 13, fontWeight: "600", color: ACCENT },
+
+  fieldLabel:    { fontSize: 11, fontWeight: "700", color: TEXT_MUTED, marginBottom: 8, letterSpacing: 0.3 },
+  rangeSelector: { flexDirection: "row", backgroundColor: "#F1F5F9", padding: 4, borderRadius: 10, marginBottom: 16 },
+  rangeTab:      { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
+  rangeTabActive:{ backgroundColor: PRIMARY },
+  rangeTabText:  { fontSize: 13, fontWeight: "600", color: TEXT_MUTED },
+
+  exportBtn:    { backgroundColor: PRIMARY, height: 46, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  exportBtnText:{ color: "#fff", fontSize: 14, fontWeight: "600" },
+  csvBtn:       { height: 46, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: "#fff" },
+  csvBtnText:   { color: PRIMARY, fontSize: 13, fontWeight: "600" },
+
+  webReportCardRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  webReportBtnStack:{ width: 220 },
+
+  emptyItems:{ alignItems: "center", paddingVertical: 16 },
+  emptyText: { fontSize: 13, color: TEXT_FAINT },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPENSES TAB (Keeping your existing code unchanged)
 // ═══════════════════════════════════════════════════════════════════════════════
 function ExpensesTab() {
   const [period,        setPeriod]        = useState("monthly");
@@ -658,7 +1155,6 @@ function ExpensesTab() {
     <View style={[FL.container, { paddingHorizontal: H_PAD }]}>
       <View style={[isDesktop ? FL.desktopSplitLayout : { flexDirection: "column", flex: 1 }]}>
         
-        {/* FILTERS & ACCUMULATOR CARDS */}
         <View style={[isDesktop ? { width: 360, marginRight: 24 } : { width: "100%" }]}>
           <View style={FL.totalsBanner}>
             <Text style={FL.panelHeaderTitle}>Financial Summary</Text>
@@ -703,7 +1199,6 @@ function ExpensesTab() {
           </View>
         </View>
 
-        {/* DATA STREAM LIST */}
         <View style={FL.listStreamContainer}>
           <View style={FL.ledgerHeaderRow}>
             <Text style={FL.sectionTitleLabel}>{ledgerTab} Records</Text>
@@ -787,7 +1282,6 @@ function ExpensesTab() {
 
       </View>
 
-      {/* FAB TOGGLE COMPONENT CONTAINER */}
       <TouchableOpacity style={FL.fab} onPress={handleAddNew} activeOpacity={0.85}>
         <Ionicons name="add" size={20} color="#fff" />
         <Text style={FL.fabText}>LOG EXPENSE</Text>
@@ -804,7 +1298,7 @@ function ExpensesTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// EXPENSE MODAL
+// EXPENSE MODAL (Keeping your existing code)
 // ═══════════════════════════════════════════════════════════════════════════════
 function ExpenseModal({ visible, expense, onClose, onSaved }) {
   const isEdit = !!expense;
@@ -1075,106 +1569,20 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// STYLES STACK CODES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const secStyles = StyleSheet.create({
-  container:{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 18, marginTop: 12 },
-  iconBox:  { width: 34, height: 34, borderRadius: 8, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: BORDER },
-  title:    { fontSize: 16, fontWeight: "700", color: PRIMARY, letterSpacing: -0.2 },
-  sub:      { fontSize: 12, color: TEXT_MUTED },
-});
-
-const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: BG },
-  scrollContent:{ paddingVertical: 20 },
-  center:       { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText:  { fontSize: 14, fontWeight: "600", color: TEXT_MUTED },
-
-  mainTabBar:       { borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD_BG },
-  tabBarInner:      { flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
-  mainTab:          { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  mainTabActive:    { backgroundColor: PRIMARY },
-  mainTabText:      { fontSize: 14, fontWeight: "600", color: TEXT_MUTED },
-  mainTabTextActive:{ color: "#fff" },
-
-  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 24 },
-  greeting:  { fontSize: 11, fontWeight: "700", color: ACCENT, letterSpacing: 1 },
-  headerTitle:{ fontSize: 28, fontWeight: "800", color: PRIMARY },
-  headerSub: { fontSize: 13, color: TEXT_MUTED, marginTop: 2 },
-  refreshBtn:{ width: 44, height: 44, borderRadius: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" },
-
-  // Responsive KPI Grid Structure
-  kpiGrid:      { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
-  kpiCard:      { backgroundColor: CARD_BG, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 4 },
-  kpiCardWeb:   { width: "23.5%" },
-  kpiCardMobile:{ width: "48%", marginBottom: 4 }, // Forces perfect 2x2 rows on smaller screens
-  
-  kpiTopRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  kpiIconBox:   { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  kpiLabel:     { fontSize: 12, color: TEXT_MUTED, fontWeight: "700", flex: 1, marginRight: 4, letterSpacing: 0.2 },
-  kpiValue:     { fontSize: 24, fontWeight: "800", color: PRIMARY, letterSpacing: -0.5 },
-
-  splitWorkspace: { flexDirection: "row", gap: 24, marginTop: 28 },
-  chartSection:   { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER, alignItems: "center" },
-  chartWrapper:   { paddingRight: 8 },
-  chartEmpty:    { position: "absolute", top: 90, alignItems: "center", gap: 6 },
-  chartEmptyText:{ fontSize: 13, color: TEXT_FAINT },
-
-  chartLegendRow:  { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 4, flexWrap: "wrap", justifyContent: "center" },
-  chartLegendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  chartLegendDot:  { width: 8, height: 8, borderRadius: 4 },
-  chartLegendText: { fontSize: 11, color: TEXT_MUTED, fontWeight: "600" },
-  chartLegendHint: { fontSize: 11, color: TEXT_FAINT, fontStyle: "italic" },
-
-  chartInfoCard:  { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingVertical: 10, paddingHorizontal: 14, marginTop: 10, width: "100%" },
-  chartInfoDate:  { fontSize: 13, fontWeight: "700", color: PRIMARY },
-  chartInfoSub:   { fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
-  chartInfoValue: { fontSize: 16, fontWeight: "800", color: ACCENT },
-
-  splitRow:   { flexDirection: "row", gap: 20, marginTop: 28 },
-  section:    { flex: 1 },
-  premiumCard:{ backgroundColor: "#fff", borderRadius: 14, padding: 20, borderWidth: 1, borderColor: BORDER },
-
-  itemRow:      { marginBottom: 16 },
-  itemHeader:   { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  itemName:     { fontSize: 14, fontWeight: "600", color: TEXT_MAIN, flex: 1, marginRight: 8 },
-  itemQty:      { fontSize: 12, color: TEXT_MUTED, fontWeight: "500" },
-  progressTrack:{ height: 6, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 4 },
-
-  fieldLabel:    { fontSize: 11, fontWeight: "700", color: TEXT_MUTED, marginBottom: 8 },
-  rangeSelector: { flexDirection: "row", backgroundColor: "#F1F5F9", padding: 4, borderRadius: 10, marginBottom: 16 },
-  rangeTab:      { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
-  rangeTabActive:{ backgroundColor: PRIMARY },
-  rangeTabText:  { fontSize: 13, fontWeight: "600", color: TEXT_MUTED },
-
-  exportBtn:    { backgroundColor: PRIMARY, height: 44, borderRadius: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  exportBtnText:{ color: "#fff", fontSize: 14, fontWeight: "600" },
-  csvBtn:       { height: 44, borderRadius: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: "#fff" },
-  csvBtnText:   { color: PRIMARY, fontSize: 13, fontWeight: "600" },
-
-  webReportCardRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  webReportBtnStack:{ width: 220 },
-
-  emptyItems:{ alignItems: "center", paddingVertical: 16 },
-  emptyText: { fontSize: 13, color: TEXT_FAINT },
-});
-
+// ─── FL / MD STYLES ──────────────────────────────────────────────────────────
 const FL = StyleSheet.create({
   container:    { flex: 1, paddingTop: 16 },
   desktopSplitLayout: { flexDirection: "row", alignItems: "flex-start", flex: 1 },
   listStreamContainer: { flex: 1, width: "100%" },
   panelHeaderTitle: { fontSize: 14, fontWeight: "700", color: PRIMARY, marginBottom: 14 },
-  totalsBanner: { backgroundColor: "#fff", padding: 18, borderRadius: 14, borderWidth: 1, borderColor: FL_BORD, marginBottom: 20 },
+  totalsBanner: { backgroundColor: "#fff", padding: 18, borderRadius: 16, borderWidth: 1, borderColor: FL_BORD, marginBottom: 20, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   totalsRow:    { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   totalsIcon:   { width: 22, height: 22, borderRadius: 6, alignItems: "center", justifyContent: "center", marginRight: 10 },
   totalsLabel:  { flex: 1, fontSize: 12, fontWeight: "600", color: TEXT_MUTED },
   totalsValue:  { fontSize: 15, fontWeight: "700" },
   netProfitContainer: { flexDirection: "row", alignItems: "center", marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: FL_BORD },
 
-  controlContainerCard: { backgroundColor: "#fff", padding: 18, borderRadius: 14, borderWidth: 1, borderColor: FL_BORD },
+  controlContainerCard: { backgroundColor: "#fff", padding: 18, borderRadius: 16, borderWidth: 1, borderColor: FL_BORD, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   tabRow:       { flexDirection: "row", backgroundColor: "#F1F5F9", padding: 4, borderRadius: 10, marginBottom: 12 },
   tabBtn:       { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
   tabBtnActive: { backgroundColor: "#fff" },
@@ -1198,11 +1606,12 @@ const FL = StyleSheet.create({
     backgroundColor: "#fff", marginBottom: 8,
     borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14,
     borderWidth: 1, borderColor: FL_BORD,
+    shadowColor: "#0F172A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 4,
   },
   dateBlock:  { width: 34, alignItems: "center", marginRight: 10 },
   dateDay:    { fontSize: 18, fontWeight: "800", color: FL_DARK },
   dateMon:    { fontSize: 10, fontWeight: "600", color: TEXT_MUTED },
-  catIconBox: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", marginRight: 12, borderWidth: 1, borderColor: FL_BORD },
+  catIconBox: { width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center", marginRight: 12, borderWidth: 1, borderColor: FL_BORD },
   expCat:     { fontSize: 14, fontWeight: "700", color: FL_DARK },
   expDesc:    { fontSize: 12, color: TEXT_MUTED, marginTop: 1 },
   expAmt:     { fontSize: 14, fontWeight: "700", color: FL_RED },
@@ -1214,25 +1623,25 @@ const FL = StyleSheet.create({
   fab: {
     position: "absolute", bottom: 20, right: 20,
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: FL_GREEN, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+    backgroundColor: FL_GREEN, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12,
+    shadowColor: "#059669", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4,
     zIndex: 99,
   },
   fabText:     { color: "#fff", fontWeight: "700", fontSize: 13 },
   emptyWrap:   { alignItems: "center", paddingTop: 50 },
-  emptyIconBox:{ width: 56, height: 56, borderRadius: 12, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  emptyIconBox:{ width: 56, height: 56, borderRadius: 14, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginBottom: 12 },
   emptyTitle:  { fontSize: 14, fontWeight: "700", color: FL_DARK },
   emptySub:    { fontSize: 12, color: TEXT_MUTED, textAlign: "center", paddingHorizontal: 16 },
 });
 
 const MD = StyleSheet.create({
   overlay:{ flex: 1, backgroundColor: "rgba(15, 23, 42, 0.4)", justifyContent: "flex-end" },
-  sheet:  { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 20, maxHeight: "85%" },
-  titleBar:{ backgroundColor: FL_DARK, paddingVertical: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
+  sheet:  { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 20, maxHeight: "85%" },
+  titleBar:{ backgroundColor: FL_DARK, paddingVertical: 16, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
   titleText:{ fontSize: 12, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
 
-  fieldLabel:  { fontSize: 11, fontWeight: "700", color: TEXT_MUTED, marginBottom: 6 },
-  dropdown:    { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: FL_BORD, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  fieldLabel:  { fontSize: 11, fontWeight: "700", color: TEXT_MUTED, marginBottom: 6, letterSpacing: 0.3 },
+  dropdown:    { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: FL_BORD, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   dropIconBox: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", marginRight: 10 },
   dropText:    { flex: 1, fontSize: 14, fontWeight: "600", color: FL_DARK },
   dropList:    { marginTop: 4, borderWidth: 1, borderColor: FL_BORD, borderRadius: 10, backgroundColor: "#fff", overflow: "hidden" },
@@ -1256,15 +1665,15 @@ const MD = StyleSheet.create({
   imgOverlayText:  { fontSize: 11, color: "#fff", fontWeight: "600" },
   imgRemoveBtn:    { position: "absolute", top: 6, right: 6, backgroundColor: "#fff", borderRadius: 12 },
 
-  receiptBtn:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: FL_DARK, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-  receiptIconBox:{ width: 32, height: 32, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  receiptBtn:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: FL_DARK, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  receiptIconBox:{ width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
   receiptTitle:  { fontSize: 12, fontWeight: "700", color: "#fff" },
   receiptSub:    { fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
 
   actionRow:  { flexDirection: "row", gap: 10, marginTop: 10 },
-  cancelBtn:  { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: FL_BORD, alignItems: "center" },
+  cancelBtn:  { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1, borderColor: FL_BORD, alignItems: "center" },
   cancelText: { fontSize: 13, fontWeight: "600", color: TEXT_MUTED },
-  confirmBtn: { flex: 1.5, paddingVertical: 12, borderRadius: 8, backgroundColor: FL_DARK, alignItems: "center" },
+  confirmBtn: { flex: 1.5, paddingVertical: 13, borderRadius: 10, backgroundColor: FL_DARK, alignItems: "center" },
   confirmText:{ fontSize: 13, fontWeight: "600", color: "#fff" },
 
   previewOverlay:{ flex: 1, backgroundColor: "rgba(15,23,42,0.95)", alignItems: "center", justifyContent: "center" },

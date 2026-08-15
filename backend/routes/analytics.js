@@ -19,13 +19,21 @@ router.get("/", auth, async (req, res) => {
       [businessId]
     );
 
-    // Active tables
+    // Active tables (currently occupied — excludes rejected, already-served,
+    // and paid orders, since a paid table has settled its bill and is free
+    // again even if it hasn't been physically cleared yet)
    const activeTables = await pool.query(
       `SELECT COUNT(DISTINCT table_id) as count
        FROM orders
        WHERE business_id = $1
        AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
-       AND status NOT IN ('REJECTED', 'SERVED')`,
+       AND status NOT IN ('REJECTED', 'SERVED', 'PAID')`,
+      [businessId]
+    );
+
+    // Total tables this business has configured
+    const totalTablesResult = await pool.query(
+      `SELECT COUNT(*) as count FROM tables WHERE business_id = $1`,
       [businessId]
     );
 
@@ -107,6 +115,9 @@ router.get("/", auth, async (req, res) => {
       last90Days: last90Days.rows[0],
       topItems: topItems.rows,
       peakHour: peakHour.rows[0] || null,
+      // Top-level fields consumed directly by AnalyticsScreen's Tables card
+      tablesOccupied: parseInt(activeTables.rows[0].count),
+      totalTables: parseInt(totalTablesResult.rows[0].count),
     });
 
   } catch (err) {
