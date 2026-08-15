@@ -3,16 +3,11 @@ const pool = require("../db");
 
 // Today's start (Asia/Kolkata) as a timestamptz for consistent "today" filtering
 const getTodayStart = () => {
-  const now = new Date();
-  // Use local date components but format as ISO date string; Postgres
-  // compares against `created_at` which is TIMESTAMPTZ. We build an
-  // inclusive lower-bound timestamp for the start of today in IST.
-  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-  const startIST = new Date(ist);
-  startIST.setHours(0, 0, 0, 0);
-  // Convert that IST wall-clock moment back to a UTC Date object
-  const asUTC = new Date(startIST.toLocaleString("en-US", { timeZone: "UTC" }));
-  return asUTC;
+  const todayIST = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+
+  return new Date(`${todayIST}T00:00:00+05:30`);
 };
 
 // Yesterday's full-day interval for the day-over-day comparison
