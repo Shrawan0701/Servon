@@ -45,24 +45,31 @@ function Root() {
   const [openDemoOnLanding, setOpenDemoOnLanding] = React.useState(false);
 
   // ✅ Check if admin route
-  const isAdminRoute = Platform.OS === "web" && window.location.pathname === "/admin";
+  const isAdminRoute =
+    Platform.OS === "web" && window.location.pathname === "/admin";
 
-  // 🔴 FIX: ONLY START SYNC MANAGER IF USER IS AUTHENTICATED
+  // 🔴 ONLY skip sync/push logic for the /admin web route
   React.useEffect(() => {
     if (token) {
+      // 🚫 Admin web panel does not need mobile sync or push notifications
+      if (isAdminRoute) {
+        return;
+      }
+
+      // ✅ Everything else remains exactly the same
       syncManager.init();
       registerPushToken();
     } else {
       syncManager.stopPeriodicSync();
     }
-  }, [token]);
+  }, [token, isAdminRoute]);
 
   // ✅ Web route detection with admin
   React.useEffect(() => {
     if (Platform.OS === "web") {
       const path = window.location.pathname;
       console.log("📍 Web path detected:", path);
-      
+
       if (path === "/admin") {
         setWebScreen("Admin");
       } else if (path === "/privacy") {
@@ -79,6 +86,7 @@ function Root() {
 
     if (Platform.OS === "web") {
       const lower = screenName.toLowerCase();
+
       if (lower === "admin") {
         window.history.pushState({}, "", "/admin");
       } else if (lower === "privacypolicy" || lower === "privacy") {
@@ -86,31 +94,43 @@ function Root() {
       } else if (lower === "termsofservice" || lower === "terms") {
         window.history.pushState({}, "", "/terms");
       } else {
-        window.history.pushState({}, "", `/${lower === "landing" ? "" : lower}`);
+        window.history.pushState(
+          {},
+          "",
+          `/${lower === "landing" ? "" : lower}`
+        );
       }
+
       window.scrollTo(0, 0);
     }
   };
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FAF9F6" }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#FAF9F6",
+        }}
+      >
         <ActivityIndicator size="large" color="#10B981" />
       </View>
     );
   }
 
-  // ─── ✅ FIXED: Skip auth for admin route ────────────────────────────
+  // ─── ✅ Skip auth for admin route ────────────────────────────────
   if (token && !isAdminRoute) {
     return <MainNavigator />;
   }
 
-  // ─── ✅ Show admin even if logged in ──────────────────────────────
+  // ─── ✅ Show admin even if logged in ─────────────────────────────
   if (isAdminRoute) {
     return <Admin onNavigate={handleWebNavigate} />;
   }
 
-  // ─── Unauthenticated web ──────────────────────────────────────────────────
+  // ─── Unauthenticated web ─────────────────────────────────────────
   if (Platform.OS === "web") {
     switch (webScreen.toLowerCase()) {
       case "landing":
@@ -121,37 +141,62 @@ function Root() {
             setOpenDemoOnLanding={setOpenDemoOnLanding}
           />
         );
+
       case "login":
-        return <AuthNavigator initialRoute="Login" onNavigateWeb={handleWebNavigate} />;
+        return (
+          <AuthNavigator
+            initialRoute="Login"
+            onNavigateWeb={handleWebNavigate}
+          />
+        );
+
       case "signup":
-        return <AuthNavigator initialRoute="Signup" onNavigateWeb={handleWebNavigate} />;
+        return (
+          <AuthNavigator
+            initialRoute="Signup"
+            onNavigateWeb={handleWebNavigate}
+          />
+        );
+
       case "privacypolicy":
       case "privacy":
         return <PrivacyPolicy onNavigate={handleWebNavigate} />;
+
       case "termsofservice":
       case "terms":
         return <TermsOfService onNavigate={handleWebNavigate} />;
+
       case "features":
         return <FeaturesPage onNavigate={handleWebNavigate} />;
+
       case "pricing":
         return <PricingPage onNavigate={handleWebNavigate} />;
+
       case "faq":
         return <FAQPage onNavigate={handleWebNavigate} />;
+
       case "about":
         return <AboutPage onNavigate={handleWebNavigate} />;
+
       case "contact":
         return <ContactPage onNavigate={handleWebNavigate} />;
+
       case "refundpolicy":
         return <RefundPolicy onNavigate={handleWebNavigate} />;
+
       case "security":
         return <Security onNavigate={handleWebNavigate} />;
+
       case "partners":
         return <Partners onNavigate={handleWebNavigate} />;
+
       case "careers":
         return <Careers onNavigate={handleWebNavigate} />;
+
       // ✅ Admin case
       case "admin":
         return <Admin onNavigate={handleWebNavigate} />;
+
       default:
         return (
           <LandingPage
@@ -163,24 +208,32 @@ function Root() {
     }
   }
 
-  // ─── Unauthenticated native ───────────────────────────────────────────────
+  // ─── Unauthenticated native ─────────────────────────────────────
   return <AuthNavigator />;
 }
 
 const registerPushToken = async () => {
   try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+
     let finalStatus = existingStatus;
+
     if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
+      const { status } =
+        await Notifications.requestPermissionsAsync();
+
       finalStatus = status;
     }
+
     if (finalStatus !== "granted") {
       console.log("Push notification permission not granted");
       return;
     }
 
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const tokenData =
+      await Notifications.getExpoPushTokenAsync();
+
     const pushToken = tokenData.data;
 
     if (pushToken) {
@@ -197,6 +250,7 @@ export default function App() {
     async function initOffline() {
       await localDB.init();
     }
+
     initOffline();
   }, []);
 
