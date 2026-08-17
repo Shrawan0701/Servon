@@ -43,15 +43,24 @@ function fmtNum(n) {
   return parseInt(n || 0).toLocaleString("en-IN");
 }
 
+// Helper to extract the actual hotel name from payload
+function getHotelName(data) {
+  return (
+    data?.business_name ||   // <--- Matches your database column!
+    data?.businessName ||
+    data?.hotelName ||
+    data?.restaurantName ||
+    "HOTEL ANALYTICS"
+  );
+}
+
 // ── Page chrome ───────────────────────────────────────────────────────────────
 
 function drawPageBg(doc) {
   doc.rect(0, 0, PAGE_W, PAGE_H).fill(C.pageBg);
 }
 
-function drawHeaderBanner(doc, subtitle, startDate, endDate, businessName) {
-  const hotelDisplayName = businessName || "HOTEL ANALYTICS";
-
+function drawHeaderBanner(doc, subtitle, startDate, endDate, hotelDisplayName) {
   doc.rect(0, 0, PAGE_W, HEADER_H).fill(C.white);
   doc.moveTo(0, HEADER_H).lineTo(PAGE_W, HEADER_H)
      .strokeColor(C.border).lineWidth(1).stroke();
@@ -69,17 +78,18 @@ function drawHeaderBanner(doc, subtitle, startDate, endDate, businessName) {
        .text(`${startDate}  ->  ${endDate}`, bx + 12, 42);
   }
 
+  // Explicitly forced to Indian Standard Time (IST)
   const genLabel = `Generated: ${new Date().toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
     dateStyle: "medium",
     timeStyle: "short",
-  })}`;
+  })} IST`;
+
   doc.fillColor(C.faint).font("Helvetica").fontSize(8)
      .text(genLabel, 0, 90, { align: "right", width: PAGE_W - MARGIN });
 }
 
-function drawFooter(doc, pageNum, totalPages, businessName) {
-  const hotelDisplayName = businessName || "Hotel Analytics";
-
+function drawFooter(doc, pageNum, totalPages, hotelDisplayName) {
   doc.rect(0, PAGE_H - FOOTER_H, PAGE_W, FOOTER_H).fill(C.white);
   doc.moveTo(0, PAGE_H - FOOTER_H).lineTo(PAGE_W, PAGE_H - FOOTER_H)
      .strokeColor(C.border).lineWidth(1).stroke();
@@ -180,7 +190,7 @@ const generateSalesReportPDF = (reportData) => {
     doc.on("end",   () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
-    const hotelName = reportData.businessName || reportData.hotelName || "HOTEL ANALYTICS";
+    const hotelName = getHotelName(reportData);
 
     // ctx holds mutable pagination state threaded through the whole render
     const ctx = {
