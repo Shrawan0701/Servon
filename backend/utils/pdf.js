@@ -394,112 +394,104 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     doc.on("end",   () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
-    // ── Background ────────────────────────────────────────────────────────
-    doc.rect(0, 0, W, H).fill("#FFFFFF");
+    // ── 1. Page Background ────────────────────────────────────────────────
+    doc.rect(0, 0, W, H).fill("#FAF9F6");
 
-    // ── Top Accent Bar ───────────────────────────────────────────────────
-    doc.rect(0, 0, W, 6).fill("#111827");
+    // ── 2. Top Vivid Banner ───────────────────────────────────────────────
+    const bannerH = 100;
+    doc.rect(0, 0, W, bannerH).fill("#4F46E5"); // Vibrant Royal Indigo
 
-    // ── Top Header Section (Restaurant Name) ──────────────────────────────
-    const headerY = 22;
+    // Top Decorative Accent Lines
+    doc.rect(0, 0, W, 5).fill("#FF6B35"); // Vibrant Coral Bar
 
+    // Business Name Heading (White)
     doc
-      .fontSize(18)
+      .fontSize(20)
       .font("Helvetica-Bold")
-      .fillColor("#111827")
-      .text(String(businessName).toUpperCase(), 20, headerY, {
-        width: W - 40,
+      .fillColor("#FFFFFF")
+      .text(String(businessName).toUpperCase(), 16, 26, {
+        width: W - 32,
         align: "center",
         characterSpacing: 1.5,
       });
 
-    // Subtitle / Welcome Text
+    // Subtitle Tagline (Light Lavender)
     doc
       .fontSize(9)
-      .font("Helvetica")
-      .fillColor("#78716C")
-      .text("WELCOME & DINE-IN MENU", 20, headerY + 24, {
-        width: W - 40,
-        align: "center",
-        characterSpacing: 1.2,
-      });
-
-    // ── Table Badge Section ───────────────────────────────────────────────
-    const tableBadgeY = headerY + 44;
-
-    // Outer table badge box
-    doc
-      .roundedRect((W - 140) / 2, tableBadgeY, 140, 28, 6)
-      .fill("#FAF8F5");
-
-    doc
-      .roundedRect((W - 140) / 2, tableBadgeY, 140, 28, 6)
-      .strokeColor("#E8E2D9")
-      .lineWidth(1)
-      .stroke();
-
-    doc
-      .fontSize(12)
       .font("Helvetica-Bold")
-      .fillColor("#111827")
-      .text(`TABLE  ${tableNumber}`, 0, tableBadgeY + 8, {
+      .fillColor("#E0E7FF")
+      .text("DIGITAL MENU & EASY ORDERING", 16, 56, {
+        width: W - 32,
         align: "center",
-        characterSpacing: 1,
+        characterSpacing: 2,
       });
 
-    // ── Divider ───────────────────────────────────────────────────────────
-    const dividerY = tableBadgeY + 42;
-    doc
-      .moveTo(36, dividerY)
-      .lineTo(W - 36, dividerY)
-      .strokeColor("#E8E2D9")
-      .lineWidth(1)
-      .stroke();
+    // ── 3. Table Pill / Badge Overlay ──────────────────────────────────────
+    const pillW = 150;
+    const pillH = 34;
+    const pillX = (W - pillW) / 2;
+    const pillY = bannerH - (pillH / 2); // Straddles the banner bottom
 
-    // ── QR Code Card Container ───────────────────────────────────────────
-    const qrSize = 190;
+    // Shadow back
+    doc.roundedRect(pillX + 1, pillY + 2, pillW, pillH, 8).fill("#1E1B4B");
+
+    // Pill background
+    doc.roundedRect(pillX, pillY, pillW, pillH, 8).fill("#FFFFFF");
+    doc.roundedRect(pillX, pillY, pillW, pillH, 8).strokeColor("#FF6B35").lineWidth(2).stroke();
+
+    // Table Label inside Pill
+    doc
+      .fontSize(13)
+      .font("Helvetica-Bold")
+      .fillColor("#FF6B35")
+      .text(`TABLE  ${tableNumber}`, 0, pillY + 10, {
+        align: "center",
+        characterSpacing: 1.5,
+      });
+
+    // ── 4. Main White QR Container Card ───────────────────────────────────
+    const cardX = 24;
+    const cardY = pillY + pillH + 16;
+    const cardW = W - (cardX * 2);
+    const cardH = 250;
+
+    // Card Container
+    doc.roundedRect(cardX, cardY, cardW, cardH, 16).fill("#FFFFFF");
+    doc.roundedRect(cardX, cardY, cardW, cardH, 16).strokeColor("#E5E7EB").lineWidth(1.5).stroke();
+
+    // QR Code Display
+    const qrSize = 175;
     const qrX    = (W - qrSize) / 2;
-    const qrY    = dividerY + 18;
+    const qrY    = cardY + 16;
 
-    // Soft border card around QR code
-    doc
-      .roundedRect(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 12)
-      .fill("#FAF8F5");
-
-    doc
-      .roundedRect(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 12)
-      .strokeColor("#E8E2D9")
-      .lineWidth(1)
-      .stroke();
-
-    // Embed QR image
     const base64Data = qrCodeDataUrl.replace(/^data:image\/png;base64,/, "");
     const imgBuffer  = Buffer.from(base64Data, "base64");
     doc.image(imgBuffer, qrX, qrY, { width: qrSize, height: qrSize });
 
-    // ── "SCAN TO ORDER" Heading & Subtext ────────────────────────────────
-    const belowQR = qrY + qrSize + 26;
+    // "Scan to View Menu" Heading inside Card
+    const cardTextY = qrY + qrSize + 12;
 
     doc
-      .fontSize(16)
+      .fontSize(15)
       .font("Helvetica-Bold")
       .fillColor("#111827")
-      .text("Scan to View Menu & Order", 0, belowQR, { align: "center" });
+      .text("Scan to View Menu & Order", cardX, cardTextY, {
+        width: cardW,
+        align: "center",
+      });
 
     doc
-      .fontSize(9)
+      .fontSize(8.5)
       .font("Helvetica")
-      .fillColor("#78716C")
-      .text(
-        "Scan with your phone camera to browse our menu,\norder items, and request service directly to your table.",
-        30,
-        belowQR + 22,
-        { align: "center", lineGap: 3 }
-      );
+      .fillColor("#6B7280")
+      .text("Point your camera at the QR code to order instantly", cardX, cardTextY + 20, {
+        width: cardW,
+        align: "center",
+      });
 
-    // ── 4-Step How-To Guide ──────────────────────────────────────────────
-    const stepsY   = belowQR + 64;
-    const stepColW = (W - 64) / 2;
+    // ── 5. How To Order (4-Step Guide) ───────────────────────────────────
+    const stepsY   = cardY + cardH + 18;
+    const stepColW = (W - 48) / 2;
     const steps = [
       { num: "1", text: "Open Phone Camera" },
       { num: "2", text: "Scan the QR Code" },
@@ -510,56 +502,60 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     steps.forEach((step, i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
-      const sx  = 32 + col * (stepColW + 0);
-      const sy  = stepsY + row * 30;
+      const sx  = 28 + col * stepColW;
+      const sy  = stepsY + row * 28;
 
-      // Circle icon container
-      doc.circle(sx + 10, sy + 6, 8).fill("#111827");
+      // Colorful Circle Badge
+      doc.circle(sx + 10, sy + 6, 9).fill("#4F46E5");
 
-      // Number inside circle
+      // White Step Number
       doc
-        .fontSize(8)
+        .fontSize(8.5)
         .font("Helvetica-Bold")
         .fillColor("#FFFFFF")
         .text(step.num, sx + 5, sy + 2, { width: 10, align: "center" });
 
-      // Label text
+      // Step Text Label
       doc
         .fontSize(8.5)
         .font("Helvetica-Bold")
         .fillColor("#374151")
-        .text(step.text, sx + 24, sy + 2, { width: stepColW - 28 });
+        .text(step.text, sx + 26, sy + 2, { width: stepColW - 28 });
     });
 
-    // ── Footer Divider & Assistance Note ─────────────────────────────────
-    const footerDivY = H - 46;
+    // ── 6. Bottom Footer & Assistance Bar ─────────────────────────────────
+    const footerY = H - 42;
 
+    // Divider Line
     doc
-      .moveTo(36, footerDivY)
-      .lineTo(W - 36, footerDivY)
-      .strokeColor("#E8E2D9")
+      .moveTo(28, footerY)
+      .lineTo(W - 28, footerY)
+      .strokeColor("#E5E7EB")
       .lineWidth(1)
       .stroke();
 
     doc
       .fontSize(8.5)
       .font("Helvetica")
-      .fillColor("#78716C")
-      .text("Need assistance? Please call our staff.", 0, footerDivY + 8, { align: "center" });
+      .fillColor("#6B7280")
+      .text("Need assistance? Please ask any staff member.", 0, footerY + 8, {
+        align: "center",
+      });
 
+    // Footer Table Tag
     doc
       .fontSize(7.5)
       .font("Helvetica-Bold")
-      .fillColor("#A8A29E")
+      .fillColor("#4F46E5")
       .text(
-        `${String(businessName).toUpperCase()}  ·  TABLE ${tableNumber}`,
+        `${String(businessName).toUpperCase()}  •  TABLE ${tableNumber}`,
         0,
-        footerDivY + 22,
-        { align: "center", characterSpacing: 0.8 }
+        footerY + 22,
+        { align: "center", characterSpacing: 1 }
       );
 
-    // ── Bottom Accent Bar ────────────────────────────────────────────────
-    doc.rect(0, H - 6, W, 6).fill("#111827");
+    // Bottom Color Bar
+    doc.rect(0, H - 5, W, 5).fill("#FF6B35");
 
     doc.end();
   });
