@@ -95,6 +95,7 @@ router.post("/", auth, subscription, async (req, res) => {
 
 // Download QR as PDF
 // Download QR as PDF
+// Download QR as PDF
 router.get("/:id/qr-pdf", auth, subscription, async (req, res) => {
   try {
     // 1. Fetch table details
@@ -109,23 +110,23 @@ router.get("/:id/qr-pdf", auth, subscription, async (req, res) => {
 
     const table = tableResult.rows[0];
 
-    // 2. Fetch business name using req.businessId (or req.user)
+    // 2. Fetch business name using 'business_name' column
     const businessResult = await pool.query(
-      "SELECT name FROM businesses WHERE id = $1", // Adjust table/column name if your table is named 'users' or 'restaurants'
+      "SELECT business_name FROM businesses WHERE id = $1",
       [req.businessId]
     );
 
-    // Fallback name if no business name is set in DB
-    const businessName = businessResult.rows[0]?.name || "Our Restaurant";
+    // Fallback name if no business name is set
+    const businessName = businessResult.rows[0]?.business_name || "Our Restaurant";
 
-    // 3. Generate PDF passing table_number, qr_code_url, and businessName
+    // 3. Generate PDF with table number, QR URL, and business name
     const pdfBuffer = await generateQRPDF(
       table.table_number,
       table.qr_code_url,
       businessName
     );
 
-    // 4. Send PDF stream
+    // 4. Send PDF response
     res.set({
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="table-${table.table_number}-qr.pdf"`,
