@@ -538,7 +538,7 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
       .fontSize(8.5)
       .font("Helvetica")
       .fillColor("#6B7280")
-      .text("Need assistance? Please ask any staff member.", 0, footerY + 8, {
+      .text("Need assistance? Please ask staff member.", 0, footerY + 8, {
         align: "center",
       });
 
