@@ -16,7 +16,7 @@ const C = {
   rowAlt:     "#FAFAFA",   // subtle zebra striping
   white:      "#FFFFFF",
   pageBg:     "#FFFFFF",
-  brand:      "#059669",   // used ONLY for the "Servon." wordmark — nowhere else
+  brand:      "#059669",   // primary brand accent color
 };
 
 const PAGE_W    = 595.28;
@@ -49,12 +49,14 @@ function drawPageBg(doc) {
   doc.rect(0, 0, PAGE_W, PAGE_H).fill(C.pageBg);
 }
 
-function drawHeaderBanner(doc, subtitle, startDate, endDate) {
+function drawHeaderBanner(doc, subtitle, startDate, endDate, businessName) {
+  const hotelDisplayName = businessName || "HOTEL ANALYTICS";
+
   doc.rect(0, 0, PAGE_W, HEADER_H).fill(C.white);
   doc.moveTo(0, HEADER_H).lineTo(PAGE_W, HEADER_H)
      .strokeColor(C.border).lineWidth(1).stroke();
 
-  doc.fillColor(C.brand).font("Helvetica-Bold").fontSize(30).text("Servon.", MARGIN, 28);
+  doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(22).text(hotelDisplayName.toUpperCase(), MARGIN, 28);
   doc.fillColor(C.muted).font("Helvetica-Bold").fontSize(9)
      .text(subtitle, MARGIN, 70, { characterSpacing: 2 });
 
@@ -75,12 +77,14 @@ function drawHeaderBanner(doc, subtitle, startDate, endDate) {
      .text(genLabel, 0, 90, { align: "right", width: PAGE_W - MARGIN });
 }
 
-function drawFooter(doc, pageNum, totalPages) {
+function drawFooter(doc, pageNum, totalPages, businessName) {
+  const hotelDisplayName = businessName || "Hotel Analytics";
+
   doc.rect(0, PAGE_H - FOOTER_H, PAGE_W, FOOTER_H).fill(C.white);
   doc.moveTo(0, PAGE_H - FOOTER_H).lineTo(PAGE_W, PAGE_H - FOOTER_H)
      .strokeColor(C.border).lineWidth(1).stroke();
   doc.fillColor(C.faint).font("Helvetica").fontSize(8)
-     .text("© 2026 Servon Business Dashboard  •  Confidential", MARGIN, PAGE_H - 26);
+     .text(`© ${new Date().getFullYear()} ${hotelDisplayName}  •  Confidential Financial Report`, MARGIN, PAGE_H - 26);
   doc.fillColor(C.faint).font("Helvetica").fontSize(8)
      .text(`Page ${pageNum} of ${totalPages}`, 0, PAGE_H - 26, {
        align: "right",
@@ -91,7 +95,7 @@ function drawFooter(doc, pageNum, totalPages) {
 // ── Section / layout helpers ──────────────────────────────────────────────────
 
 function drawSectionTitle(doc, title, y) {
-  doc.rect(MARGIN, y, 3, 18).fill(C.navy);
+  doc.rect(MARGIN, y, 3, 18).fill(C.brand);
   doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(13)
      .text(title, MARGIN + 12, y + 2);
   return y + 30;
@@ -120,8 +124,6 @@ function drawTableHeader(doc, y, cols) {
 }
 
 // ─── PASS 1: COUNT PAGES ──────────────────────────────────────────────────────
-// Mirrors the exact layout logic of the drawing pass but only tracks y position
-// and counts how many times we cross SAFE_BOT to get the true total page count.
 
 function countTotalPages(reportData) {
   const items = reportData.items || [];
@@ -178,16 +180,18 @@ const generateSalesReportPDF = (reportData) => {
     doc.on("end",   () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
+    const hotelName = reportData.businessName || reportData.hotelName || "HOTEL ANALYTICS";
+
     // ctx holds mutable pagination state threaded through the whole render
     const ctx = {
       pageNum:       1,
       totalPages,
-      currentBanner: "PREMIUM SALES REPORT",
+      currentBanner: "EXECUTIVE SALES REPORT",
     };
 
     // Starts a new page, draws chrome, returns new y
     function startNewPage(banner, showBadge) {
-      drawFooter(doc, ctx.pageNum, ctx.totalPages);
+      drawFooter(doc, ctx.pageNum, ctx.totalPages, hotelName);
       doc.addPage();
       ctx.pageNum++;
       drawPageBg(doc);
@@ -195,7 +199,8 @@ const generateSalesReportPDF = (reportData) => {
         doc,
         banner,
         showBadge ? reportData.startDate : null,
-        showBadge ? reportData.endDate   : null
+        showBadge ? reportData.endDate   : null,
+        hotelName
       );
       return SAFE_TOP;
     }
@@ -214,18 +219,18 @@ const generateSalesReportPDF = (reportData) => {
     // ════════════════════════════════════════════════════════
 
     drawPageBg(doc);
-    drawHeaderBanner(doc, ctx.currentBanner, reportData.startDate, reportData.endDate);
+    drawHeaderBanner(doc, ctx.currentBanner, reportData.startDate, reportData.endDate, hotelName);
 
     let y = SAFE_TOP;
 
     // KPI cards
     y = drawSectionTitle(doc, "Performance Overview", y);
-    const kpiW  = (CONTENT_W - 24) / 3;
-    const kpiH  = 72;
+    const kpiW   = (CONTENT_W - 24) / 3;
+    const kpiH   = 72;
     const avgVal = reportData.totalOrders > 0
       ? reportData.totalRevenue / reportData.totalOrders : 0;
 
-    drawKpiCard(doc, MARGIN,                   y, kpiW, kpiH, "TOTAL REVENUE",   fmtRs(reportData.totalRevenue));
+    drawKpiCard(doc, MARGIN,                 y, kpiW, kpiH, "TOTAL REVENUE",   fmtRs(reportData.totalRevenue));
     drawKpiCard(doc, MARGIN + kpiW + 12,       y, kpiW, kpiH, "TOTAL ORDERS",    fmtNum(reportData.totalOrders));
     drawKpiCard(doc, MARGIN + (kpiW + 12) * 2, y, kpiW, kpiH, "AVG ORDER VALUE", fmtRs(avgVal));
     y += kpiH + 20;
@@ -257,7 +262,7 @@ const generateSalesReportPDF = (reportData) => {
 
         const name = item.name.length > 38 ? item.name.substring(0, 38) + "..." : item.name;
 
-        doc.fillColor(i === 0 ? C.navy : C.muted).font("Helvetica-Bold").fontSize(9)
+        doc.fillColor(i === 0 ? C.brand : C.muted).font("Helvetica-Bold").fontSize(9)
            .text(`${i + 1}`, MARGIN + 8, y + 9, { width: 24 });
         doc.fillColor(C.ink).font(i === 0 ? "Helvetica-Bold" : "Helvetica").fontSize(9.5)
            .text(name, MARGIN + 38, y + 9, { width: 250 });
@@ -301,10 +306,10 @@ const generateSalesReportPDF = (reportData) => {
     y = drawSectionTitle(doc, "Per-Day Revenue Summary", y);
     const dkW = (CONTENT_W - 24) / 3;
     const dkH = 64;
-    drawKpiCard(doc, MARGIN,                   y, dkW, dkH, "TOTAL PERIOD REVENUE", fmtRs(dailyTotal));
-    drawKpiCard(doc, MARGIN + dkW + 12,        y, dkW, dkH, "DAILY AVERAGE",        fmtRs(dailyAvg));
-    drawKpiCard(doc, MARGIN + (dkW + 12) * 2,  y, dkW, dkH,
-      peakDay.date ? `PEAK DAY  ${peakDay.date}` : "PEAK DAY",
+    drawKpiCard(doc, MARGIN,                 y, dkW, dkH, "TOTAL PERIOD REVENUE", fmtRs(dailyTotal));
+    drawKpiCard(doc, MARGIN + dkW + 12,       y, dkW, dkH, "DAILY AVERAGE",        fmtRs(dailyAvg));
+    drawKpiCard(doc, MARGIN + (dkW + 12) * 2, y, dkW, dkH,
+      peakDay.date ? `PEAK DAY (${peakDay.date})` : "PEAK DAY",
       peakDay.date ? fmtRs(peakDay.revenue)      : "No data"
     );
     y += dkH + 20;
@@ -313,11 +318,11 @@ const generateSalesReportPDF = (reportData) => {
     y = drawSectionTitle(doc, "Day-by-Day Breakdown", y);
 
     const dayCols = [
-      { label: "DATE",      x: MARGIN + 8,   w: 110, align: "left"   },
-      { label: "DAY",       x: MARGIN + 128, w: 80,  align: "left"   },
-      { label: "ORDERS",    x: MARGIN + 218, w: 70,  align: "center" },
-      { label: "REVENUE",   x: MARGIN + 298, w: 110, align: "right"  },
-      { label: "AVG ORDER", x: MARGIN + 418, w: 75,  align: "right"  },
+      { label: "DATE",       x: MARGIN + 8,   w: 110, align: "left"   },
+      { label: "DAY",        x: MARGIN + 128, w: 80,  align: "left"   },
+      { label: "ORDERS",     x: MARGIN + 218, w: 70,  align: "center" },
+      { label: "REVENUE",    x: MARGIN + 298, w: 110, align: "right"  },
+      { label: "AVG ORDER",  x: MARGIN + 418, w: 75,  align: "right"  },
     ];
     y = drawTableHeader(doc, y, dayCols);
 
@@ -341,9 +346,9 @@ const generateSalesReportPDF = (reportData) => {
         const dayName = row.date
           ? new Date(row.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short" })
           : "";
-        const dateLabel = (row.date || "—") + (isPeak ? "  ★" : "");
+        const dateLabel = (row.date || "—") + (isPeak ? "  (PEAK)" : "");
 
-        doc.fillColor(C.ink)
+        doc.fillColor(isPeak ? C.brand : C.ink)
            .font(isPeak ? "Helvetica-Bold" : "Helvetica").fontSize(9)
            .text(dateLabel, MARGIN + 8, y + 8, { width: 110 });
         doc.fillColor(C.faint).font("Helvetica").fontSize(9)
@@ -375,7 +380,7 @@ const generateSalesReportPDF = (reportData) => {
     }
 
     // Final footer
-    drawFooter(doc, ctx.pageNum, ctx.totalPages);
+    drawFooter(doc, ctx.pageNum, ctx.totalPages, hotelName);
 
     doc.end();
   });
