@@ -94,24 +94,38 @@ router.post("/", auth, subscription, async (req, res) => {
 });
 
 // Download QR as PDF
+// Download QR as PDF
 router.get("/:id/qr-pdf", auth, subscription, async (req, res) => {
   try {
-    const result = await pool.query(
+    // 1. Fetch table details
+    const tableResult = await pool.query(
       "SELECT * FROM tables WHERE id = $1 AND business_id = $2",
       [req.params.id, req.businessId]
     );
 
-    if (result.rows.length === 0) {
+    if (tableResult.rows.length === 0) {
       return res.status(404).json({ error: "Table not found" });
     }
 
-    const table = result.rows[0];
+    const table = tableResult.rows[0];
 
-    const pdfBuffer = await generateQRPDF(
-      table.table_number,
-      table.qr_code_url
+    // 2. Fetch business name using req.businessId (or req.user)
+    const businessResult = await pool.query(
+      "SELECT name FROM businesses WHERE id = $1", // Adjust table/column name if your table is named 'users' or 'restaurants'
+      [req.businessId]
     );
 
+    // Fallback name if no business name is set in DB
+    const businessName = businessResult.rows[0]?.name || "Our Restaurant";
+
+    // 3. Generate PDF passing table_number, qr_code_url, and businessName
+    const pdfBuffer = await generateQRPDF(
+      table.table_number,
+      table.qr_code_url,
+      businessName
+    );
+
+    // 4. Send PDF stream
     res.set({
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="table-${table.table_number}-qr.pdf"`,
