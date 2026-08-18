@@ -4,11 +4,12 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 
 // ─── GET REFERRAL STATS ──────────────────────────────────────────────
+// ─── GET REFERRAL STATS & HISTORY ────────────────────────────────────
 router.get("/stats", auth, async (req, res) => {
   try {
     const businessId = req.businessId;
 
-    // Get referral code
+    // 1. Get referral code
     const codeResult = await pool.query(
       "SELECT referral_code FROM businesses WHERE id = $1",
       [businessId]
@@ -31,7 +32,7 @@ router.get("/stats", auth, async (req, res) => {
       );
     }
 
-    // Count referrals by status
+    // 2. Count referrals by status
     const statsResult = await pool.query(
       `SELECT 
         COUNT(*) as total,
@@ -42,18 +43,31 @@ router.get("/stats", auth, async (req, res) => {
       [businessId]
     );
 
-    // Get reward usage
+    // 3. Get reward usage
     const rewardResult = await pool.query(
       `SELECT referral_rewards_used, referral_rewards_earned 
        FROM businesses WHERE id = $1`,
       [businessId]
     );
 
-    // Check cooldown (last redemption date)
+    // 4. Check cooldown (last redemption date)
     const cooldownResult = await pool.query(
       `SELECT MAX(created_at) as last_redeemed 
        FROM referral_rewards 
        WHERE business_id = $1 AND reward_type = 'FREE_MONTH'`,
+      [businessId]
+    );
+
+    // 5. Fetch referral history (JOIN with referred business name)
+    const historyResult = await pool.query(
+      `SELECT 
+         r.status, 
+         r.created_at, 
+         b.business_name 
+       FROM referrals r
+       JOIN businesses b ON r.referred_id = b.id
+       WHERE r.referrer_id = $1
+       ORDER BY r.created_at DESC`,
       [businessId]
     );
 
@@ -75,6 +89,7 @@ router.get("/stats", auth, async (req, res) => {
       isCooldownActive = new Date() < cooldownEnd;
     }
 
+    // Return combined response
     res.json({
       referral_code: referralCode,
       stats: { total, successful, pending },
@@ -87,6 +102,7 @@ router.get("/stats", auth, async (req, res) => {
       isCooldownActive,
       cooldownEnds,
       referrals_needed: Math.max(0, 2 - (successful % 2 === 0 ? 0 : 1)),
+      history: historyResult.rows, // 👈 Added history array here
     });
   } catch (err) {
     console.error("Referral stats error:", err);
