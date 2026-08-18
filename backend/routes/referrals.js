@@ -119,9 +119,11 @@ router.post("/redeem", auth, async (req, res) => {
     const businessId = req.businessId;
 
     // ─── 1. CHECK AVAILABLE REWARDS ──────────────────────────────────
-    const countResult = await pool.query(
-  `SELECT COUNT(*) as count FROM referrals 
-   WHERE referrer_id = $1 AND status = 'SUCCESS'`,
+   const countResult = await pool.query(
+  `SELECT COUNT(*) AS count
+   FROM referrals
+   WHERE referrer_id = $1
+   AND status IN ('SUCCESS', 'SUCCESSFUL')`,
   [businessId]
 );
     const successful = parseInt(countResult.rows[0]?.count || 0);
