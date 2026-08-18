@@ -33,15 +33,16 @@ router.get("/stats", auth, async (req, res) => {
     }
 
     // 2. Count referrals by status
-    const statsResult = await pool.query(
-      `SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN status = 'SUCCESSFUL' THEN 1 END) as successful,
-        COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending
-       FROM referrals
-       WHERE referrer_id = $1`,
-      [businessId]
-    );
+   // Count referrals by status
+const statsResult = await pool.query(
+  `SELECT 
+    COUNT(*) as total,
+    COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) as successful,
+    COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending
+   FROM referrals
+   WHERE referrer_id = $1`,
+  [businessId]
+);
 
     // 3. Get reward usage
     const rewardResult = await pool.query(
@@ -117,10 +118,10 @@ router.post("/redeem", auth, async (req, res) => {
 
     // ─── 1. CHECK AVAILABLE REWARDS ──────────────────────────────────
     const countResult = await pool.query(
-      `SELECT COUNT(*) as count FROM referrals 
-       WHERE referrer_id = $1 AND status = 'SUCCESSFUL'`,
-      [businessId]
-    );
+  `SELECT COUNT(*) as count FROM referrals 
+   WHERE referrer_id = $1 AND status = 'SUCCESS'`,
+  [businessId]
+);
     const successful = parseInt(countResult.rows[0]?.count || 0);
 
     const rewardResult = await pool.query(
