@@ -36,9 +36,9 @@ router.get("/stats", auth, async (req, res) => {
    // Count referrals by status
 const statsResult = await pool.query(
   `SELECT 
-    COUNT(*) as total,
-    COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) as successful,
-    COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending
+    COUNT(*) AS total,
+    COUNT(CASE WHEN status IN ('SUCCESS', 'SUCCESSFUL') THEN 1 END) AS successful,
+    COUNT(CASE WHEN status = 'PENDING' THEN 1 END) AS pending
    FROM referrals
    WHERE referrer_id = $1`,
   [businessId]
@@ -102,7 +102,9 @@ const statsResult = await pool.query(
       reward_available: availableRewards > 0 && !isCooldownActive,
       isCooldownActive,
       cooldownEnds,
-      referrals_needed: Math.max(0, 2 - (successful % 2 === 0 ? 0 : 1)),
+      referrals_needed: successful % 2 === 0
+  ? 2
+  : 1,
       history: historyResult.rows, // 👈 Added history array here
     });
   } catch (err) {
