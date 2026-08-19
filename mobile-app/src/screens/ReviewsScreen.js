@@ -18,6 +18,7 @@ import { getReviews } from "../api";
 const STAR_FILTERS = ["All", "5", "4", "3", "2", "1"];
 const IS_WEB = Platform.OS === "web";
 const CONTENT_MAX = 1100;
+const INITIAL_REVIEWS_COUNT = 5;
 
 // ─── AI-STYLE OVERALL SUMMARY ───────────────────────────────────────
 // Builds a short combined summary from ALL reviews (not the filtered
@@ -53,12 +54,23 @@ const buildSummary = (list) => {
   return { total, avg, sentiment, positive, negative, topItems, text };
 };
 
+// ─── PRESENTATIONAL HELPERS (styling only — no data/logic changes) ───
+// Maps a rating to an accent colour used for the card's left rail and
+// the rating pill, so guests skimming the list get an instant visual
+// read before reading any text.
+const ratingAccentColor = (rating) => {
+  if (rating >= 4) return "#10B981";
+  if (rating === 3) return "#F59E0B";
+  return "#EF4444";
+};
+
 export default function ReviewsScreen() {
   const navigation = useNavigation();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [starFilter, setStarFilter] = useState("All");
   const [sortBy, setSortBy] = useState("latest"); // 'latest' or 'oldest'
+  const [visibleCount, setVisibleCount] = useState(INITIAL_REVIEWS_COUNT);
 
   useFocusEffect(
     useCallback(() => {
@@ -77,6 +89,20 @@ export default function ReviewsScreen() {
     }
   };
 
+  const handleStarFilterChange = (star) => {
+    setStarFilter(star);
+    setVisibleCount(INITIAL_REVIEWS_COUNT);
+  };
+
+  const handleSortChange = () => {
+    setSortBy(prev => (prev === "latest" ? "oldest" : "latest"));
+    setVisibleCount(INITIAL_REVIEWS_COUNT);
+  };
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 5);
+  };
+
   // Filter and Sort logic
   let displayedReviews = [...reviews];
   
@@ -89,6 +115,9 @@ export default function ReviewsScreen() {
     const dateB = new Date(b.created_at).getTime();
     return sortBy === "latest" ? dateB - dateA : dateA - dateB;
   });
+
+  const paginatedReviews = displayedReviews.slice(0, visibleCount);
+  const hasMore = visibleCount < displayedReviews.length;
 
   const summary = useMemo(() => buildSummary(reviews), [reviews]);
 
@@ -109,23 +138,27 @@ export default function ReviewsScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F7F6F3" }}>
         <ActivityIndicator size="large" color="#0F172A" />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F7F6F3" }}>
       {/* Header */}
       <View style={styles.navHeader}>
         <View style={styles.headerInner}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={22} color="#0F172A" />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+            <View style={styles.backBtnCircle}>
+              <Ionicons name="chevron-back" size={19} color="#0F172A" />
+            </View>
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <View style={styles.headerTitleRow}>
-            <Ionicons name="star" size={16} color="#F59E0B" />
+            <View style={styles.headerTitleIconWrap}>
+              <Ionicons name="star" size={14} color="#F59E0B" />
+            </View>
             <Text style={styles.headerTitle}>Reviews</Text>
           </View>
           <View style={styles.backBtn} />
@@ -142,33 +175,51 @@ export default function ReviewsScreen() {
           <View style={styles.summarySection}>
             <View style={styles.summaryInner}>
               <View style={styles.summaryCard}>
+                <View style={styles.summaryAccentBar} />
+
                 <View style={styles.summaryHeaderRow}>
                   <View style={styles.summaryIconWrap}>
-                    <Ionicons name="sparkles" size={15} color="#10B981" />
+                    <Ionicons name="sparkles" size={14} color="#34D399" />
                   </View>
                   <Text style={styles.summaryLabel}>AI Summary</Text>
+                  <View style={styles.summarySentimentPill}>
+                    <View style={[
+                      styles.summarySentimentDot,
+                      { backgroundColor: summary.sentiment === "mostly positive" ? "#34D399" : summary.sentiment === "mostly negative" ? "#F87171" : "#FBBF24" }
+                    ]} />
+                    <Text style={styles.summarySentimentText}>{summary.sentiment}</Text>
+                  </View>
                 </View>
 
                 <Text style={styles.summaryText}>{summary.text}</Text>
 
                 <View style={styles.summaryStatsRow}>
-                  <View style={styles.summaryStat}>
+                  <View style={styles.summaryStatTile}>
+                    <View style={[styles.summaryStatIconWrap, { backgroundColor: "rgba(96,165,250,0.16)" }]}>
+                      <Ionicons name="trophy-outline" size={14} color="#60A5FA" />
+                    </View>
                     <Text style={styles.summaryStatValue}>{summary.avg.toFixed(1)}</Text>
                     <Text style={styles.summaryStatLabel}>Avg Rating</Text>
                   </View>
-                  <View style={styles.summaryStatDivider} />
-                  <View style={styles.summaryStat}>
+                  <View style={styles.summaryStatTile}>
+                    <View style={[styles.summaryStatIconWrap, { backgroundColor: "rgba(148,163,184,0.16)" }]}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={14} color="#CBD5E1" />
+                    </View>
                     <Text style={styles.summaryStatValue}>{summary.total}</Text>
                     <Text style={styles.summaryStatLabel}>Total Reviews</Text>
                   </View>
-                  <View style={styles.summaryStatDivider} />
-                  <View style={styles.summaryStat}>
-                    <Text style={[styles.summaryStatValue, { color: "#10B981" }]}>{summary.positive}</Text>
+                  <View style={styles.summaryStatTile}>
+                    <View style={[styles.summaryStatIconWrap, { backgroundColor: "rgba(52,211,153,0.16)" }]}>
+                      <Ionicons name="thumbs-up-outline" size={14} color="#34D399" />
+                    </View>
+                    <Text style={[styles.summaryStatValue, { color: "#34D399" }]}>{summary.positive}</Text>
                     <Text style={styles.summaryStatLabel}>Positive</Text>
                   </View>
-                  <View style={styles.summaryStatDivider} />
-                  <View style={styles.summaryStat}>
-                    <Text style={[styles.summaryStatValue, { color: summary.negative > 0 ? "#EF4444" : "#0F172A" }]}>
+                  <View style={styles.summaryStatTile}>
+                    <View style={[styles.summaryStatIconWrap, { backgroundColor: summary.negative > 0 ? "rgba(248,113,113,0.16)" : "rgba(148,163,184,0.16)" }]}>
+                      <Ionicons name="alert-circle-outline" size={14} color={summary.negative > 0 ? "#F87171" : "#94A3B8"} />
+                    </View>
+                    <Text style={[styles.summaryStatValue, { color: summary.negative > 0 ? "#F87171" : "#fff" }]}>
                       {summary.negative}
                     </Text>
                     <Text style={styles.summaryStatLabel}>Needs Attention</Text>
@@ -183,9 +234,12 @@ export default function ReviewsScreen() {
         <View style={styles.filterSection}>
           <View style={styles.filterInner}>
             <View style={styles.filterTopRow}>
-              <Text style={styles.filterTitle}>Filter by Stars</Text>
-              <TouchableOpacity onPress={() => setSortBy(sortBy === "latest" ? "oldest" : "latest")} style={styles.sortBtn}>
-                <Ionicons name="swap-vertical" size={14} color="#64748B" />
+              <View style={styles.filterTitleRow}>
+                <Ionicons name="options-outline" size={15} color="#0F172A" />
+                <Text style={styles.filterTitle}>Filter by Stars</Text>
+              </View>
+              <TouchableOpacity onPress={handleSortChange} style={styles.sortBtn} activeOpacity={0.75}>
+                <Ionicons name="swap-vertical" size={13} color="#475569" />
                 <Text style={styles.sortBtnText}>{sortBy === "latest" ? "Latest First" : "Oldest First"}</Text>
               </TouchableOpacity>
             </View>
@@ -195,7 +249,8 @@ export default function ReviewsScreen() {
                 <TouchableOpacity
                   key={star}
                   style={[styles.filterTab, starFilter === star && styles.filterTabActive]}
-                  onPress={() => setStarFilter(star)}
+                  onPress={() => handleStarFilterChange(star)}
+                  activeOpacity={0.8}
                 >
                   {star !== "All" && (
                     <Ionicons
@@ -219,50 +274,99 @@ export default function ReviewsScreen() {
           {displayedReviews.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="star-half-outline" size={26} color="#94A3B8" />
+                <Ionicons name="star-half-outline" size={28} color="#94A3B8" />
               </View>
               <Text style={styles.emptyText}>No reviews found for this filter.</Text>
+              <Text style={styles.emptySubText}>Try a different star rating or check back later.</Text>
             </View>
           ) : (
-            displayedReviews.map((item) => {
-              const orderedItems = Array.isArray(item.ordered_items) ? item.ordered_items : [];
-              return (
-                <View key={String(item.id)} style={styles.reviewCard}>
-                  <View style={styles.cardHeader}>
-                    <View style={styles.tableBadge}>
-                      <Text style={styles.tableBadgeText}>T{item.table_number}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.tableText}>Table {item.table_number}</Text>
-                      <Text style={styles.dateText}>
-                        {new Date(item.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} at{" "}
-                        {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                      </Text>
-                    </View>
-                    {renderStars(item.rating)}
-                  </View>
+            <>
+              {paginatedReviews.map((item) => {
+                const orderedItems = Array.isArray(item.ordered_items) ? item.ordered_items : [];
+                const accentColor = ratingAccentColor(item.rating);
+                return (
+                  <View key={String(item.id)} style={styles.reviewCard}>
+                    <View style={[styles.reviewCardAccent, { backgroundColor: accentColor }]} />
 
-                  {item.comment ? (
-                    <Text style={styles.commentText}>"{item.comment}"</Text>
-                  ) : (
-                    <Text style={[styles.commentText, styles.commentTextEmpty]}>No written feedback provided.</Text>
-                  )}
+                    <View style={styles.cardHeader}>
+                      {/* User Avatar */}
+                      <View style={styles.avatarWrap}>
+                        <Ionicons name="person" size={17} color="#475569" />
+                      </View>
 
-                  {orderedItems.length > 0 && (
-                    <View style={styles.itemsBox}>
-                      <Text style={styles.itemsTitle}>Items Ordered</Text>
-                      <View style={styles.itemsGrid}>
-                        {orderedItems.map((food, idx) => (
-                          <View key={idx} style={styles.itemPill}>
-                            <Text style={styles.itemText}>{food.name} × {food.quantity}</Text>
-                          </View>
-                        ))}
+                      {/* Guest Title & Table Pill */}
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.nameRow}>
+                          <Text style={styles.tableText}>Dine-in Guest</Text>
+                          {item.table_number && (
+                            <View style={styles.tableBadge}>
+                              <Ionicons name="grid-outline" size={10} color="#475569" style={{ marginRight: 3 }} />
+                              <Text style={styles.tableBadgeText}>Table {item.table_number}</Text>
+                            </View>
+                          )}
+                        </View>
+
+                        <View style={styles.dateRow}>
+                          <Ionicons name="time-outline" size={11} color="#94A3B8" style={{ marginRight: 4 }} />
+                          <Text style={styles.dateText}>
+                            {new Date(item.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} at{" "}
+                            {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.ratingCol}>
+                        {renderStars(item.rating)}
+                        <View style={[styles.ratingPill, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}40` }]}>
+                          <Text style={[styles.ratingPillText, { color: accentColor }]}>{item.rating.toFixed(1)}</Text>
+                        </View>
                       </View>
                     </View>
-                  )}
-                </View>
-              );
-            })
+
+                    {item.comment ? (
+                      <View style={styles.commentBox}>
+                        <Ionicons name="chatbox-ellipses-outline" size={14} color="#CBD5E1" style={{ marginRight: 8, marginTop: 2 }} />
+                        <Text style={styles.commentText}>{item.comment}</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.commentBox}>
+                        <Ionicons name="chatbox-outline" size={14} color="#CBD5E1" style={{ marginRight: 8, marginTop: 2 }} />
+                        <Text style={[styles.commentText, styles.commentTextEmpty]}>No written feedback provided.</Text>
+                      </View>
+                    )}
+
+                    {orderedItems.length > 0 && (
+                      <View style={styles.itemsBox}>
+                        <View style={styles.itemsTitleRow}>
+                          <Ionicons name="restaurant-outline" size={12} color="#64748B" style={{ marginRight: 5 }} />
+                          <Text style={styles.itemsTitle}>Items Ordered</Text>
+                        </View>
+                        <View style={styles.itemsGrid}>
+                          {orderedItems.map((food, idx) => (
+                            <View key={idx} style={styles.itemPill}>
+                              <Text style={styles.itemText}>{food.name} × {food.quantity}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+
+              {/* Load More Button */}
+              {hasMore && (
+                <TouchableOpacity onPress={handleLoadMore} style={styles.loadMoreBtn} activeOpacity={0.8}>
+                  <Text style={styles.loadMoreText}>
+                    Load More Reviews
+                  </Text>
+                  <View style={styles.loadMoreCountBadge}>
+                    <Text style={styles.loadMoreCountText}>{displayedReviews.length - visibleCount}</Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={15} color="#0F172A" />
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
@@ -273,9 +377,13 @@ export default function ReviewsScreen() {
 const styles = StyleSheet.create({
   navHeader: { 
     borderBottomWidth: 1, 
-    borderBottomColor: "#E2E8F0", 
+    borderBottomColor: "#E7E4DE", 
     backgroundColor: "#fff", 
-    paddingVertical: 12 
+    paddingVertical: 14,
+    ...Platform.select({
+      web: { position: "sticky", top: 0, zIndex: 10 },
+      default: {},
+    }),
   },
   headerInner: {
     flexDirection: "row", 
@@ -286,53 +394,107 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%'
   },
-  backBtn: { flexDirection: "row", alignItems: "center", minWidth: 60 },
-  backText: { fontSize: 15, fontWeight: "600", marginLeft: 2, color: "#0F172A" },
-  headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  headerTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  backBtn: { flexDirection: "row", alignItems: "center", minWidth: 70, gap: 8 },
+  backBtnCircle: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: "#F1F0EC",
+    alignItems: "center", justifyContent: "center",
+  },
+  backText: { fontSize: 14.5, fontWeight: "600", color: "#0F172A" },
+  headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  headerTitleIconWrap: {
+    width: 24, height: 24, borderRadius: 8,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center", justifyContent: "center",
+  },
+  headerTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A", letterSpacing: -0.2 },
 
   // ─── AI SUMMARY ─────────────────────────────────────────────────
-  summarySection: { backgroundColor: "#FAF8F5", paddingTop: 16, paddingBottom: 4 },
+  summarySection: { backgroundColor: "#F7F6F3", paddingTop: 18, paddingBottom: 4 },
   summaryInner: { paddingHorizontal: 16, maxWidth: CONTENT_MAX, alignSelf: "center", width: "100%" },
   summaryCard: {
-    backgroundColor: "#0F172A",
-    borderRadius: 18,
-    padding: 18,
+    backgroundColor: "#0B1220",
+    borderRadius: 20,
+    padding: 20,
+    position: "relative",
+    overflow: "hidden",
+    shadowColor: "#0B1220",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 4,
   },
-  summaryHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  summaryAccentBar: {
+    position: "absolute",
+    top: 0, left: 0, right: 0,
+    height: 3,
+    backgroundColor: "#34D399",
+  },
+  summaryHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   summaryIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(16,185,129,0.18)",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(52,211,153,0.16)",
     alignItems: "center",
     justifyContent: "center",
   },
   summaryLabel: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#94A3B8",
     textTransform: "uppercase",
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
+    flex: 1,
   },
-  summaryText: { fontSize: 14.5, lineHeight: 22, color: "#F1F5F9", marginBottom: 16 },
+  summarySentimentPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  summarySentimentDot: { width: 6, height: 6, borderRadius: 3 },
+  summarySentimentText: { fontSize: 10.5, fontWeight: "700", color: "#E2E8F0", textTransform: "capitalize" },
+  summaryText: { fontSize: 14.5, lineHeight: 22.5, color: "#E2E8F0", marginBottom: 18 },
   summaryStatsRow: {
     flexDirection: "row",
+    gap: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
-    paddingTop: 14,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    paddingTop: 16,
   },
-  summaryStat: { flex: 1, alignItems: "center" },
-  summaryStatDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.1)" },
+  summaryStatTile: {
+    flex: 1,
+    alignItems: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.035)",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  summaryStatIconWrap: {
+    width: 22, height: 22, borderRadius: 7,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 8,
+  },
   summaryStatValue: { fontSize: 17, fontWeight: "800", color: "#fff" },
-  summaryStatLabel: { fontSize: 10.5, color: "#94A3B8", marginTop: 3, textAlign: "center" },
+  summaryStatLabel: { fontSize: 10, color: "#94A3B8", marginTop: 3, fontWeight: "500" },
 
   // ─── FILTERS ────────────────────────────────────────────────────
   filterSection: { 
     backgroundColor: "#fff", 
     borderBottomWidth: 1, 
-    borderBottomColor: "#E2E8F0",
-    paddingVertical: 16
+    borderBottomColor: "#E7E4DE",
+    paddingVertical: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
   },
   filterInner: {
     paddingHorizontal: 16,
@@ -341,72 +503,127 @@ const styles = StyleSheet.create({
     width: '100%'
   },
   filterTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  filterTitle: { fontWeight: "700", color: "#1E293B", fontSize: 14 },
+  filterTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  filterTitle: { fontWeight: "700", color: "#0F172A", fontSize: 14 },
   sortBtn: { 
     flexDirection: "row", 
     alignItems: "center", 
-    gap: 4, 
-    backgroundColor: "#F1F5F9", 
-    paddingHorizontal: 10, 
-    paddingVertical: 6, 
-    borderRadius: 8 
+    gap: 5, 
+    backgroundColor: "#F1F0EC", 
+    paddingHorizontal: 11, 
+    paddingVertical: 7, 
+    borderRadius: 9,
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
-  sortBtnText: { fontSize: 12, fontWeight: "600", color: "#64748B" },
+  sortBtnText: { fontSize: 12, fontWeight: "700", color: "#475569" },
   filterTab: { 
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14, 
-    paddingVertical: 8, 
-    borderRadius: 20, 
-    borderWidth: 1, 
-    borderColor: "#E2E8F0", 
-    backgroundColor: "#fff" 
+    paddingVertical: 9, 
+    borderRadius: 22, 
+    borderWidth: 1.5, 
+    borderColor: "#E7E4DE", 
+    backgroundColor: "#fff",
+    ...Platform.select({ web: { cursor: "pointer", transition: "all 0.15s ease" } }),
   },
   filterTabActive: { backgroundColor: "#0F172A", borderColor: "#0F172A" },
-  filterTabText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
+  filterTabText: { fontSize: 13, fontWeight: "700", color: "#475569" },
 
   // ─── LIST ───────────────────────────────────────────────────────
-  listWrap: { padding: 16 },
-  emptyState: { alignItems: "center", marginTop: 44, gap: 10 },
+  listWrap: { padding: 16, paddingTop: 18 },
+  emptyState: { alignItems: "center", marginTop: 52, gap: 6 },
   emptyIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#F1F5F9",
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "#EFEDE7",
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 6,
   },
-  emptyText: { color: "#64748B", fontSize: 14, fontWeight: "500" },
+  emptyText: { color: "#334155", fontSize: 15, fontWeight: "700" },
+  emptySubText: { color: "#94A3B8", fontSize: 13, fontWeight: "500" },
 
   reviewCard: { 
     backgroundColor: "#fff", 
-    padding: 16, 
-    borderRadius: 16, 
+    padding: 18, 
+    paddingLeft: 20,
+    borderRadius: 18, 
     marginBottom: 14, 
     borderWidth: 1, 
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2
+    borderColor: "#EDEBE5",
+    position: "relative",
+    overflow: "hidden",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    elevation: 2,
+    ...Platform.select({ web: { transition: "box-shadow 0.18s ease, transform 0.18s ease" } }),
   },
-  cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 12 },
-  tableBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "#F1F5F9",
+  reviewCardAccent: {
+    position: "absolute",
+    left: 0, top: 0, bottom: 0,
+    width: 4,
+  },
+  cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+  avatarWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F1F0EC",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E7E4DE",
   },
-  tableBadgeText: { fontSize: 12, fontWeight: "800", color: "#334155" },
-  tableText: { fontSize: 15, fontWeight: "800", color: "#0F172A" },
-  dateText: { fontSize: 12, color: "#64748B", marginTop: 2 },
-  commentText: { fontSize: 15, color: "#1E293B", lineHeight: 22, marginBottom: 12 },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  tableText: { fontSize: 15, fontWeight: "700", color: "#0F172A" },
+  tableBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F0EC",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E7E4DE",
+  },
+  tableBadgeText: { fontSize: 11, fontWeight: "700", color: "#475569" },
+  dateRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  dateText: { fontSize: 12, color: "#94A3B8", fontWeight: "500" },
+
+  ratingCol: { alignItems: "flex-end", gap: 6 },
+  ratingPill: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  ratingPillText: { fontSize: 12, fontWeight: "800" },
+
+  commentBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FAFAF8",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#F1F0EC",
+  },
+  commentText: { flex: 1, fontSize: 14.5, color: "#1E293B", lineHeight: 22 },
   commentTextEmpty: { color: "#94A3B8", fontStyle: "italic" },
   
   itemsBox: { backgroundColor: "#F8FAFC", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#F1F5F9" },
-  itemsTitle: { fontSize: 11, fontWeight: "700", color: "#64748B", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 },
+  itemsTitleRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  itemsTitle: { fontSize: 11, fontWeight: "700", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.4 },
   itemsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   itemPill: {
     backgroundColor: "#fff",
@@ -416,5 +633,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 5,
   },
-  itemText: { fontSize: 12.5, color: "#475569", fontWeight: "600" }
+  itemText: { fontSize: 12.5, color: "#475569", fontWeight: "600" },
+
+  // ─── LOAD MORE ──────────────────────────────────────────────────
+  loadMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#E7E4DE",
+    borderRadius: 14,
+    paddingVertical: 13,
+    marginTop: 6,
+    marginBottom: 20,
+    ...Platform.select({ web: { cursor: "pointer", transition: "border-color 0.15s ease" } }),
+  },
+  loadMoreText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  loadMoreCountBadge: {
+    backgroundColor: "#F1F0EC",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  loadMoreCountText: {
+    fontSize: 11.5,
+    fontWeight: "800",
+    color: "#475569",
+  },
 });

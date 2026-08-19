@@ -16,9 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-const isWeb = Platform.OS === 'web';
-
-// ===== FAQ DATA (unchanged) =====
+// ===== FAQ DATA =====
 const FAQS = [
     // ===== SUBSCRIPTION & PAYMENT =====
     {
@@ -31,7 +29,7 @@ const FAQS = [
         id: 'sub2',
         category: 'Subscription & Payment',
         question: 'How does Razorpay payment work?',
-        answer: 'When you subscribe, we create a secure Razorpay order. You\'re redirected to Razorpay\'s secure payment page (Web) or the Razorpay SDK (Mobile). After successful payment, your subscription is activated instantly. All payments are secure and PCI-DSS compliant. No auto-debit, no card details are saved.',
+        answer: "When you subscribe, we create a secure Razorpay order. You're redirected to Razorpay's secure payment page (Web) or the Razorpay SDK (Mobile). After successful payment, your subscription is activated instantly. All payments are secure and PCI-DSS compliant. No auto-debit, no card details are saved.",
     },
     {
         id: 'sub3',
@@ -45,13 +43,13 @@ const FAQS = [
         id: 'feature1',
         category: 'App Features',
         question: 'How does AI Advisor work?',
-        answer: 'AI Advisor analyzes your restaurant\'s live data including daily sales, order patterns, customer reviews, and seasonal trends. It uses this data to generate personalized insights and recommendations to help you grow your business. The more data you have, the smarter the recommendations become!',
+        answer: "AI Advisor analyzes your restaurant's live data including daily sales, order patterns, customer reviews, and seasonal trends. It uses this data to generate personalized insights and recommendations to help you grow your business. The more data you have, the smarter the recommendations become!",
     },
     {
         id: 'feature2',
         category: 'App Features',
         question: 'How is the Daily AI Summary generated?',
-        answer: 'Every day at 3:00 AM, our system automatically collects your previous day\'s sales data, order history, and key metrics. It then generates a concise summary highlighting your top-performing items, revenue trends, and actionable insights to help you make better business decisions.',
+        answer: "Every day at 3:00 AM, our system automatically collects your previous day's sales data, order history, and key metrics. It then generates a concise summary highlighting your top-performing items, revenue trends, and actionable insights to help you make better business decisions.",
     },
     {
         id: 'feature3',
@@ -139,7 +137,7 @@ const FAQS = [
     },
 ];
 
-// ===== CATEGORY ORDER (unchanged) =====
+// ===== CATEGORY ORDER =====
 const CATEGORIES = [
     'Subscription & Payment',
     'App Features',
@@ -165,12 +163,12 @@ const CATEGORY_ICONS = {
 
 export default function SupportScreen() {
     const navigation = useNavigation();
+    const { width } = useWindowDimensions();
     const [expandedId, setExpandedId] = useState(null);
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
-    const { width } = useWindowDimensions();
 
-    const contentMaxWidth = isWeb ? Math.min(width, 760) : undefined;
+    const isSmallScreen = width < 600;
 
     const toggleFAQ = (id) => {
         setExpandedId(expandedId === id ? null : id);
@@ -180,7 +178,6 @@ export default function SupportScreen() {
         Linking.openURL('mailto:support@servon.cloud?subject=Support Request');
     };
 
-    // Visual/filtering only — does not touch FAQS data or the expand/collapse logic
     const query = search.trim().toLowerCase();
     const visibleFAQs = useMemo(() => {
         return FAQS.filter((f) => {
@@ -201,7 +198,7 @@ export default function SupportScreen() {
         <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             {/* Header */}
             <View style={styles.header}>
-                <View style={[styles.headerInner, { maxWidth: contentMaxWidth, width: '100%' }]}>
+                <View style={styles.headerInner}>
                     <TouchableOpacity
                         style={styles.backBtn}
                         onPress={() => navigation.goBack()}
@@ -219,7 +216,7 @@ export default function SupportScreen() {
                 showsVerticalScrollIndicator={false}
                 stickyHeaderIndices={[1]}
             >
-                <View style={[styles.introBlock, { maxWidth: contentMaxWidth, width: '100%' }]}>
+                <View style={styles.introBlock}>
                     <Text style={styles.introTitle}>Search for anything</Text>
                     <Text style={styles.introSubtitle}>
                         Or browse a topic below to find your answer
@@ -247,10 +244,7 @@ export default function SupportScreen() {
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={[
-                            styles.pillBar,
-                            { maxWidth: contentMaxWidth, alignSelf: 'center' },
-                        ]}
+                        contentContainerStyle={styles.pillBar}
                     >
                         <TouchableOpacity
                             onPress={() => handleCategoryPress('All')}
@@ -290,7 +284,7 @@ export default function SupportScreen() {
                     </ScrollView>
                 </View>
 
-                <View style={[styles.scrollContent, { maxWidth: contentMaxWidth, width: '100%' }]}>
+                <View style={styles.scrollContent}>
                     {/* Results count */}
                     <Text style={styles.resultsLabel}>
                         {visibleFAQs.length} {visibleFAQs.length === 1 ? 'answer' : 'answers'}
@@ -343,22 +337,21 @@ export default function SupportScreen() {
                         </View>
                     )}
 
-                    {/* Contact Section */}
-                    <View style={styles.contactSection}>
-                        <View style={styles.contactLeft}>
+                    {/* Responsive Contact Section */}
+                    <View style={[styles.contactSection, isSmallScreen && styles.contactSectionMobile]}>
+                        <View style={[styles.contactLeft, isSmallScreen && styles.contactLeftMobile]}>
                             <Text style={styles.contactTitle}>Still stuck?</Text>
                             <Text style={styles.contactSubtitle}>
                                 Our support team usually replies within a few hours.
                             </Text>
                         </View>
                         <TouchableOpacity
-                            style={styles.contactBtn}
-                            
+                            style={[styles.contactBtn, isSmallScreen && styles.contactBtnMobile]}
+                            onPress={handleEmailSupport}
                             activeOpacity={0.85}
                         >
-                            
+                            <Ionicons name="mail-outline" size={16} color="#111827" />
                             <Text style={styles.contactBtnText}>Email us at support@servon.cloud</Text>
-                            
                         </TouchableOpacity>
                     </View>
 
@@ -375,18 +368,18 @@ const styles = StyleSheet.create({
         backgroundColor: '#FAFAF8',
     },
     header: {
-        alignItems: 'center',
         backgroundColor: '#FAFAF8',
         borderBottomWidth: 1,
         borderBottomColor: '#EEEBE4',
+        width: '100%',
     },
     headerInner: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        alignSelf: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        width: '100%',
     },
     backBtn: {
         width: 30,
@@ -395,19 +388,18 @@ const styles = StyleSheet.create({
         ...Platform.select({ web: { cursor: 'pointer' } }),
     },
     headerTitle: {
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: '700',
         color: '#111827',
     },
     scrollContentOuter: {
-        alignItems: 'center',
         paddingBottom: 20,
     },
     introBlock: {
-        alignSelf: 'center',
+        width: '100%',
         paddingHorizontal: 20,
-        paddingTop: 28,
-        paddingBottom: 18,
+        paddingTop: 24,
+        paddingBottom: 16,
     },
     introTitle: {
         fontSize: 24,
@@ -419,7 +411,7 @@ const styles = StyleSheet.create({
     introSubtitle: {
         fontSize: 14,
         color: '#6B7280',
-        marginBottom: 18,
+        marginBottom: 16,
     },
     searchBar: {
         flexDirection: 'row',
@@ -436,6 +428,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.03,
         shadowRadius: 4,
         elevation: 1,
+        width: '100%',
     },
     searchInput: {
         flex: 1,
@@ -481,7 +474,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 20,
         paddingTop: 18,
-        alignSelf: 'center',
+        width: '100%',
     },
     resultsLabel: {
         fontSize: 12,
@@ -489,7 +482,7 @@ const styles = StyleSheet.create({
         color: '#9CA3AF',
         textTransform: 'uppercase',
         letterSpacing: 0.6,
-        marginBottom: 10,
+        marginBottom: 12,
     },
     emptyState: {
         alignItems: 'center',
@@ -512,7 +505,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#EEEBE4',
         overflow: 'hidden',
-        marginBottom: 24,
+        marginBottom: 20,
+        width: '100%',
     },
     faqRow: {
         paddingHorizontal: 16,
@@ -527,11 +521,11 @@ const styles = StyleSheet.create({
     faqRowTop: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: 12,
     },
     faqIconDot: {
-        width: 26,
-        height: 26,
+        width: 28,
+        height: 28,
         borderRadius: 8,
         backgroundColor: '#ECFDF5',
         alignItems: 'center',
@@ -549,19 +543,30 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         lineHeight: 21,
         marginTop: 10,
-        marginLeft: 36,
+        marginLeft: 40,
     },
+    // Desktop layout defaults
     contactSection: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         backgroundColor: '#F4F2EC',
         borderRadius: 16,
-        padding: 18,
-        gap: 12,
+        padding: 20,
+        gap: 16,
+        width: '100%',
+    },
+    contactSectionMobile: {
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 14,
+        padding: 16,
     },
     contactLeft: {
         flex: 1,
+    },
+    contactLeftMobile: {
+        width: '100%',
     },
     contactTitle: {
         fontSize: 15,
@@ -577,14 +582,18 @@ const styles = StyleSheet.create({
     contactBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        justifyContent: 'center',
+        gap: 8,
         backgroundColor: '#fff',
         paddingHorizontal: 16,
-        paddingVertical: 11,
+        paddingVertical: 12,
         borderRadius: 12,
         borderWidth: 1,
         borderColor: '#E5E1D8',
         ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    contactBtnMobile: {
+        width: '100%',
     },
     contactBtnText: {
         fontSize: 13,

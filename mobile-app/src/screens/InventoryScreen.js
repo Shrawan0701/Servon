@@ -23,25 +23,25 @@ if (isWeb && typeof document !== "undefined") {
   }
   style.textContent = `
     .inv-stock-card {
-      background: #fff; border: 1px solid #EAE6E0; border-radius: 20px;
-      padding: 22px; display: flex; flex-direction: column;
+      background: #fff; border: 1px solid #EAE6E0; border-radius: 14px;
+      padding: 14px 16px; display: flex; flex-direction: column;
       transition: box-shadow 0.18s ease, transform 0.18s ease;
     }
-    .inv-stock-card:hover { box-shadow: 0 10px 28px rgba(0,0,0,0.08); transform: translateY(-2px); }
+    .inv-stock-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.07); transform: translateY(-1px); }
     .inv-stock-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px; padding: 20px 24px 40px; max-width: 1200px; margin: 0 auto; width: 100%;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 12px; padding: 16px 24px 32px; max-width: 1200px; margin: 0 auto; width: 100%;
     }
     .inv-recipe-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 14px; padding: 20px 24px 40px; max-width: 1200px; margin: 0 auto; width: 100%;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px; padding: 16px 24px 32px; max-width: 1200px; margin: 0 auto; width: 100%;
     }
     .inv-recipe-card {
-      background: #fff; border: 1px solid #EAE6E0; border-radius: 18px;
-      padding: 18px 20px; cursor: pointer; display: flex; align-items: center; gap: 14px;
+      background: #fff; border: 1px solid #EAE6E0; border-radius: 14px;
+      padding: 13px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px;
       transition: box-shadow 0.18s ease, transform 0.18s ease;
     }
-    .inv-recipe-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.07); transform: translateY(-2px); }
+    .inv-recipe-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.07); transform: translateY(-1px); }
     .inv-btn-restock:hover { background: #0EA371 !important; }
     .inv-fab-web:hover { background: #1F2937 !important; }
   `;
@@ -297,7 +297,7 @@ export default function InventoryScreen() {
             onPress={() => setActiveTab("stock")}
             activeOpacity={0.8}
           >
-            <Ionicons name="cube" size={18} color={activeTab === "stock" ? "#fff" : "#6B7280"} />
+            <Ionicons name="cube" size={16} color={activeTab === "stock" ? "#fff" : "#6B7280"} />
             <Text style={[styles.tabBtnText, activeTab === "stock" && styles.tabBtnTextActive]}>
               My Stock
             </Text>
@@ -307,7 +307,7 @@ export default function InventoryScreen() {
             onPress={() => setActiveTab("recipes")}
             activeOpacity={0.8}
           >
-            <Ionicons name="link" size={18} color={activeTab === "recipes" ? "#fff" : "#6B7280"} />
+            <Ionicons name="link" size={16} color={activeTab === "recipes" ? "#fff" : "#6B7280"} />
             <Text style={[styles.tabBtnText, activeTab === "recipes" && styles.tabBtnTextActive]}>
               Link Menu Items
             </Text>
@@ -316,7 +316,7 @@ export default function InventoryScreen() {
 
         {activeTab === "stock" && (
           <TouchableOpacity style={styles.headerAddBtn} onPress={openAddItem} activeOpacity={0.85}>
-            <Ionicons name="add-circle" size={20} color="#fff" />
+            <Ionicons name="add-circle" size={18} color="#fff" />
             <Text style={styles.headerAddBtnText}>Add New Stock Item</Text>
           </TouchableOpacity>
         )}
@@ -652,59 +652,59 @@ function StockCardWeb({ item, onRestock, onEdit, onDelete }) {
     <div className="inv-stock-card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>{item.name}</div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 3 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{item.name}</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.4, marginTop: 2 }}>
             {unitLabel(item.unit)}
           </div>
         </div>
         {item.is_low && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#FEF2F2", borderRadius: 10, padding: "5px 10px", flexShrink: 0 }}>
-            <Ionicons name="alert-circle" size={13} color="#EF4444" />
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#EF4444" }}>Low Stock</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 3, background: "#FEF2F2", borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>
+            <Ionicons name="alert-circle" size={11} color="#EF4444" />
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#EF4444" }}>Low</span>
           </div>
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 18 }}>
-        <span style={{ fontSize: 34, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{formatQty(item.current_stock)}</span>
-        <span style={{ fontSize: 15, color: "#6B7280", fontWeight: 700, marginBottom: 4 }}>{item.unit}</span>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 10 }}>
+        <span style={{ fontSize: 24, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{formatQty(item.current_stock)}</span>
+        <span style={{ fontSize: 13, color: "#6B7280", fontWeight: 700, marginBottom: 3 }}>{item.unit}</span>
       </div>
-      <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 6 }}>
-        Alert when below {formatQty(item.low_stock_threshold)} {item.unit}
+      <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
+        Alert below {formatQty(item.low_stock_threshold)} {item.unit}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 18, paddingTop: 18, borderTop: "1px solid #F3F4F6" }}>
+      <div style={{ display: "flex", gap: 6, marginTop: 12, paddingTop: 12, borderTop: "1px solid #F3F4F6" }}>
         <button
           className="inv-btn-restock"
           onClick={onRestock}
           style={{
-            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            background: "#10B981", border: "none", borderRadius: 12, padding: "12px 0",
-            color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
+            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            background: "#10B981", border: "none", borderRadius: 10, padding: "9px 0",
+            color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
           }}
         >
-          <Ionicons name="add-circle-outline" size={16} color="#fff" />
+          <Ionicons name="add-circle-outline" size={14} color="#fff" />
           Add Stock
         </button>
         <button
           onClick={onEdit}
           style={{
-            width: 44, height: 44, borderRadius: 12, background: "#F3F4F6",
+            width: 36, height: 36, borderRadius: 10, background: "#F3F4F6",
             border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
           }}
           title="Edit item"
         >
-          <Ionicons name="create-outline" size={18} color="#374151" />
+          <Ionicons name="create-outline" size={15} color="#374151" />
         </button>
         <button
           onClick={onDelete}
           style={{
-            width: 44, height: 44, borderRadius: 12, background: "#FEF2F2",
+            width: 36, height: 36, borderRadius: 10, background: "#FEF2F2",
             border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
           }}
           title="Remove item"
         >
-          <Ionicons name="trash-outline" size={18} color="#EF4444" />
+          <Ionicons name="trash-outline" size={15} color="#EF4444" />
         </button>
       </div>
     </div>
@@ -717,29 +717,29 @@ function RecipeCardWeb({ item, onPress }) {
     <div className="inv-recipe-card" onClick={onPress}>
       <div
         style={{
-          width: 46, height: 46, borderRadius: 13, flexShrink: 0,
+          width: 38, height: 38, borderRadius: 11, flexShrink: 0,
           background: linked ? "#ECFDF5" : "#F3F4F6",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}
       >
-        <Ionicons name="restaurant-outline" size={20} color={linked ? "#10B981" : "#9CA3AF"} />
+        <Ionicons name="restaurant-outline" size={17} color={linked ? "#10B981" : "#9CA3AF"} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>{item.name}</div>
-        <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 600, marginTop: 2 }}>{item.category}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{item.name}</div>
+        <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600, marginTop: 1 }}>{item.category}</div>
       </div>
       {linked ? (
-        <div style={{ background: "#ECFDF5", borderRadius: 10, padding: "6px 11px", flexShrink: 0 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#10B981" }}>
+        <div style={{ background: "#ECFDF5", borderRadius: 9, padding: "5px 9px", flexShrink: 0 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#10B981" }}>
             {item.ingredient_count} linked
           </span>
         </div>
       ) : (
-        <div style={{ background: "#FFFBEB", borderRadius: 10, padding: "6px 11px", flexShrink: 0 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#B45309" }}>Set up now</span>
+        <div style={{ background: "#FFFBEB", borderRadius: 9, padding: "5px 9px", flexShrink: 0 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#B45309" }}>Set up now</span>
         </div>
       )}
-      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+      <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
     </div>
   );
 }
@@ -755,7 +755,7 @@ function StockCardNative({ item, onRestock, onEdit, onDelete }) {
         </View>
         {item.is_low && (
           <View style={styles.lowBadge}>
-            <Ionicons name="alert-circle" size={13} color="#EF4444" />
+            <Ionicons name="alert-circle" size={12} color="#EF4444" />
             <Text style={styles.lowBadgeText}>Low Stock</Text>
           </View>
         )}
@@ -769,14 +769,14 @@ function StockCardNative({ item, onRestock, onEdit, onDelete }) {
 
       <View style={styles.stockCardActions}>
         <TouchableOpacity style={styles.restockBtn} onPress={onRestock} activeOpacity={0.85}>
-          <Ionicons name="add-circle-outline" size={17} color="#fff" />
+          <Ionicons name="add-circle-outline" size={16} color="#fff" />
           <Text style={styles.restockBtnText}>Add Stock</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconActionBtn} onPress={onEdit} activeOpacity={0.8}>
-          <Ionicons name="create-outline" size={18} color="#374151" />
+          <Ionicons name="create-outline" size={16} color="#374151" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconActionBtnDanger} onPress={onDelete} activeOpacity={0.8}>
-          <Ionicons name="trash-outline" size={18} color="#EF4444" />
+          <Ionicons name="trash-outline" size={16} color="#EF4444" />
         </TouchableOpacity>
       </View>
     </View>
@@ -788,7 +788,7 @@ function RecipeCardNative({ item, onPress }) {
   return (
     <TouchableOpacity style={styles.recipeCard} onPress={onPress} activeOpacity={0.8}>
       <View style={[styles.recipeIconWrap, { backgroundColor: linked ? "#ECFDF5" : "#F3F4F6" }]}>
-        <Ionicons name="restaurant-outline" size={20} color={linked ? "#10B981" : "#9CA3AF"} />
+        <Ionicons name="restaurant-outline" size={18} color={linked ? "#10B981" : "#9CA3AF"} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.recipeName}>{item.name}</Text>
@@ -803,7 +803,7 @@ function RecipeCardNative({ item, onPress }) {
           <Text style={styles.notConfiguredBadgeText}>Set up now</Text>
         </View>
       )}
-      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+      <Ionicons name="chevron-forward" size={17} color="#9CA3AF" />
     </TouchableOpacity>
   );
 }
@@ -821,53 +821,53 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12 },
   loadingText: { fontSize: 14, color: "#9CA3AF", fontWeight: "600" },
 
-  header: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E8E2D9", paddingBottom: 16 },
-  headerTop: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 20, paddingTop: 16, gap: 14, maxWidth: 1200, alignSelf: "center", width: "100%" },
-  backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 22, fontWeight: "800", color: "#111827" },
-  headerHint: { fontSize: 13, color: "#6B7280", marginTop: 4, lineHeight: 18 },
+  header: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E8E2D9", paddingBottom: 12 },
+  headerTop: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 20, paddingTop: 14, gap: 14, maxWidth: 1200, alignSelf: "center", width: "100%" },
+  backBtn: { width: 38, height: 38, borderRadius: 11, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
+  headerHint: { fontSize: 12.5, color: "#6B7280", marginTop: 3, lineHeight: 17 },
 
-  tabRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, marginTop: 18, maxWidth: 1200, alignSelf: "center", width: "100%" },
-  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 14, backgroundColor: "#F3F4F6" },
+  tabRow: { flexDirection: "row", gap: 8, paddingHorizontal: 20, marginTop: 14, maxWidth: 1200, alignSelf: "center", width: "100%" },
+  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 11, borderRadius: 12, backgroundColor: "#F3F4F6" },
   tabBtnActive: { backgroundColor: "#111827" },
-  tabBtnText: { fontSize: 14, fontWeight: "700", color: "#6B7280" },
+  tabBtnText: { fontSize: 13, fontWeight: "700", color: "#6B7280" },
   tabBtnTextActive: { color: "#fff" },
 
   headerAddBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#10B981", borderRadius: 14, paddingVertical: 14,
-    marginHorizontal: 20, marginTop: 14, maxWidth: 1160, alignSelf: "center", width: "auto",
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+    backgroundColor: "#10B981", borderRadius: 12, paddingVertical: 12,
+    marginHorizontal: 20, marginTop: 10, maxWidth: 1160, alignSelf: "center", width: "auto",
   },
-  headerAddBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  headerAddBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
 
-  listContent: { padding: 16, flexGrow: 1 },
+  listContent: { padding: 14, flexGrow: 1 },
 
-  stockCard: { backgroundColor: "#fff", borderRadius: 18, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: "#E8E2D9" },
+  stockCard: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E8E2D9" },
   stockCardTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  stockName: { fontSize: 17, fontWeight: "800", color: "#111827" },
-  stockUnitLabel: { fontSize: 11, color: "#9CA3AF", fontWeight: "700", marginTop: 3, textTransform: "uppercase", letterSpacing: 0.4 },
-  lowBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FEF2F2", borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 },
-  lowBadgeText: { fontSize: 11, fontWeight: "700", color: "#EF4444" },
+  stockName: { fontSize: 15, fontWeight: "800", color: "#111827" },
+  stockUnitLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "700", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.3 },
+  lowBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF2F2", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
+  lowBadgeText: { fontSize: 10, fontWeight: "700", color: "#EF4444" },
 
-  stockValueRow: { flexDirection: "row", alignItems: "flex-end", gap: 7, marginTop: 16 },
-  stockValue: { fontSize: 32, fontWeight: "800", color: "#111827", lineHeight: 34 },
-  stockValueUnit: { fontSize: 15, color: "#6B7280", fontWeight: "700", marginBottom: 4 },
-  thresholdText: { fontSize: 12, color: "#9CA3AF", marginTop: 6 },
+  stockValueRow: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginTop: 10 },
+  stockValue: { fontSize: 24, fontWeight: "800", color: "#111827", lineHeight: 26 },
+  stockValueUnit: { fontSize: 13, color: "#6B7280", fontWeight: "700", marginBottom: 3 },
+  thresholdText: { fontSize: 11, color: "#9CA3AF", marginTop: 4 },
 
-  stockCardActions: { flexDirection: "row", gap: 8, marginTop: 16, borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 16 },
-  restockBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#10B981", borderRadius: 12, paddingVertical: 13 },
-  restockBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  iconActionBtn: { width: 46, height: 46, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  iconActionBtnDanger: { width: 46, height: 46, borderRadius: 12, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
+  stockCardActions: { flexDirection: "row", gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 12 },
+  restockBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#10B981", borderRadius: 10, paddingVertical: 10 },
+  restockBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  iconActionBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  iconActionBtnDanger: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
 
-  recipeCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E8E2D9" },
-  recipeIconWrap: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  recipeName: { fontSize: 15, fontWeight: "700", color: "#111827" },
-  recipeCategory: { fontSize: 12, color: "#9CA3AF", fontWeight: "600", marginTop: 2 },
-  configuredBadge: { backgroundColor: "#ECFDF5", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  configuredBadgeText: { fontSize: 11, fontWeight: "700", color: "#10B981" },
-  notConfiguredBadge: { backgroundColor: "#FFFBEB", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  notConfiguredBadgeText: { fontSize: 11, fontWeight: "700", color: "#B45309" },
+  recipeCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderRadius: 14, padding: 13, marginBottom: 9, borderWidth: 1, borderColor: "#E8E2D9" },
+  recipeIconWrap: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  recipeName: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  recipeCategory: { fontSize: 11, color: "#9CA3AF", fontWeight: "600", marginTop: 2 },
+  configuredBadge: { backgroundColor: "#ECFDF5", borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
+  configuredBadgeText: { fontSize: 10, fontWeight: "700", color: "#10B981" },
+  notConfiguredBadge: { backgroundColor: "#FFFBEB", borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
+  notConfiguredBadgeText: { fontSize: 10, fontWeight: "700", color: "#B45309" },
 
   emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, paddingTop: 60, alignSelf: "center", maxWidth: 480 },
   emptyIconCircle: { width: 78, height: 78, borderRadius: 39, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", marginBottom: 20 },

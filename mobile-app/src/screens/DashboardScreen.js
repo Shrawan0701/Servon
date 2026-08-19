@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 
 import {
   View,
@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useNavigation, useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
 import { useAuth } from "../context/AuthContext";
 import {
   getAnalytics,
@@ -316,6 +317,42 @@ if (isWeb && typeof document !== "undefined") {
         .servon-trial-toast { top: 70px; width: calc(100% - 20px); padding: 10px 12px; }
         .servon-trial-toast-text { font-size: 12.5px; }
       }
+
+      /* ── Profile dropdown menu ── */
+      .servon-profile-menu-wrap { position: relative; }
+      .servon-profile-menu {
+        position: absolute; top: calc(100% + 10px); right: 0;
+        background: #fff; border: 1px solid #EAE6E0; border-radius: 14px;
+        box-shadow: 0 16px 40px rgba(17,24,39,0.14);
+        width: 220px; padding: 6px; z-index: 250;
+        animation: servonMenuIn 0.16s ease;
+      }
+      @keyframes servonMenuIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .servon-profile-menu-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 10px; border-radius: 10px;
+        cursor: pointer; background: transparent; border: none;
+        width: 100%; text-align: left; font-size: 13.5px; font-weight: 600;
+        color: #374151; position: relative;
+      }
+      .servon-profile-menu-item:hover { background: #F5F3EF; }
+      .servon-profile-menu-icon {
+        width: 30px; height: 30px; border-radius: 9px;
+        background: #F3F4F6; display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      .servon-profile-menu-badge {
+        margin-left: auto; background: #EF4444; color: #fff;
+        font-size: 10px; font-weight: 700; border-radius: 10px;
+        min-width: 18px; height: 18px; padding: 0 5px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      @media (max-width: 500px) {
+        .servon-profile-menu { width: 200px; right: -4px; }
+      }
     `;
   }
 }
@@ -401,6 +438,105 @@ const getAlertSeverityBg = (severity = "info") => {
   if (severity === "critical") return "#FEF2F2";
   if (severity === "warning") return "#FFFBEB";
   return "#EFF6FF";
+};
+
+// ─── NOTIFICATION SOUND (generated beep, no external audio file needed) ───────
+// Builds a tiny 16-bit PCM mono WAV "ding" in-memory and base64-encodes it,
+// then plays it via the Web Audio element (web) or expo-av (native). This
+// runs once at module load (cheap) and is reused for every notification.
+const _b64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const _bytesToBase64 = (bytes) => {
+  let result = "";
+  let i;
+  for (i = 0; i + 2 < bytes.length; i += 3) {
+    result += _b64Chars[bytes[i] >> 2];
+    result += _b64Chars[((bytes[i] & 3) << 4) | (bytes[i + 1] >> 4)];
+    result += _b64Chars[((bytes[i + 1] & 15) << 2) | (bytes[i + 2] >> 6)];
+    result += _b64Chars[bytes[i + 2] & 63];
+  }
+  if (i < bytes.length) {
+    const remaining = bytes.length - i;
+    result += _b64Chars[bytes[i] >> 2];
+    if (remaining === 1) {
+      result += _b64Chars[(bytes[i] & 3) << 4];
+      result += "==";
+    } else {
+      result += _b64Chars[((bytes[i] & 3) << 4) | (bytes[i + 1] >> 4)];
+      result += _b64Chars[(bytes[i + 1] & 15) << 2];
+      result += "=";
+    }
+  }
+  return result;
+};
+
+const _buildBeepWavBase64 = ({ frequency = 880, durationSec = 0.22, sampleRate = 8000, volume = 0.4 } = {}) => {
+  const numSamples = Math.floor(sampleRate * durationSec);
+  const dataSize = numSamples * 2; // 16-bit mono
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeString = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const decay = Math.exp(-4 * t);
+    const sample = Math.sin(2 * Math.PI * frequency * t) * decay * volume;
+    const value = Math.max(-1, Math.min(1, sample)) * 0x7fff;
+    view.setInt16(44 + i * 2, value, true);
+  }
+  return _bytesToBase64(new Uint8Array(buffer));
+};
+
+const NOTIFICATION_SOUND_DATA_URI = `data:audio/wav;base64,${_buildBeepWavBase64()}`;
+
+let _webNotifAudioEl = null;
+const _playWebNotificationSound = () => {
+  try {
+    if (typeof window === "undefined") return;
+    if (!_webNotifAudioEl) {
+      _webNotifAudioEl = new window.Audio(NOTIFICATION_SOUND_DATA_URI);
+    }
+    _webNotifAudioEl.currentTime = 0;
+    _webNotifAudioEl.play().catch(() => {
+      // Autoplay can be blocked before the user interacts with the page —
+      // safe to ignore, the visual notification still shows.
+    });
+  } catch (err) {
+    // ignore playback errors
+  }
+};
+
+const _playNativeNotificationSound = async () => {
+  try {
+    const { sound } = await Audio.Sound.createAsync({ uri: NOTIFICATION_SOUND_DATA_URI });
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.didJustFinish) sound.unloadAsync().catch(() => {});
+    });
+    await sound.playAsync();
+  } catch (err) {
+    console.log("Notification sound error:", err);
+  }
+};
+
+const playNotificationSound = () => {
+  if (isWeb) {
+    _playWebNotificationSound();
+  } else {
+    _playNativeNotificationSound();
+  }
 };
 
 // ─── TRIAL TOAST FREQUENCY CONTROL ──────────────────────────────────────────
@@ -490,6 +626,10 @@ export default function DashboardScreen() {
   const [aiAlerts, setAiAlerts] = useState([]);
   const [alertUnreadCount, setAlertUnreadCount] = useState(0);
   const [alertToast, setAlertToast] = useState(null); // { title, message, severity } | null
+
+  // ===== PROFILE DROPDOWN MENU (web) =====
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef(null);
 
   // ─── WHITE-LABEL BRAND NAME ─────────────────────────────────────────
   // Uses the restaurant's own business_name (captured at signup) instead
@@ -746,6 +886,7 @@ setLiveOrders(ordersRes.data.filter(o =>
               created_at: new Date().toISOString(),
             };
         setNotifications(prev => [finalNotification, ...prev]);
+        playNotificationSound(); // 🔊 new order sound
       });
       socket.on("order_updated", (updatedOrder) => {
         setLiveOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
@@ -758,9 +899,11 @@ setLiveOrders(ordersRes.data.filter(o =>
         setAiAlerts(prev => [alertRow, ...prev]);
         setAlertUnreadCount(prev => prev + 1);
         setAlertToast({ title: alertRow.title, message: alertRow.message, severity: alertRow.severity });
+        playNotificationSound(); // 🔊 new AI alert sound
       });
       socket.on("new_notification", (notificationRow) => {
         setNotifications(prev => [notificationRow, ...prev]);
+        playNotificationSound(); // 🔊 new notification sound
       });
       return () => socket.disconnect();
     }, [business?.id])
@@ -801,10 +944,46 @@ setLiveOrders(ordersRes.data.filter(o =>
     return () => clearTimeout(t);
   }, [alertToast]);
 
+  // ─── CLOSE PROFILE DROPDOWN ON OUTSIDE CLICK / ESCAPE (web) ────────
+  useEffect(() => {
+    if (!isWeb || typeof document === "undefined") return;
+    if (!showProfileMenu) return;
+
+    const handleClickOutside = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+    const handleEscape = (e) => {
+      if (e.key === "Escape") setShowProfileMenu(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showProfileMenu]);
+
   const unreadCount = notifications.filter(n => !n.is_read).length;
   const totalUnread = unreadCount + trialUnreadCount + alertUnreadCount;
   const ownerInitial = business?.owner_name ? business.owner_name.charAt(0).toUpperCase() : "S";
   const activeTableCount = new Set(liveOrders.map(o => o.table_number)).size;
+
+  // ─── PROFILE DROPDOWN NAVIGATION ITEMS ──────────────────────────────
+  const profileMenuItems = [
+    { key: "Profile", label: "Profile", icon: "person-outline", iconColor: "#3B82F6" },
+    { key: "Inventory", label: "Inventory", icon: "cube-outline", iconColor: "#F59E0B", badge: lowStockCount },
+    { key: "Reviews", label: "Reviews", icon: "star-outline", iconColor: "#EAB308" },
+    { key: "Referrals", label: "Referrals", icon: "share-outline", iconColor: "#EAB308" },
+    { key: "Support", label: "Support", icon: "help-buoy-outline", iconColor: "#10B981" },
+  ];
+
+  const handleProfileMenuNavigate = (screenName) => {
+    setShowProfileMenu(false);
+    navigation.navigate(screenName);
+  };
 
   if (loading) {
     return (
@@ -848,15 +1027,60 @@ setLiveOrders(ordersRes.data.filter(o =>
                   </span>
                 )}
               </button>
-              <button onClick={() => navigation.navigate("Profile")} style={{
-                width: 36, height: 36, borderRadius: "50%",
-                background: "#111827", color: "#fff",
-                fontSize: 14, fontWeight: 600,
-                border: "none", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center"
-              }}>
-                {ownerInitial}
-              </button>
+
+              {/* PROFILE DROPDOWN — replaces direct navigate("Profile"). Clicking the
+                  avatar toggles a small menu with Profile / Inventory / Reviews / Support,
+                  each of which opens that screen. */}
+              <div className="servon-profile-menu-wrap" ref={profileMenuRef}>
+                <button
+                  onClick={() => setShowProfileMenu(prev => !prev)}
+                  style={{
+                    width: 36, height: 36, borderRadius: "50%",
+                    background: "#111827", color: "#fff",
+                    fontSize: 14, fontWeight: 600,
+                    border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    position: "relative"
+                  }}
+                >
+                  {ownerInitial}
+                  {lowStockCount > 0 && (
+                    <span style={{
+                      position: "absolute", top: -3, right: -3,
+                      background: "#EF4444", color: "#fff",
+                      fontSize: 9, fontWeight: 700,
+                      width: 15, height: 15, borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      border: "2px solid #F5F3EF"
+                    }}>
+                      {lowStockCount > 9 ? "9+" : lowStockCount}
+                    </span>
+                  )}
+                </button>
+
+                {showProfileMenu && (
+                  <div className="servon-profile-menu" role="menu">
+                    {profileMenuItems.map((item) => (
+                      <button
+                        key={item.key}
+                        className="servon-profile-menu-item"
+                        role="menuitem"
+                        onClick={() => handleProfileMenuNavigate(item.key)}
+                      >
+                        <span className="servon-profile-menu-icon">
+                          <Ionicons name={item.icon} size={16} color={item.iconColor} />
+                        </span>
+                        {item.label}
+                        {!!item.badge && item.badge > 0 && (
+                          <span className="servon-profile-menu-badge">
+                            {item.badge > 9 ? "9+" : item.badge}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1087,32 +1311,6 @@ setLiveOrders(ordersRes.data.filter(o =>
           document.body
         )}
 
-        {/* INVENTORY FLOATING BUTTON */}
-       <button
-  onClick={() => navigation.navigate("Inventory")}
-  style={{
-    position: "fixed", bottom: 100, right: 28, zIndex: 999,
-            width: 58, height: 58, borderRadius: 18,
-            background: "#111827", border: "none", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 10px 28px rgba(17,24,39,0.28)",
-          }}
-        >
-          <Ionicons name="cube-outline" size={24} color="#fff" />
-          {lowStockCount > 0 && (
-            <span style={{
-              position: "absolute", top: -4, right: -4,
-              background: "#EF4444", color: "#fff",
-              fontSize: 10, fontWeight: 700,
-              width: 18, height: 18, borderRadius: "50%",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              border: "2px solid #F5F3EF",
-            }}>
-              {lowStockCount > 9 ? "9+" : lowStockCount}
-            </span>
-          )}
-        </button>
-
         {/* AI BUSINESS SUMMARY MODAL */}
         {showBusinessSummaryModal && businessSummary && typeof document !== "undefined" && ReactDOM.createPortal(
           <div className="servon-summary-overlay" onClick={() => setShowBusinessSummaryModal(false)}>
@@ -1219,8 +1417,13 @@ setLiveOrders(ordersRes.data.filter(o =>
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.profileAvatar} onPress={() => navigation.navigate("Profile")}>
+                        <TouchableOpacity style={styles.profileAvatar} onPress={() => setShowProfileMenu(true)}>
               <Text style={styles.profileAvatarText}>{ownerInitial}</Text>
+              {lowStockCount > 0 && (
+                <View style={styles.profileAvatarBadge}>
+                  <Text style={styles.profileAvatarBadgeText}>{lowStockCount > 9 ? "9+" : lowStockCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -1475,19 +1678,36 @@ setLiveOrders(ordersRes.data.filter(o =>
         </View>
       </Modal>
 
-      {/* INVENTORY FLOATING BUTTON */}
-      <TouchableOpacity
-        style={[styles.inventoryFab, { bottom: insets.bottom + 24 }]}
-        onPress={() => navigation.navigate("Inventory")}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="cube-outline" size={24} color="#fff" />
-        {lowStockCount > 0 && (
-          <View style={styles.inventoryFabBadge}>
-            <Text style={styles.inventoryFabBadgeText}>{lowStockCount > 9 ? "9+" : lowStockCount}</Text>
+            
+
+      {/* PROFILE DROPDOWN MENU (native) — mirrors the web version */}
+      <Modal visible={showProfileMenu} transparent animationType="fade" onRequestClose={() => setShowProfileMenu(false)}>
+        <TouchableOpacity style={styles.profileMenuOverlay} activeOpacity={1} onPress={() => setShowProfileMenu(false)}>
+          <View style={[styles.profileMenuBox, { top: insets.top + 60 }]}>
+            {profileMenuItems.map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                style={styles.profileMenuItem}
+                onPress={() => handleProfileMenuNavigate(item.key)}
+              >
+                <View style={styles.profileMenuIcon}>
+                  <Ionicons name={item.icon} size={16} color={item.iconColor} />
+                </View>
+                <Text style={styles.profileMenuLabel}>{item.label}</Text>
+                {!!item.badge && item.badge > 0 && (
+                  <View style={styles.profileMenuBadge}>
+                    <Text style={styles.profileMenuBadgeText}>{item.badge > 9 ? "9+" : item.badge}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* INVENTORY FLOATING BUTTON */}
+
+    
 
       {/* AI BUSINESS SUMMARY MODAL (native) */}
       <Modal visible={showBusinessSummaryModal} transparent animationType="fade">
@@ -1733,8 +1953,28 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: '#fff',
   },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '700', paddingHorizontal: 4 },
-  profileAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
+  profileAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   profileAvatarText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  profileAvatarBadge: {
+    position: 'absolute', top: -3, right: -3,
+    backgroundColor: '#EF4444', borderRadius: 9,
+    minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff', paddingHorizontal: 2,
+  },
+  profileAvatarBadgeText: { color: '#fff', fontSize: 8.5, fontWeight: '700' },
+
+  profileMenuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.15)' },
+  profileMenuBox: {
+    position: 'absolute', right: 16,
+    backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#EAE6E0',
+    width: 210, paddingVertical: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 12,
+  },
+  profileMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12 },
+  profileMenuIcon: { width: 30, height: 30, borderRadius: 9, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  profileMenuLabel: { flex: 1, fontSize: 13.5, fontWeight: '600', color: '#374151' },
+  profileMenuBadge: { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+  profileMenuBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   responsiveContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, alignSelf: 'center', width: '100%' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16, marginBottom: 24 },
   statsGridSmall: { gap: 12 },

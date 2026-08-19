@@ -669,7 +669,7 @@ function AdvisorCard({ insight, onViewMore }) {
 }
 
 const advStyles = StyleSheet.create({
-  card:     { backgroundColor: "#fff", borderRadius: 14, padding: 18, borderWidth: 1, borderColor: BORDER, height: "100%" },
+  card:     { backgroundColor: "#fff", borderRadius: 14, padding: 18, borderWidth: 1, borderColor: BORDER },
   topRow:   { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   iconBox:  { width: 26, height: 26, borderRadius: 13, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" },
   eyebrow:  { fontSize: 13.5, fontWeight: "700", color: PRIMARY },
@@ -1002,137 +1002,353 @@ function ExpensesTab() {
   const handleAddNew = ()    => { setEditingExp(null); setShowModal(true); };
 
   const exportCSV = async () => {
-    if (!expenses.length) { Alert.alert("No Data", "No expenses to export."); return; }
-    setExporting(true);
-    try {
-      const rows = [
-        ["Date", "Category", "Description", "Amount (₹)"],
-        ...expenses.map((e) => [e.expense_date?.split("T")[0] || "", e.category, e.description || "", parseFloat(e.amount || 0).toFixed(2)]),
-        [],
-        ["", "", "TOTAL", parseFloat(grandTotal).toFixed(2)],
-      ];
-      const csvContent = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  if (!expenses.length) {
+    Alert.alert("No Data", "No expenses to export.");
+    return;
+  }
+  setExporting(true);
 
-      if (Platform.OS === "web") {
-        const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute("download", `expenses_${period}_${toDateStr(new Date())}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      } else {
-        const path = FileSystem.cacheDirectory + `expenses_${period}_${Date.now()}.csv`;
-        await FileSystem.writeAsStringAsync(path, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
-        await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: "Export Expenses CSV" });
-      }
-    } catch (err) {
-      Alert.alert("Export Error", "Could not export CSV.");
-    } finally {
-      setExporting(false);
+  try {
+    const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
+
+    // Business / Hotel name lookup
+   // Replace this line:
+// reportData?.business_name || reportData?.businessName || ...
+
+// With this:
+const hotelDisplayName = (
+  typeof businessName !== "undefined" ? businessName :
+  typeof user !== "undefined" ? user?.business_name :
+  "HOTEL ANALYTICS"
+).toUpperCase();
+
+    // IST Timestamp
+    const todayIST = new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      dateStyle: "medium",
+      timeStyle: "short",
+    }) + " IST";
+
+    const parsedSales = parseFloat(totalSales || 0);
+    const parsedExpenses = parseFloat(grandTotal || 0);
+    const netProfit = parsedSales - parsedExpenses;
+
+    // Category Breakdown Calculation
+    const catTotals = {};
+    expenses.forEach((e) => {
+      catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0);
+    });
+
+    const catRows = Object.entries(catTotals)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, amt]) => {
+        const pct = parsedExpenses ? ((amt / parsedExpenses) * 100).toFixed(1) : "0.0";
+        return [cat, amt.toFixed(2), `${pct}%`];
+      });
+
+    // Build Structured CSV Sections
+    const rows = [
+      // 1. Report Header
+      [hotelDisplayName],
+      ["EXPENSE & FINANCIAL REPORT"],
+      ["Period", periodLabel],
+      ["Generated At", todayIST],
+      [],
+
+      // 2. Financial Summary
+      ["FINANCIAL SUMMARY"],
+      ["Metric", "Amount (INR)"],
+      ["Total Sales", parsedSales.toFixed(2)],
+      ["Total Expenses", parsedExpenses.toFixed(2)],
+      ["Net Operating Profit", netProfit.toFixed(2)],
+      [],
+
+      // 3. Category Breakdown Table
+      ["CATEGORY BREAKDOWN"],
+      ["Category", "Amount (INR)", "% of Total"],
+      ...catRows,
+      ["TOTAL EXPENSES", parsedExpenses.toFixed(2), "100.0%"],
+      [],
+
+      // 4. Detailed Ledger Table
+      ["DETAILED LEDGER"],
+      ["Date", "Category", "Description", "Amount (INR)"],
+      ...expenses.map((e) => [
+        e.expense_date?.split("T")[0] || "",
+        e.category || "General",
+        e.description || "—",
+        parseFloat(e.amount || 0).toFixed(2),
+      ]),
+      ["TOTAL EXPENSES", "", `${expenses.length} Records`, parsedExpenses.toFixed(2)],
+    ];
+
+    // Escape special characters and convert array to CSV string format
+    const csvContent = rows
+      .map((r) =>
+        r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\n");
+
+    const fileName = `expenses_${period}_${new Date().toISOString().split("T")[0]}.csv`;
+
+    if (Platform.OS === "web") {
+      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } else {
+      const path = FileSystem.cacheDirectory + fileName;
+      await FileSystem.writeAsStringAsync(path, csvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      await Sharing.shareAsync(path, {
+        mimeType: "text/csv",
+        dialogTitle: "Export Expenses CSV",
+      });
     }
-  };
+  } catch (err) {
+    console.error("CSV Export Error:", err);
+    Alert.alert("Export Error", "Could not export CSV. Please try again.");
+  } finally {
+    setExporting(false);
+  }
+};
 
-  const exportPDF = async () => {
-    if (!expenses.length) { Alert.alert("No Data", "No expenses to export."); return; }
-    setExporting(true);
-    try {
-      const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
-      const today       = toDateStr(new Date());
+ const exportPDF = async () => {
+  if (!expenses.length) {
+    Alert.alert("No Data", "No expenses to export.");
+    return;
+  }
+  setExporting(true);
 
-      const catTotals = {};
-      expenses.forEach((e) => { catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0); });
-      const catRows = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => {
-        const pct = grandTotal ? ((amt / grandTotal) * 100).toFixed(1) : "0.0";
-        return `<tr><td>${cat}</td><td style="text-align:right">₹${amt.toLocaleString("en-IN")}</td><td style="text-align:right">${pct}%</td></tr>`;
-      }).join("");
+  try {
+    const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
 
-      const expRows = expenses.map((e, i) => `
-        <tr style="background:${i % 2 === 0 ? "#fff" : "#F9FAFB"}">
-          <td>${e.expense_date?.split("T")[0] || ""}</td><td>${e.category}</td>
-          <td>${e.description || "—"}</td>
-          <td style="text-align:right;font-weight:700;color:#EF4444">₹${parseFloat(e.amount || 0).toLocaleString("en-IN")}</td>
-        </tr>`).join("");
+    // Business / Hotel name lookup
+   // Replace this line:
+// reportData?.business_name || reportData?.businessName || ...
 
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-        <style>
-          *{box-sizing:border-box;margin:0;padding:0}
-          body{font-family:-apple-system,Helvetica,Arial,sans-serif;padding:32px;color:#111}
-          @media print{body{padding:20px}.no-print{display:none}}
-          .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;border-bottom:2px solid #0F1729;padding-bottom:16px}
-          .header-left h1{font-size:22px;font-weight:900;color:#0F1729}
-          .header-left p{font-size:13px;color:#6B7280;margin-top:4px}
-          .header-right .badge{display:inline-block;background:#0F1729;color:#fff;font-size:11px;font-weight:800;padding:4px 12px;border-radius:20px}
-          .header-right .date{font-size:12px;color:#9CA3AF;margin-top:6px}
-          .summary{display:flex;gap:12px;margin-bottom:28px}
-          .card{flex:1;border-radius:10px;padding:14px 16px}
-          .card-label{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
-          .card-value{font-size:20px;font-weight:900}
-          .card-green{background:#F0FDF4}.card-green .card-label,.card-green .card-value{color:#059669}
-          .card-red{background:#FEF2F2}.card-red .card-label,.card-red .card-value{color:#EF4444}
-          .card-blue{background:#EFF6FF}.card-blue .card-label,.card-blue .card-value{color:#3B82F6}
-          .section-title{font-size:13px;font-weight:800;color:#374151;letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px;margin-top:24px}
-          table{width:100%;border-collapse:collapse;font-size:13px}
-          th{background:#0F1729;color:#fff;padding:10px 14px;text-align:left;font-size:11px;font-weight:700}
-          td{padding:9px 14px;border-bottom:1px solid #F3F4F6}
-          .total-row td{font-weight:900;background:#FEF2F2;color:#EF4444;border-top:2px solid #EF4444}
-          .footer{margin-top:32px;padding-top:12px;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF;text-align:center}
-          .print-hint{text-align:center;padding:16px;background:#F0FDF4;border-radius:8px;font-size:13px;color:#059669;font-weight:700;margin-bottom:20px}
-        </style></head><body>
-        <div class="print-hint no-print">📄 Press Ctrl+P (or Cmd+P on Mac) → Save as PDF</div>
-        <div class="header">
-          <div class="header-left"><h1>Expense Report</h1><p>Period: ${periodLabel} &nbsp;·&nbsp; ${expenses.length} expense${expenses.length !== 1 ? "s" : ""}</p></div>
-          <div class="header-right"><div class="badge">${periodLabel.toUpperCase()}</div><div class="date">Generated: ${today}</div></div>
-        </div>
-        <div class="summary">
-          <div class="card card-green"><div class="card-label">Total Sales</div><div class="card-value">₹${parseFloat(totalSales).toLocaleString("en-IN")}</div></div>
-          <div class="card card-red"><div class="card-label">Total Expenses</div><div class="card-value">₹${parseFloat(grandTotal).toLocaleString("en-IN")}</div></div>
-          <div class="card card-blue"><div class="card-label">Net Profit</div><div class="card-value" style="color:${(totalSales - grandTotal) >= 0 ? "#059669" : "#EF4444"}">${(totalSales - grandTotal) >= 0 ? "" : "-"}₹${Math.abs(totalSales - grandTotal).toLocaleString("en-IN")}</div></div>
-        </div>
-        <div class="section-title">Category Breakdown</div>
-        <table><thead><tr><th>Category</th><th style="text-align:right">Amount</th><th style="text-align:right">% of Total</th></tr></thead>
-        <tbody>${catRows}<tr class="total-row"><td>TOTAL</td><td style="text-align:right">₹${parseFloat(grandTotal).toLocaleString("en-IN")}</td><td style="text-align:right">100%</td></tr></tbody></table>
-        <div class="section-title">Detailed Ledger</div>
-        <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
-        <tbody>${expRows}<tr class="total-row"><td colspan="3">TOTAL</td><td style="text-align:right">₹${parseFloat(grandTotal).toLocaleString("en-IN")}</td></tr></tbody></table>
-        <div class="footer">Generated automatically · ${today}</div>
-        </body></html>`;
+// With this:
+const hotelDisplayName = (
+  typeof businessName !== "undefined" ? businessName :
+  typeof user !== "undefined" ? user?.business_name :
+  "HOTEL ANALYTICS"
+).toUpperCase();
 
-      if (Platform.OS === "web") {
-        const newTab = window.open("", "_blank");
-        if (newTab) {
-          newTab.document.write(html);
-          newTab.document.close();
-          newTab.focus();
-          setTimeout(() => {
-            newTab.print();
-          }, 600);
-        } else {
-          const blob = new Blob([html], { type: "text/html" });
-          const href = URL.createObjectURL(blob);
-          const a    = document.createElement("a");
-          a.href = href;
-          a.download = `expenses_${period}_${today}.html`;
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          URL.revokeObjectURL(href);
-          Alert.alert(
-            "Popup Blocked",
-            "Your browser blocked the PDF window. The file was downloaded as HTML — open it in your browser and press Ctrl+P to save as PDF.",
-          );
-        }
-      } else {
-        const { uri } = await Print.printToFileAsync({ html, base64: false });
-        await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Export Expenses PDF" });
-      }
-    } catch (err) {
-      console.error("PDF error:", err);
-      Alert.alert("Export Error", "Could not generate PDF. Please try again.");
-    } finally {
-      setExporting(false);
+    // IST Timestamp
+    const todayIST = new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      dateStyle: "medium",
+      timeStyle: "short",
+    }) + " IST";
+
+    // Currency Formatter Helper
+    const fmtCurr = (val) =>
+      `₹${Number(val || 0).toLocaleString("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+
+    const parsedSales = parseFloat(totalSales || 0);
+    const parsedExpenses = parseFloat(grandTotal || 0);
+    const netProfit = parsedSales - parsedExpenses;
+
+    // Category Breakdown Calculation
+    const catTotals = {};
+    expenses.forEach((e) => {
+      catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0);
+    });
+
+    const catRows = Object.entries(catTotals)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, amt]) => {
+        const pct = parsedExpenses ? ((amt / parsedExpenses) * 100).toFixed(1) : "0.0";
+        return `
+          <tr>
+            <td style="font-weight:600;color:#111827">${cat}</td>
+            <td style="text-align:right;font-weight:700;color:#111827">${fmtCurr(amt)}</td>
+            <td style="text-align:right;color:#6B7280">${pct}%</td>
+          </tr>`;
+      })
+      .join("");
+
+    // Detailed Ledger Rows
+    const expRows = expenses
+      .map((e, i) => {
+        const dateStr = e.expense_date ? e.expense_date.split("T")[0] : "—";
+        const rowBg = i % 2 === 0 ? "#FFFFFF" : "#FAFAFA";
+        return `
+          <tr style="background:${rowBg}">
+            <td style="color:#374151;white-space:nowrap">${dateStr}</td>
+            <td style="font-weight:600;color:#111827">${e.category || "General"}</td>
+            <td style="color:#4B5563">${e.description || "—"}</td>
+            <td style="text-align:right;font-weight:700;color:#EF4444">${fmtCurr(e.amount)}</td>
+          </tr>`;
+      })
+      .join("");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 36px; color: #111827; background: #FFF; }
+    @media print {
+      body { padding: 20px; }
+      .no-print { display: none !important; }
     }
-  };
+    
+    /* Header Chrome */
+    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 2px solid #1E3A5F; margin-bottom: 24px; }
+    .hotel-name { font-size: 22px; font-weight: 900; color: #1E3A5F; letter-spacing: 0.5px; text-transform: uppercase; }
+    .report-title { font-size: 13px; font-weight: 700; color: #6B7280; margin-top: 4px; letter-spacing: 1px; }
+    .badge { display: inline-block; background: #1E3A5F; color: #FFFFFF; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px; }
+    .gen-date { font-size: 11px; color: #9CA3AF; margin-top: 6px; text-align: right; }
+
+    /* Summary Cards */
+    .summary { display: flex; gap: 16px; margin-bottom: 28px; }
+    .card { flex: 1; border-radius: 8px; padding: 14px 16px; border: 1px solid #E5E7EB; background: #F9FAFB; }
+    .card-label { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+    .card-value { font-size: 20px; font-weight: 900; }
+    
+    .card-green { background: #F0FDF4; border-color: #BBF7D0; } .card-green .card-label, .card-green .card-value { color: #059669; }
+    .card-red { background: #FEF2F2; border-color: #FECACA; } .card-red .card-label, .card-red .card-value { color: #EF4444; }
+    .card-blue { background: #EFF6FF; border-color: #BFDBFE; }
+
+    /* Section Headers */
+    .section-title { font-size: 12px; font-weight: 800; color: #1E3A5F; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px; margin-top: 24px; border-left: 3px solid #059669; padding-left: 8px; }
+    
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
+    th { background: #F7F7F6; color: #1E3A5F; padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; border-top: 1px solid #D1D5DB; border-bottom: 1px solid #D1D5DB; text-transform: uppercase; }
+    td { padding: 9px 12px; border-bottom: 1px solid #E5E7EB; }
+    
+    .total-row td { font-weight: 900; background: #F7F7F6; color: #1E3A5F; border-top: 1.5px solid #1E3A5F; border-bottom: 1.5px solid #1E3A5F; font-size: 12px; }
+    
+    /* Footer */
+    .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #E5E7EB; font-size: 10px; color: #9CA3AF; display: flex; justify-content: space-between; }
+    .print-hint { text-align: center; padding: 12px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; font-size: 12px; color: #059669; font-weight: 700; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+
+  <div class="print-hint no-print">📄 Press Ctrl+P (or Cmd+P on Mac) → Save as PDF</div>
+
+  <div class="header">
+    <div>
+      <div class="hotel-name">${hotelDisplayName}</div>
+      <div class="report-title">EXPENSE & FINANCIAL REPORT</div>
+    </div>
+    <div style="text-align:right">
+      <div class="badge">${periodLabel}</div>
+      <div class="gen-date">Generated: ${todayIST}</div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="card card-green">
+      <div class="card-label">Total Sales</div>
+      <div class="card-value">${fmtCurr(parsedSales)}</div>
+    </div>
+    <div class="card card-red">
+      <div class="card-label">Total Expenses</div>
+      <div class="card-value">${fmtCurr(parsedExpenses)}</div>
+    </div>
+    <div class="card card-blue">
+      <div class="card-label">Net Operating Profit</div>
+      <div class="card-value" style="color: ${netProfit >= 0 ? "#059669" : "#EF4444"}">
+        ${netProfit >= 0 ? "" : "-"}${fmtCurr(Math.abs(netProfit))}
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Category Breakdown</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th style="text-align:right">Amount</th>
+        <th style="text-align:right">% of Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${catRows}
+      <tr class="total-row">
+        <td>TOTAL EXPENSES</td>
+        <td style="text-align:right;color:#EF4444">${fmtCurr(parsedExpenses)}</td>
+        <td style="text-align:right">100.0%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">Detailed Ledger</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Category</th>
+        <th>Description</th>
+        <th style="text-align:right">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${expRows}
+      <tr class="total-row">
+        <td colspan="3">TOTAL EXPENSES (${expenses.length} records)</td>
+        <td style="text-align:right;color:#EF4444">${fmtCurr(parsedExpenses)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div>© ${new Date().getFullYear()} ${hotelDisplayName} • Confidential Financial Report</div>
+    <div>Generated: ${todayIST}</div>
+  </div>
+
+</body>
+</html>`;
+
+    if (Platform.OS === "web") {
+      const newTab = window.open("", "_blank");
+      if (newTab) {
+        newTab.document.write(html);
+        newTab.document.close();
+        newTab.focus();
+        setTimeout(() => {
+          newTab.print();
+        }, 600);
+      } else {
+        const blob = new Blob([html], { type: "text/html" });
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = `expenses_${period}_${new Date().toISOString().split("T")[0]}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(href);
+        Alert.alert(
+          "Popup Blocked",
+          "Your browser blocked the PDF window. The file was downloaded as HTML — open it in your browser and press Ctrl+P to save as PDF."
+        );
+      }
+    } else {
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Export Expenses PDF" });
+    }
+  } catch (err) {
+    console.error("PDF error:", err);
+    Alert.alert("Export Error", "Could not generate PDF. Please try again.");
+  } finally {
+    setExporting(false);
+  }
+};
 
   if (loading) return <View style={FL.center}><ActivityIndicator size="large" color={FL_DARK} /></View>;
 

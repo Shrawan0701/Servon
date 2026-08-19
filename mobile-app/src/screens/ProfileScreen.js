@@ -452,19 +452,29 @@ export default function ProfileScreen({ onNavigate }) {
     null
   )?.id;
 
+  // Which plan the user is actually on right now, and the next tier up (for the upgrade nudge).
+  // Purely presentational — doesn't touch selectedPlan or any payment logic.
+  const currentPlanId = subDetails?.plan_type || 'monthly';
+  const currentPlanIndex = plans.findIndex((p) => p.id === currentPlanId);
+  const nextUpgradePlan = currentPlanIndex >= 0 ? plans[currentPlanIndex + 1] : null;
+
   const PlanSelection = () => (
     <View style={styles.planContainer}>
-      <Text style={styles.planSectionTitle}>Choose Your Plan</Text>
+      <View style={styles.planHeaderRow}>
+        <Text style={styles.planSectionTitle}>Choose Your Plan</Text>
+      </View>
       <View style={styles.planGrid}>
         {plansWithSavings.map((plan) => {
           const isSelected = selectedPlan === plan.id;
           const isPopular = plan.id === bestSavingsId;
+          const isCurrent = plan.id === currentPlanId;
 
           return (
             <TouchableOpacity
               key={plan.id}
               style={[
                 styles.planCard,
+                isCurrent && !isSelected && styles.planCardCurrent,
                 isSelected && styles.planCardSelected,
                 isPopular && styles.planCardPopular,
                 paying && styles.planCardDisabled,
@@ -473,7 +483,13 @@ export default function ProfileScreen({ onNavigate }) {
               disabled={paying}
               activeOpacity={0.8}
             >
-              {isPopular && (
+              {isCurrent && (
+                <View style={styles.currentPlanBadge}>
+                  <Ionicons name="checkmark-circle" size={10} color="#fff" />
+                  <Text style={styles.currentPlanBadgeText}>Current Plan</Text>
+                </View>
+              )}
+              {!isCurrent && isPopular && (
                 <View style={styles.popularBadge}>
                   <Text style={styles.popularBadgeText}>⭐ Best Value</Text>
                 </View>
@@ -496,6 +512,7 @@ export default function ProfileScreen({ onNavigate }) {
               ) : (
                 <View style={{ height: 16 }} />
               )}
+              
               <View style={styles.planRadio}>
                 {isSelected && <View style={styles.planRadioSelected} />}
               </View>
@@ -539,7 +556,7 @@ export default function ProfileScreen({ onNavigate }) {
             )}
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
               <Ionicons name="chevron-back" size={18} color={T_PRIMARY} />
-              <Text style={styles.backText}>Dashboard</Text>
+              <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
           </View>
           {hasChanges && (
@@ -849,7 +866,7 @@ export default function ProfileScreen({ onNavigate }) {
       <View style={styles.navHeader}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={20} color={T_PRIMARY} />
-          <Text style={styles.backText}>Dashboard</Text>
+          <Text style={styles.backText}>Profile</Text>
         </TouchableOpacity>
         {hasChanges && (
           <View style={styles.unsavedPill}>
@@ -1006,7 +1023,7 @@ export default function ProfileScreen({ onNavigate }) {
               {/* ✅ AI SUPPORT BUTTON (Mobile) - ADDED */}
               <TouchableOpacity style={styles.ghostBtn} onPress={() => navigation.navigate("Support")} activeOpacity={0.8}>
                 <Ionicons name="chatbubbles-outline" size={16} color="#10B981" />
-                <Text style={styles.ghostBtnText}>AI Support</Text>
+                <Text style={styles.ghostBtnText}>Contact Support</Text>
                 <Ionicons name="chevron-forward" size={15} color={T_FAINT} style={{ marginLeft: "auto" }} />
               </TouchableOpacity>
 
@@ -1152,14 +1169,22 @@ const styles = StyleSheet.create({
 
   // ─── PLAN SELECTION STYLES ────────────────────────────────────────────────────
   planContainer: {
-    marginBottom: 20,
+    marginBottom: 24,
     paddingTop: 12,
   },
+  planHeaderRow: {
+    marginBottom: 14,
+  },
   planSectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: "800",
     color: T_PRIMARY,
-    marginBottom: 12,
+    marginBottom: 3,
+  },
+  planSectionSubtitle: {
+    fontSize: 12.5,
+    color: T_MUTED,
+    fontWeight: "500",
   },
   planGrid: {
     flexDirection: "row",
@@ -1168,16 +1193,26 @@ const styles = StyleSheet.create({
   planCard: {
     flex: 1,
     backgroundColor: CARD,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 14,
+    padding: 16,
+    paddingTop: 18,
     borderWidth: 2,
     borderColor: BORDER,
     alignItems: "center",
     position: "relative",
+    ...Platform.select({
+      web: { boxShadow: "0 1px 6px rgba(0,0,0,0.04)" },
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6 },
+      android: { elevation: 1 },
+    }),
   },
   planCardSelected: {
     borderColor: GREEN,
     backgroundColor: "#F0FDF9",
+  },
+  planCardCurrent: {
+    borderColor: "#C9C4BC",
+    backgroundColor: "#FBFAF8",
   },
   planCardPopular: {
     borderColor: "#F59E0B",
@@ -1199,20 +1234,38 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
   },
+  currentPlanBadge: {
+    position: "absolute",
+    top: -10,
+    left: -5,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: T_PRIMARY,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  currentPlanBadgeText: {
+    fontSize: 9,
+    color: "#fff",
+    fontWeight: "700",
+  },
   planLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: T_MUTED,
-    marginBottom: 4,
+    marginBottom: 5,
   },
   planLabelSelected: {
     color: T_PRIMARY,
   },
   planPrice: {
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: "800",
     color: T_PRIMARY,
     marginBottom: 2,
+    letterSpacing: -0.3,
   },
   planPriceSelected: {
     color: GREEN,
@@ -1221,12 +1274,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: T_MUTED,
     marginBottom: 4,
+    fontWeight: "500",
   },
   planSaving: {
-    fontSize: 10,
+    fontSize: 10.5,
     color: GREEN,
-    fontWeight: "600",
+    fontWeight: "700",
     marginBottom: 8,
+  },
+  upgradeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  upgradeBtnText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: GREEN,
   },
   planRadio: {
     width: 18,

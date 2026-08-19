@@ -35,17 +35,18 @@ export default function ReferralsScreen() {
     }, [])
   );
 
-  const loadData = async () => {
-    try {
-      const res = await getReferralStats();
-      setData(res.data);
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "Could not load referral data");
-    } finally {
-      setLoading(false);
-    }
-  };
+ const loadData = async () => {
+  try {
+    setLoading(true);
+    const res = await getReferralStats();
+    setData(res); // ✅ Fixed: 'res' already contains { referral_code, stats, rewards, history }
+  } catch (err) {
+    console.error(err);
+    Alert.alert("Error", "Could not load referral data");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleCopy = () => {
     if (!data?.referral_code) return;
@@ -91,8 +92,13 @@ export default function ReferralsScreen() {
   const isCooldownActive = data?.isCooldownActive || false;
   const cooldownEnds = data?.cooldownEnds ? new Date(data.cooldownEnds) : null;
 
-  const referralsForNextReward = 2 - (successful % 2 === 0 ? 0 : 1);
-  const progressPct = Math.min(100, (successful % 2) * 50);
+ const referralsForNextReward = availableRewards > 0
+  ? 0
+  : 2 - (successful % 2);
+
+const progressPct = availableRewards > 0
+  ? 100
+  : Math.min(100, (successful % 2) * 50);
 
   // ─── SECTION BLOCKS ─────────────────────────────────────────────
   // Built once, then arranged differently for web (two-column grid)
@@ -154,7 +160,9 @@ export default function ReferralsScreen() {
       <View style={styles.progressHeader}>
         <Text style={styles.progressTitle}>Progress to next reward</Text>
         <View style={styles.progressPill}>
-          <Text style={styles.progressPillText}>{successful % 2} / 2</Text>
+         <Text style={styles.progressPillText}>
+  {availableRewards > 0 ? "2 / 2" : `${successful % 2} / 2`}
+</Text>
         </View>
       </View>
 
@@ -301,10 +309,15 @@ export default function ReferralsScreen() {
 
 const getStatusColor = (status) => {
   switch (status) {
-    case "SUCCESSFUL": return { bg: "#ECFDF5", text: GREEN_DARK };
-    case "PENDING": return { bg: "#FFFBEB", text: "#92400E" };
-    case "EXPIRED": return { bg: "#FEF2F2", text: "#991B1B" };
-    default: return { bg: "#F1F5F9", text: "#64748B" };
+    case "SUCCESS": // 👈 Changed from "SUCCESSFUL"
+    case "SUCCESSFUL": 
+      return { bg: "#ECFDF5", text: GREEN_DARK };
+    case "PENDING": 
+      return { bg: "#FFFBEB", text: "#92400E" };
+    case "EXPIRED": 
+      return { bg: "#FEF2F2", text: "#991B1B" };
+    default: 
+      return { bg: "#F1F5F9", text: "#64748B" };
   }
 };
 
