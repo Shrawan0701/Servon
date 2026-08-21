@@ -136,7 +136,7 @@ export const resetPassword = (resetToken, newPassword) =>
   API.post("/auth/forgot-password/reset", { resetToken, newPassword });
 
 // ==========================================================
-// INVENTORY (from File 2)
+// INVENTORY
 // ==========================================================
 
 export const getInventory = () => API.get("/inventory");
@@ -147,7 +147,7 @@ export const restockInventoryItem = (id, amount) => API.patch(`/inventory/${id}/
 export const adjustInventoryItem = (id, new_stock) => API.patch(`/inventory/${id}/adjust`, { new_stock });
 export const deleteInventoryItem = (id) => API.delete(`/inventory/${id}`);
 
-// Recipe Management (from File 2)
+// Recipe Management
 export const getMenuRecipes = () => API.get("/inventory/recipes");
 export const getRecipeForItem = (menuItemId) => API.get(`/inventory/recipes/${menuItemId}`);
 export const setRecipeForItem = (menuItemId, ingredients) => 
@@ -248,29 +248,23 @@ export const getQRPdfUrl = (id) => `${API.defaults.baseURL}/tables/${id}/qr-pdf`
 export const getOrders = () => API.get("/orders");
 export const updateOrderStatus = (id, status) => API.patch(`/orders/${id}/status`, { status });
 
-// Notifications with fallback support (from File 1)
+// Notifications with fallback support
 export const getNotifications = async () => {
   try {
     const response = await API.get("/orders/notifications");
-    console.log('✅ Notifications fetched:', response.data?.length || 0);
-    
     if (!response.data || response.data.length === 0) {
-      console.log('🔄 No notifications found, generating from orders...');
       return await generateNotificationsFromOrders();
     }
-    
     return response;
   } catch (error) {
-    console.error('❌ Error fetching notifications:', error.message);
-    console.log('🔄 Falling back to generating notifications from orders...');
     return await generateNotificationsFromOrders();
   }
 };
 
-// Alias for backward compatibility (from File 2)
+// Alias for backward compatibility
 export const getOrdersNotifications = () => API.get("/orders/notifications");
 
-// Helper function to generate notifications from orders (from File 1)
+// Helper function to generate notifications from orders
 const generateNotificationsFromOrders = async () => {
   try {
     const ordersResponse = await API.get("/orders");
@@ -335,15 +329,12 @@ const generateNotificationsFromOrders = async () => {
         };
       });
     
-    console.log('📨 Generated notifications from orders:', notifications.length);
-    
     return {
       data: notifications,
       status: 200,
       statusText: 'OK'
     };
   } catch (fallbackError) {
-    console.error('❌ Fallback generation failed:', fallbackError.message);
     return { data: [] };
   }
 };
@@ -353,7 +344,6 @@ export const markAllNotificationsRead = async () => {
     const response = await API.patch("/orders/notifications/read-all");
     return response.data;
   } catch (error) {
-    console.error("Error marking all as read:", error);
     return { success: true };
   }
 };
@@ -363,12 +353,11 @@ export const markOrderNotificationRead = async (id) => {
     const response = await API.patch(`/orders/notifications/${id}/read`);
     return response.data;
   } catch (error) {
-    console.error("Error marking notification as read:", error);
     return { success: true };
   }
 };
 
-// Alias for markOrderNotificationRead (from File 2)
+// Alias for markOrderNotificationRead
 export const markNotificationRead = markOrderNotificationRead;
 
 // ==========================================================
@@ -379,7 +368,7 @@ export const getAnalytics = () => API.get("/analytics");
 export const getDailySummary = () => API.get("/analytics/daily-summary");
 export const getNextInsight = () => API.get("/analytics/next-insight");
 
-// Business Summary & Alerts (from File 2)
+// Business Summary & Alerts
 export const getBusinessSummary = () => API.get("/analytics/business-summary/current");
 export const generateBusinessSummary = () => API.post("/analytics/business-summary/generate");
 export const getBusinessAlerts = (limit = 30) => API.get(`/analytics/alerts?limit=${limit}`);
@@ -443,7 +432,7 @@ export const updateExpense = (id, formData) =>
 
 export const askAdvisor = (question) => AdvisorAPI.post("/advisor/ask", { question });
 
-// Voice support (from File 2)
+// Voice support
 export const askAdvisorByVoice = (formData) =>
   API.post("/advisor/voice", formData, {
     headers: {
@@ -457,7 +446,7 @@ export const deleteConversation = (id) => AdvisorAPI.delete(`/advisor/conversati
 export const clearAllConversations = () => AdvisorAPI.delete("/advisor/conversations");
 
 // ==========================================================
-// PUSH NOTIFICATIONS (from File 2)
+// PUSH NOTIFICATIONS
 // ==========================================================
 
 export const savePushToken = (token, platform = "unknown") =>
@@ -479,7 +468,6 @@ export const getTrialStatus = async () => {
     const response = await API.get(`/trial/status?businessId=${businessId}`);
     return response.data;
   } catch (error) {
-    console.error("Error fetching trial status:", error);
     return { success: false, error: error.message };
   }
 };
@@ -492,7 +480,6 @@ export const checkAccess = async (businessId) => {
     const response = await API.get(`/trial/access?businessId=${businessId}`);
     return response.data;
   } catch (error) {
-    console.error("Error checking access:", error);
     return { success: false, error: error.message };
   }
 };
@@ -509,7 +496,6 @@ export const getTrialNotifications = async (businessId) => {
     const response = await API.get(`/trial/notifications?businessId=${businessId}`);
     return response.data;
   } catch (error) {
-    console.error("Error fetching notifications:", error);
     return {
       success: false,
       error: error.message,
@@ -523,7 +509,6 @@ export const markTrialNotificationRead = async (notificationId) => {
     const response = await API.put(`/trial/notifications/${notificationId}/read`);
     return response.data;
   } catch (error) {
-    console.error("Error marking as read:", error);
     return { success: false, error: error.message };
   }
 };
@@ -533,13 +518,12 @@ export const startFreeTrial = async () => {
     const response = await API.post("/subscription/start-trial");
     return response.data;
   } catch (error) {
-    console.error("Error starting trial:", error);
     return { success: false, error: error.message };
   }
 };
 
 // ==========================================================
-// ✅ ADMIN API FUNCTIONS (from File 1)
+// ✅ ADMIN API FUNCTIONS
 // ==========================================================
 
 // Admin login
@@ -561,6 +545,18 @@ export const adminUpdateBusiness = (id, data) =>
 // Delete business (admin only)
 export const adminDeleteBusiness = (id) =>
   AdminAPI.delete(`/admin/businesses/${id}`);
+
+// ==========================================================
+// ✅ STAFF MANAGEMENT
+// ==========================================================
+
+export const getStaff = () => API.get('/staff');
+export const getStaffById = (id) => API.get(`/staff/${id}`);
+export const createStaff = (data) => API.post('/staff', data);
+export const updateStaff = (id, data) => API.put(`/staff/${id}`, data);
+export const deleteStaff = (id) => API.delete(`/staff/${id}`);
+export const markSalaryPaid = (id, amount, notes) => 
+    API.post(`/staff/${id}/salary/pay`, { amount, notes });
 
 // ==========================================================
 // EXPORT DEFAULT

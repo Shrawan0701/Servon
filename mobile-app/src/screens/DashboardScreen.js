@@ -100,13 +100,11 @@ if (isWeb && typeof document !== "undefined") {
         letter-spacing: 0.04em; text-transform: uppercase; margin-top: 4px;
       }
       
-      /* Fluid grid: cards keep a sensible minimum width and wrap naturally
-         at any viewport size, instead of relying only on fixed breakpoints. */
       .servon-stats-grid {
         display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 14px; padding: 0 24px; margin-bottom: 28px;
       }
-     @media (max-width: 500px) { .servon-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 16px; } }
+      @media (max-width: 500px) { .servon-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 16px; } }
       
       .servon-order-card {
         background: #fff; border: 1px solid #EAE6E0; border-radius: 16px;
@@ -135,7 +133,6 @@ if (isWeb && typeof document !== "undefined") {
       }
       @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
 
-      /* ── Notification panel: modern, day-grouped cards ── */
       .servon-notif-day-header {
         position: sticky; top: 0; z-index: 2;
         background: #fff; padding: 12px 0 8px;
@@ -283,7 +280,6 @@ if (isWeb && typeof document !== "undefined") {
         gap: 6px; font-size: 13px; color: #9CA3AF; margin-top: 14px;
       }
 
-      /* ── In-app trial/subscription toast (replaces browser alert) ── */
       .servon-trial-toast {
         position: fixed; top: 78px; left: 50%; transform: translateX(-50%);
         z-index: 500; max-width: 420px; width: calc(100% - 32px);
@@ -318,7 +314,6 @@ if (isWeb && typeof document !== "undefined") {
         .servon-trial-toast-text { font-size: 12.5px; }
       }
 
-      /* ── Profile dropdown menu ── */
       .servon-profile-menu-wrap { position: relative; }
       .servon-profile-menu {
         position: absolute; top: calc(100% + 10px); right: 0;
@@ -371,7 +366,7 @@ const getInsightIcon = (type, native = false) => {
   return icons[type] || icons.orders;
 };
 
-// ─── NOTIFICATION HELPERS (grouping by day + icon per type) ────────────────────
+// ─── NOTIFICATION HELPERS ──────────────────────────────────────────────────
 const isSameCalendarDay = (a, b) =>
   a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
 
@@ -403,8 +398,6 @@ const groupNotificationsByDay = (list) => {
   return groups;
 };
 
-// Splits day-groups into "recent" (Today/Yesterday, always shown) and "older"
-// (everything else, hidden behind a Load More button until expanded).
 const splitNotificationGroups = (groups) => {
   const recent = groups.filter((g) => g.label === "Today" || g.label === "Yesterday");
   const older = groups.filter((g) => g.label !== "Today" && g.label !== "Yesterday");
@@ -420,7 +413,7 @@ const getNotifIcon = (title = "", native = false) => {
   return <Ionicons name="notifications-outline" size={size} color="#3B82F6" />;
 };
 
-// ─── AI ALERT ICON HELPERS (severity-based) ───────────────────────────────────
+// ─── AI ALERT ICON HELPERS ───────────────────────────────────────────────────
 const getAlertIcon = (severity = "info", native = false) => {
   const size = native ? 18 : 16;
   if (severity === "critical") return <Ionicons name="alert-circle" size={size} color="#EF4444" />;
@@ -440,10 +433,7 @@ const getAlertSeverityBg = (severity = "info") => {
   return "#EFF6FF";
 };
 
-// ─── NOTIFICATION SOUND (generated beep, no external audio file needed) ───────
-// Builds a tiny 16-bit PCM mono WAV "ding" in-memory and base64-encodes it,
-// then plays it via the Web Audio element (web) or expo-av (native). This
-// runs once at module load (cheap) and is reused for every notification.
+// ─── NOTIFICATION SOUND ──────────────────────────────────────────────────────
 const _b64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const _bytesToBase64 = (bytes) => {
   let result = "";
@@ -471,7 +461,7 @@ const _bytesToBase64 = (bytes) => {
 
 const _buildBeepWavBase64 = ({ frequency = 880, durationSec = 0.22, sampleRate = 8000, volume = 0.4 } = {}) => {
   const numSamples = Math.floor(sampleRate * durationSec);
-  const dataSize = numSamples * 2; // 16-bit mono
+  const dataSize = numSamples * 2;
   const buffer = new ArrayBuffer(44 + dataSize);
   const view = new DataView(buffer);
   const writeString = (offset, str) => {
@@ -510,13 +500,8 @@ const _playWebNotificationSound = () => {
       _webNotifAudioEl = new window.Audio(NOTIFICATION_SOUND_DATA_URI);
     }
     _webNotifAudioEl.currentTime = 0;
-    _webNotifAudioEl.play().catch(() => {
-      // Autoplay can be blocked before the user interacts with the page —
-      // safe to ignore, the visual notification still shows.
-    });
-  } catch (err) {
-    // ignore playback errors
-  }
+    _webNotifAudioEl.play().catch(() => {});
+  } catch (err) {}
 };
 
 const _playNativeNotificationSound = async () => {
@@ -540,10 +525,6 @@ const playNotificationSound = () => {
 };
 
 // ─── TRIAL TOAST FREQUENCY CONTROL ──────────────────────────────────────────
-// Limits the trial/subscription popup to a MAX of 3 times per day, with at
-// least a 3 hour gap between each showing. Persisted so the limit survives
-// re-focusing the Dashboard tab (web: localStorage, native: in-memory for
-// the current app session).
 const TRIAL_TOAST_STORAGE_KEY = "servon_trial_toast_meta";
 const TRIAL_TOAST_MAX_PER_DAY = 3;
 const TRIAL_TOAST_MIN_GAP_HOURS = 3;
@@ -554,7 +535,7 @@ const getTrialToastMeta = () => {
       const raw = window.localStorage.getItem(TRIAL_TOAST_STORAGE_KEY);
       return raw ? JSON.parse(raw) : null;
     }
-  } catch (err) { /* ignore storage errors */ }
+  } catch (err) {}
   return global.__servonTrialToastMeta || null;
 };
 
@@ -564,14 +545,14 @@ const setTrialToastMeta = (meta) => {
       window.localStorage.setItem(TRIAL_TOAST_STORAGE_KEY, JSON.stringify(meta));
       return;
     }
-  } catch (err) { /* ignore storage errors */ }
+  } catch (err) {}
   global.__servonTrialToastMeta = meta;
 };
 
 const canShowTrialToast = () => {
   const meta = getTrialToastMeta();
   const todayKey = new Date().toDateString();
-  if (!meta || meta.day !== todayKey) return true; // fresh day, allowed
+  if (!meta || meta.day !== todayKey) return true;
   if (meta.count >= TRIAL_TOAST_MAX_PER_DAY) return false;
   const hoursSinceLast = (Date.now() - meta.lastShown) / (1000 * 60 * 60);
   return hoursSinceLast >= TRIAL_TOAST_MIN_GAP_HOURS;
@@ -607,40 +588,27 @@ export default function DashboardScreen() {
   const [showInsightModal, setShowInsightModal] = useState(false);
   const [seenInsights, setSeenInsights] = useState(new Set());
 
-  // ===== TRIAL STATE =====
   const [trialStatus, setTrialStatus] = useState(null);
   const [trialNotifications, setTrialNotifications] = useState([]);
   const [trialUnreadCount, setTrialUnreadCount] = useState(0);
   const [trialLoading, setTrialLoading] = useState(true);
 
-  // ===== IN-APP TRIAL/SUBSCRIPTION TOAST (replaces console-style browser alert) =====
-  const [trialToast, setTrialToast] = useState(null); // { message } | null
+  const [trialToast, setTrialToast] = useState(null);
 
-  // ===== INVENTORY LOW-STOCK BADGE =====
   const [lowStockCount, setLowStockCount] = useState(0);
 
-  // ===== AI BUSINESS SUMMARY + ALERTS =====
   const [businessSummary, setBusinessSummary] = useState(null);
   const [showBusinessSummaryModal, setShowBusinessSummaryModal] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [aiAlerts, setAiAlerts] = useState([]);
   const [alertUnreadCount, setAlertUnreadCount] = useState(0);
-  const [alertToast, setAlertToast] = useState(null); // { title, message, severity } | null
+  const [alertToast, setAlertToast] = useState(null);
 
-  // ===== PROFILE DROPDOWN MENU (web) =====
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef(null);
 
-  // ─── WHITE-LABEL BRAND NAME ─────────────────────────────────────────
-  // Uses the restaurant's own business_name (captured at signup) instead
-  // of the hardcoded "Servon" platform name. Falls back to "Servon" only
-  // if the business hasn't set a name yet (e.g. still loading / legacy
-  // account with no business_name saved).
   const businessName = business?.business_name || business?.businessName || "Servon";
 
-  // ─── RESPONSIVE HELPERS (app + web) ────────────────────────────────
-  // Wider screens (tablet / desktop-sized RN window) get more breathing
-  // room and let the stat cards sit 4-across instead of always 2-across.
   const isTabletWidth = screenWidth >= 700;
   const isWideWidth = screenWidth >= 1000;
   const responsiveMaxWidth = isWideWidth ? 960 : isTabletWidth ? 760 : 600;
@@ -677,138 +645,122 @@ export default function DashboardScreen() {
   };
 
   const checkAndShowWarning = (endDateStr, status) => {
-  try {
-    if (!endDateStr) return;
-    const endDate = new Date(endDateStr);
-    if (isNaN(endDate.getTime())) return;
-
-    const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
-
-    // Show warning if trial or subscription expires in 3 days or less
-    if (daysLeft <= 3 && status !== 'active' && status !== 'ACTIVE') {
-      // Only show up to TRIAL_TOAST_MAX_PER_DAY times/day, at least
-      // TRIAL_TOAST_MIN_GAP_HOURS apart.
-      if (!canShowTrialToast()) return;
-
-      const msg = daysLeft <= 0 
-        ? "Your free trial has expired!" 
-        : `Your trial expires in ${daysLeft} day${daysLeft > 1 ? 's' : ''}.`;
-
-      // In-app popup (works identically on web + native) instead of
-      // window.alert / Alert.alert, which looked like a browser/console dialog.
-      setTrialToast({ message: msg });
-      recordTrialToastShown();
-    }
-  } catch (err) { 
-    console.log("Warning popup error:", err); 
-  }
-};
-
-const loadData = async () => {
-  try {
-    const [analyticsRes, ordersRes, notifRes, subRes] = await Promise.all([
-      getAnalytics(), getOrders(), getNotifications(), getSubscriptionDetails()
-    ]);
-
-    setAnalytics(analyticsRes.data);
-    // In DashboardScreen.js inside loadData():
-setLiveOrders(ordersRes.data.filter(o => 
-  isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
-));
-    setNotifications(notifRes.data);
-
-    // Update business state from subscription endpoint
-    if (subRes?.data) {
-      const subData = subRes.data;
-      const endDate = subData.subscription_end_date || subData.trialEnd || subData.trial_end_date;
-      const status = subData.subscription_status || subData.status;
-
-      updateBusiness({
-        subscription_status: status,
-        subscription_end_date: endDate
-      });
-      
-      checkAndShowWarning(endDate, status);
-    }
-
-    // Fetch daily summary
     try {
-      const summaryRes = await getDailySummary();
-      if (summaryRes?.data?.hasSummary && summaryRes.data.is_new) {
-        setDailySummary(summaryRes.data);
-        setShowSummaryModal(true);
+      if (!endDateStr) return;
+      const endDate = new Date(endDateStr);
+      if (isNaN(endDate.getTime())) return;
+
+      const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
+
+      if (daysLeft <= 3 && status !== 'active' && status !== 'ACTIVE') {
+        if (!canShowTrialToast()) return;
+
+        const msg = daysLeft <= 0 
+          ? "Your free trial has expired!" 
+          : `Your trial expires in ${daysLeft} day${daysLeft > 1 ? 's' : ''}.`;
+
+        setTrialToast({ message: msg });
+        recordTrialToastShown();
       }
     } catch (err) { 
-      console.error('Summary fetch error:', err); 
+      console.log("Warning popup error:", err); 
     }
+  };
 
-    await fetchNextInsight(true);
-
-    // ===== FETCH TRIAL DATA =====
+  const loadData = async () => {
     try {
-      const trialStatusRes = await getTrialStatus();
-      
-      // Unwrap response if wrapped in success object or direct
-      const trialData = trialStatusRes?.data || trialStatusRes;
-      if (trialData) {
-        setTrialStatus(trialData);
+      const [analyticsRes, ordersRes, notifRes, subRes] = await Promise.all([
+        getAnalytics(), getOrders(), getNotifications(), getSubscriptionDetails()
+      ]);
+
+      setAnalytics(analyticsRes.data);
+      setLiveOrders(ordersRes.data.filter(o => 
+        isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
+      ));
+      setNotifications(notifRes.data);
+
+      if (subRes?.data) {
+        const subData = subRes.data;
+        const endDate = subData.subscription_end_date || subData.trialEnd || subData.trial_end_date;
+        const status = subData.subscription_status || subData.status;
+
+        updateBusiness({
+          subscription_status: status,
+          subscription_end_date: endDate
+        });
         
-        // Secondary check using direct trial endpoint date key (trialEnd)
-        const trialEndDate = trialData.trialEnd || trialData.trial_end_date;
-        if (trialEndDate) {
-          checkAndShowWarning(trialEndDate, trialData.status);
+        checkAndShowWarning(endDate, status);
+      }
+
+      try {
+        const summaryRes = await getDailySummary();
+        if (summaryRes?.data?.hasSummary && summaryRes.data.is_new) {
+          setDailySummary(summaryRes.data);
+          setShowSummaryModal(true);
         }
+      } catch (err) { 
+        console.error('Summary fetch error:', err); 
       }
 
-      const trialNotifRes = await getTrialNotifications();
-      const notifData = trialNotifRes?.data || trialNotifRes;
-      if (notifData) {
-        setTrialNotifications(notifData.notifications || []);
-        setTrialUnreadCount(notifData.unreadCount || 0);
-      }
-    } catch (trialErr) {
-      console.error('Error fetching trial data:', trialErr);
-    }
-    setTrialLoading(false);
+      await fetchNextInsight(true);
 
-    // ===== FETCH INVENTORY LOW-STOCK COUNT =====
-    try {
-      const alertRes = await getInventoryAlertsCount();
-      setLowStockCount(alertRes?.data?.count || 0);
-    } catch (invErr) {
-      console.error("Inventory alert fetch error:", invErr);
-    }
-
-    // ===== FETCH AI BUSINESS SUMMARY =====
-    try {
-      const summaryRes = await getBusinessSummary();
-      if (summaryRes?.data?.hasSummary) {
-        setBusinessSummary(summaryRes.data);
-        if (summaryRes.data.is_new) {
-          setShowBusinessSummaryModal(true);
+      try {
+        const trialStatusRes = await getTrialStatus();
+        const trialData = trialStatusRes?.data || trialStatusRes;
+        if (trialData) {
+          setTrialStatus(trialData);
+          const trialEndDate = trialData.trialEnd || trialData.trial_end_date;
+          if (trialEndDate) {
+            checkAndShowWarning(trialEndDate, trialData.status);
+          }
         }
+
+        const trialNotifRes = await getTrialNotifications();
+        const notifData = trialNotifRes?.data || trialNotifRes;
+        if (notifData) {
+          setTrialNotifications(notifData.notifications || []);
+          setTrialUnreadCount(notifData.unreadCount || 0);
+        }
+      } catch (trialErr) {
+        console.error('Error fetching trial data:', trialErr);
       }
-    } catch (summaryErr) {
-      console.error("Business summary fetch error:", summaryErr);
-    }
+      setTrialLoading(false);
 
-    // ===== FETCH AI ALERTS =====
-    try {
-      const alertsRes = await getBusinessAlerts();
-      const alertsData = alertsRes?.data || {};
-      setAiAlerts(alertsData.alerts || []);
-      setAlertUnreadCount(alertsData.unreadCount || 0);
-    } catch (alertsErr) {
-      console.error("Business alerts fetch error:", alertsErr);
-    }
+      try {
+        const alertRes = await getInventoryAlertsCount();
+        setLowStockCount(alertRes?.data?.count || 0);
+      } catch (invErr) {
+        console.error("Inventory alert fetch error:", invErr);
+      }
 
-  } catch (err) {
-    console.error("Dashboard load error:", err);
-  } finally {
-    setLoading(false);
-    setRefreshing(false);
-  }
-};
+      try {
+        const summaryRes = await getBusinessSummary();
+        if (summaryRes?.data?.hasSummary) {
+          setBusinessSummary(summaryRes.data);
+          if (summaryRes.data.is_new) {
+            setShowBusinessSummaryModal(true);
+          }
+        }
+      } catch (summaryErr) {
+        console.error("Business summary fetch error:", summaryErr);
+      }
+
+      try {
+        const alertsRes = await getBusinessAlerts();
+        const alertsData = alertsRes?.data || {};
+        setAiAlerts(alertsData.alerts || []);
+        setAlertUnreadCount(alertsData.unreadCount || 0);
+      } catch (alertsErr) {
+        console.error("Business alerts fetch error:", alertsErr);
+      }
+
+    } catch (err) {
+      console.error("Dashboard load error:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   const handleGenerateSummary = async () => {
     setGeneratingSummary(true);
@@ -872,10 +824,6 @@ setLiveOrders(ordersRes.data.filter(o =>
       socket.on("connect", () => business?.id && socket.emit("join_business", business.id));
       socket.on("new_order", ({ order, notification, tableNumber }) => {
         if (isToday(order.created_at)) setLiveOrders(prev => [{ ...order, table_number: tableNumber }, ...prev]);
-        // Some backend events omit the `notification` payload (or send it
-        // in a slightly different shape). Build a safe local fallback so
-        // the bell/badge reflects new orders immediately instead of
-        // silently getting dropped until the next manual refresh.
         const finalNotification = notification && notification.id
           ? notification
           : {
@@ -886,7 +834,7 @@ setLiveOrders(ordersRes.data.filter(o =>
               created_at: new Date().toISOString(),
             };
         setNotifications(prev => [finalNotification, ...prev]);
-        playNotificationSound(); // 🔊 new order sound
+        playNotificationSound();
       });
       socket.on("order_updated", (updatedOrder) => {
         setLiveOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
@@ -899,26 +847,24 @@ setLiveOrders(ordersRes.data.filter(o =>
         setAiAlerts(prev => [alertRow, ...prev]);
         setAlertUnreadCount(prev => prev + 1);
         setAlertToast({ title: alertRow.title, message: alertRow.message, severity: alertRow.severity });
-        playNotificationSound(); // 🔊 new AI alert sound
+        playNotificationSound();
       });
       socket.on("new_notification", (notificationRow) => {
         setNotifications(prev => [notificationRow, ...prev]);
-        playNotificationSound(); // 🔊 new notification sound
+        playNotificationSound();
       });
       return () => socket.disconnect();
     }, [business?.id])
   );
 
-  // ─── HOURLY INSIGHT TIMER ──────────────────────────────────────────
   useEffect(() => {
     if (loading) return;
     const interval = setInterval(() => {
       if (!showInsightModal) fetchNextInsight(false);
-    }, 3600000); // 10 sec for testing, change to 3600000 for production
+    }, 3600000);
     return () => clearInterval(interval);
   }, [loading, showInsightModal]);
 
-  // ─── LOCK BACKGROUND SCROLL WHILE NOTIFICATIONS PANEL IS OPEN (web) ────
   useEffect(() => {
     if (isWeb && typeof document !== "undefined") {
       document.body.style.overflow = showNotifications ? "hidden" : "";
@@ -930,21 +876,18 @@ setLiveOrders(ordersRes.data.filter(o =>
     };
   }, [showNotifications]);
 
-  // ─── AUTO-DISMISS TRIAL/SUBSCRIPTION TOAST ─────────────────────────
   useEffect(() => {
     if (!trialToast) return;
     const t = setTimeout(() => setTrialToast(null), 6000);
     return () => clearTimeout(t);
   }, [trialToast]);
 
-  // ─── AUTO-DISMISS AI ALERT TOAST ──────────────────────────────────
   useEffect(() => {
     if (!alertToast) return;
     const t = setTimeout(() => setAlertToast(null), 6000);
     return () => clearTimeout(t);
   }, [alertToast]);
 
-  // ─── CLOSE PROFILE DROPDOWN ON OUTSIDE CLICK / ESCAPE (web) ────────
   useEffect(() => {
     if (!isWeb || typeof document === "undefined") return;
     if (!showProfileMenu) return;
@@ -972,9 +915,11 @@ setLiveOrders(ordersRes.data.filter(o =>
   const activeTableCount = new Set(liveOrders.map(o => o.table_number)).size;
 
   // ─── PROFILE DROPDOWN NAVIGATION ITEMS ──────────────────────────────
+  // STAFF OPTION ADDED HERE
   const profileMenuItems = [
     { key: "Profile", label: "Profile", icon: "person-outline", iconColor: "#3B82F6" },
     { key: "Inventory", label: "Inventory", icon: "cube-outline", iconColor: "#F59E0B", badge: lowStockCount },
+    { key: "Staff", label: "Staff", icon: "people-outline", iconColor: "#10B981" },
     { key: "Reviews", label: "Reviews", icon: "star-outline", iconColor: "#EAB308" },
     { key: "Referrals", label: "Referrals", icon: "share-outline", iconColor: "#EAB308" },
     { key: "Support", label: "Support", icon: "help-buoy-outline", iconColor: "#10B981" },
@@ -999,7 +944,6 @@ setLiveOrders(ordersRes.data.filter(o =>
 
     return (
       <div style={{ minHeight: "100vh", background: "#F5F3EF", fontFamily: "'DM Sans', sans-serif", overflowY: "auto" }}>
-        {/* HEADER */}
         <div className="servon-web-header">
           <div style={{ maxWidth: 1160, margin: "0 auto", padding: "0 28px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 22, fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>
@@ -1028,9 +972,6 @@ setLiveOrders(ordersRes.data.filter(o =>
                 )}
               </button>
 
-              {/* PROFILE DROPDOWN — replaces direct navigate("Profile"). Clicking the
-                  avatar toggles a small menu with Profile / Inventory / Reviews / Support,
-                  each of which opens that screen. */}
               <div className="servon-profile-menu-wrap" ref={profileMenuRef}>
                 <button
                   onClick={() => setShowProfileMenu(prev => !prev)}
@@ -1085,7 +1026,6 @@ setLiveOrders(ordersRes.data.filter(o =>
           </div>
         </div>
 
-        {/* MAIN CONTENT */}
         <div style={{ maxWidth: 1160, margin: "0 auto", padding: "32px 28px 60px" }}>
           <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <div>
@@ -1155,8 +1095,7 @@ setLiveOrders(ordersRes.data.filter(o =>
           </div>
         </div>
 
-        {/* NOTIFICATION PANEL — rendered via portal straight into <body> so it's never
-            clipped by a transformed/animated ancestor (e.g. navigation screen wrapper) */}
+        {/* NOTIFICATION PANEL */}
         {showNotifications && typeof document !== "undefined" && ReactDOM.createPortal(
           <>
             <div className="servon-notif-overlay" onClick={() => setShowNotifications(false)} />
@@ -1226,7 +1165,6 @@ setLiveOrders(ordersRes.data.filter(o =>
                       );
                     })()}
 
-                    {/* Trial Reminders */}
                     {trialNotifications.length > 0 && (
                       <div>
                         <div className="servon-notif-day-header">Trial Reminders</div>
@@ -1249,7 +1187,6 @@ setLiveOrders(ordersRes.data.filter(o =>
                       </div>
                     )}
 
-                    {/* AI Alerts */}
                     {aiAlerts.length > 0 && (
                       <div>
                         <div className="servon-notif-day-header">AI Alerts</div>
@@ -1287,9 +1224,6 @@ setLiveOrders(ordersRes.data.filter(o =>
           document.body
         )}
 
-        {/* IN-APP TRIAL/SUBSCRIPTION TOAST — replaces window.alert, portal-rendered so
-            it floats above everything regardless of scroll position. Gated by
-            isFocused so it only shows while the Dashboard tab is the active screen. */}
         {trialToast && isFocused && typeof document !== "undefined" && ReactDOM.createPortal(
           <div className="servon-trial-toast">
             <div className="servon-trial-toast-icon">
@@ -1311,7 +1245,6 @@ setLiveOrders(ordersRes.data.filter(o =>
           document.body
         )}
 
-        {/* AI BUSINESS SUMMARY MODAL */}
         {showBusinessSummaryModal && businessSummary && typeof document !== "undefined" && ReactDOM.createPortal(
           <div className="servon-summary-overlay" onClick={() => setShowBusinessSummaryModal(false)}>
             <div className="servon-summary-modal" onClick={(e) => e.stopPropagation()}>
@@ -1380,7 +1313,6 @@ setLiveOrders(ordersRes.data.filter(o =>
           document.body
         )}
 
-        {/* AI ALERT TOAST */}
         {alertToast && isFocused && typeof document !== "undefined" && ReactDOM.createPortal(
           <div className="servon-trial-toast" style={{ background: getAlertSeverityColor(alertToast.severity) }}>
             <div className="servon-trial-toast-icon">
@@ -1417,7 +1349,7 @@ setLiveOrders(ordersRes.data.filter(o =>
                 </View>
               )}
             </TouchableOpacity>
-                        <TouchableOpacity style={styles.profileAvatar} onPress={() => setShowProfileMenu(true)}>
+            <TouchableOpacity style={styles.profileAvatar} onPress={() => setShowProfileMenu(true)}>
               <Text style={styles.profileAvatarText}>{ownerInitial}</Text>
               {lowStockCount > 0 && (
                 <View style={styles.profileAvatarBadge}>
@@ -1429,8 +1361,6 @@ setLiveOrders(ordersRes.data.filter(o =>
         </View>
       </View>
 
-      {/* IN-APP TRIAL/SUBSCRIPTION TOAST — replaces Alert.alert popup. Gated by
-          isFocused so it only shows while the Dashboard tab is the active screen. */}
       {trialToast && isFocused && (
         <View style={[styles.trialToastWrap, { top: insets.top + 62 }]} pointerEvents="box-none">
           <View style={styles.trialToast}>
@@ -1458,80 +1388,77 @@ setLiveOrders(ordersRes.data.filter(o =>
           <SubscriptionBanner />
 
           <View style={[styles.statsGrid, isTabletWidth && styles.statsGridSmall]}>
-  <StatCard
-    label="Orders Today"
-    value={analytics?.today?.totalOrders ?? 0}
-    icon="cube"
-    color="#3B82F6"
-    bg="#EFF6FF"
-    extraStyle={{ minWidth: statCardMinWidth }}
-  />
+            <StatCard
+              label="Orders Today"
+              value={analytics?.today?.totalOrders ?? 0}
+              icon="cube"
+              color="#3B82F6"
+              bg="#EFF6FF"
+              extraStyle={{ minWidth: statCardMinWidth }}
+            />
 
-  {!isChefMode && (
-    <StatCard
-      label="Revenue Today"
-      value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`}
-      icon="wallet"
-      color="#10B981"
-      bg="#ECFDF5"
-      extraStyle={{ minWidth: statCardMinWidth }}
-    />
-  )}
+            {!isChefMode && (
+              <StatCard
+                label="Revenue Today"
+                value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`}
+                icon="wallet"
+                color="#10B981"
+                bg="#ECFDF5"
+                extraStyle={{ minWidth: statCardMinWidth }}
+              />
+            )}
 
-  <StatCard
-    label="Active Tables"
-    value={activeTableCount}
-    icon="grid"
-    color="#F59E0B"
-    bg="#FFFBEB"
-    extraStyle={{ minWidth: statCardMinWidth }}
-  />
+            <StatCard
+              label="Active Tables"
+              value={activeTableCount}
+              icon="grid"
+              color="#F59E0B"
+              bg="#FFFBEB"
+              extraStyle={{ minWidth: statCardMinWidth }}
+            />
 
-  <StatCard
-    label="Top Item"
-    value={analytics?.today?.mostOrderedItem?.name || "-"}
-    icon="flame"
-    color="#EF4444"
-    bg="#FEF2F2"
-    isText
-    extraStyle={{ minWidth: statCardMinWidth }}
-  />
-</View>
+            <StatCard
+              label="Top Item"
+              value={analytics?.today?.mostOrderedItem?.name || "-"}
+              icon="flame"
+              color="#EF4444"
+              bg="#FEF2F2"
+              isText
+              extraStyle={{ minWidth: statCardMinWidth }}
+            />
+          </View>
 
-{/* AI BUSINESS ADVISOR + GENERATE SUMMARY BUTTONS — hidden in chef mode */}
-{!isChefMode && (
-  <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-    <TouchableOpacity
-      style={styles.advisorBtn}
-      onPress={() => navigation.navigate("Advisor")}
-    >
-      <Ionicons
-        name="sparkles-outline"
-        size={20}
-        color="#fff"
-      />
-      <Text style={styles.advisorBtnText}>
-        AI Business Advisor
-      </Text>
-    </TouchableOpacity>
-    <TouchableOpacity
-      style={[styles.advisorBtn, { backgroundColor: "#111827" }]}
-      onPress={handleGenerateSummary}
-      disabled={generatingSummary}
-    >
-      {generatingSummary ? (
-        <ActivityIndicator size="small" color="#fff" />
-      ) : (
-        <Ionicons name="analytics-outline" size={20} color="#fff" />
-      )}
-      <Text style={styles.advisorBtnText}>
-        Generate Summary
-      </Text>
-    </TouchableOpacity>
-  </View>
-)}
-
-<View style={styles.section}></View>
+          {!isChefMode && (
+            <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <TouchableOpacity
+                style={styles.advisorBtn}
+                onPress={() => navigation.navigate("Advisor")}
+              >
+                <Ionicons
+                  name="sparkles-outline"
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={styles.advisorBtnText}>
+                  AI Business Advisor
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.advisorBtn, { backgroundColor: "#111827" }]}
+                onPress={handleGenerateSummary}
+                disabled={generatingSummary}
+              >
+                {generatingSummary ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="analytics-outline" size={20} color="#fff" />
+                )}
+                <Text style={styles.advisorBtnText}>
+                  Generate Summary
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -1619,7 +1546,6 @@ setLiveOrders(ordersRes.data.filter(o =>
                     );
                   })()}
 
-                  {/* Trial Reminders */}
                   {trialNotifications.length > 0 && (
                     <View>
                       <Text style={styles.notifDayHeader}>Trial Reminders</Text>
@@ -1642,7 +1568,6 @@ setLiveOrders(ordersRes.data.filter(o =>
                     </View>
                   )}
 
-                  {/* AI Alerts */}
                   {aiAlerts.length > 0 && (
                     <View>
                       <Text style={styles.notifDayHeader}>AI Alerts</Text>
@@ -1678,9 +1603,7 @@ setLiveOrders(ordersRes.data.filter(o =>
         </View>
       </Modal>
 
-            
-
-      {/* PROFILE DROPDOWN MENU (native) — mirrors the web version */}
+      {/* PROFILE DROPDOWN MENU (native) */}
       <Modal visible={showProfileMenu} transparent animationType="fade" onRequestClose={() => setShowProfileMenu(false)}>
         <TouchableOpacity style={styles.profileMenuOverlay} activeOpacity={1} onPress={() => setShowProfileMenu(false)}>
           <View style={[styles.profileMenuBox, { top: insets.top + 60 }]}>
@@ -1704,10 +1627,6 @@ setLiveOrders(ordersRes.data.filter(o =>
           </View>
         </TouchableOpacity>
       </Modal>
-
-      {/* INVENTORY FLOATING BUTTON */}
-
-    
 
       {/* AI BUSINESS SUMMARY MODAL (native) */}
       <Modal visible={showBusinessSummaryModal} transparent animationType="fade">
@@ -1790,9 +1709,6 @@ setLiveOrders(ordersRes.data.filter(o =>
           </View>
         </View>
       )}
-
-      {/* INSIGHT MODAL */}
-      
     </View>
   );
 }
@@ -2030,8 +1946,6 @@ const styles = StyleSheet.create({
   modalTitleText: { fontSize: 18, fontWeight: '700', color: '#111827' },
   modalSubtitleText: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
   notifList: { paddingBottom: 24 },
-
-  /* legacy notif item styles (kept, unused by new render but not removed) */
   emptyNotif: { textAlign: 'center', color: '#9CA3AF', marginTop: 40, fontSize: 14 },
   notifItem: {
     paddingVertical: 12, paddingHorizontal: 14,
@@ -2044,7 +1958,6 @@ const styles = StyleSheet.create({
   notifMessage: { fontSize: 13, color: '#4B5563', marginBottom: 4 },
   notifTime: { fontSize: 11, color: '#9CA3AF' },
 
-  /* ── Modern, day-grouped notification styles ── */
   notifDayHeader: {
     fontSize: 11, fontWeight: '700', color: '#9CA3AF',
     textTransform: 'uppercase', letterSpacing: 0.6,
@@ -2106,7 +2019,6 @@ const styles = StyleSheet.create({
   advisorBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, gap: 8, marginTop: 12, alignSelf: 'center' },
   advisorBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-  /* ── In-app trial/subscription toast (native) — replaces Alert.alert ── */
   trialToastWrap: {
     position: 'absolute', left: 0, right: 0, alignItems: 'center',
     zIndex: 999, paddingHorizontal: 16,
@@ -2129,7 +2041,6 @@ const styles = StyleSheet.create({
   trialToastBtnText: { color: '#111827', fontSize: 11.5, fontWeight: '700' },
   trialToastClose: { padding: 4, flexShrink: 0 },
 
-  /* ── Inventory floating action button (native) ── */
   inventoryFab: {
     position: 'absolute', right: 20,
     width: 58, height: 58, borderRadius: 18,
