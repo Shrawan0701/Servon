@@ -176,15 +176,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
             {/* Contact Details */}
             <View style={styles.section}>
                 <Text style={styles.sectionEyebrow}>CONTACT DETAILS</Text>
-                <View style={styles.detailItem}>
-                    <View style={styles.detailIconChip}>
-                        <Ionicons name="mail-outline" size={17} color="#059669" />
-                    </View>
-                    <View style={styles.detailTextWrap}>
-                        <Text style={styles.detailLabel}>Email</Text>
-                        <Text style={styles.detailValue}>{staff.email || 'Not provided'}</Text>
-                    </View>
-                </View>
+               
                 <View style={styles.detailItem}>
                     <View style={styles.detailIconChip}>
                         <Ionicons name="call-outline" size={17} color="#059669" />
@@ -362,18 +354,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                                 />
                             </View>
 
-                            <Text style={styles.inputLabel}>Email</Text>
-                            <View style={styles.inputWrap}>
-                                <Ionicons name="mail-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Email"
-                                    placeholderTextColor="#B4BCC8"
-                                    value={formData.email}
-                                    onChangeText={(text) => setFormData({ ...formData, email: text })}
-                                    keyboardType="email-address"
-                                />
-                            </View>
+                            
 
                             <Text style={styles.inputLabel}>Phone</Text>
                             <View style={styles.inputWrap}>

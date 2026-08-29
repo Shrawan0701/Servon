@@ -248,6 +248,28 @@ export const getQRPdfUrl = (id) => `${API.defaults.baseURL}/tables/${id}/qr-pdf`
 export const getOrders = () => API.get("/orders");
 export const updateOrderStatus = (id, status) => API.patch(`/orders/${id}/status`, { status });
 
+// Staff order creation — reuses the EXISTING customer order pipeline
+// (/orders/place), so staff orders become real, analytics-participating orders.
+export const placeOrder = (data) => API.post("/orders/place", data);
+
+// ==========================================================
+// ROOM MANAGEMENT (staff-side)
+// ==========================================================
+export const getRooms = () => API.get("/rooms");
+export const addRoom = (roomNumber) => API.post("/rooms", { roomNumber });
+export const checkInRoom = (id, data) => API.post(`/rooms/${id}/check-in`, data);
+export const updateRoom = (id, data) => API.patch(`/rooms/${id}`, data);
+export const checkOutRoom = (id) => API.post(`/rooms/${id}/check-out`);
+export const deleteRoom = (id) => API.delete(`/rooms/${id}`);
+
+// Unified Servon voice assistant — detects ORDER vs ROOM intent server-side.
+export const servonVoice = (formData) =>
+  API.post("/action/voice", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+
 // Notifications with fallback support
 export const getNotifications = async () => {
   try {

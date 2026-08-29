@@ -20,6 +20,7 @@ import SupportScreen from "../screens/SupportScreen";
 import InventoryScreen from "../screens/InventoryScreen";
 import StaffScreen from '../screens/StaffScreen';
 import StaffProfileScreen from '../screens/StaffProfileScreen';
+import RoomsScreen from '../screens/RoomsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -123,6 +124,13 @@ export default function MainNavigator() {
         name="Support" 
         component={SupportScreen} 
         options={{ 
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="Rooms"
+        component={RoomsScreen}
+        options={{
           headerShown: false,
         }}
       />

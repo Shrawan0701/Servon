@@ -41,6 +41,7 @@ import {
 } from "../api";
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
+import ServonAssistantModal from "../components/ServonAssistantModal";
 import io from "socket.io-client";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ReactDOM from "react-dom";
@@ -606,6 +607,7 @@ export default function DashboardScreen() {
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef(null);
+  const [assistantOpen, setAssistantOpen] = useState(null); // null | 'manual' | 'voice'
 
   const businessName = business?.business_name || business?.businessName || "Servon";
 
@@ -920,6 +922,7 @@ export default function DashboardScreen() {
     { key: "Profile", label: "Profile", icon: "person-outline", iconColor: "#3B82F6" },
     { key: "Inventory", label: "Inventory", icon: "cube-outline", iconColor: "#F59E0B", badge: lowStockCount },
     { key: "Staff", label: "Staff", icon: "people-outline", iconColor: "#10B981" },
+    { key: "Rooms", label: "Rooms", icon: "bed-outline", iconColor: "#6366F1" },
     { key: "Reviews", label: "Reviews", icon: "star-outline", iconColor: "#EAB308" },
     { key: "Referrals", label: "Referrals", icon: "share-outline", iconColor: "#EAB308" },
     { key: "Support", label: "Support", icon: "help-buoy-outline", iconColor: "#10B981" },
@@ -1330,11 +1333,41 @@ export default function DashboardScreen() {
           </div>,
           document.body
         )}
+      {/* SERVON FLOATING ACTIONS (web) */}
+      <div className="servon-fab-area" style={{ position: "fixed", right: 22, bottom: 90, display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-end", zIndex: 1200 }}>
+          <button
+            onClick={() => setAssistantOpen("voice")}
+            title="Servon Assistant"
+            style={{
+              width: 46, height: 46, borderRadius: 23, border: "none", cursor: "pointer",
+              background: "#10B981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 6px 18px rgba(16,185,129,0.4)",
+            }}
+          >
+            <Ionicons name="mic" size={22} color="#fff" />
+          </button>
+          <button
+            onClick={() => setAssistantOpen("manual")}
+            title="Create Order"
+            style={{
+              height: 48, padding: "0 18px", borderRadius: 24, border: "none", cursor: "pointer",
+              background: "#111827", color: "#fff", display: "flex", alignItems: "center", gap: 6,
+              fontWeight: 700, fontSize: 14, boxShadow: "0 6px 18px rgba(0,0,0,0.2)",
+            }}
+          >
+            <Ionicons name="add" size={22} color="#fff" />
+            Create Order
+          </button>
+        </div>
+
+        <ServonAssistantModal
+          visible={assistantOpen !== null}
+          initialMode={assistantOpen || "manual"}
+          onClose={() => setAssistantOpen(null)}
+        />
       </div>
     );
   }
-
-  // ─── NATIVE RENDER ──────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 15 }]}>
@@ -1709,6 +1742,23 @@ export default function DashboardScreen() {
           </View>
         </View>
       )}
+
+      {/* SERVON FLOATING ACTIONS (native) */}
+      <View style={styles.servonFabWrap} pointerEvents="box-none">
+        <TouchableOpacity style={styles.servonMicFab} onPress={() => setAssistantOpen("voice")}>
+          <Ionicons name="mic" size={22} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.servonCreateFab} onPress={() => setAssistantOpen("manual")}>
+          <Ionicons name="add" size={26} color="#fff" />
+          <Text style={styles.servonCreateLabel}>Create Order</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ServonAssistantModal
+        visible={assistantOpen !== null}
+        initialMode={assistantOpen || "manual"}
+        onClose={() => setAssistantOpen(null)}
+      />
     </View>
   );
 }
@@ -1848,6 +1898,20 @@ const statusColor = (s) => ({
 // ─── STYLES ───────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F3EF' },
+  servonFabWrap: { position: 'absolute', right: 18, bottom: 92, alignItems: 'flex-end', gap: 12, zIndex: 900 },
+  servonMicFab: {
+    width: 46, height: 46, borderRadius: 23, backgroundColor: '#10B981',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#10B981', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  servonCreateFab: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#111827', borderRadius: 24, paddingHorizontal: 18, height: 48,
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  servonCreateLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     backgroundColor: 'rgba(255,255,255,0.9)',
