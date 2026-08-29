@@ -112,7 +112,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
     try {
         const businessId = req.businessId;
-        const { name, email, phone, role, joining_date, monthly_salary } = req.body;
+        const { name, phone, role, joining_date, monthly_salary } = req.body;
 
         if (!name || !phone || !role || !joining_date || monthly_salary === undefined) {
             return res.status(400).json({ error: 'Missing required fields' });
@@ -124,13 +124,13 @@ router.post('/', authenticateToken, async (req, res) => {
 
         const query = `
             INSERT INTO staff (
-                business_id, name, email, phone, role, 
+                business_id, name, phone, role, 
                 joining_date, monthly_salary
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ) VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
         `;
 
-        const values = [businessId, name, email, phone, role, joining_date, monthly_salary];
+        const values = [businessId, name, phone, role, joining_date, monthly_salary];
         const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
@@ -148,7 +148,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const businessId = req.businessId;
-        const { name, email, phone, role, joining_date, monthly_salary, is_active } = req.body;
+        const { name, phone, role, joining_date, monthly_salary, is_active } = req.body;
 
         const checkQuery = 'SELECT id FROM staff WHERE id = $1 AND business_id = $2';
         const checkResult = await pool.query(checkQuery, [id, businessId]);
@@ -165,10 +165,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
             updates.push(`name = $${paramCount++}`);
             values.push(name);
         }
-        if (email !== undefined) {
-            updates.push(`email = $${paramCount++}`);
-            values.push(email);
-        }
+        
         if (phone !== undefined) {
             updates.push(`phone = $${paramCount++}`);
             values.push(phone);
