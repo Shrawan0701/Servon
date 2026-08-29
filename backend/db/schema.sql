@@ -126,3 +126,21 @@ CREATE TABLE IF NOT EXISTS push_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_push_tokens_business
   ON push_tokens(business_id);
+-- ─── hotel_rooms: staff-side room occupancy management ─────────────────────
+CREATE TABLE IF NOT EXISTS hotel_rooms (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  room_number VARCHAR(20) NOT NULL,
+  status VARCHAR(20) DEFAULT 'AVAILABLE'
+    CHECK (status IN ('AVAILABLE', 'OCCUPIED')),
+  total_guests INTEGER NOT NULL DEFAULT 0,
+  male INTEGER NOT NULL DEFAULT 0,
+  female INTEGER NOT NULL DEFAULT 0,
+  children INTEGER NOT NULL DEFAULT 0,
+  checked_in_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(business_id, room_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_hotel_rooms_business_id ON hotel_rooms(business_id);

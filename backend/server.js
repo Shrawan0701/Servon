@@ -94,6 +94,8 @@ app.use("/api/reviews", require("./routes/reviews"));
 app.use("/api/expenses", require("./routes/expenses"));
 app.use("/api/business", require("./routes/profile"));
 app.use("/api/advisor", require("./routes/advisor"));
+app.use("/api/action", require("./routes/action"));
+app.use("/api/rooms", require("./routes/rooms"));
 app.use("/api/inventory", require("./routes/inventory"));
 app.use("/api/notifications", require("./routes/notifications"));
 
