@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const cron = require("node-cron");
 const sendPush = require("./utils/pushNotify");
-const adminRoutes = require('./routes/admin');
+
 // ─── IMPORT AUTH & UTILITIES ──────────────────────────────────────────
 const auth = require("./middleware/auth");
 const { collectDailyData } = require("./utils/dailySummary");
@@ -18,7 +18,7 @@ const { generateSummary, generateInsights } = require("./services/aiSummaryServi
 // AI Business Summary + Alerts scheduler
 const { initScheduler, startCronJobs } = require("./jobs/scheduler");
 
-// Init socket
+// ─── INIT SOCKET ──────────────────────────────────────────────────────
 initSocket(server);
 
 // Init & start AI Business Summary + Alerts cron jobs
@@ -44,8 +44,6 @@ const allowedOrigins = [
   "http://192.168.1.8:3000",
   "http://192.168.1.8:3001",
   "http://10.61.96.12:3000",
-
-  // ─── YOUR NEW IP ─────────────────────────────────────────────
   "http://10.198.185.12:3000",
   "http://10.198.185.12:3001",
   "http://10.198.185.12:8081",
@@ -98,7 +96,18 @@ app.use("/api/business", require("./routes/profile"));
 app.use("/api/advisor", require("./routes/advisor"));
 app.use("/api/inventory", require("./routes/inventory"));
 app.use("/api/notifications", require("./routes/notifications"));
+
+// ─── ADMIN ROUTES ──────────────────────────────────────────────────────
+const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
+console.log('✅ Admin routes registered at /api/admin');
+
+// ─── STAFF ROUTES ──────────────────────────────────────────────────────
+const staffRoutes = require('./routes/staff');
+app.use('/api/staff', staffRoutes);
+console.log('✅ Staff routes registered at /api/staff');
+
+// ─── HEALTH CHECK ─────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date() }));
 
 // ─── DAILY AI SUMMARY CRON (6:00 AM) ────────────────────────────────
@@ -124,12 +133,14 @@ cron.schedule("0 6 * * *", async () => {
          WHERE business_id = $1 AND summary_date = $2`,
         [biz.id, yesterdayStr]
       );
+      
       if (existing.rows.length > 0) {
         console.log(`⏭️ Summary already exists for ${biz.business_name}`);
         continue;
       }
 
       const data = await collectDailyData(biz.id, yesterday);
+      
       if (data.totalOrders === 0) {
         console.log(`⏭️ No orders for ${biz.business_name}, skipping.`);
         continue;
@@ -165,6 +176,7 @@ cron.schedule("0 6 * * *", async () => {
           "avg_order",
           "recommendation",
         ][i] || "summary";
+        
         await pool.query(
           `INSERT INTO hourly_insights 
            (business_id, insight_date, insight_order, insight_type, insight_text)
@@ -197,6 +209,7 @@ cron.schedule("0 10 * * *", async () => {
       `SELECT push_token FROM businesses 
        WHERE subscription_end_date::date = (CURRENT_DATE + INTERVAL '3 days')::date`
     );
+    
     result.rows.forEach((row) => {
       if (row.push_token) {
         sendPush(
@@ -224,6 +237,7 @@ app.post("/api/admin/trigger-summary", async (req, res) => {
     const yesterdayStr = yesterday.toISOString().split("T")[0];
 
     const data = await collectDailyData(businessId, yesterday);
+    
     if (data.totalOrders === 0) {
       return res.json({ message: "No orders found for yesterday." });
     }
@@ -233,7 +247,9 @@ app.post("/api/admin/trigger-summary", async (req, res) => {
       `INSERT INTO daily_summaries (business_id, summary_date, summary_text, key_metrics, displayed)
        VALUES ($1, $2, $3, $4, false)
        ON CONFLICT (business_id, summary_date) DO UPDATE 
-       SET summary_text = EXCLUDED.summary_text, key_metrics = EXCLUDED.key_metrics, displayed = false`,
+       SET summary_text = EXCLUDED.summary_text, 
+           key_metrics = EXCLUDED.key_metrics, 
+           displayed = false`,
       [businessId, yesterdayStr, summary, JSON.stringify(data)]
     );
 
@@ -243,6 +259,7 @@ app.post("/api/admin/trigger-summary", async (req, res) => {
        WHERE business_id = $1 AND insight_date = $2`,
       [businessId, yesterdayStr]
     );
+    
     for (let i = 0; i < insights.length; i++) {
       const insightType = [
         "orders",
@@ -252,6 +269,7 @@ app.post("/api/admin/trigger-summary", async (req, res) => {
         "avg_order",
         "recommendation",
       ][i] || "summary";
+      
       await pool.query(
         `INSERT INTO hourly_insights 
          (business_id, insight_date, insight_order, insight_type, insight_text)
@@ -267,12 +285,10 @@ app.post("/api/admin/trigger-summary", async (req, res) => {
       insights,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Error in trigger-summary:", err);
     res.status(500).json({ error: err.message });
   }
 });
-app.use('/api/admin', adminRoutes);
-console.log('✅ Admin routes registered at /api/admin');  // ← ADD THIS
 
 // ─── 404 HANDLER ──────────────────────────────────────────────────────
 app.use("*", (req, res) => {
@@ -280,7 +296,32 @@ app.use("*", (req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
+// ─── START SERVER ──────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Servon backend running on port ${PORT}`);
+  console.log(`🚀 Servon backend running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// ─── GRACEFUL SHUTDOWN ──────────────────────────────────────────────
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    pool.end(() => {
+      console.log('Database pool closed');
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    pool.end(() => {
+      console.log('Database pool closed');
+      process.exit(0);
+    });
+  });
 });
