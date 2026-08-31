@@ -401,7 +401,7 @@ const generateSalesReportPDF = (reportData) => {
 const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Restaurant") => {
   return new Promise((resolve, reject) => {
     const W   = 360;
-    const H   = 540;
+    const H   = 556;
     const doc = new PDFDocument({ size: [W, H], margin: 0 });
 
     const buffers = [];
@@ -539,7 +539,7 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     });
 
     // ── 6. Bottom Footer & Assistance Bar ─────────────────────────────────
-    const footerY = H - 42;
+    const footerY = H - 58;
 
     // Divider Line
     doc
@@ -567,6 +567,18 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
         0,
         footerY + 22,
         { align: "center", characterSpacing: 1 }
+      );
+
+    // Powered By Line
+    doc
+      .fontSize(7)
+      .font("Helvetica")
+      .fillColor("#9CA3AF")
+      .text(
+        "Powered by Servon Labs  •  Call us at 9834386415",
+        0,
+        footerY + 36,
+        { align: "center", characterSpacing: 0.5 }
       );
 
     // Bottom Color Bar
