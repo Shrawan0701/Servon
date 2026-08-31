@@ -270,6 +270,10 @@ export const servonVoice = (formData) =>
     },
   });
 
+// Order announcement TTS — reuses the existing OpenAI voice stack (advisor /speak).
+export const announceOrder = (text, language) =>
+  API.post("/advisor/speak", { text, language });
+
 // Notifications with fallback support
 export const getNotifications = async () => {
   try {

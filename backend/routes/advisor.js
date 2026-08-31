@@ -48,6 +48,33 @@ router.post('/ask', auth, async (req, res) => {
   }
 });
 
+// ORDER ANNOUNCEMENT TTS: text -> spoken mp3, reusing the exact same OpenAI
+// voice stack (gpt-4o-mini-tts) as the Voice AI Business Advisor. Used by the
+// hotel-side dashboard to audibly announce new QR orders.
+router.post('/speak', auth, async (req, res) => {
+  try {
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 4096) : '';
+    const language = ['en', 'hi', 'mr'].includes(req.body?.language) ? req.body.language : 'en';
+    if (!text) return res.status(400).json({ error: 'Text missing' });
+
+    const speech = await openai.audio.speech.create({
+      model: 'gpt-4o-mini-tts',
+      voice: 'coral',
+      input: text,
+      response_format: 'mp3',
+      instructions: `Announce the order clearly and promptly as a restaurant order announcer in ${
+        { en: 'English', hi: 'Hindi', mr: 'Marathi' }[language]
+      }.`,
+    });
+
+    const audioBase64 = Buffer.from(await speech.arrayBuffer()).toString('base64');
+    res.json({ success: true, audio: `data:audio/mpeg;base64,${audioBase64}` });
+  } catch (err) {
+    console.error('Speak error:', err.message);
+    res.status(500).json({ error: 'Failed to generate announcement audio.' });
+  }
+});
+
 // VOICE ADVISOR: audio upload -> transcription -> existing advisor -> spoken reply.
 // Audio is kept in memory only and is never written to disk by this endpoint.
 router.post('/voice', auth, async (req, res) => {

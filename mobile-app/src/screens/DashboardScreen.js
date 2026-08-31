@@ -20,6 +20,7 @@ import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation, useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import { useAudioPlayer } from "expo-audio";
 import { useAuth } from "../context/AuthContext";
 import {
   getAnalytics,
@@ -519,6 +520,73 @@ const _playNativeNotificationSound = async () => {
   }
 };
 
+// ─── NEW ORDER VOICE ANNOUNCEMENT ────────────────────────────────────────────
+// Speaks the incoming order (table, items, quantities, total) in the currently
+// selected platform language. Audio is synthesized by the SAME OpenAI voice
+// stack (gpt-4o-mini-tts) used by the Voice AI Business Advisor, via the
+// existing authenticated /advisor/speak endpoint. Speech text only — business
+// data (item names, prices, IDs) is never modified.
+const _announcedOrderIds = new Set();
+const _QUANTITY_WORDS_EN = { 1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten" };
+
+const _announcementItemName = (it) => it?.name || it?.item_name || it?.title || "";
+const _announcementItemQty = (it) => Number(it?.quantity || it?.qty || 1) || 1;
+
+const buildOrderAnnouncement = (order, tableNumber, language) => {
+  const lang = ["en", "hi", "mr"].includes(language) ? language : "en";
+  let items = Array.isArray(order?.items) ? order.items : [];
+  if (typeof order?.items === "string") {
+    try { items = JSON.parse(order.items); } catch { items = []; }
+  }
+  const table = tableNumber ?? order?.table_number ?? "?";
+  const total = order?.total_amount ?? 0;
+  const parts = [];
+
+  if (lang === "en") {
+    parts.push("New order received.");
+    parts.push(`Table ${table}.`);
+    items.forEach((it) => {
+      const qty = _announcementItemQty(it);
+      parts.push(`${_QUANTITY_WORDS_EN[qty] || qty} ${_announcementItemName(it)}.`);
+    });
+    parts.push(`Total amount ${total} rupees.`);
+  } else if (lang === "mr") {
+    parts.push("नवीन ऑर्डर आली आहे.");
+    parts.push(`टेबल ${table}.`);
+    items.forEach((it) => {
+      parts.push(`${_announcementItemName(it)}, ${_announcementItemQty(it)}.`);
+    });
+    parts.push(`एकूण रक्कम ${total} रुपये.`);
+  } else {
+    parts.push("नया ऑर्डर आया है।");
+    parts.push(`टेबल ${table}.`);
+    items.forEach((it) => {
+      parts.push(`${_announcementItemName(it)}, ${_announcementItemQty(it)}.`);
+    });
+    parts.push(`कुल राशि ${total} रुपये.`);
+  }
+
+  return parts.filter(Boolean).join(" ");
+};
+
+// Fire-and-forget announcement tied to the same new_order socket event as the
+// existing beep. A module-level set of announced order ids guarantees each
+// order is spoken exactly once, regardless of re-renders / refreshes.
+const announceNewOrder = async (order, tableNumber, language, playAudio) => {
+  const orderId = order?.id;
+  if (!orderId || _announcedOrderIds.has(orderId)) return;
+  _announcedOrderIds.add(orderId);
+  try {
+    const res = await API.post("/advisor/speak", {
+      text: buildOrderAnnouncement(order, tableNumber, language),
+      language: ["en", "hi", "mr"].includes(language) ? language : "en",
+    });
+    if (res?.data?.audio && typeof playAudio === "function") playAudio(res.data.audio);
+  } catch (err) {
+    console.warn("Order announcement failed:", err?.message);
+  }
+};
+
 const playNotificationSound = () => {
   if (isWeb) {
     _playWebNotificationSound();
@@ -574,6 +642,21 @@ const recordTrialToastShown = () => {
 export default function DashboardScreen() {
   const { language } = useLocale();
   const { business, updateBusiness, isChefMode } = useAuth();
+  // Voice announcement playback — same expo-audio playback approach as the
+  // existing Voice AI Business Advisor. Kept separate from the notification beep.
+  const announcementPlayer = useAudioPlayer(null);
+  const playAnnouncement = (source) => {
+    try {
+      announcementPlayer.replace(source);
+      announcementPlayer.play();
+    } catch (e) {
+      console.warn("Announcement playback failed:", e);
+    }
+  };
+  // Ref keeps the socket handler's language current without re-binding the socket
+  // (language changes must NOT re-trigger announcements for old orders).
+  const languageRef = useRef(language);
+  useEffect(() => { languageRef.current = language; }, [language]);
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
@@ -840,6 +923,9 @@ export default function DashboardScreen() {
             };
         setNotifications(prev => [finalNotification, ...prev]);
         playNotificationSound();
+        // Voice announcement — same new_order event as the beep, spoken exactly
+        // once per order id, using the current platform language.
+        announceNewOrder(order, tableNumber ?? order?.table_number, languageRef.current, playAnnouncement);
       });
       socket.on("order_updated", (updatedOrder) => {
         setLiveOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
