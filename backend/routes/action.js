@@ -69,4 +69,75 @@ router.post("/voice", auth, async (req, res) => {
   }
 });
 
+// ─── PUBLIC QR MENU VOICE ORDER DETECTION ─────────────────────────────
+// The customer QR menu app has no staff JWT, so it cannot hit the auth-protected
+// /voice endpoint. This thin public wrapper reuses the EXACT same transcription +
+// resolveVoiceAction infrastructure as the staff flow — nothing new is written to
+// the database here and nothing is invented: the same AI detects the actual menu items.
+// The table is ALREADY known to the QR link, so the customer sends just the audio +
+// their businessId. Order submission still goes through the existing public
+// /orders/place flow so the hotel receives a perfectly normal QR customer order.
+ router.post("/voice-public", async (req, res) => {
+  try {
+    const businessId = req.body?.businessId;
+    const audio = req.files?.audio;
+
+    if (!businessId) {
+      return res.status(400).json({
+        success: false,
+        error: "businessId is required.",
+        intent: null,
+      });
+    }
+
+    if (!audio || Array.isArray(audio) || !audio.data?.length) {
+      return res.status(400).json({
+        success: false,
+        error: "A short audio recording is required.",
+        intent: null,
+      });
+    }
+
+    if (
+      !audio.mimetype?.startsWith("audio/") &&
+      audio.mimetype !== "video/webm"
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Please upload a valid audio recording.",
+        intent: null,
+      });
+    }
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: await toFile(audio.data, audio.name || "servon-customer-voice.webm", {
+        type: audio.mimetype || "audio/webm",
+      }),
+      model: "gpt-4o-mini-transcribe",
+      prompt:
+        "Restaurant customers dictating food orders while scanning the QR menu. Hindi, Marathi and English are common.",
+    });
+
+    const transcript = transcription.text?.trim();
+    if (!transcript) {
+      return res.json({
+        success: false,
+        transcript: "",
+        error: "I couldn't understand the request clearly. Please try again.",
+        intent: null,
+      });
+    }
+
+    const result = await resolveVoiceAction(transcript, businessId);
+    return res.json(result);
+  } catch (err) {
+    console.error("Servon public voice action error:", err.message);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Unable to process the voice request.",
+      intent: null,
+    });
+  }
+});
+
 module.exports = router;
