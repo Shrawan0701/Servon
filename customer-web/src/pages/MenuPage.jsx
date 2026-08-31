@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom"; // ✅ A
 import { fetchPublicMenu, fetchTableInfo } from "../api";
 import { useCart } from "../context/CartContext";
 import { LanguageSelector, useLocale } from "../context/LocaleContext";
+import VoiceOrderModal from "../components/VoiceOrderModal";
 
 // --- Helper Functions from Friend's Push ---
 
@@ -89,6 +90,9 @@ export default function MenuPage() {
 
   // State for image lightbox preview
   const [selectedImage, setSelectedImage] = useState(null);
+
+  // Voice ordering (mini-cart modal — never navigates to the Cart page)
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   useEffect(() => {
     // ✅ Safety: Only load if we have both IDs
@@ -275,6 +279,32 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Voice order mic button */}
+      {businessId && tableId && (
+        <button
+          onClick={() => setVoiceOpen(true)}
+          style={{
+            position: "fixed",
+            right: 16,
+            bottom: totalItems > 0 ? 84 : 20,
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            border: "none",
+            background: "#111",
+            color: "#fff",
+            fontSize: 24,
+            cursor: "pointer",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+            zIndex: 900,
+          }}
+          aria-label={t("voiceOrder")}
+          title={t("voiceOrder")}
+        >
+          🎤
+        </button>
+      )}
+
       {/* Sticky Cart Bar */}
       {totalItems > 0 && (
         <div className="sticky-cart-bar" onClick={() => navigate(`/cart/${businessId}/${tableId}`)}>
@@ -284,6 +314,15 @@ export default function MenuPage() {
           <span>{t("viewCart", { total: totalAmount.toFixed(0) })}</span>
         </div>
       )}
+
+      {/* Voice Order Modal (self-contained review + confirm) */}
+      <VoiceOrderModal
+        open={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        businessId={businessId}
+        tableId={tableId}
+        menuItems={menuItems}
+      />
 
       {/* Fullscreen Image Preview Overlay Modal */}
       {selectedImage && (
