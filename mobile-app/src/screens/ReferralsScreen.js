@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import {
   View,
-  Text,
+  Text as NativeText,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -10,6 +10,8 @@ import {
   Platform,
   Dimensions
 } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,6 +27,7 @@ const NAVY = "#0F172A";
 
 export default function ReferralsScreen() {
   const navigation = useNavigation();
+  const { language } = useLocale();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState(false);
@@ -42,7 +45,7 @@ export default function ReferralsScreen() {
     setData(res); // ✅ Fixed: 'res' already contains { referral_code, stats, rewards, history }
   } catch (err) {
     console.error(err);
-    Alert.alert("Error", "Could not load referral data");
+    Alert.alert(localizeText("Error", language), localizeText("Could not load referral data", language));
   } finally {
     setLoading(false);
   }
@@ -52,9 +55,9 @@ export default function ReferralsScreen() {
     if (!data?.referral_code) return;
     if (Platform.OS === 'web') {
       navigator.clipboard.writeText(data.referral_code);
-      window.alert("Code copied to clipboard!");
+      window.alert(localizeText("Code copied to clipboard!", language));
     } else {
-      Alert.alert("Code Copied", `Your code ${data.referral_code} has been copied!`);
+      Alert.alert(localizeText("Code Copied", language), `${localizeText("Your code", language)} ${data.referral_code} ${localizeText("has been copied!", language)}`);
     }
   };
 
@@ -65,7 +68,7 @@ export default function ReferralsScreen() {
       Alert.alert("Success", res.data.message);
       loadData();
     } catch (err) {
-      Alert.alert("Cannot Redeem", err.response?.data?.error || "An error occurred.");
+      Alert.alert(localizeText("Cannot Redeem", language), err.response?.data?.error || localizeText("An error occurred.", language));
     } finally {
       setRedeeming(false);
     }
@@ -107,14 +110,14 @@ const progressPct = availableRewards > 0
   const codeCard = (
     <View style={styles.card}>
       <View style={styles.cardHeaderRow}>
-        <Text style={styles.label}>Your referral code</Text>
+        <LocalizedText translate style={styles.label}>Your referral code</LocalizedText>
         <View style={styles.liveDot} />
       </View>
       <View style={styles.codeRow}>
-        <Text style={styles.codeText}>{data?.referral_code || "—"}</Text>
+        <LocalizedText style={styles.codeText}>{data?.referral_code || "—"}</LocalizedText>
         <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.85}>
           <Ionicons name="copy-outline" size={15} color="#fff" />
-          <Text style={styles.copyBtnText}>Copy</Text>
+          <LocalizedText translate style={styles.copyBtnText}>Copy</LocalizedText>
         </TouchableOpacity>
       </View>
     </View>
@@ -126,22 +129,22 @@ const progressPct = availableRewards > 0
         <View style={[styles.statIconWrap, { backgroundColor: "#ECFDF5" }]}>
           <Ionicons name="checkmark-done" size={15} color={GREEN_DARK} />
         </View>
-        <Text style={styles.statNumber}>{successful}</Text>
-        <Text style={styles.statLabel}>Successful</Text>
+        <LocalizedText style={styles.statNumber}>{successful}</LocalizedText>
+        <LocalizedText translate style={styles.statLabel}>Successful</LocalizedText>
       </View>
       <View style={styles.statCard}>
         <View style={[styles.statIconWrap, { backgroundColor: "#FFFBEB" }]}>
           <Ionicons name="time" size={15} color="#D97706" />
         </View>
-        <Text style={styles.statNumber}>{pending}</Text>
-        <Text style={styles.statLabel}>Pending</Text>
+        <LocalizedText style={styles.statNumber}>{pending}</LocalizedText>
+        <LocalizedText translate style={styles.statLabel}>Pending</LocalizedText>
       </View>
       <View style={styles.statCard}>
         <View style={[styles.statIconWrap, { backgroundColor: "#EFF6FF" }]}>
           <Ionicons name="trophy" size={15} color="#2563EB" />
         </View>
-        <Text style={styles.statNumber}>{earnedRewards}</Text>
-        <Text style={styles.statLabel}>Rewards earned</Text>
+        <LocalizedText style={styles.statNumber}>{earnedRewards}</LocalizedText>
+        <LocalizedText translate style={styles.statLabel}>Rewards earned</LocalizedText>
       </View>
     </View>
   );
@@ -149,20 +152,20 @@ const progressPct = availableRewards > 0
   const cooldownNotice = isCooldownActive && cooldownEnds ? (
     <View style={styles.noticeCard}>
       <Ionicons name="time-outline" size={16} color="#92400E" />
-      <Text style={styles.noticeText}>
-        Cooldown active — you can redeem again on {cooldownEnds.toLocaleDateString()}.
-      </Text>
+      <LocalizedText style={styles.noticeText}>
+        {localizeText("Cooldown active", language)} — {localizeText("you can redeem again on", language)} {cooldownEnds.toLocaleDateString()}.
+      </LocalizedText>
     </View>
   ) : null;
 
   const progressCard = (
     <View style={styles.card}>
       <View style={styles.progressHeader}>
-        <Text style={styles.progressTitle}>Progress to next reward</Text>
+        <LocalizedText translate style={styles.progressTitle}>Progress to next reward</LocalizedText>
         <View style={styles.progressPill}>
-         <Text style={styles.progressPillText}>
+         <LocalizedText style={styles.progressPillText}>
   {availableRewards > 0 ? "2 / 2" : `${successful % 2} / 2`}
-</Text>
+</LocalizedText>
         </View>
       </View>
 
@@ -170,11 +173,11 @@ const progressPct = availableRewards > 0
         <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
       </View>
 
-      <Text style={styles.progressSubtext}>
+      <LocalizedText style={styles.progressSubtext}>
         {availableRewards > 0
-          ? `${availableRewards} reward${availableRewards > 1 ? 's' : ''} available to redeem`
-          : `${referralsForNextReward} more referral${referralsForNextReward > 1 ? 's' : ''} needed`}
-      </Text>
+          ? `${availableRewards} ${localizeText("rewards available to redeem", language)}`
+          : `${referralsForNextReward} ${localizeText("more referrals needed", language)}`}
+      </LocalizedText>
     </View>
   );
 
@@ -195,13 +198,13 @@ const progressPct = availableRewards > 0
             color={(!availableRewards || isCooldownActive) ? "#9CA3AF" : "#fff"}
             style={{ marginRight: 8 }}
           />
-          <Text style={[styles.redeemBtnText, (!availableRewards || isCooldownActive) && styles.redeemBtnTextDisabled]}>
+          <LocalizedText style={[styles.redeemBtnText, (!availableRewards || isCooldownActive) && styles.redeemBtnTextDisabled]}>
             {availableRewards > 0
-              ? `Redeem 1 month free (${availableRewards} available)`
+              ? `${localizeText("Redeem 1 month free", language)} (${availableRewards} ${localizeText("available", language)})`
               : isCooldownActive
-                ? "Cooldown active"
-                : `${referralsForNextReward} more needed`}
-          </Text>
+                ? localizeText("Cooldown active", language)
+                : `${referralsForNextReward} ${localizeText("more needed", language)}`}
+          </LocalizedText>
         </>
       )}
     </TouchableOpacity>
@@ -209,29 +212,29 @@ const progressPct = availableRewards > 0
 
   const historySection = (
     <View style={IS_WEB && styles.historyPanel}>
-      <Text style={styles.historyTitle}>Referral history</Text>
+      <LocalizedText translate style={styles.historyTitle}>Referral history</LocalizedText>
 
       {!data?.history || data.history.length === 0 ? (
         <View style={styles.emptyBox}>
           <View style={styles.emptyIconWrap}>
             <Ionicons name="people-outline" size={22} color="#94A3B8" />
           </View>
-          <Text style={styles.emptyText}>You haven't referred anyone yet.</Text>
+          <LocalizedText translate style={styles.emptyText}>You haven't referred anyone yet.</LocalizedText>
         </View>
       ) : (
         <View style={{ gap: 10 }}>
           {data.history.map((item, index) => (
             <View key={index} style={styles.historyCard}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.historyName}>{item.business_name}</Text>
-                <Text style={styles.historyDate}>
-                  Joined {new Date(item.created_at).toLocaleDateString()}
-                </Text>
+                <LocalizedText style={styles.historyName}>{item.business_name}</LocalizedText>
+                <LocalizedText style={styles.historyDate}>
+                  {localizeText("Joined", language)} {new Date(item.created_at).toLocaleDateString()}
+                </LocalizedText>
               </View>
               <View style={[styles.badge, { backgroundColor: getStatusColor(item.status).bg }]}>
-                <Text style={[styles.badgeText, { color: getStatusColor(item.status).text }]}>
+                <LocalizedText style={[styles.badgeText, { color: getStatusColor(item.status).text }]}>
                   {item.status}
-                </Text>
+                </LocalizedText>
               </View>
             </View>
           ))}
@@ -247,9 +250,9 @@ const progressPct = availableRewards > 0
         <View style={styles.headerInner}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={20} color={NAVY} />
-            <Text style={styles.backText}>Back</Text>
+            <LocalizedText translate style={styles.backText}>Back</LocalizedText>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Referral Program</Text>
+          <LocalizedText translate style={styles.headerTitle}>Referral Program</LocalizedText>
           <View style={{ width: 60 }} />
         </View>
       </View>
@@ -264,14 +267,14 @@ const progressPct = availableRewards > 0
           <View style={styles.heroIconWrap}>
             <Ionicons name="gift" size={20} color={GREEN} />
           </View>
-          <Text style={styles.heroTitle}>Invite & earn</Text>
-          <Text style={styles.heroSub}>
+          <LocalizedText translate style={styles.heroTitle}>Invite & earn</LocalizedText>
+          <LocalizedText translate style={styles.heroSub}>
             Share Servon with fellow restaurateurs and grow together.
-          </Text>
+          </LocalizedText>
           <View style={styles.heroPill}>
-            <Text style={styles.heroPillText}>2 successful referrals</Text>
+            <LocalizedText translate style={styles.heroPillText}>2 successful referrals</LocalizedText>
             <Ionicons name="arrow-forward" size={13} color={GREEN} style={{ marginHorizontal: 6 }} />
-            <Text style={styles.heroPillText}>1 month Premium free</Text>
+            <LocalizedText translate style={styles.heroPillText}>1 month Premium free</LocalizedText>
           </View>
         </View>
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Platform, ScrollView, StyleSheet, Text as NativeText, TouchableOpacity, View } from "react-native";
+import LocalizedText from "../components/LocalizedText";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -10,12 +11,21 @@ import {
 } from 'expo-audio';
 import { ADVISOR_API_BASE_URL, askAdvisorByVoice } from '../api';
 import { useVoicePlaybackController } from '../hooks/useVoicePlaybackController';
+import { useLocale } from '../context/LocaleContext';
 
-const QUESTIONS = [
+const QUESTIONS = { en: [
   'How much revenue today?', 'How much profit today?', 'Why are sales low?',
   'Which item sold most?', 'What should I promote today?', 'Compare this week with last week.',
   'How many customers visited?', 'What should I buy tomorrow?', 'Should I increase prices?',
-];
+], mr: [
+  'आजची कमाई किती आहे?', 'आजचा नफा किती आहे?', 'विक्री कमी का आहे?',
+  'कोणता पदार्थ सर्वाधिक विकला गेला?', 'आज कोणता पदार्थ प्रमोट करावा?', 'या आठवड्याची मागील आठवड्याशी तुलना करा.',
+  'किती ग्राहक आले?', 'उद्या काय खरेदी करावे?', 'किंमती वाढवाव्यात का?',
+], hi: [
+  'आज की कमाई कितनी है?', 'आज का मुनाफ़ा कितना है?', 'बिक्री कम क्यों है?',
+  'कौन सा आइटम सबसे ज़्यादा बिका?', 'आज किस आइटम को प्रमोट करना चाहिए?', 'इस हफ्ते की पिछले हफ्ते से तुलना करें।',
+  'कितने ग्राहक आए?', 'कल क्या खरीदना चाहिए?', 'क्या कीमतें बढ़ानी चाहिए?',
+] };
 
 const LANGUAGE_STORAGE_KEY = 'voice_advisor_language';
 const LANGUAGES = [
@@ -32,27 +42,19 @@ const STATUS = {
 };
 
 export default function VoiceAdvisorTab({ onConversationSaved }) {
+  const { language, setLanguage } = useLocale();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const playback = useVoicePlaybackController();
   const [state, setState] = useState('idle');
-  const [language, setLanguage] = useState('en');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const wave = useRef(new Animated.Value(0.35)).current;
   const autoStopTimer = useRef(null);
   const recordingRef = useRef(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem(LANGUAGE_STORAGE_KEY)
-      .then((savedLanguage) => {
-        if (LANGUAGES.some((item) => item.code === savedLanguage)) setLanguage(savedLanguage);
-      })
-      .catch((storageError) => console.warn('Unable to restore Voice Advisor language:', storageError));
-  }, []);
-
   const selectLanguage = async (nextLanguage) => {
     if (state !== 'idle') return;
-    setLanguage(nextLanguage);
+    await setLanguage(nextLanguage);
     try {
       await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
     } catch (storageError) {
@@ -235,8 +237,8 @@ console.error(requestError);
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
         <View style={styles.icon}><Ionicons name="mic" size={24} color="#10B981" /></View>
-        <Text style={styles.title}>Voice AI Business Advisor</Text>
-        <Text style={styles.subtitle}>{status.label}</Text>
+        <LocalizedText translate style={styles.title}>Voice AI Business Advisor</LocalizedText>
+        <LocalizedText style={styles.subtitle}>{status.label}</LocalizedText>
 
         <View style={styles.languageSelector}>
           {LANGUAGES.map((item) => (
@@ -246,7 +248,7 @@ console.error(requestError);
               onPress={() => selectLanguage(item.code)}
               disabled={state !== 'idle'}
             >
-              <Text style={[styles.languageText, language === item.code && styles.languageTextActive]}>{item.label}</Text>
+              <LocalizedText style={[styles.languageText, language === item.code && styles.languageTextActive]}>{item.label}</LocalizedText>
             </TouchableOpacity>
           ))}
         </View>
@@ -260,7 +262,7 @@ console.error(requestError);
         {state === 'speaking' ? (
           <TouchableOpacity accessibilityRole="button" style={styles.stopSpeakingButton} onPress={stopSpeaking} activeOpacity={0.8}>
             <Ionicons name="stop-circle" size={21} color="#fff" />
-            <Text style={styles.stopSpeakingText}>Stop Speaking</Text>
+            <LocalizedText translate style={styles.stopSpeakingText}>Stop Speaking</LocalizedText>
           </TouchableOpacity>
         ) : (
           <>
@@ -275,27 +277,27 @@ console.error(requestError);
             >
               {state === 'thinking' ? <ActivityIndicator color="#fff" /> : <Ionicons name={state === 'listening' ? 'stop' : 'mic'} size={32} color="#fff" />}
             </TouchableOpacity>
-            <Text style={styles.hint}>{state === 'listening' ? 'Release to send' : 'Hold to talk · automatically stops after 45 seconds'}</Text>
+            <LocalizedText style={styles.hint}>{state === 'listening' ? 'Release to send' : 'Hold to talk · automatically stops after 45 seconds'}</LocalizedText>
           </>
         )}
-        <Text style={styles.disclosure}>The spoken reply is AI-generated.</Text>
+        <LocalizedText translate style={styles.disclosure}>The spoken reply is AI-generated.</LocalizedText>
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <LocalizedText style={styles.error}>{error}</LocalizedText> : null}
 
       {result && (
         <View style={styles.resultCard}>
-          <Text style={styles.resultLabel}>YOU SAID</Text>
-          <Text style={styles.transcript}>{result.transcript}</Text>
-          <View style={styles.answerHeader}><Ionicons name="sparkles" size={16} color="#10B981" /><Text style={styles.answerLabel}>AI ADVISOR</Text></View>
-          <Text style={styles.answer}>{result.answer}</Text>
-          {state === 'speaking' && <Text style={styles.speaking}><Ionicons name="volume-high" size={14} color="#10B981" /> Playing response</Text>}
+          <LocalizedText translate style={styles.resultLabel}>YOU SAID</LocalizedText>
+          <LocalizedText style={styles.transcript}>{result.transcript}</LocalizedText>
+          <View style={styles.answerHeader}><Ionicons name="sparkles" size={16} color="#10B981" /><LocalizedText translate style={styles.answerLabel}>AI ADVISOR</LocalizedText></View>
+          <LocalizedText style={styles.answer}>{result.answer}</LocalizedText>
+          {state === 'speaking' && <LocalizedText style={styles.speaking}><Ionicons name="volume-high" size={14} color="#10B981" /> Playing response</LocalizedText>}
         </View>
       )}
 
       <View style={styles.suggestions}>
-        <Text style={styles.suggestionLabel}>SUGGESTED QUESTIONS</Text>
-        <View style={styles.chips}>{QUESTIONS.map((question) => <TouchableOpacity key={question} style={[styles.chip, state === 'speaking' && styles.chipDisabled]} onPress={() => askSuggestion(question)} disabled={state === 'speaking'}><Text style={styles.chipText}>{question}</Text></TouchableOpacity>)}</View>
+        <LocalizedText translate style={styles.suggestionLabel}>SUGGESTED QUESTIONS</LocalizedText>
+        <View style={styles.chips}>{(QUESTIONS[language] || QUESTIONS.en).map((question) => <TouchableOpacity key={question} style={[styles.chip, state === 'speaking' && styles.chipDisabled]} onPress={() => askSuggestion(question)} disabled={state === 'speaking'}><LocalizedText style={styles.chipText}>{question}</LocalizedText></TouchableOpacity>)}</View>
       </View>
     </ScrollView>
   );

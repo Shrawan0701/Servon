@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
-  Text,
+  Text as NativeText,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -17,6 +17,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import LocalizedText from "./LocalizedText";
 import { Ionicons } from "@expo/vector-icons";
 import {
   RecordingPresets,
@@ -344,12 +345,12 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   // ── Manual Order body ─────────────────────────────────────────────────
   const manualOrderBody = (
     <View>
-      <Text style={styles.sectionLabel}>TABLE</Text>
+      <LocalizedText translate style={styles.sectionLabel}>TABLE</LocalizedText>
       <View style={styles.tableWrap}>
         <Ionicons name="restaurant-outline" size={16} color={COLORS.subtext} style={{ marginRight: 6 }} />
         <View style={styles.picker}>
           {tables.length === 0 ? (
-            <Text style={styles.pickerEmpty}>No tables yet. Manage tables in the Tables tab.</Text>
+            <LocalizedText translate style={styles.pickerEmpty}>No tables yet. Manage tables in the Tables tab.</LocalizedText>
           ) : (
             tables.map((t) => {
               const active = selectedTable?.id === t.id;
@@ -359,9 +360,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
                   style={[styles.tableChip, active && styles.tableChipActive]}
                   onPress={() => setSelectedTable(t)}
                 >
-                  <Text style={[styles.tableChipText, active && styles.tableChipTextActive]}>
+                  <LocalizedText style={[styles.tableChipText, active && styles.tableChipTextActive]}>
                     {t.table_number}
-                  </Text>
+                  </LocalizedText>
                 </TouchableOpacity>
               );
             })
@@ -369,7 +370,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>ADD ITEMS</Text>
+      <LocalizedText translate style={styles.sectionLabel}>ADD ITEMS</LocalizedText>
       <View style={styles.searchBox}>
         <Ionicons name="search" size={16} color={COLORS.muted} />
         <TextInput
@@ -382,14 +383,14 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       </View>
 
       {search.length === 0 && menu.length > 0 && (
-        <Text style={styles.hint}>Type a dish name to search your menu.</Text>
+        <LocalizedText translate style={styles.hint}>Type a dish name to search your menu.</LocalizedText>
       )}
 
       {filteredMenu.slice(0, 12).map((item) => (
         <View key={item.id} style={styles.menuRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.menuName}>{item.name}</Text>
-            <Text style={styles.menuPrice}>{money(item.price)}</Text>
+            <LocalizedText style={styles.menuName}>{item.name}</LocalizedText>
+            <LocalizedText style={styles.menuPrice}>{money(item.price)}</LocalizedText>
           </View>
           <TouchableOpacity
             style={[styles.addItemBtn, !item.is_available && { opacity: 0.4 }]}
@@ -401,16 +402,16 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         </View>
       ))}
       {filteredMenu.length === 0 && (
-        <Text style={styles.emptyText}>No menu items match "{search}".</Text>
+        <LocalizedText style={styles.emptyText}>No menu items match "{search}".</LocalizedText>
       )}
 
       {selectedItems.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>SELECTED ITEMS</Text>
+          <LocalizedText translate style={styles.sectionLabel}>SELECTED ITEMS</LocalizedText>
           {selectedItems.map((i) => (
             <View key={i.id} style={styles.selRow}>
-              <Text style={styles.selName}>{i.name} × {i.quantity}</Text>
-              <Text style={styles.selPrice}>{money(i.price * i.quantity)}</Text>
+              <LocalizedText style={styles.selName}>{i.name} × {i.quantity}</LocalizedText>
+              <LocalizedText style={styles.selPrice}>{money(i.price * i.quantity)}</LocalizedText>
               <View style={styles.qtyBtns}>
                 <TouchableOpacity style={styles.qtyBtn} onPress={() => changeQty(i.id, -1)}>
                   <Ionicons name="remove" size={14} color={COLORS.text} />
@@ -438,7 +439,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
             {placing ? <ActivityIndicator color="#fff" /> : (
               <>
                 <Ionicons name="checkmark" size={18} color="#fff" />
-                <Text style={styles.primaryBtnText}>Create Order</Text>
+                <LocalizedText translate style={styles.primaryBtnText}>Create Order</LocalizedText>
               </>
             )}
           </TouchableOpacity>
@@ -465,16 +466,16 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           color="#fff"
         />
       </View>
-      <Text style={styles.voiceTitle}>
+      <LocalizedText style={styles.voiceTitle}>
         {listening ? "Listening…" : thinking ? "Understanding…" : "Speak your order or room details"}
-      </Text>
-      <Text style={styles.voiceSubtitle}>
+      </LocalizedText>
+      <LocalizedText style={styles.voiceSubtitle}>
         {listening
           ? "Tap stop when you're done"
           : thinking
           ? "Detecting order or room request"
           : "Example: “Table 4, two biryanis and one paneer bhaji”\nor “Room 204, three guests”"}
-      </Text>
+      </LocalizedText>
 
       <TouchableOpacity
         style={[styles.primaryBtn, styles.voiceBtn, listening && { backgroundColor: COLORS.red }, thinking && { opacity: 0.5 }]}
@@ -482,10 +483,10 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         disabled={thinking}
       >
         <Ionicons name={listening ? "stop" : "mic"} size={18} color="#fff" />
-        <Text style={styles.primaryBtnText}>{listening ? "Stop" : "Start Recording"}</Text>
+        <LocalizedText style={styles.primaryBtnText}>{listening ? "Stop" : "Start Recording"}</LocalizedText>
       </TouchableOpacity>
 
-      {!!vError && <Text style={styles.errorText}>{vError}</Text>}
+      {!!vError && <LocalizedText style={styles.errorText}>{vError}</LocalizedText>}
     </View>
   );
 
@@ -493,32 +494,32 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const orderConfirmBody = (
     <View>
       <View style={styles.heardBox}>
-        <Text style={styles.heardLabel}>I HEARD</Text>
-        <Text style={styles.heardText}>"{result?.transcript}"</Text>
+        <LocalizedText translate style={styles.heardLabel}>I HEARD</LocalizedText>
+        <LocalizedText style={styles.heardText}>"{result?.transcript}"</LocalizedText>
       </View>
 
       <View style={styles.confirmCard}>
-        <Text style={styles.confirmTitle}>Create Order</Text>
-        <Text style={styles.tableLine}>
+        <LocalizedText translate style={styles.confirmTitle}>Create Order</LocalizedText>
+        <LocalizedText style={styles.tableLine}>
           <Ionicons name="restaurant-outline" size={14} color={COLORS.subtext} /> Table{" "}
           {voiceIntent?.table?.table_number || voiceIntent?.tableRaw || "—"}
-        </Text>
+        </LocalizedText>
 
         {voiceItems.map((m, idx) => (
           <View key={`${m.id}-${idx}`} style={styles.ciRow}>
-            <Text style={styles.ciName}>{m.name} × {voiceOrderQty(m.id) || 1}</Text>
-            <Text style={styles.ciPrice}>{money((parseFloat(m.price) || 0) * (voiceOrderQty(m.id) || 1))}</Text>
+            <LocalizedText style={styles.ciName}>{m.name} × {voiceOrderQty(m.id) || 1}</LocalizedText>
+            <LocalizedText style={styles.ciPrice}>{money((parseFloat(m.price) || 0) * (voiceOrderQty(m.id) || 1))}</LocalizedText>
           </View>
         ))}
 
         {voiceAmbiguities.length > 0 && (
           <View style={styles.ambigBox}>
-            <Text style={styles.ambigTitle}>Choose the correct item</Text>
+            <LocalizedText translate style={styles.ambigTitle}>Choose the correct item</LocalizedText>
             {voiceAmbiguities.map((a, ai) => (
               <View key={ai} style={{ marginBottom: 8 }}>
-                <Text style={styles.ambigReq}>“{a.requestedName}”</Text>
+                <LocalizedText style={styles.ambigReq}>“{a.requestedName}”</LocalizedText>
                 {a.options.length === 0 ? (
-                  <Text style={styles.ambigNone}>No match on your menu.</Text>
+                  <LocalizedText translate style={styles.ambigNone}>No match on your menu.</LocalizedText>
                 ) : (
                   a.options.map((op) => {
                     const chosen = resolvedAmbiguities[a.requestedName]?.id === op.id;
@@ -530,9 +531,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
                           setResolvedAmbiguities((prev) => ({ ...prev, [a.requestedName]: op }))
                         }
                       >
-                        <Text style={[styles.optionText, chosen && styles.optionTextActive]}>
+                        <LocalizedText style={[styles.optionText, chosen && styles.optionTextActive]}>
                           {op.name} — {money(op.price)}
-                        </Text>
+                        </LocalizedText>
                       </TouchableOpacity>
                     );
                   })
@@ -559,13 +560,13 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
 
       {voiceIntent?.errors?.length > 0 && (
         <View style={styles.errorBox}>
-          {voiceIntent.errors.map((e, i) => <Text key={i} style={styles.errorText}>{e}</Text>)}
+          {voiceIntent.errors.map((e, i) => <LocalizedText key={i} style={styles.errorText}>{e}</LocalizedText>)}
         </View>
       )}
 
       <View style={styles.confirmActions}>
         <TouchableOpacity style={[styles.secondaryBtn]} onPress={() => { setResult(null); setVError(""); }}>
-          <Text style={styles.secondaryText}>Edit</Text>
+          <LocalizedText translate style={styles.secondaryText}>Edit</LocalizedText>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.primaryBtn, placing && { opacity: 0.6 }]}
@@ -573,7 +574,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           disabled={placing || voiceIntent?.errors?.length > 0}
         >
           {placing ? <ActivityIndicator color="#fff" /> : (
-            <><Ionicons name="checkmark" size={18} color="#fff" /><Text style={styles.primaryBtnText}>Create Order</Text></>
+            <><Ionicons name="checkmark" size={18} color="#fff" /><LocalizedText translate style={styles.primaryBtnText}>Create Order</LocalizedText></>
           )}
         </TouchableOpacity>
       </View>
@@ -585,18 +586,18 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const roomConfirmBody = (
     <View>
       <View style={styles.heardBox}>
-        <Text style={styles.heardLabel}>I HEARD</Text>
-        <Text style={styles.heardText}>"{result?.transcript}"</Text>
+        <LocalizedText translate style={styles.heardLabel}>I HEARD</LocalizedText>
+        <LocalizedText style={styles.heardText}>"{result?.transcript}"</LocalizedText>
       </View>
 
       <View style={styles.confirmCard}>
-        <Text style={styles.confirmTitle}>
+        <LocalizedText style={styles.confirmTitle}>
           {voiceIntent?.action === "check_out" ? "Room Check-Out" : "Room Check-In"}
-        </Text>
-        <Text style={styles.tableLine}>
+        </LocalizedText>
+        <LocalizedText style={styles.tableLine}>
           <Ionicons name="bed-outline" size={14} color={COLORS.subtext} /> Room{" "}
           {voiceIntent?.room?.room_number || voiceIntent?.roomRaw || "—"}
-        </Text>
+        </LocalizedText>
 
         {voiceIntent?.action !== "check_out" && (
           <View style={styles.guestStats}>
@@ -610,13 +611,13 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
 
       {voiceIntent?.warnings?.length > 0 && (
         <View style={styles.warnBox}>
-          {voiceIntent.warnings.map((w, i) => <Text key={i} style={styles.warnText}>{w}</Text>)}
+          {voiceIntent.warnings.map((w, i) => <LocalizedText key={i} style={styles.warnText}>{w}</LocalizedText>)}
         </View>
       )}
 
       <View style={styles.confirmActions}>
         <TouchableOpacity style={[styles.secondaryBtn]} onPress={() => { setResult(null); setVError(""); }}>
-          <Text style={styles.secondaryText}>Edit</Text>
+          <LocalizedText translate style={styles.secondaryText}>Edit</LocalizedText>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.primaryBtn, placing && { opacity: 0.6 }]}
@@ -624,7 +625,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           disabled={placing || voiceIntent?.errors?.length > 0}
         >
           {placing ? <ActivityIndicator color="#fff" /> : (
-            <><Ionicons name="checkmark" size={18} color="#fff" /><Text style={styles.primaryBtnText}>Save</Text></>
+            <><Ionicons name="checkmark" size={18} color="#fff" /><LocalizedText translate style={styles.primaryBtnText}>Save</LocalizedText></>
           )}
         </TouchableOpacity>
       </View>
@@ -649,7 +650,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>
-            <Text style={styles.title}>{mode === "voice" ? "Servon Assistant" : "Create Order"}</Text>
+            <LocalizedText style={styles.title}>{mode === "voice" ? "Servon Assistant" : "Create Order"}</LocalizedText>
             <TouchableOpacity style={styles.closeBtn} onPress={close}>
               <Ionicons name="close" size={20} color={COLORS.text} />
             </TouchableOpacity>
@@ -661,14 +662,14 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
               onPress={() => switchMode("manual")}
             >
               <Ionicons name="create-outline" size={16} color={mode === "manual" ? COLORS.text : COLORS.subtext} />
-              <Text style={[styles.tabText, mode === "manual" && styles.tabTextActive]}>Manual</Text>
+              <LocalizedText translate style={[styles.tabText, mode === "manual" && styles.tabTextActive]}>Manual</LocalizedText>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, mode === "voice" && styles.tabActive]}
               onPress={() => switchMode("voice")}
             >
               <Ionicons name="mic-outline" size={16} color={mode === "voice" ? COLORS.text : COLORS.subtext} />
-              <Text style={[styles.tabText, mode === "voice" && styles.tabTextActive]}>Voice</Text>
+              <LocalizedText translate style={[styles.tabText, mode === "voice" && styles.tabTextActive]}>Voice</LocalizedText>
             </TouchableOpacity>
           </View>
 
@@ -684,8 +685,8 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
 function BillRow({ label, value, strong }) {
   return (
     <View style={styles.billRow}>
-      <Text style={[styles.billLabel, strong && styles.billLabelStrong]}>{label}</Text>
-      <Text style={[styles.billValue, strong && styles.billValueStrong]}>{value}</Text>
+      <LocalizedText style={[styles.billLabel, strong && styles.billLabelStrong]}>{label}</LocalizedText>
+      <LocalizedText style={[styles.billValue, strong && styles.billValueStrong]}>{value}</LocalizedText>
     </View>
   );
 }
@@ -693,8 +694,8 @@ function BillRow({ label, value, strong }) {
 function GuestStatBox({ label, value }) {
   return (
     <View style={styles.guestStatBox}>
-      <Text style={styles.guestStatBoxValue}>{value}</Text>
-      <Text style={styles.guestStatBoxLabel}>{label}</Text>
+      <LocalizedText style={styles.guestStatBoxValue}>{value}</LocalizedText>
+      <LocalizedText style={styles.guestStatBoxLabel}>{label}</LocalizedText>
     </View>
   );
 }

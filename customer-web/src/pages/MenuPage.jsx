@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom"; // ✅ Added useLocation
 import { fetchPublicMenu, fetchTableInfo } from "../api";
 import { useCart } from "../context/CartContext";
+import { LanguageSelector, useLocale } from "../context/LocaleContext";
 
 // --- Helper Functions from Friend's Push ---
 
@@ -34,6 +35,7 @@ function getThaliContents(item, allItems) {
 
 // Inline chip list with +N more toggle
 function ThaliContents({ contents }) {
+  const { t } = useLocale();
   const [expanded, setExpanded] = useState(false);
   const LIMIT = 3;
   const visible = expanded ? contents : contents.slice(0, LIMIT);
@@ -56,7 +58,7 @@ function ThaliContents({ contents }) {
             setExpanded((p) => !p);
           }}
         >
-          {expanded ? "Show less" : `+${extra} more`}
+          {expanded ? t("showLess") : t("more", { count: extra })}
         </button>
       )}
     </div>
@@ -66,6 +68,7 @@ function ThaliContents({ contents }) {
 // --- Main Component ---
 
 export default function MenuPage() {
+  const { t } = useLocale();
   const navigate = useNavigate();
   const location = useLocation(); // ✅ Added to read query string (?restaurantId=...)
   
@@ -91,7 +94,7 @@ export default function MenuPage() {
     // ✅ Safety: Only load if we have both IDs
     if (!businessId || !tableId) {
       setLoading(false);
-      setError("Invalid QR Code. Please scan a valid Servon menu link.");
+      setError("invalidQrHelp");
       return;
     }
 
@@ -104,7 +107,7 @@ export default function MenuPage() {
         setMenuItems(menuRes.data);
         setBusinessInfo(tableRes.data);
       } catch (err) {
-        setError("Failed to load menu. Please try again.");
+        setError("menuLoadFailed");
       } finally {
         setLoading(false);
       }
@@ -133,7 +136,7 @@ export default function MenuPage() {
   if (error) {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: "100vh" }}>
-        <h4>{error}</h4>
+        <h4>{t(error)}</h4>
       </div>
     );
   }
@@ -152,8 +155,9 @@ export default function MenuPage() {
           )}
           <div>
             <h5 className="mb-0 fw-700">{businessInfo?.business_name}</h5>
-            <small className="text-muted">Table {businessInfo?.table_number}</small>
+            <small className="text-muted">{t("table")} {businessInfo?.table_number}</small>
           </div>
+          <div style={{ marginLeft: "auto" }}><LanguageSelector /></div>
         </div>
       </div>
 
@@ -165,7 +169,7 @@ export default function MenuPage() {
             className={`category-tab ${selectedCategory === cat ? "active" : ""}`}
             onClick={() => setSelectedCategory(cat)}
           >
-            {cat}
+            {cat === "All" ? t("all") : cat}
           </button>
         ))}
       </div>
@@ -213,7 +217,7 @@ export default function MenuPage() {
                     )}
 
                     {/* Thali badge on image */}
-                    {item.is_thali && <span style={styles.thaliBadge}>Thali</span>}
+                    {item.is_thali && <span style={styles.thaliBadge}>{t("thali")}</span>}
                   </div>
 
                   <div className="p-2 d-flex flex-column" style={{ flex: 1 }}>
@@ -275,9 +279,9 @@ export default function MenuPage() {
       {totalItems > 0 && (
         <div className="sticky-cart-bar" onClick={() => navigate(`/cart/${businessId}/${tableId}`)}>
           <span>
-            {totalItems} item{totalItems > 1 ? "s" : ""}
+            {totalItems > 1 ? t("itemsPlural", { count: totalItems }) : t("items", { count: totalItems })}
           </span>
-          <span>View Cart · ₹{totalAmount.toFixed(0)} →</span>
+          <span>{t("viewCart", { total: totalAmount.toFixed(0) })}</span>
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { 
   View, 
-  Text, 
+  Text as NativeText, 
   FlatList, 
   TouchableOpacity, 
   StyleSheet, 
@@ -10,6 +10,7 @@ import {
   Platform, 
   Dimensions 
 } from "react-native";
+import LocalizedText from "../components/LocalizedText";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -153,13 +154,13 @@ export default function ReviewsScreen() {
             <View style={styles.backBtnCircle}>
               <Ionicons name="chevron-back" size={19} color="#0F172A" />
             </View>
-            <Text style={styles.backText}>Back</Text>
+            <LocalizedText translate style={styles.backText}>Back</LocalizedText>
           </TouchableOpacity>
           <View style={styles.headerTitleRow}>
             <View style={styles.headerTitleIconWrap}>
               <Ionicons name="star" size={14} color="#F59E0B" />
             </View>
-            <Text style={styles.headerTitle}>Reviews</Text>
+            <LocalizedText translate style={styles.headerTitle}>Reviews</LocalizedText>
           </View>
           <View style={styles.backBtn} />
         </View>
@@ -181,48 +182,48 @@ export default function ReviewsScreen() {
                   <View style={styles.summaryIconWrap}>
                     <Ionicons name="sparkles" size={14} color="#34D399" />
                   </View>
-                  <Text style={styles.summaryLabel}>AI Summary</Text>
+                  <LocalizedText translate style={styles.summaryLabel}>AI Summary</LocalizedText>
                   <View style={styles.summarySentimentPill}>
                     <View style={[
                       styles.summarySentimentDot,
                       { backgroundColor: summary.sentiment === "mostly positive" ? "#34D399" : summary.sentiment === "mostly negative" ? "#F87171" : "#FBBF24" }
                     ]} />
-                    <Text style={styles.summarySentimentText}>{summary.sentiment}</Text>
+                    <LocalizedText style={styles.summarySentimentText}>{summary.sentiment}</LocalizedText>
                   </View>
                 </View>
 
-                <Text style={styles.summaryText}>{summary.text}</Text>
+                <LocalizedText style={styles.summaryText}>{summary.text}</LocalizedText>
 
                 <View style={styles.summaryStatsRow}>
                   <View style={styles.summaryStatTile}>
                     <View style={[styles.summaryStatIconWrap, { backgroundColor: "rgba(96,165,250,0.16)" }]}>
                       <Ionicons name="trophy-outline" size={14} color="#60A5FA" />
                     </View>
-                    <Text style={styles.summaryStatValue}>{summary.avg.toFixed(1)}</Text>
-                    <Text style={styles.summaryStatLabel}>Avg Rating</Text>
+                    <LocalizedText style={styles.summaryStatValue}>{summary.avg.toFixed(1)}</LocalizedText>
+                    <LocalizedText translate style={styles.summaryStatLabel}>Avg Rating</LocalizedText>
                   </View>
                   <View style={styles.summaryStatTile}>
                     <View style={[styles.summaryStatIconWrap, { backgroundColor: "rgba(148,163,184,0.16)" }]}>
                       <Ionicons name="chatbubble-ellipses-outline" size={14} color="#CBD5E1" />
                     </View>
-                    <Text style={styles.summaryStatValue}>{summary.total}</Text>
-                    <Text style={styles.summaryStatLabel}>Total Reviews</Text>
+                    <LocalizedText style={styles.summaryStatValue}>{summary.total}</LocalizedText>
+                    <LocalizedText translate style={styles.summaryStatLabel}>Total Reviews</LocalizedText>
                   </View>
                   <View style={styles.summaryStatTile}>
                     <View style={[styles.summaryStatIconWrap, { backgroundColor: "rgba(52,211,153,0.16)" }]}>
                       <Ionicons name="thumbs-up-outline" size={14} color="#34D399" />
                     </View>
-                    <Text style={[styles.summaryStatValue, { color: "#34D399" }]}>{summary.positive}</Text>
-                    <Text style={styles.summaryStatLabel}>Positive</Text>
+                    <LocalizedText style={[styles.summaryStatValue, { color: "#34D399" }]}>{summary.positive}</LocalizedText>
+                    <LocalizedText translate style={styles.summaryStatLabel}>Positive</LocalizedText>
                   </View>
                   <View style={styles.summaryStatTile}>
                     <View style={[styles.summaryStatIconWrap, { backgroundColor: summary.negative > 0 ? "rgba(248,113,113,0.16)" : "rgba(148,163,184,0.16)" }]}>
                       <Ionicons name="alert-circle-outline" size={14} color={summary.negative > 0 ? "#F87171" : "#94A3B8"} />
                     </View>
-                    <Text style={[styles.summaryStatValue, { color: summary.negative > 0 ? "#F87171" : "#fff" }]}>
+                    <LocalizedText style={[styles.summaryStatValue, { color: summary.negative > 0 ? "#F87171" : "#fff" }]}>
                       {summary.negative}
-                    </Text>
-                    <Text style={styles.summaryStatLabel}>Needs Attention</Text>
+                    </LocalizedText>
+                    <LocalizedText translate style={styles.summaryStatLabel}>Needs Attention</LocalizedText>
                   </View>
                 </View>
               </View>
@@ -236,11 +237,11 @@ export default function ReviewsScreen() {
             <View style={styles.filterTopRow}>
               <View style={styles.filterTitleRow}>
                 <Ionicons name="options-outline" size={15} color="#0F172A" />
-                <Text style={styles.filterTitle}>Filter by Stars</Text>
+                <LocalizedText translate style={styles.filterTitle}>Filter by Stars</LocalizedText>
               </View>
               <TouchableOpacity onPress={handleSortChange} style={styles.sortBtn} activeOpacity={0.75}>
                 <Ionicons name="swap-vertical" size={13} color="#475569" />
-                <Text style={styles.sortBtnText}>{sortBy === "latest" ? "Latest First" : "Oldest First"}</Text>
+                <LocalizedText style={styles.sortBtnText}>{sortBy === "latest" ? "Latest First" : "Oldest First"}</LocalizedText>
               </TouchableOpacity>
             </View>
 
@@ -260,9 +261,9 @@ export default function ReviewsScreen() {
                       style={{ marginRight: 4 }}
                     />
                   )}
-                  <Text style={[styles.filterTabText, starFilter === star && { color: "#fff" }]}>
+                  <LocalizedText style={[styles.filterTabText, starFilter === star && { color: "#fff" }]}>
                     {star === "All" ? "All Reviews" : `${star} Stars`}
-                  </Text>
+                  </LocalizedText>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -276,8 +277,8 @@ export default function ReviewsScreen() {
               <View style={styles.emptyIconWrap}>
                 <Ionicons name="star-half-outline" size={28} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyText}>No reviews found for this filter.</Text>
-              <Text style={styles.emptySubText}>Try a different star rating or check back later.</Text>
+              <LocalizedText translate style={styles.emptyText}>No reviews found for this filter.</LocalizedText>
+              <LocalizedText translate style={styles.emptySubText}>Try a different star rating or check back later.</LocalizedText>
             </View>
           ) : (
             <>
@@ -297,28 +298,28 @@ export default function ReviewsScreen() {
                       {/* Guest Title & Table Pill */}
                       <View style={{ flex: 1 }}>
                         <View style={styles.nameRow}>
-                          <Text style={styles.tableText}>Dine-in Guest</Text>
+                          <LocalizedText translate style={styles.tableText}>Dine-in Guest</LocalizedText>
                           {item.table_number && (
                             <View style={styles.tableBadge}>
                               <Ionicons name="grid-outline" size={10} color="#475569" style={{ marginRight: 3 }} />
-                              <Text style={styles.tableBadgeText}>Table {item.table_number}</Text>
+                              <LocalizedText style={styles.tableBadgeText}>Table {item.table_number}</LocalizedText>
                             </View>
                           )}
                         </View>
 
                         <View style={styles.dateRow}>
                           <Ionicons name="time-outline" size={11} color="#94A3B8" style={{ marginRight: 4 }} />
-                          <Text style={styles.dateText}>
+                          <LocalizedText style={styles.dateText}>
                             {new Date(item.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} at{" "}
                             {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                          </Text>
+                          </LocalizedText>
                         </View>
                       </View>
 
                       <View style={styles.ratingCol}>
                         {renderStars(item.rating)}
                         <View style={[styles.ratingPill, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}40` }]}>
-                          <Text style={[styles.ratingPillText, { color: accentColor }]}>{item.rating.toFixed(1)}</Text>
+                          <LocalizedText style={[styles.ratingPillText, { color: accentColor }]}>{item.rating.toFixed(1)}</LocalizedText>
                         </View>
                       </View>
                     </View>
@@ -326,12 +327,12 @@ export default function ReviewsScreen() {
                     {item.comment ? (
                       <View style={styles.commentBox}>
                         <Ionicons name="chatbox-ellipses-outline" size={14} color="#CBD5E1" style={{ marginRight: 8, marginTop: 2 }} />
-                        <Text style={styles.commentText}>{item.comment}</Text>
+                        <LocalizedText style={styles.commentText}>{item.comment}</LocalizedText>
                       </View>
                     ) : (
                       <View style={styles.commentBox}>
                         <Ionicons name="chatbox-outline" size={14} color="#CBD5E1" style={{ marginRight: 8, marginTop: 2 }} />
-                        <Text style={[styles.commentText, styles.commentTextEmpty]}>No written feedback provided.</Text>
+                        <LocalizedText translate style={[styles.commentText, styles.commentTextEmpty]}>No written feedback provided.</LocalizedText>
                       </View>
                     )}
 
@@ -339,12 +340,12 @@ export default function ReviewsScreen() {
                       <View style={styles.itemsBox}>
                         <View style={styles.itemsTitleRow}>
                           <Ionicons name="restaurant-outline" size={12} color="#64748B" style={{ marginRight: 5 }} />
-                          <Text style={styles.itemsTitle}>Items Ordered</Text>
+                          <LocalizedText translate style={styles.itemsTitle}>Items Ordered</LocalizedText>
                         </View>
                         <View style={styles.itemsGrid}>
                           {orderedItems.map((food, idx) => (
                             <View key={idx} style={styles.itemPill}>
-                              <Text style={styles.itemText}>{food.name} × {food.quantity}</Text>
+                              <LocalizedText style={styles.itemText}>{food.name} × {food.quantity}</LocalizedText>
                             </View>
                           ))}
                         </View>
@@ -357,11 +358,11 @@ export default function ReviewsScreen() {
               {/* Load More Button */}
               {hasMore && (
                 <TouchableOpacity onPress={handleLoadMore} style={styles.loadMoreBtn} activeOpacity={0.8}>
-                  <Text style={styles.loadMoreText}>
+                  <LocalizedText translate style={styles.loadMoreText}>
                     Load More Reviews
-                  </Text>
+                  </LocalizedText>
                   <View style={styles.loadMoreCountBadge}>
-                    <Text style={styles.loadMoreCountText}>{displayedReviews.length - visibleCount}</Text>
+                    <LocalizedText style={styles.loadMoreCountText}>{displayedReviews.length - visibleCount}</LocalizedText>
                   </View>
                   <Ionicons name="chevron-down" size={15} color="#0F172A" />
                 </TouchableOpacity>

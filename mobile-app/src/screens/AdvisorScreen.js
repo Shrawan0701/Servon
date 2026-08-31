@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
-  Text,
+  Text as NativeText,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -12,12 +12,14 @@ import {
   useWindowDimensions,
   Modal,
   Animated,
-} from 'react-native';
+} from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import API from '../api';
 import VoiceAdvisorTab from '../components/VoiceAdvisorTab';
+import { useLocale } from '../context/LocaleContext';
 
 const COLORS = {
   bg: '#FAF8F5',
@@ -38,14 +40,28 @@ const COLORS = {
 
 // ─── COMMON / SUGGESTED QUESTIONS ──────────────────────────────────
 // Tapping a chip asks the question the same way typing + sending does.
-const SUGGESTED_QUESTIONS = [
+const SUGGESTED_QUESTIONS = { en: [
   { icon: 'trending-up', text: 'How can I increase daily sales?' },
   { icon: 'pricetag-outline', text: 'How do I price my menu better?' },
   { icon: 'people-outline', text: 'How can I attract more customers?' },
   { icon: 'stats-chart-outline', text: "What's my biggest opportunity right now?" },
   { icon: 'megaphone-outline', text: 'What marketing should I focus on?' },
   { icon: 'cash-outline', text: 'How can I reduce operating costs?' },
-];
+], mr: [
+  { icon: 'trending-up', text: 'दैनिक विक्री कशी वाढवू शकतो?' },
+  { icon: 'pricetag-outline', text: 'मेनूची किंमत चांगली कशी ठरवू?' },
+  { icon: 'people-outline', text: 'अधिक ग्राहक कसे आणू शकतो?' },
+  { icon: 'stats-chart-outline', text: 'सध्या माझ्यासाठी मोठी संधी कोणती आहे?' },
+  { icon: 'megaphone-outline', text: 'कोणत्या मार्केटिंगवर लक्ष द्यावे?' },
+  { icon: 'cash-outline', text: 'कामकाजाचा खर्च कसा कमी करू?' },
+], hi: [
+  { icon: 'trending-up', text: 'मैं रोज़ की बिक्री कैसे बढ़ा सकता हूँ?' },
+  { icon: 'pricetag-outline', text: 'मैं अपने मेनू की बेहतर कीमत कैसे तय करूँ?' },
+  { icon: 'people-outline', text: 'मैं और ग्राहक कैसे ला सकता हूँ?' },
+  { icon: 'stats-chart-outline', text: 'अभी मेरा सबसे बड़ा अवसर क्या है?' },
+  { icon: 'megaphone-outline', text: 'मुझे किस मार्केटिंग पर ध्यान देना चाहिए?' },
+  { icon: 'cash-outline', text: 'मैं संचालन लागत कैसे कम कर सकता हूँ?' },
+] };
 
 // ─── HELPER: Parse answer into segments ────────────────────────────
 // Long, dense answers were rendering as a blank box on Android — a single
@@ -112,6 +128,7 @@ const groupByDate = (list) => {
 };
 
 export default function AdvisorScreen() {
+  const { language } = useLocale();
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState('chat');
   const [question, setQuestion] = useState('');
@@ -326,19 +343,19 @@ export default function AdvisorScreen() {
         <View style={styles.insightHeader}>
           <View style={styles.insightTitleRow}>
             <Ionicons name={iconName} size={16} color={accentColor} />
-            <Text style={styles.insightTitle}>{item.title}</Text>
+            <LocalizedText style={styles.insightTitle}>{item.title}</LocalizedText>
           </View>
           {isHighPriority && (
             <View style={styles.priorityBadge}>
-              <Text style={styles.priorityText}>High Impact</Text>
+              <LocalizedText translate style={styles.priorityText}>High Impact</LocalizedText>
             </View>
           )}
         </View>
-        <Text style={styles.insightDesc}>{item.description}</Text>
+        <LocalizedText style={styles.insightDesc}>{item.description}</LocalizedText>
         {item.action_text && (
           <View style={styles.actionContainer}>
             <Ionicons name="bulb-outline" size={16} color={COLORS.amberIcon} />
-            <Text style={styles.actionText}>{item.action_text}</Text>
+            <LocalizedText style={styles.actionText}>{item.action_text}</LocalizedText>
           </View>
         )}
       </View>
@@ -355,7 +372,7 @@ export default function AdvisorScreen() {
         </TouchableOpacity>
         <View style={styles.userMessageRow}>
           <View style={[styles.userMessage, { maxWidth: bubbleMaxWidth }]}>
-            <Text style={styles.userMessageText}>{item.question}</Text>
+            <LocalizedText style={styles.userMessageText}>{item.question}</LocalizedText>
           </View>
         </View>
         <View style={styles.aiMessageRow}>
@@ -366,7 +383,7 @@ export default function AdvisorScreen() {
             {item.is_loading ? (
               <View style={styles.typingRow}>
                 <ActivityIndicator size="small" color={COLORS.text} />
-                <Text style={styles.typingText}>Thinking...</Text>
+                <LocalizedText translate style={styles.typingText}>Thinking...</LocalizedText>
               </View>
             ) : (
               <View style={styles.aiMessageInner}>
@@ -374,10 +391,10 @@ export default function AdvisorScreen() {
                   if (seg.type === 'step') {
                     return (
                       <View key={idx} style={styles.stepRow}>
-                        <Text style={styles.stepNumber}>{seg.number}.</Text>
+                        <LocalizedText style={styles.stepNumber}>{seg.number}.</LocalizedText>
                         <View style={styles.stepContentWrap}>
                           {seg.chunks.map((chunk, cIdx) => (
-                            <Text key={cIdx} style={styles.stepContent}>{chunk}</Text>
+                            <LocalizedText key={cIdx} style={styles.stepContent}>{chunk}</LocalizedText>
                           ))}
                         </View>
                       </View>
@@ -388,9 +405,9 @@ export default function AdvisorScreen() {
                     return (
                       <View key={idx} style={styles.aiMessageInner}>
                         {seg.chunks.map((chunk, cIdx) => (
-                          <Text key={cIdx} style={styles.aiMessageText}>
+                          <LocalizedText key={cIdx} style={styles.aiMessageText}>
                             {chunk}
-                          </Text>
+                          </LocalizedText>
                         ))}
                       </View>
                     );
@@ -409,16 +426,16 @@ export default function AdvisorScreen() {
       <View style={styles.emptyIconWrap}>
         <Ionicons name={icon} size={26} color={COLORS.green} />
       </View>
-      <Text style={styles.emptyText}>{text}</Text>
+      <LocalizedText style={styles.emptyText}>{text}</LocalizedText>
     </View>
   );
 
   // ─── SUGGESTED / COMMON QUESTIONS ───────────────────────────────────
   const SuggestedQuestions = ({ onSelect, disabled }) => (
     <View style={styles.suggestionsWrap}>
-      <Text style={styles.suggestionsLabel}>Common questions</Text>
+      <LocalizedText translate style={styles.suggestionsLabel}>Common questions</LocalizedText>
       <View style={styles.suggestionsGrid}>
-        {SUGGESTED_QUESTIONS.map((sq, idx) => (
+        {(SUGGESTED_QUESTIONS[language] || SUGGESTED_QUESTIONS.en).map((sq, idx) => (
           <TouchableOpacity
             key={idx}
             style={styles.suggestionChip}
@@ -429,7 +446,7 @@ export default function AdvisorScreen() {
             <View style={styles.suggestionChipIconWrap}>
               <Ionicons name={sq.icon} size={14} color={COLORS.green} />
             </View>
-            <Text style={styles.suggestionChipText} numberOfLines={2}>{sq.text}</Text>
+            <LocalizedText style={styles.suggestionChipText} numberOfLines={2}>{sq.text}</LocalizedText>
           </TouchableOpacity>
         ))}
       </View>
@@ -442,7 +459,7 @@ export default function AdvisorScreen() {
     return (
       <View style={styles.sidebarInner}>
         <View style={styles.sidebarHeader}>
-          <Text style={styles.sidebarHeaderTitle}>History</Text>
+          <LocalizedText translate style={styles.sidebarHeaderTitle}>History</LocalizedText>
           <View style={styles.sidebarHeaderActions}>
             {hasAny && (
               <TouchableOpacity onPress={confirmClearAll} style={styles.sidebarIconBtn} activeOpacity={0.7}>
@@ -461,7 +478,7 @@ export default function AdvisorScreen() {
           {!hasAny ? (
             <View style={styles.sidebarEmpty}>
               <Ionicons name="time-outline" size={20} color={COLORS.muted} />
-              <Text style={styles.sidebarEmptyText}>No questions yet</Text>
+              <LocalizedText translate style={styles.sidebarEmptyText}>No questions yet</LocalizedText>
             </View>
           ) : (
             GROUP_ORDER.map((label) => {
@@ -469,7 +486,7 @@ export default function AdvisorScreen() {
               if (!items || items.length === 0) return null;
               return (
                 <View key={label} style={styles.sidebarGroup}>
-                  <Text style={styles.sidebarGroupLabel}>{label}</Text>
+                  <LocalizedText style={styles.sidebarGroupLabel}>{label}</LocalizedText>
                   {items.map((item) => (
                     <TouchableOpacity
                       key={item.id}
@@ -477,9 +494,9 @@ export default function AdvisorScreen() {
                       activeOpacity={0.6}
                       onPress={() => scrollToMessage(item.id)}
                     >
-                      <Text style={styles.sidebarItemText} numberOfLines={2}>
+                      <LocalizedText style={styles.sidebarItemText} numberOfLines={2}>
                         {item.question}
-                      </Text>
+                      </LocalizedText>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -514,8 +531,8 @@ export default function AdvisorScreen() {
               <Ionicons name="sparkles" size={18} color={COLORS.green} />
             </View>
             <View style={styles.headerTitleWrap}>
-              <Text style={styles.title} numberOfLines={1}>AI Business Advisor</Text>
-              <Text style={styles.headerSubtitle} numberOfLines={1}>Ask anything about your business</Text>
+              <LocalizedText translate style={styles.title} numberOfLines={1}>AI Business Advisor</LocalizedText>
+              <LocalizedText translate style={styles.headerSubtitle} numberOfLines={1}>Ask anything about your business</LocalizedText>
             </View>
           </View>
 
@@ -530,11 +547,11 @@ export default function AdvisorScreen() {
       <View style={styles.tabBar}>
         <TouchableOpacity style={[styles.tab, activeTab === 'chat' && styles.tabActive]} onPress={() => setActiveTab('chat')}>
           <Ionicons name="chatbubble-ellipses-outline" size={16} color={activeTab === 'chat' ? COLORS.green : COLORS.subtext} />
-          <Text style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>Chat</Text>
+          <LocalizedText translate style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>Chat</LocalizedText>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tab, activeTab === 'voice' && styles.tabActive]} onPress={() => setActiveTab('voice')}>
           <Ionicons name="mic-outline" size={16} color={activeTab === 'voice' ? COLORS.green : COLORS.subtext} />
-          <Text style={[styles.tabText, activeTab === 'voice' && styles.tabTextActive]}>Voice</Text>
+          <LocalizedText translate style={[styles.tabText, activeTab === 'voice' && styles.tabTextActive]}>Voice</LocalizedText>
         </TouchableOpacity>
       </View>
 
@@ -548,7 +565,7 @@ export default function AdvisorScreen() {
 
         <View style={styles.mainColumn}>
           {activeTab === 'voice' ? (
-            <VoiceAdvisorTab onConversationSaved={loadConversations} />
+            <VoiceAdvisorTab onConversationSaved={loadConversations} language={language} />
           ) : (
             <>
           <ScrollView
@@ -567,7 +584,7 @@ export default function AdvisorScreen() {
                 {conversations.length > 0 && (
                   <View style={styles.sectionHeader}>
                     <Ionicons name="chatbubbles-outline" size={16} color={COLORS.text} />
-                    <Text style={styles.sectionTitle}>Your Questions</Text>
+                    <LocalizedText translate style={styles.sectionTitle}>Your Questions</LocalizedText>
                   </View>
                 )}
 
@@ -597,7 +614,7 @@ export default function AdvisorScreen() {
               <View style={[styles.inputContainer, { maxWidth: contentMaxWidth, marginHorizontal: 'auto', width: '100%' }]}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Ask about your business..."
+                  placeholder={localizeText("Ask about your business...", language)}
                   placeholderTextColor={COLORS.muted}
                   value={question}
                   onChangeText={setQuestion}
@@ -646,22 +663,22 @@ export default function AdvisorScreen() {
       <Modal visible={showDeleteModal} transparent animationType="fade">
         <View style={styles.deleteModalOverlay}>
           <View style={styles.deleteModal}>
-            <Text style={styles.deleteModalTitle}>Delete Chat?</Text>
-            <Text style={styles.deleteModalText}>
+            <LocalizedText translate style={styles.deleteModalTitle}>Delete Chat?</LocalizedText>
+            <LocalizedText translate style={styles.deleteModalText}>
               This conversation will be permanently removed.
-            </Text>
+            </LocalizedText>
             <View style={styles.deleteModalButtons}>
               <TouchableOpacity
                 style={[styles.deleteModalBtn, styles.deleteModalCancel]}
                 onPress={() => setShowDeleteModal(false)}
               >
-                <Text style={styles.deleteModalBtnText}>Cancel</Text>
+                <LocalizedText translate style={styles.deleteModalBtnText}>Cancel</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.deleteModalBtn, styles.deleteModalConfirm]}
                 onPress={handleDelete}
               >
-                <Text style={[styles.deleteModalBtnText, { color: '#fff' }]}>Delete</Text>
+                <LocalizedText translate style={[styles.deleteModalBtnText, { color: '#fff' }]}>Delete</LocalizedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -672,22 +689,22 @@ export default function AdvisorScreen() {
       <Modal visible={showClearModal} transparent animationType="fade">
         <View style={styles.deleteModalOverlay}>
           <View style={styles.deleteModal}>
-            <Text style={styles.deleteModalTitle}>Clear All Chats?</Text>
-            <Text style={styles.deleteModalText}>
+            <LocalizedText translate style={styles.deleteModalTitle}>Clear All Chats?</LocalizedText>
+            <LocalizedText translate style={styles.deleteModalText}>
               All conversations will be permanently removed. This action cannot be undone.
-            </Text>
+            </LocalizedText>
             <View style={styles.deleteModalButtons}>
               <TouchableOpacity
                 style={[styles.deleteModalBtn, styles.deleteModalCancel]}
                 onPress={() => setShowClearModal(false)}
               >
-                <Text style={styles.deleteModalBtnText}>Cancel</Text>
+                <LocalizedText translate style={styles.deleteModalBtnText}>Cancel</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.deleteModalBtn, styles.deleteModalConfirm]}
                 onPress={handleClearAll}
               >
-                <Text style={[styles.deleteModalBtnText, { color: '#fff' }]}>Clear All</Text>
+                <LocalizedText translate style={[styles.deleteModalBtnText, { color: '#fff' }]}>Clear All</LocalizedText>
               </TouchableOpacity>
             </View>
           </View>

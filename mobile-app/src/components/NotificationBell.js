@@ -3,20 +3,21 @@
 import React from 'react';
 import {
     View,
-    Text,
+    Text as NativeText,
     TouchableOpacity,
     StyleSheet,
-} from 'react-native';
+} from "react-native";
+import LocalizedText from "./LocalizedText";
 
 export default function NotificationBell({ unreadCount = 0, onPress }) {
     return (
         <TouchableOpacity onPress={onPress} style={styles.container}>
-            <Text style={styles.bellIcon}>🔔</Text>
+            <LocalizedText translate style={styles.bellIcon}>🔔</LocalizedText>
             {unreadCount > 0 && (
                 <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
+                    <LocalizedText style={styles.badgeText}>
                         {unreadCount > 99 ? '99+' : unreadCount}
-                    </Text>
+                    </LocalizedText>
                 </View>
             )}
         </TouchableOpacity>

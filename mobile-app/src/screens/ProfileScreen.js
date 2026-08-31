@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text as NativeText, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Image,
   Platform, Switch, useWindowDimensions, Modal, AppState
 } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import * as WebBrowser from "expo-web-browser";
@@ -13,6 +14,7 @@ import {
   getPlans
 } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { useLocale } from "../context/LocaleContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import ChefPinModal from "../components/ChefPinModal";
@@ -57,6 +59,7 @@ function loadRazorpayScript() {
 
 export default function ProfileScreen({ onNavigate }) {
   const { logout, business, updateBusiness, isChefMode, setIsChefMode } = useAuth();
+  const { language, setLanguage, t } = useLocale();
   const navigation = useNavigation();
   const { width: screenWidth } = useWindowDimensions();
 
@@ -78,6 +81,25 @@ export default function ProfileScreen({ onNavigate }) {
   const [activeSection, setActiveSection] = useState("subscription");
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showSuccessModal, setShowSuccessModal]   = useState(false);
+
+  const LanguageSelector = () => (
+    <View style={styles.languageCard}>
+      <View style={styles.languageTitleRow}>
+        <Ionicons name="language-outline" size={18} color={T_PRIMARY} />
+        <View style={{ flex: 1 }}>
+          <LocalizedText style={styles.languageTitle}>{t("profile.language")}</LocalizedText>
+          <LocalizedText style={styles.languageHelp}>{t("profile.languageHelp")}</LocalizedText>
+        </View>
+      </View>
+      <View style={styles.languageOptions}>
+        {[['en', t("language.english")], ['mr', t("language.marathi")], ['hi', t("language.hindi")]].map(([code, label]) => (
+          <TouchableOpacity key={code} onPress={() => setLanguage(code)} style={[styles.languageOption, language === code && styles.languageOptionActive]}>
+            <LocalizedText style={[styles.languageOptionText, language === code && styles.languageOptionTextActive]}>{label}</LocalizedText>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
 
   // ─── PLAN SELECTION STATE ──────────────────────────────────────────────────
   const [plans, setPlans] = useState([]);
@@ -157,9 +179,9 @@ export default function ProfileScreen({ onNavigate }) {
       setForm({ ...res.data });
       await updateBusiness(res.data);
       setHasChanges(false);
-      Alert.alert("Saved!", "Your profile has been updated.");
+      Alert.alert(localizeText("Saved!", language), localizeText("Your profile has been updated.", language));
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.error || "Update failed");
+      Alert.alert(localizeText("Error", language), err.response?.data?.error || localizeText("Update failed", language));
     } finally {
       setSaving(false);
     }
@@ -173,7 +195,7 @@ export default function ProfileScreen({ onNavigate }) {
   const handleLogoPress = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission required", "Please allow photo library access to upload a logo.");
+      Alert.alert(localizeText("Permission required", language), localizeText("Please allow photo library access to upload a logo.", language));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -193,9 +215,9 @@ export default function ProfileScreen({ onNavigate }) {
       setProfile(updated);
       setForm(updated);
       await updateBusiness(updated);
-      Alert.alert("Success", "Logo updated!");
+      Alert.alert(localizeText("Success", language), localizeText("Logo updated!", language));
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.error || "Logo upload failed");
+      Alert.alert(localizeText("Error", language), err.response?.data?.error || localizeText("Logo upload failed", language));
     } finally {
       setLogoUploading(false);
     }
@@ -205,9 +227,9 @@ export default function ProfileScreen({ onNavigate }) {
     if (Platform.OS === 'web') {
       setShowLogoutModal(true);
     } else {
-      Alert.alert("Logout", "Are you sure you want to logout?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Logout", style: "destructive", onPress: logout },
+      Alert.alert(localizeText("Logout", language), localizeText("Are you sure you want to logout?", language), [
+        { text: localizeText("Cancel", language), style: "cancel" },
+        { text: localizeText("Logout", language), style: "destructive", onPress: logout },
       ]);
     }
   };
@@ -254,7 +276,7 @@ export default function ProfileScreen({ onNavigate }) {
       if (IS_WEB) {
         const loaded = await loadRazorpayScript();
         if (!loaded || !window.Razorpay) {
-          Alert.alert("Error", "Could not load payment gateway.");
+          Alert.alert(localizeText("Error", language), localizeText("Could not load payment gateway.", language));
           setPaying(false);
           return;
         }
@@ -278,7 +300,7 @@ export default function ProfileScreen({ onNavigate }) {
               await loadData();
               setShowSuccessModal(true);
             } catch {
-              Alert.alert("Error", "Verification failed.");
+              Alert.alert(localizeText("Error", language), localizeText("Verification failed.", language));
             } finally {
               setPaying(false);
             }
@@ -317,7 +339,7 @@ export default function ProfileScreen({ onNavigate }) {
             await loadData();
             setShowSuccessModal(true);
           } catch {
-            Alert.alert("Error", "Verification failed.");
+            Alert.alert(localizeText("Error", language), localizeText("Verification failed.", language));
           } finally {
             setPaying(false);
           }
@@ -331,22 +353,22 @@ export default function ProfileScreen({ onNavigate }) {
         });
 
     } catch (err) {
-      Alert.alert("Error", "Unable to start payment.");
+      Alert.alert(localizeText("Error", language), localizeText("Unable to start payment.", language));
       setPaying(false);
     }
   };
 
   const handleSetPin = async () => {
-    if (newPin.length !== 4) return Alert.alert("Invalid", "PIN must be exactly 4 digits");
+    if (newPin.length !== 4) return Alert.alert(localizeText("Invalid", language), localizeText("PIN must be exactly 4 digits", language));
     setSavingPin(true);
     try {
       await setAdminPin(newPin);
       setProfile((prev) => ({ ...prev, admin_pin: newPin }));
       setNewPin("");
       setIsUpdatingPin(false);
-      Alert.alert("Success", "Security PIN updated successfully!");
+      Alert.alert(localizeText("Success", language), localizeText("Security PIN updated successfully!", language));
     } catch {
-      Alert.alert("Error", "Failed to update PIN");
+      Alert.alert(localizeText("Error", language), localizeText("Failed to update PIN", language));
     } finally {
       setSavingPin(false);
     }
@@ -357,7 +379,7 @@ export default function ProfileScreen({ onNavigate }) {
       setShowPinModal(true);
     } else {
       if (!profile?.admin_pin) {
-        return Alert.alert("Hold on!", "You must set an Admin PIN below before turning on Chef Mode.");
+        return Alert.alert(localizeText("Hold on!", language), localizeText("You must set an Admin PIN below before turning on Chef Mode.", language));
       }
       if (Platform.OS === "web") {
         setShowChefModeModal(true);
@@ -409,11 +431,11 @@ export default function ProfileScreen({ onNavigate }) {
   const renderField = ({ key, label, placeholder, editable = true, keyboardType = "default", multiline = false, autoCapitalize = "none" }) => (
     <View key={key} style={styles.fieldRow}>
       <View style={styles.fieldLabelRow}>
-        <Text style={styles.fieldLabel}>{label}</Text>
+        <LocalizedText style={styles.fieldLabel}>{label}</LocalizedText>
         {!editable && (
           <View style={styles.lockedTag}>
             <Ionicons name="lock-closed" size={9} color={T_FAINT} />
-            <Text style={styles.lockedTagText}>locked</Text>
+            <LocalizedText translate style={styles.lockedTagText}>locked</LocalizedText>
           </View>
         )}
       </View>
@@ -461,7 +483,7 @@ export default function ProfileScreen({ onNavigate }) {
   const PlanSelection = () => (
     <View style={styles.planContainer}>
       <View style={styles.planHeaderRow}>
-        <Text style={styles.planSectionTitle}>Choose Your Plan</Text>
+        <LocalizedText translate style={styles.planSectionTitle}>Choose Your Plan</LocalizedText>
       </View>
       <View style={styles.planGrid}>
         {plansWithSavings.map((plan) => {
@@ -486,29 +508,29 @@ export default function ProfileScreen({ onNavigate }) {
               {isCurrent && (
                 <View style={styles.currentPlanBadge}>
                   <Ionicons name="checkmark-circle" size={10} color="#fff" />
-                  <Text style={styles.currentPlanBadgeText}>Current Plan</Text>
+                  <LocalizedText translate style={styles.currentPlanBadgeText}>Current Plan</LocalizedText>
                 </View>
               )}
               {!isCurrent && isPopular && (
                 <View style={styles.popularBadge}>
-                  <Text style={styles.popularBadgeText}>⭐ Best Value</Text>
+                  <LocalizedText translate style={styles.popularBadgeText}>⭐ Best Value</LocalizedText>
                 </View>
               )}
-              <Text style={[
+              <LocalizedText style={[
                 styles.planLabel,
                 isSelected && styles.planLabelSelected,
               ]}>
                 {plan.label}
-              </Text>
-              <Text style={[
+              </LocalizedText>
+              <LocalizedText style={[
                 styles.planPrice,
                 isSelected && styles.planPriceSelected,
               ]}>
                 {formatINR(plan.amount)}
-              </Text>
-              <Text style={styles.planDuration}>{plan.days} days</Text>
+              </LocalizedText>
+              <LocalizedText style={styles.planDuration}>{plan.days} days</LocalizedText>
               {plan.savingsPct ? (
-                <Text style={styles.planSaving}>Save {plan.savingsPct}%</Text>
+                <LocalizedText style={styles.planSaving}>Save {plan.savingsPct}%</LocalizedText>
               ) : (
                 <View style={{ height: 16 }} />
               )}
@@ -530,14 +552,14 @@ export default function ProfileScreen({ onNavigate }) {
         <View style={styles.successIconWrap}>
           <Ionicons name="checkmark-circle" size={64} color={GREEN} />
         </View>
-        <Text style={styles.successTitle}>You're All Set!</Text>
-        <Text style={styles.successSub}>
+        <LocalizedText translate style={styles.successTitle}>You're All Set!</LocalizedText>
+        <LocalizedText translate style={styles.successSub}>
           Payment received. Your Servon subscription is now active.
-        </Text>
+        </LocalizedText>
         <View style={styles.successDivider} />
         <TouchableOpacity style={styles.successBtn} onPress={() => setShowSuccessModal(false)} activeOpacity={0.85}>
           <Ionicons name="arrow-forward" size={16} color="#fff" />
-          <Text style={styles.successBtnText}>Continue to Dashboard</Text>
+          <LocalizedText translate style={styles.successBtnText}>Continue to Dashboard</LocalizedText>
         </TouchableOpacity>
       </View>
     </View>
@@ -556,13 +578,13 @@ export default function ProfileScreen({ onNavigate }) {
             )}
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
               <Ionicons name="chevron-back" size={18} color={T_PRIMARY} />
-              <Text style={styles.backText}>Back</Text>
+              <LocalizedText translate style={styles.backText}>Back</LocalizedText>
             </TouchableOpacity>
           </View>
           {hasChanges && (
             <View style={styles.unsavedPill}>
               <View style={styles.unsavedDot} />
-              <Text style={styles.unsavedPillText}>{isSmallWeb ? "Unsaved" : "Unsaved changes"}</Text>
+              <LocalizedText style={styles.unsavedPillText}>{isSmallWeb ? "Unsaved" : "Unsaved changes"}</LocalizedText>
             </View>
           )}
         </View>
@@ -582,16 +604,17 @@ export default function ProfileScreen({ onNavigate }) {
                       <Image source={{ uri: profile.logo_url }} style={styles.sidebarLogo} />
                     ) : (
                       <View style={[styles.sidebarLogo, styles.logoPlaceholder]}>
-                        <Text style={styles.logoInitial}>{profile?.business_name?.[0]?.toUpperCase()}</Text>
+                        <LocalizedText style={styles.logoInitial}>{profile?.business_name?.[0]?.toUpperCase()}</LocalizedText>
                       </View>
                     )}
                   </TouchableOpacity>
-                  <Text style={styles.sidebarName} numberOfLines={1}>{profile?.business_name}</Text>
-                  <Text style={styles.sidebarEmail} numberOfLines={1}>{profile?.email}</Text>
+                  <LocalizedText style={styles.sidebarName} numberOfLines={1}>{profile?.business_name}</LocalizedText>
+                  <LocalizedText style={styles.sidebarEmail} numberOfLines={1}>{profile?.email}</LocalizedText>
                   <View style={[styles.sidebarStatusPill, { backgroundColor: statusBgMap[subStatus] || "#F3F4F6" }]}>
                     <View style={[styles.statusDot, { backgroundColor: statusColorMap[subStatus] || "#9CA3AF" }]} />
-                    <Text style={[styles.sidebarStatusText, { color: statusColorMap[subStatus] || "#6B7280" }]}>{subStatus}</Text>
+                    <LocalizedText style={[styles.sidebarStatusText, { color: statusColorMap[subStatus] || "#6B7280" }]}>{subStatus}</LocalizedText>
                   </View>
+                  <LanguageSelector />
                 </View>
 
                 <View style={styles.sidebarNav}>
@@ -604,7 +627,7 @@ export default function ProfileScreen({ onNavigate }) {
                     >
                       {activeSection === item.id && <View style={styles.sidebarNavIndicator} />}
                       <Ionicons name={item.icon} size={16} color={activeSection === item.id ? ACCENT : T_MUTED} />
-                      <Text style={[styles.sidebarNavText, activeSection === item.id && styles.sidebarNavTextActive]}>{item.label}</Text>
+                      <LocalizedText style={[styles.sidebarNavText, activeSection === item.id && styles.sidebarNavTextActive]}>{item.label}</LocalizedText>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -613,17 +636,17 @@ export default function ProfileScreen({ onNavigate }) {
                   {/* ✅ AI SUPPORT BUTTON (Web) */}
                   <TouchableOpacity style={styles.sidebarFooterBtn} onPress={() => navigation.navigate("Support")} activeOpacity={0.7}>
                     <Ionicons name="chatbubbles-outline" size={15} color="#10B981" />
-                    <Text style={styles.sidebarFooterBtnText}> Support</Text>
+                    <LocalizedText translate style={styles.sidebarFooterBtnText}> Support</LocalizedText>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.sidebarFooterBtn} onPress={() => navigation.navigate("Reviews")} activeOpacity={0.7}>
                     <Ionicons name="star-outline" size={15} color="#F59E0B" />
-                    <Text style={styles.sidebarFooterBtnText}>Ratings & Reviews</Text>
+                    <LocalizedText translate style={styles.sidebarFooterBtnText}>Ratings & Reviews</LocalizedText>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.sidebarLogoutBtn} onPress={handleLogout} activeOpacity={0.7}>
                     <Ionicons name="log-out-outline" size={15} color="#DC2626" />
-                    <Text style={styles.sidebarLogoutText}>Logout</Text>
+                    <LocalizedText translate style={styles.sidebarLogoutText}>Logout</LocalizedText>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -636,13 +659,13 @@ export default function ProfileScreen({ onNavigate }) {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                   <View style={styles.chefBannerIcon}><Ionicons name="lock-closed" size={20} color="#92400E" /></View>
                   <View>
-                    <Text style={styles.chefBannerTitle}>Chef Mode Active</Text>
-                    <Text style={styles.chefBannerSub}>Revenue and billing are hidden from view.</Text>
+                    <LocalizedText translate style={styles.chefBannerTitle}>Chef Mode Active</LocalizedText>
+                    <LocalizedText translate style={styles.chefBannerSub}>Revenue and billing are hidden from view.</LocalizedText>
                   </View>
                 </View>
                 <TouchableOpacity style={styles.unlockBtn} onPress={toggleChefMode}>
                   <Ionicons name="lock-open-outline" size={14} color="#92400E" />
-                  <Text style={styles.unlockBtnText}>Unlock</Text>
+                  <LocalizedText translate style={styles.unlockBtnText}>Unlock</LocalizedText>
                 </TouchableOpacity>
               </View>
             )}
@@ -657,51 +680,51 @@ export default function ProfileScreen({ onNavigate }) {
 
                     <View style={[styles.webPlanCard, isSmallWeb && styles.webPlanCardSmall]}>
                       <View style={[styles.webPlanCardLeft, isSmallWeb && { width: "100%" }]}>
-                        <Text style={styles.webPlanLabel}>SERVON PLAN</Text>
-                        <Text style={[styles.webPlanPrice, isSmallWeb && { fontSize: 28 }]}>
+                        <LocalizedText translate style={styles.webPlanLabel}>SERVON PLAN</LocalizedText>
+                        <LocalizedText style={[styles.webPlanPrice, isSmallWeb && { fontSize: 28 }]}>
                           {subDetails?.subscription_plan || subDetails?.plan_label || 'Monthly'}
-                        </Text>
+                        </LocalizedText>
                         {endDate && (
                           <View style={styles.planDateRow}>
                             <Ionicons name="calendar-outline" size={14} color={T_MUTED} />
-                            <Text style={styles.planDateLabel}>Valid until</Text>
-                            <Text style={styles.planDateValue}>{new Date(endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</Text>
+                            <LocalizedText translate style={styles.planDateLabel}>Valid until</LocalizedText>
+                            <LocalizedText style={styles.planDateValue}>{new Date(endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</LocalizedText>
                           </View>
                         )}
                         {subStatus === "ACTIVE" && daysLeft !== null && (
                           <View style={[styles.daysLeftPill, { backgroundColor: daysLeft <= 5 ? "#FEF2F2" : "#ECFDF5" }]}>
                             <Ionicons name={daysLeft <= 5 ? "warning-outline" : "checkmark-circle-outline"} size={14} color={daysLeft <= 5 ? "#DC2626" : "#059669"} />
-                            <Text style={[styles.daysLeftText, { color: daysLeft <= 5 ? "#DC2626" : "#059669" }]}>{daysLeft > 0 ? `${daysLeft} days remaining` : "Expires today"}</Text>
+                            <LocalizedText style={[styles.daysLeftText, { color: daysLeft <= 5 ? "#DC2626" : "#059669" }]}>{daysLeft > 0 ? `${daysLeft} days remaining` : "Expires today"}</LocalizedText>
                           </View>
                         )}
                       </View>
                       <View style={[styles.webPlanCardRight, isSmallWeb && styles.webPlanCardRightSmall]}>
                         <View style={[styles.statusBadge, { backgroundColor: statusBgMap[subStatus] || "#F3F4F6", marginBottom: 16, alignSelf: isSmallWeb ? "flex-start" : "flex-end" }]}>
                           <View style={[styles.statusDot, { backgroundColor: statusColorMap[subStatus] || "#9CA3AF" }]} />
-                          <Text style={[styles.statusText, { color: statusColorMap[subStatus] || "#6B7280" }]}>{subStatus}</Text>
+                          <LocalizedText style={[styles.statusText, { color: statusColorMap[subStatus] || "#6B7280" }]}>{subStatus}</LocalizedText>
                         </View>
                         {(subStatus !== "ACTIVE" || (daysLeft !== null && daysLeft <= 5)) && (
                           <TouchableOpacity style={styles.webRenewBtn} onPress={handleRenew} disabled={paying} activeOpacity={0.85}>
                             {paying ? (
                               <>
                                 <ActivityIndicator color="#fff" size="small" />
-                                <Text style={styles.webRenewBtnText}>Processing...</Text>
+                                <LocalizedText translate style={styles.webRenewBtnText}>Processing...</LocalizedText>
                               </>
                             ) : (
                               <>
                                 <Ionicons name="flash" size={15} color="#fff" />
-                                <Text style={styles.webRenewBtnText}>
+                                <LocalizedText style={styles.webRenewBtnText}>
                                   {subStatus === "ACTIVE" ? "Renew" : "Activate"} · {formatINR(plans.find(p => p.id === selectedPlan)?.amount || 999)}
-                                </Text>
+                                </LocalizedText>
                               </>
                             )}
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity style={styles.webReferBtn} onPress={() => navigation.navigate("Referrals")} activeOpacity={0.85}>
                           <Ionicons name="gift-outline" size={15} color={ACCENT} />
-                          <Text style={styles.webReferBtnText}>Refer & Get 1 Month Free</Text>
+                          <LocalizedText translate style={styles.webReferBtnText}>Refer & Get 1 Month Free</LocalizedText>
                         </TouchableOpacity>
-                        <Text style={styles.note}>Manual renewal only · No auto-debit</Text>
+                        <LocalizedText translate style={styles.note}>Manual renewal only · No auto-debit</LocalizedText>
                       </View>
                     </View>
                   </View>
@@ -716,8 +739,8 @@ export default function ProfileScreen({ onNavigate }) {
                         <View style={styles.webFormSideInfo}>
                           <View style={styles.webInfoBox}>
                             <Ionicons name="information-circle-outline" size={20} color={T_MUTED} />
-                            <Text style={styles.webInfoTitle}>Tax Setup</Text>
-                            <Text style={styles.webInfoText}>Enter your GSTIN and tax percentages to have them automatically applied on bills and invoices.</Text>
+                            <LocalizedText translate style={styles.webInfoTitle}>Tax Setup</LocalizedText>
+                            <LocalizedText translate style={styles.webInfoText}>Enter your GSTIN and tax percentages to have them automatically applied on bills and invoices.</LocalizedText>
                           </View>
                         </View>
                       )}
@@ -745,8 +768,8 @@ export default function ProfileScreen({ onNavigate }) {
                         <View style={styles.webSecurityCardHeader}>
                           <View style={styles.webSecurityIcon}><Ionicons name="restaurant-outline" size={20} color={T_MUTED} /></View>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.webSecurityTitle}>Chef Mode</Text>
-                            <Text style={styles.webSecuritySub}>Hides revenue, analytics & billing. Unlock with Admin PIN.</Text>
+                            <LocalizedText translate style={styles.webSecurityTitle}>Chef Mode</LocalizedText>
+                            <LocalizedText translate style={styles.webSecuritySub}>Hides revenue, analytics & billing. Unlock with Admin PIN.</LocalizedText>
                           </View>
                           <Switch value={isChefMode} onValueChange={toggleChefMode} trackColor={{ false: "#D1D5DB", true: GREEN }} thumbColor="#fff" />
                         </View>
@@ -756,8 +779,8 @@ export default function ProfileScreen({ onNavigate }) {
                           <View style={styles.webSecurityCardHeader}>
                             <View style={[styles.webSecurityIcon, { backgroundColor: "#ECFDF5" }]}><Ionicons name="keypad-outline" size={20} color={ACCENT} /></View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.webSecurityTitle}>Admin PIN</Text>
-                              <Text style={styles.webSecuritySub}>4-digit PIN used to unlock Chef Mode.</Text>
+                              <LocalizedText translate style={styles.webSecurityTitle}>Admin PIN</LocalizedText>
+                              <LocalizedText translate style={styles.webSecuritySub}>4-digit PIN used to unlock Chef Mode.</LocalizedText>
                             </View>
                           </View>
                           <View style={{ marginTop: 16 }}>
@@ -765,10 +788,10 @@ export default function ProfileScreen({ onNavigate }) {
                               <View style={styles.pinDisplay}>
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                                   <View style={styles.pinShieldWrap}><Ionicons name="shield-checkmark" size={16} color={GREEN} /></View>
-                                  <Text style={styles.pinDots}>••••</Text>
+                                  <LocalizedText translate style={styles.pinDots}>••••</LocalizedText>
                                 </View>
                                 <TouchableOpacity style={styles.pinUpdateBtn} onPress={() => setIsUpdatingPin(true)}>
-                                  <Text style={styles.pinUpdateBtnText}>Update PIN</Text>
+                                  <LocalizedText translate style={styles.pinUpdateBtnText}>Update PIN</LocalizedText>
                                 </TouchableOpacity>
                               </View>
                             ) : (
@@ -777,11 +800,11 @@ export default function ProfileScreen({ onNavigate }) {
                                   <TextInput style={[styles.textInput, { letterSpacing: 8, fontWeight: "800", textAlign: "center" }]} value={newPin} onChangeText={setNewPin} maxLength={4} keyboardType="number-pad" secureTextEntry placeholder="••••" placeholderTextColor="#C4C4C4" autoFocus={isUpdatingPin} />
                                 </View>
                                 <TouchableOpacity style={[styles.saveBtn, { paddingHorizontal: 20, backgroundColor: newPin.length === 4 ? T_PRIMARY : "#D1D5DB", flex: 0 }]} onPress={handleSetPin} disabled={newPin.length !== 4 || savingPin}>
-                                  {savingPin ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save</Text>}
+                                  {savingPin ? <ActivityIndicator color="#fff" size="small" /> : <LocalizedText translate style={styles.saveBtnText}>Save</LocalizedText>}
                                 </TouchableOpacity>
                                 {profile?.admin_pin && isUpdatingPin && (
                                   <TouchableOpacity style={[styles.discardBtn, { flex: 0, paddingHorizontal: 16 }]} onPress={() => { setIsUpdatingPin(false); setNewPin(""); }}>
-                                    <Text style={styles.discardBtnText}>Cancel</Text>
+                                    <LocalizedText translate style={styles.discardBtnText}>Cancel</LocalizedText>
                                   </TouchableOpacity>
                                 )}
                               </View>
@@ -806,13 +829,13 @@ export default function ProfileScreen({ onNavigate }) {
               <View style={styles.confirmIconCircle}>
                 <Ionicons name="restaurant-outline" size={28} color="#92400E" />
               </View>
-              <Text style={styles.confirmTitle}>Enter Chef Mode?</Text>
-              <Text style={styles.confirmSub}>
+              <LocalizedText translate style={styles.confirmTitle}>Enter Chef Mode?</LocalizedText>
+              <LocalizedText translate style={styles.confirmSub}>
                 Entering Chef Mode will hide revenue and billing from view. You can unlock it anytime with your Admin PIN.
-              </Text>
+              </LocalizedText>
               <View style={styles.confirmActions}>
                 <TouchableOpacity style={styles.confirmCancelBtn} onPress={() => setShowChefModeModal(false)}>
-                  <Text style={styles.confirmCancelText}>Cancel</Text>
+                  <LocalizedText translate style={styles.confirmCancelText}>Cancel</LocalizedText>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.confirmOkBtn}
@@ -823,7 +846,7 @@ export default function ProfileScreen({ onNavigate }) {
                   }}
                 >
                   <Ionicons name="restaurant-outline" size={15} color="#fff" />
-                  <Text style={styles.confirmOkText}>Enter Chef Mode</Text>
+                  <LocalizedText translate style={styles.confirmOkText}>Enter Chef Mode</LocalizedText>
                 </TouchableOpacity>
               </View>
             </View>
@@ -836,20 +859,20 @@ export default function ProfileScreen({ onNavigate }) {
               <View style={[styles.confirmIconCircle, { backgroundColor: "#FEF2F2" }]}>
                 <Ionicons name="log-out-outline" size={28} color="#DC2626" />
               </View>
-              <Text style={styles.confirmTitle}>Logout?</Text>
-              <Text style={styles.confirmSub}>
+              <LocalizedText translate style={styles.confirmTitle}>Logout?</LocalizedText>
+              <LocalizedText translate style={styles.confirmSub}>
                 Are you sure you want to logout of your account?
-              </Text>
+              </LocalizedText>
               <View style={styles.confirmActions}>
                 <TouchableOpacity style={styles.confirmCancelBtn} onPress={() => setShowLogoutModal(false)}>
-                  <Text style={styles.confirmCancelText}>Cancel</Text>
+                  <LocalizedText translate style={styles.confirmCancelText}>Cancel</LocalizedText>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.confirmOkBtn, { backgroundColor: "#DC2626" }]}
                   onPress={() => { setShowLogoutModal(false); logout(); }}
                 >
                   <Ionicons name="log-out-outline" size={15} color="#fff" />
-                  <Text style={styles.confirmOkText}>Yes, Logout</Text>
+                  <LocalizedText translate style={styles.confirmOkText}>Yes, Logout</LocalizedText>
                 </TouchableOpacity>
               </View>
             </View>
@@ -866,30 +889,31 @@ export default function ProfileScreen({ onNavigate }) {
       <View style={styles.navHeader}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={20} color={T_PRIMARY} />
-          <Text style={styles.backText}>Profile</Text>
+          <LocalizedText translate style={styles.backText}>Profile</LocalizedText>
         </TouchableOpacity>
         {hasChanges && (
           <View style={styles.unsavedPill}>
             <View style={styles.unsavedDot} />
-            <Text style={styles.unsavedPillText}>Unsaved</Text>
+            <LocalizedText translate style={styles.unsavedPillText}>Unsaved</LocalizedText>
           </View>
         )}
       </View>
 
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.inner}>
+          <LanguageSelector />
           {isChefMode && (
             <View style={styles.chefModeBanner}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <View style={styles.chefBannerIcon}><Ionicons name="lock-closed" size={20} color="#92400E" /></View>
                 <View>
-                  <Text style={styles.chefBannerTitle}>Chef Mode Active</Text>
-                  <Text style={styles.chefBannerSub}>Revenue and billing are hidden.</Text>
+                  <LocalizedText translate style={styles.chefBannerTitle}>Chef Mode Active</LocalizedText>
+                  <LocalizedText translate style={styles.chefBannerSub}>Revenue and billing are hidden.</LocalizedText>
                 </View>
               </View>
               <TouchableOpacity style={styles.unlockBtn} onPress={toggleChefMode}>
                 <Ionicons name="lock-open-outline" size={14} color="#92400E" />
-                <Text style={styles.unlockBtnText}>Unlock</Text>
+                <LocalizedText translate style={styles.unlockBtnText}>Unlock</LocalizedText>
               </TouchableOpacity>
             </View>
           )}
@@ -902,12 +926,12 @@ export default function ProfileScreen({ onNavigate }) {
                     <Image source={{ uri: profile.logo_url }} style={styles.logo} />
                   ) : (
                     <View style={[styles.logo, styles.logoPlaceholder]}>
-                      <Text style={styles.logoInitial}>{profile?.business_name?.[0]?.toUpperCase()}</Text>
+                      <LocalizedText style={styles.logoInitial}>{profile?.business_name?.[0]?.toUpperCase()}</LocalizedText>
                     </View>
                   )}
                 </TouchableOpacity>
-                <Text style={styles.heroName}>{profile?.business_name}</Text>
-                <Text style={styles.heroEmail}>{profile?.email}</Text>
+                <LocalizedText style={styles.heroName}>{profile?.business_name}</LocalizedText>
+                <LocalizedText style={styles.heroEmail}>{profile?.email}</LocalizedText>
               </View>
 
               <PlanSelection />
@@ -915,42 +939,42 @@ export default function ProfileScreen({ onNavigate }) {
               <View style={styles.subCard}>
                 <View style={styles.planTop}>
                   <View>
-                    <Text style={styles.planName}>Servon Plan</Text>
-                    <Text style={styles.planPriceOld}>
+                    <LocalizedText translate style={styles.planName}>Servon Plan</LocalizedText>
+                    <LocalizedText style={styles.planPriceOld}>
                       {subDetails?.subscription_plan || subDetails?.plan_label || 'Monthly'}
-                    </Text>
+                    </LocalizedText>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusBgMap[subStatus] || "#F3F4F6" }]}>
                     <View style={[styles.statusDot, { backgroundColor: statusColorMap[subStatus] || "#9CA3AF" }]} />
-                    <Text style={[styles.statusText, { color: statusColorMap[subStatus] || "#6B7280" }]}>{subStatus}</Text>
+                    <LocalizedText style={[styles.statusText, { color: statusColorMap[subStatus] || "#6B7280" }]}>{subStatus}</LocalizedText>
                   </View>
                 </View>
                 {endDate && (
                   <View style={styles.planDateRow}>
                     <Ionicons name="calendar-outline" size={14} color={T_MUTED} />
-                    <Text style={styles.planDateLabel}>Valid until</Text>
-                    <Text style={styles.planDateValue}>{new Date(endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</Text>
+                    <LocalizedText translate style={styles.planDateLabel}>Valid until</LocalizedText>
+                    <LocalizedText style={styles.planDateValue}>{new Date(endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</LocalizedText>
                   </View>
                 )}
                 {subStatus === "ACTIVE" && daysLeft !== null && (
                   <View style={[styles.daysLeftPill, { backgroundColor: daysLeft <= 5 ? "#FEF2F2" : "#ECFDF5" }]}>
                     <Ionicons name={daysLeft <= 5 ? "warning-outline" : "checkmark-circle-outline"} size={14} color={daysLeft <= 5 ? "#DC2626" : "#059669"} />
-                    <Text style={[styles.daysLeftText, { color: daysLeft <= 5 ? "#DC2626" : "#059669" }]}>{daysLeft > 0 ? `${daysLeft} days remaining` : "Expires today"}</Text>
+                    <LocalizedText style={[styles.daysLeftText, { color: daysLeft <= 5 ? "#DC2626" : "#059669" }]}>{daysLeft > 0 ? `${daysLeft} days remaining` : "Expires today"}</LocalizedText>
                   </View>
                 )}
                 {(subStatus !== "ACTIVE" || (daysLeft !== null && daysLeft <= 5)) && (
                   <TouchableOpacity style={styles.renewBtn} onPress={handleRenew} disabled={paying} activeOpacity={0.85}>
                     {paying
-                      ? <><ActivityIndicator color="#fff" size="small" /><Text style={[styles.renewBtnText, { marginLeft: 8 }]}>Processing...</Text></>
-                      : <><Ionicons name="flash" size={16} color="#fff" /><Text style={styles.renewBtnText}>{subStatus === "ACTIVE" ? "Renew Subscription" : "Activate Subscription"} · {formatINR(plans.find(p => p.id === selectedPlan)?.amount || 999)}</Text></>
+                      ? <><ActivityIndicator color="#fff" size="small" /><LocalizedText translate style={[styles.renewBtnText, { marginLeft: 8 }]}>Processing...</LocalizedText></>
+                      : <><Ionicons name="flash" size={16} color="#fff" /><LocalizedText style={styles.renewBtnText}>{subStatus === "ACTIVE" ? "Renew Subscription" : "Activate Subscription"} · {formatINR(plans.find(p => p.id === selectedPlan)?.amount || 999)}</LocalizedText></>
                     }
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.referBtn} onPress={() => navigation.navigate("Referrals")} activeOpacity={0.85}>
                   <Ionicons name="gift-outline" size={16} color="#fff" />
-                  <Text style={styles.referBtnText}>Refer & Get 1 Month Free</Text>
+                  <LocalizedText translate style={styles.referBtnText}>Refer & Get 1 Month Free</LocalizedText>
                 </TouchableOpacity>
-                <Text style={styles.note}>Manual renewal only · No auto-debit</Text>
+                <LocalizedText translate style={styles.note}>Manual renewal only · No auto-debit</LocalizedText>
               </View>
 
               <SectionLabel title="Billing & Taxes" icon="receipt-outline" />
@@ -963,12 +987,12 @@ export default function ProfileScreen({ onNavigate }) {
                 <View style={styles.saveBar}>
                   <View style={styles.saveBarTop}>
                     <Ionicons name="alert-circle-outline" size={15} color="#92400E" />
-                    <Text style={styles.saveBarText}>You have unsaved changes</Text>
+                    <LocalizedText translate style={styles.saveBarText}>You have unsaved changes</LocalizedText>
                   </View>
                   <View style={styles.saveBarBtns}>
-                    <TouchableOpacity style={styles.discardBtn} onPress={handleDiscard} disabled={saving}><Text style={styles.discardBtnText}>Discard</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.discardBtn} onPress={handleDiscard} disabled={saving}><LocalizedText translate style={styles.discardBtnText}>Discard</LocalizedText></TouchableOpacity>
                     <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
-                      {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="checkmark-circle" size={16} color="#fff" /><Text style={styles.saveBtnText}>Save Changes</Text></>}
+                      {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="checkmark-circle" size={16} color="#fff" /><LocalizedText translate style={styles.saveBtnText}>Save Changes</LocalizedText></>}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -980,24 +1004,24 @@ export default function ProfileScreen({ onNavigate }) {
                   <View style={styles.chefToggleLeft}>
                     <View style={styles.chefToggleIcon}><Ionicons name="restaurant-outline" size={18} color={T_MUTED} /></View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.chefToggleTitle}>Open Chef Mode</Text>
-                      <Text style={styles.chefToggleSub}>Hides revenue & billing. Unlock with Admin PIN.</Text>
+                      <LocalizedText translate style={styles.chefToggleTitle}>Open Chef Mode</LocalizedText>
+                      <LocalizedText translate style={styles.chefToggleSub}>Hides revenue & billing. Unlock with Admin PIN.</LocalizedText>
                     </View>
                   </View>
                   <Switch value={isChefMode} onValueChange={toggleChefMode} trackColor={{ false: "#D1D5DB", true: GREEN }} thumbColor="#fff" />
                 </View>
                 {!isChefMode && (
                   <View style={styles.pinSection}>
-                    <Text style={styles.pinLabel}>Admin PIN</Text>
+                    <LocalizedText translate style={styles.pinLabel}>Admin PIN</LocalizedText>
                     <View style={{ marginTop: 10 }}>
                       {profile?.admin_pin && !isUpdatingPin ? (
                         <View style={styles.pinDisplay}>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                             <View style={styles.pinShieldWrap}><Ionicons name="shield-checkmark" size={16} color={GREEN} /></View>
-                            <Text style={styles.pinDots}>••••</Text>
+                            <LocalizedText translate style={styles.pinDots}>••••</LocalizedText>
                           </View>
                           <TouchableOpacity style={styles.pinUpdateBtn} onPress={() => setIsUpdatingPin(true)}>
-                            <Text style={styles.pinUpdateBtnText}>Update PIN</Text>
+                            <LocalizedText translate style={styles.pinUpdateBtnText}>Update PIN</LocalizedText>
                           </TouchableOpacity>
                         </View>
                       ) : (
@@ -1006,11 +1030,11 @@ export default function ProfileScreen({ onNavigate }) {
                             <TextInput style={[styles.textInput, { letterSpacing: 8, fontWeight: "800", textAlign: "center" }]} value={newPin} onChangeText={setNewPin} maxLength={4} keyboardType="number-pad" secureTextEntry placeholder="••••" placeholderTextColor="#C4C4C4" autoFocus={isUpdatingPin} />
                           </View>
                           <TouchableOpacity style={[styles.saveBtn, { paddingHorizontal: 20, backgroundColor: newPin.length === 4 ? T_PRIMARY : "#D1D5DB" }]} onPress={handleSetPin} disabled={newPin.length !== 4 || savingPin}>
-                            {savingPin ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save</Text>}
+                            {savingPin ? <ActivityIndicator color="#fff" size="small" /> : <LocalizedText translate style={styles.saveBtnText}>Save</LocalizedText>}
                           </TouchableOpacity>
                           {profile?.admin_pin && isUpdatingPin && (
                             <TouchableOpacity style={styles.discardBtn} onPress={() => { setIsUpdatingPin(false); setNewPin(""); }}>
-                              <Text style={styles.discardBtnText}>Cancel</Text>
+                              <LocalizedText translate style={styles.discardBtnText}>Cancel</LocalizedText>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -1023,19 +1047,19 @@ export default function ProfileScreen({ onNavigate }) {
               {/* ✅ AI SUPPORT BUTTON (Mobile) - ADDED */}
               <TouchableOpacity style={styles.ghostBtn} onPress={() => navigation.navigate("Support")} activeOpacity={0.8}>
                 <Ionicons name="chatbubbles-outline" size={16} color="#10B981" />
-                <Text style={styles.ghostBtnText}>Contact Support</Text>
+                <LocalizedText translate style={styles.ghostBtnText}>Contact Support</LocalizedText>
                 <Ionicons name="chevron-forward" size={15} color={T_FAINT} style={{ marginLeft: "auto" }} />
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.ghostBtn} onPress={() => navigation.navigate("Reviews")} activeOpacity={0.8}>
                 <Ionicons name="star" size={16} color="#F59E0B" />
-                <Text style={styles.ghostBtnText}>View Ratings & Reviews</Text>
+                <LocalizedText translate style={styles.ghostBtnText}>View Ratings & Reviews</LocalizedText>
                 <Ionicons name="chevron-forward" size={15} color={T_FAINT} style={{ marginLeft: "auto" }} />
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
                 <Ionicons name="log-out-outline" size={16} color="#DC2626" />
-                <Text style={styles.logoutText}>Logout</Text>
+                <LocalizedText translate style={styles.logoutText}>Logout</LocalizedText>
               </TouchableOpacity>
             </>
           )}
@@ -1051,8 +1075,8 @@ export default function ProfileScreen({ onNavigate }) {
 function WebSectionHeader({ title, subtitle }) {
   return (
     <View style={{ marginBottom: 24 }}>
-      <Text style={{ fontSize: 22, fontWeight: "800", color: T_PRIMARY, marginBottom: 4 }}>{title}</Text>
-      <Text style={{ fontSize: 14, color: T_MUTED }}>{subtitle}</Text>
+      <LocalizedText style={{ fontSize: 22, fontWeight: "800", color: T_PRIMARY, marginBottom: 4 }}>{title}</LocalizedText>
+      <LocalizedText style={{ fontSize: 14, color: T_MUTED }}>{subtitle}</LocalizedText>
     </View>
   );
 }
@@ -1062,12 +1086,12 @@ function WebSaveBar({ onSave, onDiscard, saving, isSmall }) {
     <View style={[styles.webSaveBar, isSmall && { flexDirection: "column", gap: 12, alignItems: "flex-start" }]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#F59E0B" }} />
-        <Text style={{ fontSize: 13, color: "#92400E", fontWeight: "600" }}>Unsaved changes</Text>
+        <LocalizedText translate style={{ fontSize: 13, color: "#92400E", fontWeight: "600" }}>Unsaved changes</LocalizedText>
       </View>
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <TouchableOpacity style={styles.webDiscardBtn} onPress={onDiscard} disabled={saving}><Text style={styles.discardBtnText}>Discard</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.webDiscardBtn} onPress={onDiscard} disabled={saving}><LocalizedText translate style={styles.discardBtnText}>Discard</LocalizedText></TouchableOpacity>
         <TouchableOpacity style={styles.webSaveBtnInline} onPress={onSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="checkmark-circle" size={15} color="#fff" /><Text style={styles.saveBtnText}>Save Changes</Text></>}
+          {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Ionicons name="checkmark-circle" size={15} color="#fff" /><LocalizedText translate style={styles.saveBtnText}>Save Changes</LocalizedText></>}
         </TouchableOpacity>
       </View>
     </View>
@@ -1078,7 +1102,7 @@ function SectionLabel({ title, icon }) {
   return (
     <View style={slStyles.row}>
       <View style={slStyles.iconWrap}><Ionicons name={icon} size={13} color={T_MUTED} /></View>
-      <Text style={slStyles.title}>{title}</Text>
+      <LocalizedText style={slStyles.title}>{title}</LocalizedText>
     </View>
   );
 }
@@ -1098,6 +1122,15 @@ const styles = StyleSheet.create({
   webMainContent: { padding: 36, paddingBottom: 60 },
   webMainContentSmall: { padding: 16, paddingBottom: 40 },
   webSidebar: { width: SIDEBAR_W, backgroundColor: CARD, borderRightWidth: 1, borderRightColor: BORDER, paddingTop: 24, flexDirection: "column", ...Platform.select({ web: { boxShadow: "1px 0 6px rgba(0,0,0,0.03)" } }) },
+  languageCard: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: BORDER, borderRadius: 12, padding: 12, marginBottom: 16 },
+  languageTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  languageTitle: { color: T_PRIMARY, fontWeight: "700", fontSize: 14 },
+  languageHelp: { color: T_MUTED, fontSize: 11, marginTop: 2 },
+  languageOptions: { flexDirection: "row", gap: 6 },
+  languageOption: { flex: 1, alignItems: "center", paddingVertical: 8, paddingHorizontal: 4, borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: "#fff" },
+  languageOptionActive: { backgroundColor: T_PRIMARY, borderColor: T_PRIMARY },
+  languageOptionText: { color: T_PRIMARY, fontSize: 12, fontWeight: "600" },
+  languageOptionTextActive: { color: "#fff" },
   webSidebarOverlay: { position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100, width: SIDEBAR_W, ...Platform.select({ web: { boxShadow: "2px 0 16px rgba(0,0,0,0.12)" } }) },
   sidebarOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99, backgroundColor: "rgba(0,0,0,0.3)" },
   sidebarProfileCard: { alignItems: "center", paddingHorizontal: 20, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: BORDER, marginBottom: 12 },

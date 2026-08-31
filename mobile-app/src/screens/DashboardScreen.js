@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 
 import {
   View,
-  Text,
+  Text as NativeText,
   TextInput,
   ScrollView,
   TouchableOpacity,
@@ -15,6 +15,8 @@ import {
   Dimensions,
   useWindowDimensions,
 } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation, useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
@@ -570,6 +572,7 @@ const recordTrialToastShown = () => {
 };
 
 export default function DashboardScreen() {
+  const { language } = useLocale();
   const { business, updateBusiness, isChefMode } = useAuth();
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -1014,7 +1017,7 @@ export default function DashboardScreen() {
                         <span className="servon-profile-menu-icon">
                           <Ionicons name={item.icon} size={16} color={item.iconColor} />
                         </span>
-                        {item.label}
+                        {localizeText(item.label, language)}
                         {!!item.badge && item.badge > 0 && (
                           <span className="servon-profile-menu-badge">
                             {item.badge > 9 ? "9+" : item.badge}
@@ -1050,17 +1053,17 @@ export default function DashboardScreen() {
           <SubscriptionBanner />
 
           <div className="servon-stats-grid" style={{ marginTop: 10 }}>
-            <WebStatCard label="Orders Today" value={analytics?.today?.totalOrders ?? 0} icon="cube" color="#3B82F6" bg="#EFF6FF" accent="blue" />
-            {!isChefMode && <WebStatCard label="Revenue Today" value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`} icon="wallet" color="#10B981" bg="#ECFDF5" accent="green" />}
-            <WebStatCard label="Active Tables" value={activeTableCount} icon="grid" color="#F59E0B" bg="#FFFBEB" accent="amber" />
-            <WebStatCard label="Top Item" value={analytics?.today?.mostOrderedItem?.name || "-"} icon="flame" color="#EF4444" bg="#FEF2F2" accent="red" isText />
+            <WebStatCard language={language} label="Orders Today" value={analytics?.today?.totalOrders ?? 0} icon="cube" color="#3B82F6" bg="#EFF6FF" accent="blue" />
+            {!isChefMode && <WebStatCard language={language} label="Revenue Today" value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`} icon="wallet" color="#10B981" bg="#ECFDF5" accent="green" />}
+            <WebStatCard language={language} label="Active Tables" value={activeTableCount} icon="grid" color="#F59E0B" bg="#FFFBEB" accent="amber" />
+            <WebStatCard language={language} label="Top Item" value={analytics?.today?.mostOrderedItem?.name || "-"} icon="flame" color="#EF4444" bg="#FEF2F2" accent="red" isText />
           </div>
 
           {!isChefMode && (
             <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
               <TouchableOpacity style={styles.advisorBtn} onPress={() => navigation.navigate("Advisor")}>
                 <Ionicons name="sparkles-outline" size={20} color="#fff" />
-                <Text style={styles.advisorBtnText}>AI Business Advisor</Text>
+                <LocalizedText translate style={styles.advisorBtnText}>AI Business Advisor</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.advisorBtn, { backgroundColor: "#111827" }]}
@@ -1072,7 +1075,7 @@ export default function DashboardScreen() {
                 ) : (
                   <Ionicons name="analytics-outline" size={20} color="#fff" />
                 )}
-                <Text style={styles.advisorBtnText}>Generate Summary</Text>
+                <LocalizedText translate style={styles.advisorBtnText}>Generate Summary</LocalizedText>
               </TouchableOpacity>
             </div>
           )}
@@ -1080,15 +1083,15 @@ export default function DashboardScreen() {
           <div style={{ marginTop: 8 }}>
             <div className="servon-section-head">
               <span className="servon-live-dot" />
-              <span className="servon-section-title">Live Orders</span>
+              <span className="servon-section-title">{localizeText("Live Orders", language)}</span>
               <span className="servon-count-pill">{liveOrders.length}</span>
             </div>
 
             {liveOrders.length === 0 ? (
               <div className="servon-empty">
                 <Ionicons name="restaurant-outline" size={36} color="#C4BAB0" />
-                <span style={{ fontSize: 15, fontWeight: 600, color: "#6B7280" }}>No active orders right now</span>
-                <span style={{ fontSize: 13, color: "#B3ACA4" }}>Waiting for customers to scan QR</span>
+                <span style={{ fontSize: 15, fontWeight: 600, color: "#6B7280" }}>{localizeText("No active orders right now", language)}</span>
+                <span style={{ fontSize: 13, color: "#B3ACA4" }}>{localizeText("Waiting for customers to scan QR", language)}</span>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: screenWidth > 900 ? "repeat(2, 1fr)" : "1fr", gap: 14 }}>
@@ -1253,7 +1256,7 @@ export default function DashboardScreen() {
             <div className="servon-summary-modal" onClick={(e) => e.stopPropagation()}>
               <div className="servon-summary-header">
                 <div>
-                  <div className="servon-summary-title">AI Business Summary</div>
+                  <div className="servon-summary-title">{localizeText("AI Business Summary", language)}</div>
                   <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>
                     {businessSummary.summary_date} · Hour {businessSummary.summary_hour}:00
                   </div>
@@ -1283,25 +1286,25 @@ export default function DashboardScreen() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
                     {rows.map((r) => (
                       <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 12px", background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>{r.label}</span>
-                        <span style={{ fontSize: 13, color: "#111827", fontWeight: 500, textAlign: "right" }}>{r.value}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>{localizeText(r.label, language)}</span>
+                        <span style={{ fontSize: 13, color: "#111827", fontWeight: 500, textAlign: "right" }}>{localizeText(r.value, language)}</span>
                       </div>
                     ))}
                     {Array.isArray(j.recommendations) && j.recommendations.length > 0 && (
                       <div style={{ marginTop: 4 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Recommendations</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>{localizeText("Recommendations", language)}</div>
                         {j.recommendations.map((rec, i) => (
                           <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                             <Ionicons name="bulb-outline" size={14} color="#F59E0B" style={{ marginTop: 2 }} />
-                            <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>{rec}</span>
+                            <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>{localizeText(rec, language)}</span>
                           </div>
                         ))}
                       </div>
                     )}
                     {j.todaysFocus && (
                       <div style={{ marginTop: 8, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "12px 14px" }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Today's Focus</div>
-                        <div style={{ fontSize: 14, color: "#166534", fontWeight: 600, lineHeight: 1.5 }}>{j.todaysFocus}</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{localizeText("Today's Focus", language)}</div>
+                        <div style={{ fontSize: 14, color: "#166534", fontWeight: 600, lineHeight: 1.5 }}>{localizeText(j.todaysFocus, language)}</div>
                       </div>
                     )}
                   </div>
@@ -1372,21 +1375,21 @@ export default function DashboardScreen() {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 15 }]}>
         <View style={styles.headerInner}>
-          <Text style={styles.brandText}>{businessName}<Text style={styles.brandAccent}>.</Text></Text>
+          <LocalizedText style={styles.brandText}>{businessName}<LocalizedText translate style={styles.brandAccent}>.</LocalizedText></LocalizedText>
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.iconBtn} onPress={handleOpenNotifications}>
               <Ionicons name="notifications-outline" size={24} color="#374151" />
               {totalUnread > 0 && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{totalUnread > 9 ? "9+" : totalUnread}</Text>
+                  <LocalizedText style={styles.badgeText}>{totalUnread > 9 ? "9+" : totalUnread}</LocalizedText>
                 </View>
               )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.profileAvatar} onPress={() => setShowProfileMenu(true)}>
-              <Text style={styles.profileAvatarText}>{ownerInitial}</Text>
+              <LocalizedText style={styles.profileAvatarText}>{ownerInitial}</LocalizedText>
               {lowStockCount > 0 && (
                 <View style={styles.profileAvatarBadge}>
-                  <Text style={styles.profileAvatarBadgeText}>{lowStockCount > 9 ? "9+" : lowStockCount}</Text>
+                  <LocalizedText style={styles.profileAvatarBadgeText}>{lowStockCount > 9 ? "9+" : lowStockCount}</LocalizedText>
                 </View>
               )}
             </TouchableOpacity>
@@ -1400,12 +1403,12 @@ export default function DashboardScreen() {
             <View style={styles.trialToastIcon}>
               <Ionicons name="time-outline" size={16} color="#fff" />
             </View>
-            <Text style={styles.trialToastText}>{trialToast.message}</Text>
+            <LocalizedText style={styles.trialToastText}>{trialToast.message}</LocalizedText>
             <TouchableOpacity
               style={styles.trialToastBtn}
               onPress={() => { setTrialToast(null); navigation.navigate("Profile"); }}
             >
-              <Text style={styles.trialToastBtnText}>Subscribe</Text>
+              <LocalizedText translate style={styles.trialToastBtnText}>Subscribe</LocalizedText>
             </TouchableOpacity>
             <TouchableOpacity style={styles.trialToastClose} onPress={() => setTrialToast(null)}>
               <Ionicons name="close" size={15} color="rgba(255,255,255,0.7)" />
@@ -1472,9 +1475,9 @@ export default function DashboardScreen() {
                   size={20}
                   color="#fff"
                 />
-                <Text style={styles.advisorBtnText}>
+                <LocalizedText translate style={styles.advisorBtnText}>
                   AI Business Advisor
-                </Text>
+                </LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.advisorBtn, { backgroundColor: "#111827" }]}
@@ -1486,24 +1489,24 @@ export default function DashboardScreen() {
                 ) : (
                   <Ionicons name="analytics-outline" size={20} color="#fff" />
                 )}
-                <Text style={styles.advisorBtnText}>
+                <LocalizedText translate style={styles.advisorBtnText}>
                   Generate Summary
-                </Text>
+                </LocalizedText>
               </TouchableOpacity>
             </View>
           )}
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Live Orders</Text>
-              <View style={styles.countBadge}><Text style={styles.countBadgeText}>{liveOrders.length}</Text></View>
+              <LocalizedText translate style={styles.sectionTitle}>Live Orders</LocalizedText>
+              <View style={styles.countBadge}><LocalizedText style={styles.countBadgeText}>{liveOrders.length}</LocalizedText></View>
             </View>
 
             {liveOrders.length === 0 ? (
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIconCircle}><Ionicons name="restaurant-outline" size={32} color="#9CA3AF" /></View>
-                <Text style={styles.emptyText}>No active orders right now</Text>
-                <Text style={styles.emptySubText}>Waiting for customers to scan QR</Text>
+                <LocalizedText translate style={styles.emptyText}>No active orders right now</LocalizedText>
+                <LocalizedText translate style={styles.emptySubText}>Waiting for customers to scan QR</LocalizedText>
               </View>
             ) : (
               liveOrders.map(order => <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} />)
@@ -1518,8 +1521,8 @@ export default function DashboardScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeaderTop}>
               <View>
-                <Text style={styles.modalTitleText}>Notifications</Text>
-                {totalUnread > 0 && <Text style={styles.modalSubtitleText}>{totalUnread} unread</Text>}
+                <LocalizedText translate style={styles.modalTitleText}>Notifications</LocalizedText>
+                {totalUnread > 0 && <LocalizedText style={styles.modalSubtitleText}>{totalUnread} unread</LocalizedText>}
               </View>
               <TouchableOpacity onPress={() => setShowNotifications(false)}>
                 <Ionicons name="close-circle" size={28} color="#D1D5DB" />
@@ -1531,8 +1534,8 @@ export default function DashboardScreen() {
                   <View style={styles.emptyNotifIconCircle}>
                     <Ionicons name="notifications-off-outline" size={28} color="#9CA3AF" />
                   </View>
-                  <Text style={styles.emptyNotif}>No notifications yet</Text>
-                  <Text style={styles.emptyNotifSub}>You'll see updates here as they come in</Text>
+                  <LocalizedText translate style={styles.emptyNotif}>No notifications yet</LocalizedText>
+                  <LocalizedText translate style={styles.emptyNotifSub}>You'll see updates here as they come in</LocalizedText>
                 </View>
               ) : (
                 <>
@@ -1540,7 +1543,7 @@ export default function DashboardScreen() {
                     const { recent, older } = splitNotificationGroups(groupNotificationsByDay(notifications));
                     const renderGroup = (group) => (
                       <View key={group.label}>
-                        <Text style={styles.notifDayHeader}>{group.label}</Text>
+                        <LocalizedText style={styles.notifDayHeader}>{group.label}</LocalizedText>
                         {group.items.map((n, index) => (
                           <View key={n.id || index} style={[styles.notifItemModern, !n.is_read && styles.notifItemModernUnread]}>
                             <View style={[styles.notifIconCircle, !n.is_read && styles.notifIconCircleUnread]}>
@@ -1550,13 +1553,13 @@ export default function DashboardScreen() {
                               <View style={styles.notifTopRow}>
                                 <View style={styles.notifTitleRow}>
                                   {!n.is_read && <View style={styles.notifUnreadDot} />}
-                                  <Text style={styles.notifTitleModern} numberOfLines={1}>{n.title || "New Order"}</Text>
+                                  <LocalizedText style={styles.notifTitleModern} numberOfLines={1}>{n.title || "New Order"}</LocalizedText>
                                 </View>
-                                <Text style={styles.notifTimeModern}>
+                                <LocalizedText style={styles.notifTimeModern}>
                                   {new Date(n.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                                </Text>
+                                </LocalizedText>
                               </View>
-                              <Text style={styles.notifMessageModern}>{n.message}</Text>
+                              <LocalizedText style={styles.notifMessageModern}>{n.message}</LocalizedText>
                             </View>
                           </View>
                         ))}
@@ -1571,7 +1574,7 @@ export default function DashboardScreen() {
                           ) : (
                             <TouchableOpacity style={styles.loadMoreBtn} onPress={() => setShowOlderNotifications(true)}>
                               <Ionicons name="chevron-down-outline" size={14} color="#374151" />
-                              <Text style={styles.loadMoreBtnText}>Load older notifications</Text>
+                              <LocalizedText translate style={styles.loadMoreBtnText}>Load older notifications</LocalizedText>
                             </TouchableOpacity>
                           )
                         )}
@@ -1581,7 +1584,7 @@ export default function DashboardScreen() {
 
                   {trialNotifications.length > 0 && (
                     <View>
-                      <Text style={styles.notifDayHeader}>Trial Reminders</Text>
+                      <LocalizedText translate style={styles.notifDayHeader}>Trial Reminders</LocalizedText>
                       {trialNotifications.map((n) => (
                         <View key={`trial-${n.id}`} style={[styles.notifItemModern, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
                           <View style={[styles.notifIconCircle, { backgroundColor: '#DBEAFE' }]}>
@@ -1589,12 +1592,12 @@ export default function DashboardScreen() {
                           </View>
                           <View style={styles.notifItemBody}>
                             <View style={styles.notifTopRow}>
-                              <Text style={styles.notifTitleModern} numberOfLines={1}>{n.title}</Text>
-                              <Text style={styles.notifTimeModern}>
+                              <LocalizedText style={styles.notifTitleModern} numberOfLines={1}>{n.title}</LocalizedText>
+                              <LocalizedText style={styles.notifTimeModern}>
                                 {new Date(n.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                              </Text>
+                              </LocalizedText>
                             </View>
-                            <Text style={styles.notifMessageModern}>{n.message}</Text>
+                            <LocalizedText style={styles.notifMessageModern}>{n.message}</LocalizedText>
                           </View>
                         </View>
                       ))}
@@ -1603,7 +1606,7 @@ export default function DashboardScreen() {
 
                   {aiAlerts.length > 0 && (
                     <View>
-                      <Text style={styles.notifDayHeader}>AI Alerts</Text>
+                      <LocalizedText translate style={styles.notifDayHeader}>AI Alerts</LocalizedText>
                       {aiAlerts.map((a) => (
                         <TouchableOpacity
                           key={`alert-${a.id}`}
@@ -1617,13 +1620,13 @@ export default function DashboardScreen() {
                             <View style={styles.notifTopRow}>
                               <View style={styles.notifTitleRow}>
                                 {!a.is_read && <View style={styles.notifUnreadDot} />}
-                                <Text style={styles.notifTitleModern} numberOfLines={1}>{a.title}</Text>
+                                <LocalizedText style={styles.notifTitleModern} numberOfLines={1}>{a.title}</LocalizedText>
                               </View>
-                              <Text style={styles.notifTimeModern}>
+                              <LocalizedText style={styles.notifTimeModern}>
                                 {new Date(a.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                              </Text>
+                              </LocalizedText>
                             </View>
-                            <Text style={styles.notifMessageModern}>{a.message}</Text>
+                            <LocalizedText style={styles.notifMessageModern}>{a.message}</LocalizedText>
                           </View>
                         </TouchableOpacity>
                       ))}
@@ -1649,10 +1652,10 @@ export default function DashboardScreen() {
                 <View style={styles.profileMenuIcon}>
                   <Ionicons name={item.icon} size={16} color={item.iconColor} />
                 </View>
-                <Text style={styles.profileMenuLabel}>{item.label}</Text>
+                <LocalizedText style={styles.profileMenuLabel}>{item.label}</LocalizedText>
                 {!!item.badge && item.badge > 0 && (
                   <View style={styles.profileMenuBadge}>
-                    <Text style={styles.profileMenuBadgeText}>{item.badge > 9 ? "9+" : item.badge}</Text>
+                    <LocalizedText style={styles.profileMenuBadgeText}>{item.badge > 9 ? "9+" : item.badge}</LocalizedText>
                   </View>
                 )}
               </TouchableOpacity>
@@ -1666,16 +1669,16 @@ export default function DashboardScreen() {
         <View style={styles.summaryModalOverlay}>
           <View style={styles.summaryModal}>
             <View style={styles.summaryModalHeader}>
-              <Text style={styles.summaryModalTitle}>AI Business Summary</Text>
+              <LocalizedText translate style={styles.summaryModalTitle}>AI Business Summary</LocalizedText>
               <TouchableOpacity onPress={() => setShowBusinessSummaryModal(false)}>
                 <Ionicons name="close-circle" size={28} color="#D1D5DB" />
               </TouchableOpacity>
             </View>
             {businessSummary && (
               <>
-                <Text style={styles.summaryModalDate}>
+                <LocalizedText style={styles.summaryModalDate}>
                   {businessSummary.summary_date} · Hour {businessSummary.summary_hour}:00
-                </Text>
+                </LocalizedText>
                 {(() => {
                   const j = businessSummary.summary_json || {};
                   const rows = [
@@ -1692,32 +1695,32 @@ export default function DashboardScreen() {
                     <ScrollView style={{ maxHeight: 320 }}>
                       {rows.map((r) => (
                         <View key={r.label} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, padding: 10, backgroundColor: "#F9FAFB", borderRadius: 10, borderWidth: 1, borderColor: "#F3F4F6", marginBottom: 8 }}>
-                          <Text style={{ fontSize: 11, fontWeight: "600", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0 }}>{r.label}</Text>
-                          <Text style={{ fontSize: 13, color: "#111827", fontWeight: "500", textAlign: "right", flexShrink: 1 }}>{r.value}</Text>
+                          <LocalizedText style={{ fontSize: 11, fontWeight: "600", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0 }}>{r.label}</LocalizedText>
+                          <LocalizedText style={{ fontSize: 13, color: "#111827", fontWeight: "500", textAlign: "right", flexShrink: 1 }}>{r.value}</LocalizedText>
                         </View>
                       ))}
                       {Array.isArray(j.recommendations) && j.recommendations.length > 0 && (
                         <View style={{ marginTop: 4 }}>
-                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Recommendations</Text>
+                          <LocalizedText translate style={{ fontSize: 11, fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Recommendations</LocalizedText>
                           {j.recommendations.map((rec, i) => (
                             <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                               <Ionicons name="bulb-outline" size={14} color="#F59E0B" style={{ marginTop: 2 }} />
-                              <Text style={{ fontSize: 13, color: "#374151", lineHeight: 18, flex: 1 }}>{rec}</Text>
+                              <LocalizedText style={{ fontSize: 13, color: "#374151", lineHeight: 18, flex: 1 }}>{rec}</LocalizedText>
                             </View>
                           ))}
                         </View>
                       )}
                       {j.todaysFocus && (
                         <View style={{ marginTop: 8, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 12, padding: 12 }}>
-                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#16A34A", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Today's Focus</Text>
-                          <Text style={{ fontSize: 14, color: "#166534", fontWeight: "600", lineHeight: 20 }}>{j.todaysFocus}</Text>
+                          <LocalizedText translate style={{ fontSize: 11, fontWeight: "700", color: "#16A34A", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Today's Focus</LocalizedText>
+                          <LocalizedText style={{ fontSize: 14, color: "#166534", fontWeight: "600", lineHeight: 20 }}>{j.todaysFocus}</LocalizedText>
                         </View>
                       )}
                     </ScrollView>
                   );
                 })()}
                 <TouchableOpacity style={styles.summaryModalBtn} onPress={() => setShowBusinessSummaryModal(false)}>
-                  <Text style={styles.summaryModalBtnText}>Close</Text>
+                  <LocalizedText translate style={styles.summaryModalBtnText}>Close</LocalizedText>
                 </TouchableOpacity>
               </>
             )}
@@ -1733,8 +1736,8 @@ export default function DashboardScreen() {
               {getAlertIcon(alertToast.severity, true)}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.trialToastText, { fontWeight: "700", marginBottom: 2 }]}>{alertToast.title}</Text>
-              <Text style={styles.trialToastText}>{alertToast.message}</Text>
+              <LocalizedText style={[styles.trialToastText, { fontWeight: "700", marginBottom: 2 }]}>{alertToast.title}</LocalizedText>
+              <LocalizedText style={styles.trialToastText}>{alertToast.message}</LocalizedText>
             </View>
             <TouchableOpacity style={styles.trialToastClose} onPress={() => setAlertToast(null)}>
               <Ionicons name="close" size={15} color="rgba(255,255,255,0.7)" />
@@ -1750,7 +1753,7 @@ export default function DashboardScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.servonCreateFab} onPress={() => setAssistantOpen("manual")}>
           <Ionicons name="add" size={26} color="#fff" />
-          <Text style={styles.servonCreateLabel}>Create Order</Text>
+          <LocalizedText translate style={styles.servonCreateLabel}>Create Order</LocalizedText>
         </TouchableOpacity>
       </View>
 
@@ -1769,7 +1772,7 @@ function getGreeting() {
   return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
 }
 
-function WebStatCard({ label, value, icon, color, bg, accent, isText }) {
+function WebStatCard({ label, value, icon, color, bg, accent, isText, language }) {
   return (
     <div className={`servon-stat-card accent-${accent}`}>
       <div className="servon-stat-icon" style={{ background: bg }}>
@@ -1779,7 +1782,7 @@ function WebStatCard({ label, value, icon, color, bg, accent, isText }) {
         <div className="servon-stat-value" style={isText ? { fontSize: 18, fontWeight: 600 } : {}} title={String(value)}>
           {value}
         </div>
-        <div className="servon-stat-label">{label}</div>
+        <div className="servon-stat-label">{localizeText(label, language)}</div>
       </div>
     </div>
   );
@@ -1842,10 +1845,10 @@ function StatCard({ label, value, icon, color, bg, isText, extraStyle }) {
         <Ionicons name={icon} size={20} color={color} />
       </View>
       <View>
-        <Text style={[styles.statValue, isText && { fontSize: 17, fontWeight: "600" }]} numberOfLines={1} adjustsFontSizeToFit>
+        <LocalizedText style={[styles.statValue, isText && { fontSize: 17, fontWeight: "600" }]} numberOfLines={1} adjustsFontSizeToFit>
           {value}
-        </Text>
-        <Text style={styles.statLabel}>{label}</Text>
+        </LocalizedText>
+        <LocalizedText style={styles.statLabel}>{label}</LocalizedText>
       </View>
     </View>
   );
@@ -1858,30 +1861,30 @@ function OrderCard({ order, onStatusUpdate }) {
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <View style={styles.tableIndicator}>
-          <Text style={styles.orderTable}>Table {order.table_number || "?"}</Text>
+          <LocalizedText style={styles.orderTable}>Table {order.table_number || "?"}</LocalizedText>
         </View>
         <View style={[styles.statusPill, { backgroundColor: `${statusColor(order.status)}15` }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColor(order.status) }]} />
-          <Text style={[styles.statusText, { color: statusColor(order.status) }]}>{order.status}</Text>
+          <LocalizedText style={[styles.statusText, { color: statusColor(order.status) }]}>{order.status}</LocalizedText>
         </View>
       </View>
       <View style={styles.divider} />
       {items.map((item, i) => (
         <View key={i} style={styles.orderItemRow}>
-          <View style={styles.qtyBadge}><Text style={styles.qtyText}>{item.quantity}x</Text></View>
-          <Text style={styles.orderItemName}>{item.name}</Text>
+          <View style={styles.qtyBadge}><LocalizedText style={styles.qtyText}>{item.quantity}x</LocalizedText></View>
+          <LocalizedText style={styles.orderItemName}>{item.name}</LocalizedText>
         </View>
       ))}
       {order.special_instructions && (
         <View style={styles.noteBox}>
           <Ionicons name="information-circle" size={16} color="#F59E0B" />
-          <Text style={styles.orderNote}>{order.special_instructions}</Text>
+          <LocalizedText style={styles.orderNote}>{order.special_instructions}</LocalizedText>
         </View>
       )}
       <View style={styles.divider} />
       <View style={styles.orderFooter}>
-        <Text style={styles.orderTotalLabel}>Total Amount</Text>
-        <Text style={styles.orderTotalValue}>₹{order.total_amount}</Text>
+        <LocalizedText translate style={styles.orderTotalLabel}>Total Amount</LocalizedText>
+        <LocalizedText style={styles.orderTotalValue}>₹{order.total_amount}</LocalizedText>
       </View>
     </View>
   );

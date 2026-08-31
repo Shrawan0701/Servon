@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View,
-  Text,
+  Text as NativeText,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -16,6 +16,8 @@ import {
   Modal,
   Pressable,
 } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -144,7 +146,7 @@ const ChefStatusBadge = React.memo(({ status, size = "medium" }) => {
   return (
     <View style={[styles.chefBadge, { backgroundColor: config.bg, paddingHorizontal: padding, paddingVertical: padding }]}>
       <Ionicons name={config.icon} size={fontSize + 2} color={config.color} />
-      <Text style={[styles.chefBadgeLabel, { color: config.color, fontSize }]}>{label}</Text>
+      <LocalizedText style={[styles.chefBadgeLabel, { color: config.color, fontSize }]}>{label}</LocalizedText>
     </View>
   );
 });
@@ -188,7 +190,7 @@ const ChefOrderCard = React.memo((props) => {
           <View style={styles.chefTableIconWrap}>
             <Ionicons name="restaurant-outline" size={18} color="#111" />
           </View>
-          <Text style={styles.chefTableNumber}>Table {order.table_number}</Text>
+          <LocalizedText style={styles.chefTableNumber}>Table {order.table_number}</LocalizedText>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           {canReprint && (
@@ -209,12 +211,12 @@ const ChefOrderCard = React.memo((props) => {
       <View style={styles.chefItemsContainer}>
         {items.map((item, idx) => (
           <View key={idx} style={[styles.chefItemRow, idx !== items.length - 1 && styles.chefItemRowDivider]}>
-            <Text style={styles.chefItemName} numberOfLines={2}>
+            <LocalizedText style={styles.chefItemName} numberOfLines={2}>
               • {item.name}
-            </Text>
+            </LocalizedText>
             <View style={styles.chefItemMeta}>
-              <Text style={styles.chefItemQty}>×{item.quantity}</Text>
-              <Text style={styles.chefItemPrice}>₹{(item.price * item.quantity).toFixed(0)}</Text>
+              <LocalizedText style={styles.chefItemQty}>×{item.quantity}</LocalizedText>
+              <LocalizedText style={styles.chefItemPrice}>₹{(item.price * item.quantity).toFixed(0)}</LocalizedText>
             </View>
           </View>
         ))}
@@ -224,7 +226,7 @@ const ChefOrderCard = React.memo((props) => {
       {order.special_instructions && (
         <View style={styles.chefInstructions}>
           <Ionicons name="chatbubble-outline" size={14} color="#92400E" />
-          <Text style={styles.chefInstructionsText}>{order.special_instructions}</Text>
+          <LocalizedText style={styles.chefInstructionsText}>{order.special_instructions}</LocalizedText>
         </View>
       )}
 
@@ -232,13 +234,13 @@ const ChefOrderCard = React.memo((props) => {
       <View style={styles.chefCardFooter}>
         <View style={styles.chefTimestampRow}>
           <Ionicons name="time-outline" size={12} color="#9CA3AF" />
-          <Text style={styles.chefTimestamp}>
+          <LocalizedText style={styles.chefTimestamp}>
             {new Date(order.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-          </Text>
+          </LocalizedText>
         </View>
         <View style={styles.chefTotalRow}>
-          <Text style={styles.chefTotalLabel}>Total:</Text>
-          <Text style={styles.chefTotalValue}>₹{Math.round(parseFloat(order.total_amount))}</Text>
+          <LocalizedText translate style={styles.chefTotalLabel}>Total:</LocalizedText>
+          <LocalizedText style={styles.chefTotalValue}>₹{Math.round(parseFloat(order.total_amount))}</LocalizedText>
         </View>
       </View>
 
@@ -248,7 +250,7 @@ const ChefOrderCard = React.memo((props) => {
             (timeLeft > 0 ? (
               <View style={styles.chefWaitingBadge}>
                 <ActivityIndicator size="small" color="#9CA3AF" />
-                <Text style={styles.chefWaitingText}>Editing ({timeLeft}s)</Text>
+                <LocalizedText style={styles.chefWaitingText}>Editing ({timeLeft}s)</LocalizedText>
               </View>
             ) : (
               <>
@@ -258,7 +260,7 @@ const ChefOrderCard = React.memo((props) => {
                   onPress={() => onAccept(order.id)}
                 >
                   <Ionicons name="checkmark" size={18} color="#fff" />
-                  <Text style={styles.chefActionText}>Accept</Text>
+                  <LocalizedText translate style={styles.chefActionText}>Accept</LocalizedText>
                 </TouchableOpacity>
                 <TouchableOpacity
                   activeOpacity={0.75}
@@ -266,7 +268,7 @@ const ChefOrderCard = React.memo((props) => {
                   onPress={() => onReject(order.id)}
                 >
                   <Ionicons name="close" size={18} color="#fff" />
-                  <Text style={styles.chefActionText}>Reject</Text>
+                  <LocalizedText translate style={styles.chefActionText}>Reject</LocalizedText>
                 </TouchableOpacity>
               </>
             ))}
@@ -277,7 +279,7 @@ const ChefOrderCard = React.memo((props) => {
               onPress={() => onComplete(order.id)}
             >
               <Ionicons name="checkmark-done" size={18} color="#fff" />
-              <Text style={styles.chefActionText}>Serve</Text>
+              <LocalizedText translate style={styles.chefActionText}>Serve</LocalizedText>
             </TouchableOpacity>
           )}
           {isServed && (
@@ -287,7 +289,7 @@ const ChefOrderCard = React.memo((props) => {
               onPress={() => onComplete(order.id)}
             >
               <Ionicons name="people" size={18} color="#fff" />
-              <Text style={styles.chefActionText}>Active Table</Text>
+              <LocalizedText translate style={styles.chefActionText}>Active Table</LocalizedText>
             </TouchableOpacity>
           )}
           {isTableActive && !isChefMode && (
@@ -302,7 +304,7 @@ const ChefOrderCard = React.memo((props) => {
               ) : (
                 <>
                   <Ionicons name="print-outline" size={18} color="#fff" />
-                  <Text style={styles.chefActionText}>Bill</Text>
+                  <LocalizedText translate style={styles.chefActionText}>Bill</LocalizedText>
                 </>
               )}
             </TouchableOpacity>
@@ -330,18 +332,18 @@ function UpgradeGate() {
         <View style={gateStyles.iconHeader}>
           <Ionicons name="ribbon" size={40} color="#10B981" />
         </View>
-        <Text style={gateStyles.title}>Unlock Full Business Suite</Text>
-        <Text style={gateStyles.subtitle}>Take control of your restaurant with Servon's powerful order management tools.</Text>
+        <LocalizedText translate style={gateStyles.title}>Unlock Full Business Suite</LocalizedText>
+        <LocalizedText translate style={gateStyles.subtitle}>Take control of your restaurant with Servon's powerful order management tools.</LocalizedText>
         <View style={gateStyles.benefitsList}>
           {benefits.map((item, index) => (
             <View key={index} style={gateStyles.benefitItem}>
               <Ionicons name={item.icon} size={18} color="#10B981" />
-              <Text style={gateStyles.benefitText}>{item.text}</Text>
+              <LocalizedText style={gateStyles.benefitText}>{item.text}</LocalizedText>
             </View>
           ))}
         </View>
         <TouchableOpacity style={gateStyles.btn} onPress={() => navigation.navigate("Profile")} activeOpacity={0.85}>
-          <Text style={gateStyles.btnText}>Upgrade to Premium</Text>
+          <LocalizedText translate style={gateStyles.btnText}>Upgrade to Premium</LocalizedText>
           <Ionicons name="arrow-forward" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -390,7 +392,7 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
       <Pressable style={styles.discountModalOverlay} onPress={onClose}>
         <Pressable style={styles.discountModal} onPress={(e) => e.stopPropagation()}>
           <View style={styles.discountModalHeader}>
-            <Text style={styles.discountModalTitle}>Apply Discount</Text>
+            <LocalizedText translate style={styles.discountModalTitle}>Apply Discount</LocalizedText>
             <TouchableOpacity onPress={onClose} hitSlop={12} activeOpacity={0.6}>
               <Ionicons name="close" size={22} color="#6B7280" />
             </TouchableOpacity>
@@ -408,21 +410,21 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
                 onPress={() => { setDiscountType(item.key); setDiscountValue(""); }}
               >
                 <Ionicons name={item.icon} size={16} color={discountType === item.key ? "#fff" : "#6B7280"} />
-                <Text style={[styles.segmentText, discountType === item.key && styles.segmentTextActive]}>{item.label}</Text>
+                <LocalizedText style={[styles.segmentText, discountType === item.key && styles.segmentTextActive]}>{item.label}</LocalizedText>
               </TouchableOpacity>
             ))}
           </View>
           {discountType !== "none" && (
             <>
               <View style={styles.discountInputWrap}>
-                <Text style={styles.discountPrefix}>{discountType === "percentage" ? "%" : "₹"}</Text>
+                <LocalizedText style={styles.discountPrefix}>{discountType === "percentage" ? "%" : "₹"}</LocalizedText>
                 <TextInput style={styles.discountInputField} placeholder="0" keyboardType="numeric" value={discountValue} onChangeText={setDiscountValue} autoFocus />
               </View>
               {discountType === "percentage" && (
                 <View style={styles.presetRow}>
                   {[5, 10, 15, 20].map((p) => (
                     <TouchableOpacity key={p} activeOpacity={0.7} style={styles.presetChip} onPress={() => setDiscountValue(String(p))}>
-                      <Text style={styles.presetChipText}>{p}%</Text>
+                      <LocalizedText style={styles.presetChipText}>{p}%</LocalizedText>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -431,27 +433,27 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
           )}
           <View style={styles.previewBox}>
             <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>Subtotal</Text>
-              <Text style={styles.previewValue}>₹{Math.round(modalSubtotal)}</Text>
+              <LocalizedText translate style={styles.previewLabel}>Subtotal</LocalizedText>
+              <LocalizedText style={styles.previewValue}>₹{Math.round(modalSubtotal)}</LocalizedText>
             </View>
             {modalDiscountAmount > 0 && (
               <View style={styles.previewRow}>
-                <Text style={[styles.previewLabel, { color: "#EF4444" }]}>Discount</Text>
-                <Text style={[styles.previewValue, { color: "#EF4444" }]}>-₹{Math.round(modalDiscountAmount)}</Text>
+                <LocalizedText translate style={[styles.previewLabel, { color: "#EF4444" }]}>Discount</LocalizedText>
+                <LocalizedText style={[styles.previewValue, { color: "#EF4444" }]}>-₹{Math.round(modalDiscountAmount)}</LocalizedText>
               </View>
             )}
             <View style={[styles.previewRow, { borderTopWidth: 1, borderTopColor: "#E5E7EB", paddingTop: 8, marginTop: 4 }]}>
-              <Text style={styles.previewTotalLabel}>Payable</Text>
-              <Text style={styles.previewTotalValue}>₹{Math.round(modalSubtotal - modalDiscountAmount)}</Text>
+              <LocalizedText translate style={styles.previewTotalLabel}>Payable</LocalizedText>
+              <LocalizedText style={styles.previewTotalValue}>₹{Math.round(modalSubtotal - modalDiscountAmount)}</LocalizedText>
             </View>
           </View>
           <View style={styles.discountModalButtons}>
             <TouchableOpacity activeOpacity={0.8} style={[styles.discountModalBtn, { backgroundColor: "#F3F4F6" }]} onPress={onClose}>
-              <Text style={[styles.discountModalBtnText, { color: "#374151" }]}>Cancel</Text>
+              <LocalizedText translate style={[styles.discountModalBtnText, { color: "#374151" }]}>Cancel</LocalizedText>
             </TouchableOpacity>
             <TouchableOpacity activeOpacity={0.8} style={[styles.discountModalBtn, { backgroundColor: "#111827" }]} onPress={onApply}>
               <Ionicons name="print-outline" size={16} color="#fff" />
-              <Text style={styles.discountModalBtnText}>Apply & Print</Text>
+              <LocalizedText translate style={styles.discountModalBtnText}>Apply & Print</LocalizedText>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -462,6 +464,7 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
 
 // ─── MAIN SCREEN ──────────────────────────────────────────────────────
 export default function OrdersScreen() {
+  const { language } = useLocale();
   const { isChefMode, isPremium, loading: authLoading } = useAuth();
 
   // ─── STATE ──────────────────────────────────────────────────────────
@@ -890,7 +893,7 @@ const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${
         await printHtml(htmlContent);
       } catch (err) {
         console.error("Print Error", err);
-        Alert.alert("Print Failed", "Could not print the bill.");
+        Alert.alert(localizeText("Print Failed", language), localizeText("Could not print the bill.", language));
       } finally {
         setProcessingTable(null);
       }
@@ -915,7 +918,7 @@ const handleReprint = useCallback(
       await printHtml(htmlContent);
     } catch (err) {
       console.error("Reprint Error", err);
-      Alert.alert("Reprint Failed", "Could not reprint the bill.");
+      Alert.alert(localizeText("Reprint Failed", language), localizeText("Could not reprint the bill.", language));
     } finally {
       setProcessingTable(null);
     }
@@ -933,7 +936,7 @@ const handleReprint = useCallback(
   const applyDiscount = useCallback(() => {
     const value = parseFloat(discountValue);
     if (discountType !== "none" && (!value || value <= 0)) {
-      Alert.alert("Invalid", "Please enter a valid discount amount.");
+      Alert.alert(localizeText("Invalid", language), localizeText("Please enter a valid discount amount.", language));
       return;
     }
     const discount = { type: discountType, value: value || 0 };
@@ -983,7 +986,7 @@ const handleReprint = useCallback(
     return (
       <View style={styles.orderCardOld}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <Text style={{ fontSize: 18, fontWeight: "800", color: "#111" }}>Table {item.table_number}</Text>
+          <LocalizedText style={{ fontSize: 18, fontWeight: "800", color: "#111" }}>Table {item.table_number}</LocalizedText>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {canReprint && (
               <TouchableOpacity
@@ -993,36 +996,36 @@ const handleReprint = useCallback(
                 disabled={isProcessing}
               >
                 <Ionicons name="print-outline" size={13} color="#6B7280" />
-                <Text style={styles.reprintBtnTextOld}>Reprint</Text>
+                <LocalizedText translate style={styles.reprintBtnTextOld}>Reprint</LocalizedText>
               </TouchableOpacity>
             )}
             <View style={[styles.badgeOld, { backgroundColor: statusColor(item.status) }]}>
-              <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.4 }}>{item.status.replace("_", " ")}</Text>
+              <LocalizedText style={{ color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.4 }}>{item.status.replace("_", " ")}</LocalizedText>
             </View>
           </View>
         </View>
         {items.map((i, idx) => (
-          <Text key={idx} style={{ fontSize: 15, color: "#374151", marginBottom: 5, fontWeight: "500", lineHeight: 20 }}>
-            • {i.name} × {i.quantity} - <Text style={{ fontWeight: "700" }}>₹{(i.price * i.quantity).toFixed(0)}</Text>
-          </Text>
+          <LocalizedText key={idx} style={{ fontSize: 15, color: "#374151", marginBottom: 5, fontWeight: "500", lineHeight: 20 }}>
+            • {i.name} × {i.quantity} - <LocalizedText style={{ fontWeight: "700" }}>₹{(i.price * i.quantity).toFixed(0)}</LocalizedText>
+          </LocalizedText>
         ))}
         {item.special_instructions && (
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#FEF3C7", padding: 10, borderRadius: 10, marginTop: 8 }}>
             <Ionicons name="chatbubble-outline" size={13} color="#92400E" style={{ marginTop: 2 }} />
-            <Text style={{ fontSize: 13, color: "#92400E", fontWeight: "600", flex: 1 }}>{item.special_instructions}</Text>
+            <LocalizedText style={{ fontSize: 13, color: "#92400E", fontWeight: "600", flex: 1 }}>{item.special_instructions}</LocalizedText>
           </View>
         )}
         <View style={styles.totalRowOld}>
-          <Text style={{ fontWeight: "600", fontSize: 14, color: "#6B7280" }}>Subtotal:</Text>
-          <Text style={{ fontWeight: "800", fontSize: 18, color: "#111" }}>
+          <LocalizedText translate style={{ fontWeight: "600", fontSize: 14, color: "#6B7280" }}>Subtotal:</LocalizedText>
+          <LocalizedText style={{ fontWeight: "800", fontSize: 18, color: "#111" }}>
             ₹{Math.round(parseFloat(item.total_amount))}
-          </Text>
+          </LocalizedText>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
           <Ionicons name="time-outline" size={12} color="#aaa" />
-          <Text style={{ fontSize: 12, color: "#aaa" }}>
+          <LocalizedText style={{ fontSize: 12, color: "#aaa" }}>
             Ordered at: {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-          </Text>
+          </LocalizedText>
         </View>
         {isToday(item.created_at) && (
           <>
@@ -1031,15 +1034,15 @@ const handleReprint = useCallback(
                 {item.status === "EDITABLE" && timeLeft > 0 ? (
                   <View style={[styles.actionBtnOld, { backgroundColor: "#F3F4F6", flexDirection: "row", justifyContent: "center", gap: 8 }]}>
                     <ActivityIndicator size="small" color="#9CA3AF" />
-                    <Text style={[styles.actionBtnTextOld, { color: "#6B7280" }]}>Reviewing ({timeLeft}s)...</Text>
+                    <LocalizedText style={[styles.actionBtnTextOld, { color: "#6B7280" }]}>Reviewing ({timeLeft}s)...</LocalizedText>
                   </View>
                 ) : (
                   <>
                     <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#10B981" }]} onPress={() => handleStatusUpdate(item.id, "PREPARING")}>
-                      <Text style={styles.actionBtnTextOld}>Accept</Text>
+                      <LocalizedText translate style={styles.actionBtnTextOld}>Accept</LocalizedText>
                     </TouchableOpacity>
                     <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#EF4444", flex: 0.4 }]} onPress={() => handleStatusUpdate(item.id, "REJECTED")}>
-                      <Text style={styles.actionBtnTextOld}>Reject</Text>
+                      <LocalizedText translate style={styles.actionBtnTextOld}>Reject</LocalizedText>
                     </TouchableOpacity>
                   </>
                 )}
@@ -1047,17 +1050,17 @@ const handleReprint = useCallback(
             )}
             {item.status === "PREPARING" && (
               <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#F59E0B", marginTop: 16 }]} onPress={() => handleStatusUpdate(item.id, "SERVED")}>
-                <Text style={[styles.actionBtnTextOld, { color: "#fff" }]}>Mark Served</Text>
+                <LocalizedText translate style={[styles.actionBtnTextOld, { color: "#fff" }]}>Mark Served</LocalizedText>
               </TouchableOpacity>
             )}
             {item.status === "SERVED" && (
               <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
                 <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#8B5CF6" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
-                  <Text style={styles.actionBtnTextOld}>Active Table</Text>
+                  <LocalizedText translate style={styles.actionBtnTextOld}>Active Table</LocalizedText>
                 </TouchableOpacity>
                 {!isChefMode && (
                   <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
-                    {isProcessing ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.actionBtnTextOld}>Print</Text>}
+                    {isProcessing ? <ActivityIndicator color="#fff" size="small" /> : <LocalizedText translate style={styles.actionBtnTextOld}>Print</LocalizedText>}
                   </TouchableOpacity>
                 )}
               </View>
@@ -1067,12 +1070,12 @@ const handleReprint = useCallback(
                 {isProcessing ? (
                   <>
                     <ActivityIndicator color="#fff" size="small" />
-                    <Text style={styles.actionBtnTextOld}>Generating Bill...</Text>
+                    <LocalizedText translate style={styles.actionBtnTextOld}>Generating Bill...</LocalizedText>
                   </>
                 ) : (
                   <>
                     <Ionicons name="print-outline" size={20} color="#fff" />
-                    <Text style={styles.actionBtnTextOld}>Print Final Bill</Text>
+                    <LocalizedText translate style={styles.actionBtnTextOld}>Print Final Bill</LocalizedText>
                   </>
                 )}
               </TouchableOpacity>
@@ -1182,7 +1185,7 @@ const handleReprint = useCallback(
                 style={[styles.filterTab, filter === item.key && styles.filterTabActive]}
                 onPress={() => setFilter(item.key)}
               >
-                <Text style={[styles.filterTabText, filter === item.key && { color: "#fff" }]}>{item.label}</Text>
+                <LocalizedText style={[styles.filterTabText, filter === item.key && { color: "#fff" }]}>{item.label}</LocalizedText>
               </TouchableOpacity>
             )}
           />
@@ -1199,9 +1202,9 @@ const handleReprint = useCallback(
                 style={[styles.filterTab, filter === item.key && styles.filterTabActive]}
                 onPress={() => setFilter(item.key)}
               >
-                <Text style={[styles.filterTabText, filter === item.key && { color: "#fff" }]}>
+                <LocalizedText style={[styles.filterTabText, filter === item.key && { color: "#fff" }]}>
                   {item.label.replace("_", " ")}
-                </Text>
+                </LocalizedText>
               </TouchableOpacity>
             )}
           />
@@ -1215,16 +1218,16 @@ const handleReprint = useCallback(
             <View style={styles.datePickerContainer}>
               <View style={styles.dateInfo}>
                 <Ionicons name="calendar-outline" size={20} color="#10B981" />
-                <Text style={styles.dateLabel}>Select History Date:</Text>
+                <LocalizedText translate style={styles.dateLabel}>Select History Date:</LocalizedText>
               </View>
               {Platform.OS === "web" ? (
                 <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} style={styles.webDateInput} />
               ) : (
                 <View>
                   <TouchableOpacity activeOpacity={0.8} style={styles.mobileDateBtn} onPress={() => setShowPicker(true)}>
-                    <Text style={styles.mobileDateText}>
+                    <LocalizedText style={styles.mobileDateText}>
                       {new Date(selectedDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    </Text>
+                    </LocalizedText>
                     <Ionicons name="chevron-down" size={14} color="#10B981" />
                   </TouchableOpacity>
                   {showPicker && DateTimePicker && (
@@ -1245,14 +1248,14 @@ const handleReprint = useCallback(
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
               contentContainerStyle={{ padding: 12 }}
               stickySectionHeadersEnabled={false}
-              renderSectionHeader={({ section: { title } }) => <Text style={styles.sectionHeader}>{title}</Text>}
+              renderSectionHeader={({ section: { title } }) => <LocalizedText style={styles.sectionHeader}>{title}</LocalizedText>}
               renderItem={isChefMode ? renderOrderItemChef : renderOrderItemOld}
               ListEmptyComponent={
                 <View style={{ alignItems: "center", marginTop: 60 }}>
                   <Ionicons name="archive-outline" size={48} color="#D1D5DB" />
-                  <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
+                  <LocalizedText style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
                     {isOffline ? '📡 Offline - No cached data for this date' : 'No archived orders for this date'}
-                  </Text>
+                  </LocalizedText>
                 </View>
               }
             />
@@ -1268,13 +1271,13 @@ const handleReprint = useCallback(
             ListEmptyComponent={
               <View style={{ alignItems: "center", marginTop: 60 }}>
                 <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
-                <Text style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
+                <LocalizedText style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
                   {isOffline ? '📡 Offline - No cached orders' : 'No orders found for today'}
-                </Text>
+                </LocalizedText>
                 {isOffline && (
-                  <Text style={{ color: "#6B7280", fontSize: 12, marginTop: 4 }}>
+                  <LocalizedText translate style={{ color: "#6B7280", fontSize: 12, marginTop: 4 }}>
                     Connect to internet to sync orders
-                  </Text>
+                  </LocalizedText>
                 )}
               </View>
             }

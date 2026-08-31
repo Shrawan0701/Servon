@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, ActivityIndicator, Image, RefreshControl, Platform, Dimensions } from "react-native";
+import { View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, ActivityIndicator, Image, RefreshControl, Platform, Dimensions } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { getTables, addTable, deleteTable } from "../api";
 import * as FileSystem from "expo-file-system/legacy";
@@ -24,6 +26,7 @@ function useIsWideScreen() {
 
 export default function TablesScreen() {
   const insets = useSafeAreaInsets();
+  const { language } = useLocale();
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,7 +53,7 @@ export default function TablesScreen() {
   };
 
   const handleAddTable = async () => {
-    if (!tableNumber.trim()) { Alert.alert("Required", "Enter a table number"); return; }
+    if (!tableNumber.trim()) { Alert.alert(localizeText("Required", language), localizeText("Enter a table number", language)); return; }
     setAdding(true);
     try {
       const res = await addTable(tableNumber.trim());
@@ -58,7 +61,7 @@ export default function TablesScreen() {
       setTableNumber("");
       setShowAddModal(false);
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.error || "Failed to add table");
+      Alert.alert(localizeText("Error", language), err.response?.data?.error || localizeText("Failed to add table", language));
     } finally { setAdding(false); }
   };
 
@@ -68,9 +71,9 @@ export default function TablesScreen() {
       setTableToDelete(id);
       setShowDeleteModal(true);
     } else {
-      Alert.alert("Delete Table", "Are you sure?", [
-        { text: "Cancel" },
-        { text: "Delete", style: "destructive", onPress: () => confirmDelete(id) },
+      Alert.alert(localizeText("Delete Table", language), localizeText("Are you sure?", language), [
+        { text: localizeText("Cancel", language) },
+        { text: localizeText("Delete", language), style: "destructive", onPress: () => confirmDelete(id) },
       ]);
     }
   };
@@ -83,7 +86,7 @@ export default function TablesScreen() {
       setShowDeleteModal(false);
       setTableToDelete(null);
     } catch (err) {
-      Alert.alert("Error", "Delete failed");
+      Alert.alert(localizeText("Error", language), localizeText("Delete failed", language));
     } finally {
       setDeleting(false);
     }
@@ -111,7 +114,7 @@ export default function TablesScreen() {
       }
     } catch (err) {
       console.error("QR Download Error:", err);
-      Alert.alert("Download Error", "Could not download QR. Check server connection.");
+      Alert.alert(localizeText("Download Error", language), localizeText("Could not download QR. Check server connection.", language));
     }
   };
   
@@ -130,12 +133,12 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
       <View style={styles.header}>
         <View style={styles.headerInner}>
           <View>
-            <Text style={styles.headerTitle}>Tables</Text>
-            <Text style={styles.headerSub}>{tables.length} Active Tables</Text>
+            <LocalizedText translate style={styles.headerTitle}>Tables</LocalizedText>
+            <LocalizedText style={styles.headerSub}>{tables.length} {localizeText("Active Tables", language)}</LocalizedText>
           </View>
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)}>
             <Ionicons name="add" size={20} color="#fff" />
-            <Text style={styles.addBtnText}>Add Table</Text>
+            <LocalizedText translate style={styles.addBtnText}>Add Table</LocalizedText>
           </TouchableOpacity>
         </View>
       </View>
@@ -154,10 +157,10 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
             <View style={styles.emptyIconCircle}>
               <Ionicons name="grid-outline" size={48} color="#D1D5DB" />
             </View>
-            <Text style={styles.emptyTitle}>No tables added</Text>
-            <Text style={styles.emptySub}>Add tables to generate QR codes for your customers to scan and order.</Text>
+            <LocalizedText translate style={styles.emptyTitle}>No tables added</LocalizedText>
+            <LocalizedText translate style={styles.emptySub}>Add tables to generate QR codes for your customers to scan and order.</LocalizedText>
             <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowAddModal(true)}>
-              <Text style={styles.emptyBtnText}>Create Your First Table</Text>
+              <LocalizedText translate style={styles.emptyBtnText}>Create Your First Table</LocalizedText>
             </TouchableOpacity>
           </View>
         }
@@ -165,15 +168,15 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
           <View style={[styles.tableCard, { width: cardWidth }]}>
             <View style={styles.cardHeader}>
                <View style={styles.tableBadge}>
-                  <Text style={styles.tableBadgeText}>LIVE</Text>
+                  <LocalizedText translate style={styles.tableBadgeText}>LIVE</LocalizedText>
                </View>
                <TouchableOpacity onPress={() => handleDelete(item.id)}>
                   <Ionicons name="trash-outline" size={18} color="#EF4444" />
                </TouchableOpacity>
             </View>
 
-            <Text style={styles.tableNumberLabel}>TABLE</Text>
-            <Text style={styles.tableNumberValue}>{item.table_number}</Text>
+            <LocalizedText translate style={styles.tableNumberLabel}>TABLE</LocalizedText>
+            <LocalizedText style={styles.tableNumberValue}>{item.table_number}</LocalizedText>
             
             <View style={styles.qrContainer}>
               {item.qr_code_url ? (
@@ -187,7 +190,7 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
 
             <TouchableOpacity style={styles.downloadBtn} onPress={() => handleDownloadQR(item)}>
               <Ionicons name="cloud-download-outline" size={16} color="#111" />
-              <Text style={styles.downloadBtnText}>Download QR</Text>
+              <LocalizedText translate style={styles.downloadBtnText}>Download QR</LocalizedText>
             </TouchableOpacity>
           </View>
         )}
@@ -198,23 +201,23 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <View style={styles.modalHeaderRow}>
-               <Text style={styles.modalTitle}>New Table</Text>
+               <LocalizedText translate style={styles.modalTitle}>New Table</LocalizedText>
                <TouchableOpacity onPress={() => setShowAddModal(false)}>
                   <Ionicons name="close" size={24} color="#6B7280" />
                </TouchableOpacity>
             </View>
             
-            <Text style={styles.inputLabel}>Table Name or Number</Text>
+            <LocalizedText translate style={styles.inputLabel}>Table Name or Number</LocalizedText>
             <TextInput
               style={[styles.input, isWeb && { outlineStyle: 'none' }]}
               value={tableNumber}
               onChangeText={setTableNumber}
-              placeholder="e.g. 05 or T-10"
+              placeholder={localizeText("e.g. 05 or T-10", language)}
               placeholderTextColor="#9CA3AF"
               autoFocus
             />
             <TouchableOpacity style={styles.confirmBtn} onPress={handleAddTable} disabled={adding}>
-              {adding ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>Confirm & Create</Text>}
+              {adding ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.confirmBtnText}>Confirm & Create</LocalizedText>}
             </TouchableOpacity>
           </View>
         </View>
@@ -229,17 +232,17 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
               <Ionicons name="trash-outline" size={28} color="#EF4444" />
             </View>
 
-            <Text style={styles.deleteTitle}>Delete Table?</Text>
-            <Text style={styles.deleteSub}>
+            <LocalizedText translate style={styles.deleteTitle}>Delete Table?</LocalizedText>
+            <LocalizedText translate style={styles.deleteSub}>
               This will permanently remove the table and its QR code. This action cannot be undone.
-            </Text>
+            </LocalizedText>
 
             <View style={styles.deleteActions}>
               <TouchableOpacity
                 style={styles.cancelBtn}
                 onPress={() => { setShowDeleteModal(false); setTableToDelete(null); }}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <LocalizedText translate style={styles.cancelBtnText}>Cancel</LocalizedText>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -249,7 +252,7 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
               >
                 {deleting
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.deleteConfirmBtnText}>Yes, Delete</Text>
+                  : <LocalizedText translate style={styles.deleteConfirmBtnText}>Yes, Delete</LocalizedText>
                 }
               </TouchableOpacity>
             </View>

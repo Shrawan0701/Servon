@@ -1,8 +1,10 @@
 import { useState, useCallback } from "react";
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, RefreshControl,
+  View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, Alert, RefreshControl,
   ActivityIndicator, Modal, TextInput, Image, ScrollView, Platform, Dimensions
 } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { getMenu, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../api";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,6 +23,7 @@ const EMPTY_FORM = {
 
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
+  const { language } = useLocale();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -183,7 +186,7 @@ export default function MenuScreen() {
   console.log("FINAL INCLUDES:", finalIncludes);
 
   if (!form.name || !form.price || !form.category) {
-    Alert.alert("Required", "Name, price, and category are required");
+    Alert.alert(localizeText("Required", language), localizeText("Name, price, and category are required", language));
     return;
   }
 
@@ -219,7 +222,7 @@ export default function MenuScreen() {
     await loadMenu();
 
   } catch (err) {
-    Alert.alert("Error", err.response?.data?.error || "Save failed");
+    Alert.alert(localizeText("Error", language), err.response?.data?.error || localizeText("Save failed", language));
   } finally {
     setSaving(false);
   }
@@ -231,9 +234,9 @@ export default function MenuScreen() {
       setItemToDelete(id);
       setShowDeleteModal(true);
     } else {
-      Alert.alert("Delete Item", "Are you sure?", [
-        { text: "Cancel" },
-        { text: "Delete", style: "destructive", onPress: () => confirmDelete(id) }
+      Alert.alert(localizeText("Delete Item", language), localizeText("Are you sure?", language), [
+        { text: localizeText("Cancel", language) },
+        { text: localizeText("Delete", language), style: "destructive", onPress: () => confirmDelete(id) }
       ]);
     }
   };
@@ -246,7 +249,7 @@ export default function MenuScreen() {
       setShowDeleteModal(false);
       setItemToDelete(null);
     } catch {
-      Alert.alert("Error", "Delete failed");
+      Alert.alert(localizeText("Error", language), localizeText("Delete failed", language));
     } finally {
       setDeleting(false);
     }
@@ -256,7 +259,7 @@ export default function MenuScreen() {
     try {
       const res = await toggleMenuItemAvailability(id);
       setItems((prev) => prev.map((i) => i.id === id ? res.data : i));
-    } catch (err) { Alert.alert("Error", "Toggle failed"); }
+    } catch (err) { Alert.alert(localizeText("Error", language), localizeText("Toggle failed", language)); }
   };
 
  const toggleThaliItem = (itemId) => {
@@ -296,12 +299,12 @@ export default function MenuScreen() {
                 onPress={() => setSelectedFilter(cat)}
                 style={[styles.filterBtn, selectedFilter === cat && styles.filterBtnActive]}
               >
-                <Text style={[styles.filterBtnText, selectedFilter === cat && { color: "#fff" }]}>{cat}</Text>
+                <LocalizedText style={[styles.filterBtnText, selectedFilter === cat && { color: "#fff" }]}>{cat}</LocalizedText>
               </TouchableOpacity>
             ))}
           </ScrollView>
           <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-            <Text style={{ color: "#fff", fontWeight: "700" }}>+ Add Item</Text>
+            <LocalizedText translate style={{ color: "#fff", fontWeight: "700" }}>+ Add Item</LocalizedText>
           </TouchableOpacity>
         </View>
       </View>
@@ -321,8 +324,8 @@ export default function MenuScreen() {
             <View style={styles.emptyIconCircle}>
                 <Ionicons name="restaurant-outline" size={40} color="#111" />
             </View>
-            <Text style={styles.emptyTitle}>Your menu is empty</Text>
-            <Text style={styles.emptySub}>Add your first dish and let customers start ordering in minutes.</Text>
+            <LocalizedText translate style={styles.emptyTitle}>Your menu is empty</LocalizedText>
+            <LocalizedText translate style={styles.emptySub}>Add your first dish and let customers start ordering in minutes.</LocalizedText>
             <View style={styles.stepsRow}>
                 <EmptyStep icon="camera-outline" label="Upload a photo" color="#F59E0B" />
                 <EmptyStep icon="pricetag-outline" label="Set name & price" color="#10B981" />
@@ -331,7 +334,7 @@ export default function MenuScreen() {
             </View>
             <TouchableOpacity style={styles.bigAddBtn} onPress={openAdd}>
                 <Ionicons name="add-circle" size={24} color="#fff" />
-                <Text style={styles.bigAddBtnText}>Add Your First Item</Text>
+                <LocalizedText translate style={styles.bigAddBtnText}>Add Your First Item</LocalizedText>
             </TouchableOpacity>
           </View>
         }
@@ -342,19 +345,19 @@ export default function MenuScreen() {
                 <Image source={{ uri: item.image_url }} style={styles.menuImg} resizeMode="cover" />
               ) : (
                 <View style={[styles.menuImg, { backgroundColor: "#f0f0f0", alignItems: "center", justifyContent: "center" }]}>
-                  <Text style={{ fontSize: 24 }}>{item.is_thali ? "🍱" : "🍽"}</Text>
+                  <LocalizedText style={{ fontSize: 24 }}>{item.is_thali ? "🍱" : "🍽"}</LocalizedText>
                 </View>
               )}
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: 'flex-start' }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, flexWrap: 'wrap' }}>
-                    <Text style={styles.itemName}>{item.name}</Text>
+                    <LocalizedText style={styles.itemName}>{item.name}</LocalizedText>
                     {item.is_thali && (
-                      <View style={styles.thaliBadge}><Text style={styles.thaliBadgeText}>Thali</Text></View>
+                      <View style={styles.thaliBadge}><LocalizedText translate style={styles.thaliBadgeText}>Thali</LocalizedText></View>
                     )}
                   </View>
                 </View>
-                <Text style={styles.catTag}>{item.category}</Text>
+                <LocalizedText style={styles.catTag}>{item.category}</LocalizedText>
 
                 {/* --- Availability Tick Buttons --- */}
                 <View style={styles.availabilityRow}>
@@ -367,7 +370,7 @@ export default function MenuScreen() {
                       size={14}
                       color={item.is_available ? "#fff" : "#10B981"}
                     />
-                    <Text style={[styles.availabilityBtnText, item.is_available && { color: "#fff" }]}>Available</Text>
+                    <LocalizedText translate style={[styles.availabilityBtnText, item.is_available && { color: "#fff" }]}>Available</LocalizedText>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.availabilityBtn, !item.is_available && styles.availabilityBtnUnavailableActive]}
@@ -378,7 +381,7 @@ export default function MenuScreen() {
                       size={14}
                       color={!item.is_available ? "#fff" : "#EF4444"}
                     />
-                    <Text style={[styles.availabilityBtnText, !item.is_available && { color: "#fff" }]}>Not Available</Text>
+                    <LocalizedText translate style={[styles.availabilityBtnText, !item.is_available && { color: "#fff" }]}>Not Available</LocalizedText>
                   </TouchableOpacity>
                 </View>
                 
@@ -393,9 +396,9 @@ const found = items.find(i => String(i.id) === String(id));
 
   return (
     <View key={`inc-${idx}`} style={styles.thaliChip}>
-      <Text style={styles.thaliChipText}>
+      <LocalizedText style={styles.thaliChipText}>
         {found ? found.name : `❌ Missing ${id}`}
-      </Text>
+      </LocalizedText>
     </View>
   );
 })}
@@ -407,20 +410,20 @@ const found = items.find(i => String(i.id) === String(id));
       .filter(Boolean)
       .map((name, idx) => (
         <View key={`custom-${idx}`} style={styles.thaliChip}>
-          <Text style={styles.thaliChipText}>{name}</Text>
+          <LocalizedText style={styles.thaliChipText}>{name}</LocalizedText>
         </View>
       ))}
 
   </View>
 )}
 
-          {item.description ? <Text style={styles.desc} numberOfLines={2}>{item.description}</Text> : null}
-                <Text style={styles.price}>₹{item.price}</Text>
+          {item.description ? <LocalizedText style={styles.desc} numberOfLines={2}>{item.description}</LocalizedText> : null}
+                <LocalizedText style={styles.price}>₹{item.price}</LocalizedText>
               </View>
             </View>
             <View style={styles.cardActions}>
-              <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}><Text style={styles.editBtnText}>Edit</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}><Text style={styles.deleteBtnText}>Delete</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}><LocalizedText translate style={styles.editBtnText}>Edit</LocalizedText></TouchableOpacity>
+              <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}><LocalizedText translate style={styles.deleteBtnText}>Delete</LocalizedText></TouchableOpacity>
             </View>
           </View>
         )}
@@ -429,46 +432,46 @@ const found = items.find(i => String(i.id) === String(id));
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
         <View style={{ flex: 1, backgroundColor: "#fff" }}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowModal(false)}><Text style={{ fontSize: 16, color: "#78716C" }}>Cancel</Text></TouchableOpacity>
-            <Text style={styles.modalTitle}>{editItem ? "Edit Item" : "Add Item"}</Text>
+            <TouchableOpacity onPress={() => setShowModal(false)}><LocalizedText translate style={{ fontSize: 16, color: "#78716C" }}>Cancel</LocalizedText></TouchableOpacity>
+            <LocalizedText style={styles.modalTitle}>{editItem ? "Edit Item" : "Add Item"}</LocalizedText>
             <TouchableOpacity onPress={handleSave} disabled={saving}>
-              {saving ? <ActivityIndicator color="#111" /> : <Text style={{ fontSize: 16, fontWeight: "700", color: "#111" }}>Save</Text>}
+              {saving ? <ActivityIndicator color="#111" /> : <LocalizedText translate style={{ fontSize: 16, fontWeight: "700", color: "#111" }}>Save</LocalizedText>}
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20, maxWidth: isWeb ? 600 : '100%', alignSelf: 'center', width: '100%' }}>
             <TouchableOpacity style={[styles.thaliToggle, form.is_thali && styles.thaliToggleActive]} onPress={() => setForm((p) => ({ ...p, is_thali: !p.is_thali }))}>
-              <Text style={{ fontSize: 20 }}>🍱</Text>
+              <LocalizedText translate style={{ fontSize: 20 }}>🍱</LocalizedText>
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={[styles.thaliToggleTitle, form.is_thali && { color: "#fff" }]}>This is a Thali / Combo</Text>
-                <Text style={[styles.thaliToggleSub, form.is_thali && { color: "#ddd" }]}>Bundle multiple items under one price</Text>
+                <LocalizedText translate style={[styles.thaliToggleTitle, form.is_thali && { color: "#fff" }]}>This is a Thali / Combo</LocalizedText>
+                <LocalizedText translate style={[styles.thaliToggleSub, form.is_thali && { color: "#ddd" }]}>Bundle multiple items under one price</LocalizedText>
               </View>
               <Ionicons name={form.is_thali ? "checkmark-circle" : "ellipse-outline"} size={22} color={form.is_thali ? "#fff" : "#bbb"} />
             </TouchableOpacity>
 
             {form.is_thali && (
               <View style={styles.thaliBuilder}>
-                <Text style={styles.fieldLabel}>Included Items</Text>
+                <LocalizedText translate style={styles.fieldLabel}>Included Items</LocalizedText>
                 <TouchableOpacity style={styles.pickItemsBtn} onPress={() => setShowItemPicker(true)}>
                   <Ionicons name="list-outline" size={18} color="#111" />
-                  <Text style={styles.pickItemsBtnText}>{form.thali_includes.length > 0 ? `${form.thali_includes.length} selected` : "Pick from menu"}</Text>
+                  <LocalizedText style={styles.pickItemsBtnText}>{form.thali_includes.length > 0 ? `${form.thali_includes.length} selected` : "Pick from menu"}</LocalizedText>
                 </TouchableOpacity>
 
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
                   {items.filter((i) => form.thali_includes.map(String).includes(String(i.id))).map((i) => (
                     <TouchableOpacity key={i.id} style={styles.selectedChip} onPress={() => toggleThaliItem(i.id)}>
-                      <Text style={styles.selectedChipText}>{i.name}</Text>
+                      <LocalizedText style={styles.selectedChipText}>{i.name}</LocalizedText>
                       <Ionicons name="close" size={12} color="#111" />
                     </TouchableOpacity>
                   ))}
                 </View>
 
-                <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Add Extra (Manual)</Text>
+                <LocalizedText translate style={[styles.fieldLabel, { marginTop: 12 }]}>Add Extra (Manual)</LocalizedText>
                 <View style={styles.customInputRow}>
                   <TextInput 
                     style={styles.customInput} 
                     value={customInput} 
                     onChangeText={setCustomInput} 
-                    placeholder="e.g. Roasted Papad" 
+                    placeholder={localizeText("e.g. Roasted Papad", language)} 
                     placeholderTextColor="#A8A29E"
                     onSubmitEditing={addCustomItem} 
                     returnKeyType="done" 
@@ -481,7 +484,7 @@ const found = items.find(i => String(i.id) === String(id));
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
                   {form.thali_custom.map((name, index) => (
                     <TouchableOpacity key={index} style={[styles.selectedChip, { backgroundColor: '#10B98120', borderColor: '#10B981' }]} onPress={() => removeCustomItem(index)}>
-                      <Text style={[styles.selectedChipText, { color: '#059669' }]}>{name}</Text>
+                      <LocalizedText style={[styles.selectedChipText, { color: '#059669' }]}>{name}</LocalizedText>
                       <Ionicons name="close" size={12} color="#059669" />
                     </TouchableOpacity>
                   ))}
@@ -489,19 +492,19 @@ const found = items.find(i => String(i.id) === String(id));
               </View>
             )}
 
-            <Text style={styles.fieldLabel}>Item Image</Text>
+            <LocalizedText translate style={styles.fieldLabel}>Item Image</LocalizedText>
             <TouchableOpacity style={styles.imagePickerBox} onPress={pickImage}>
-              {form.image_url ? <Image source={{ uri: form.image_url }} style={styles.previewImage} resizeMode="cover" /> : <View style={{ alignItems: "center" }}><Ionicons name="camera-outline" size={32} color="#888" /><Text style={{ color: "#888" }}>Tap to upload</Text></View>}
+              {form.image_url ? <Image source={{ uri: form.image_url }} style={styles.previewImage} resizeMode="cover" /> : <View style={{ alignItems: "center" }}><Ionicons name="camera-outline" size={32} color="#888" /><LocalizedText translate style={{ color: "#888" }}>Tap to upload</LocalizedText></View>}
             </TouchableOpacity>
-            <Text style={styles.fieldLabel}>Item Name *</Text>
+            <LocalizedText translate style={styles.fieldLabel}>Item Name *</LocalizedText>
             <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder="Name" />
-            <Text style={styles.fieldLabel}>Price (₹) *</Text>
+            <LocalizedText translate style={styles.fieldLabel}>Price (₹) *</LocalizedText>
             <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} keyboardType="decimal-pad" placeholder="0.00" />
-            <Text style={styles.fieldLabel}>Category *</Text>
+            <LocalizedText translate style={styles.fieldLabel}>Category *</LocalizedText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {CATEGORIES.filter(c => c !== "All").map((cat) => (
                 <TouchableOpacity key={cat} style={[styles.catTab, form.category === cat && styles.catTabActive]} onPress={() => setForm((p) => ({ ...p, category: cat }))}>
-                  <Text style={[{ fontSize: 13 }, form.category === cat && { color: "#fff" }]}>{cat}</Text>
+                  <LocalizedText style={[{ fontSize: 13 }, form.category === cat && { color: "#fff" }]}>{cat}</LocalizedText>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -513,8 +516,8 @@ const found = items.find(i => String(i.id) === String(id));
         <View style={styles.pickerOverlay}>
             <View style={styles.pickerContent}>
                 <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Pick Thali Items</Text>
-                    <TouchableOpacity onPress={() => setShowItemPicker(false)}><Text style={{fontWeight:'700'}}>Done</Text></TouchableOpacity>
+                    <LocalizedText translate style={styles.modalTitle}>Pick Thali Items</LocalizedText>
+                    <TouchableOpacity onPress={() => setShowItemPicker(false)}><LocalizedText translate style={{fontWeight:'700'}}>Done</LocalizedText></TouchableOpacity>
                 </View>
                 <FlatList
                     data={items.filter(i => !i.is_thali)}
@@ -523,7 +526,7 @@ const found = items.find(i => String(i.id) === String(id));
                       const active = form.thali_includes.map(String).includes(String(item.id));
                         return (
                             <TouchableOpacity style={[styles.pickerRow, active && styles.pickerRowActive]} onPress={() => toggleThaliItem(item.id)}>
-                                <Text style={[styles.pickerRowText, active && {color: '#fff'}]}>{item.name}</Text>
+                                <LocalizedText style={[styles.pickerRowText, active && {color: '#fff'}]}>{item.name}</LocalizedText>
                                 <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={20} color={active ? "#fff" : "#ccc"} />
                             </TouchableOpacity>
                         );
@@ -540,16 +543,16 @@ const found = items.find(i => String(i.id) === String(id));
             <View style={styles.deleteIconCircle}>
               <Ionicons name="trash-outline" size={28} color="#EF4444" />
             </View>
-            <Text style={styles.deleteTitle}>Delete Item?</Text>
-            <Text style={styles.deleteSub}>
+            <LocalizedText translate style={styles.deleteTitle}>Delete Item?</LocalizedText>
+            <LocalizedText translate style={styles.deleteSub}>
               This will permanently remove this menu item. This action cannot be undone.
-            </Text>
+            </LocalizedText>
             <View style={styles.deleteActions}>
               <TouchableOpacity
                 style={styles.cancelBtn}
                 onPress={() => { setShowDeleteModal(false); setItemToDelete(null); }}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <LocalizedText translate style={styles.cancelBtnText}>Cancel</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.deleteConfirmBtn}
@@ -558,7 +561,7 @@ const found = items.find(i => String(i.id) === String(id));
               >
                 {deleting
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.deleteConfirmBtnText}>Yes, Delete</Text>
+                  : <LocalizedText translate style={styles.deleteConfirmBtnText}>Yes, Delete</LocalizedText>
                 }
               </TouchableOpacity>
             </View>
@@ -576,7 +579,7 @@ function EmptyStep({ icon, label, color }) {
             <View style={[styles.stepIcon, {backgroundColor: color + '15'}]}>
                 <Ionicons name={icon} size={20} color={color} />
             </View>
-            <Text style={styles.stepLabel}>{label}</Text>
+            <LocalizedText style={styles.stepLabel}>{label}</LocalizedText>
         </View>
     );
 }

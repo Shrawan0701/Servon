@@ -6,7 +6,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View,
-  Text,
+  Text as NativeText,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -18,6 +18,8 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -40,6 +42,7 @@ const COLORS = {
 export default function RoomsScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { language } = useLocale();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,12 +64,12 @@ export default function RoomsScreen() {
       setRooms(res.data || []);
     } catch (err) {
       console.error("Load rooms error:", err);
-      Alert.alert("Error", "Failed to load rooms.");
+      Alert.alert(localizeText("Error", language), localizeText("Failed to load rooms.", language));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [language]);
 
   useFocusEffect(
     useCallback(() => {
@@ -92,17 +95,17 @@ export default function RoomsScreen() {
 
   const handleAddRoom = async () => {
     if (!roomNumber.trim()) {
-      Alert.alert("Add Room", "Please enter a room number.");
+      Alert.alert(localizeText("Add Room", language), localizeText("Please enter a room number.", language));
       return;
     }
     setSaving(true);
     try {
       await addRoom(roomNumber.trim());
-      Alert.alert("Success", `Room ${roomNumber.trim()} added.`);
+      Alert.alert(localizeText("Success", language), `${localizeText("Room", language)} ${roomNumber.trim()} ${localizeText("added.", language)}`);
       setShowAdd(false);
       loadRooms();
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.error || "Could not add room.");
+      Alert.alert(localizeText("Error", language), err.response?.data?.error || localizeText("Could not add room.", language));
     } finally {
       setSaving(false);
     }
@@ -115,11 +118,11 @@ export default function RoomsScreen() {
     const c = parseInt(children, 10) || 0;
 
     if (t < 0 || m < 0 || f < 0 || c < 0) {
-      Alert.alert("Invalid Counts", "Counts cannot be negative.");
+      Alert.alert(localizeText("Invalid Counts", language), localizeText("Counts cannot be negative.", language));
       return;
     }
     if (m + f + c !== t) {
-      Alert.alert("Count Mismatch", "Male + Female + Children must equal Total Guests.");
+      Alert.alert(localizeText("Count Mismatch", language), localizeText("Male + Female + Children must equal Total Guests.", language));
       return;
     }
 
@@ -130,11 +133,11 @@ export default function RoomsScreen() {
       } else {
         await checkInRoom(editing.id, { total: t, male: m, female: f, children: c });
       }
-      Alert.alert("Success", `Room ${editing.room_number} updated.`);
+      Alert.alert(localizeText("Success", language), `${localizeText("Room", language)} ${editing.room_number} ${localizeText("updated.", language)}`);
       setShowModal(false);
       loadRooms();
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.error || "Could not save room details.");
+      Alert.alert(localizeText("Error", language), err.response?.data?.error || localizeText("Could not save room details.", language));
     } finally {
       setSaving(false);
     }
@@ -146,23 +149,23 @@ export default function RoomsScreen() {
       await checkOutRoom(room.id);
       loadRooms();
     } catch (err) {
-      Alert.alert("Error", "Could not check out room.");
+      Alert.alert(localizeText("Error", language), localizeText("Could not check out room.", language));
     }
   };
 
   if (Platform.OS === "web") {
-    if (window.confirm(`Check out Room ${room.room_number}?`)) doCheckOut();
+    if (window.confirm(`${localizeText("Check out Room", language)} ${room.room_number}?`)) doCheckOut();
   } else {
-    Alert.alert("Check Out", `Check out Room ${room.room_number}?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Check Out", style: "destructive", onPress: doCheckOut },
+    Alert.alert(localizeText("Check Out", language), `${localizeText("Check out Room", language)} ${room.room_number}?`, [
+      { text: localizeText("Cancel", language), style: "cancel" },
+      { text: localizeText("Check Out", language), style: "destructive", onPress: doCheckOut },
     ]);
   }
 };
 
  const handleDelete = (room) => {
   if (room.status === "OCCUPIED") {
-    Alert.alert("Occupied", "Check out the room before deleting it.");
+    Alert.alert(localizeText("Occupied", language), localizeText("Check out the room before deleting it.", language));
     return;
   }
 
@@ -171,16 +174,16 @@ export default function RoomsScreen() {
       await deleteRoom(room.id);
       loadRooms();
     } catch (err) {
-      Alert.alert("Error", "Could not delete room.");
+      Alert.alert(localizeText("Error", language), localizeText("Could not delete room.", language));
     }
   };
 
   if (Platform.OS === "web") {
-    if (window.confirm(`Delete Room ${room.room_number}?`)) doDelete();
+    if (window.confirm(`${localizeText("Delete Room", language)} ${room.room_number}?`)) doDelete();
   } else {
-    Alert.alert("Delete Room", `Delete Room ${room.room_number}?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: doDelete },
+    Alert.alert(localizeText("Delete Room", language), `${localizeText("Delete Room", language)} ${room.room_number}?`, [
+      { text: localizeText("Cancel", language), style: "cancel" },
+      { text: localizeText("Delete", language), style: "destructive", onPress: doDelete },
     ]);
   }
 };
@@ -198,7 +201,7 @@ export default function RoomsScreen() {
             />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.roomTitle}>Room {item.room_number}</Text>
+            <LocalizedText style={styles.roomTitle}>Room {item.room_number}</LocalizedText>
             <View style={styles.statusPill}>
               <View
                 style={[
@@ -206,9 +209,9 @@ export default function RoomsScreen() {
                   { backgroundColor: occupied ? COLORS.green : COLORS.muted },
                 ]}
               />
-              <Text style={[styles.statusText, { color: occupied ? COLORS.green : COLORS.subtext }]}>
+              <LocalizedText style={[styles.statusText, { color: occupied ? COLORS.green : COLORS.subtext }]}>
                 {occupied ? "Occupied" : "Available"}
-              </Text>
+              </LocalizedText>
             </View>
           </View>
           <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}>
@@ -224,7 +227,7 @@ export default function RoomsScreen() {
             <GuestStat label="Children" value={item.children} />
           </View>
         ) : (
-          <Text style={styles.availHint}>No guests currently checked in.</Text>
+          <LocalizedText translate style={styles.availHint}>No guests currently checked in.</LocalizedText>
         )}
 
         <View style={styles.actionRow}>
@@ -232,17 +235,17 @@ export default function RoomsScreen() {
             <>
               <TouchableOpacity style={[styles.actionBtn, styles.editBtn]} onPress={() => handleEdit(item)}>
                 <Ionicons name="create-outline" size={16} color={COLORS.navy} />
-                <Text style={styles.editBtnText}>Edit</Text>
+                <LocalizedText translate style={styles.editBtnText}>Edit</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionBtn, styles.checkoutBtn]} onPress={() => handleCheckOut(item)}>
                 <Ionicons name="log-out-outline" size={16} color="#fff" />
-                <Text style={styles.checkoutBtnText}>Check Out</Text>
+                <LocalizedText translate style={styles.checkoutBtnText}>Check Out</LocalizedText>
               </TouchableOpacity>
             </>
           ) : (
             <TouchableOpacity style={[styles.actionBtn, styles.checkinBtn]} onPress={() => openCheckIn(item)}>
               <Ionicons name="person-add-outline" size={16} color="#fff" />
-              <Text style={styles.checkoutBtnText}>Check In</Text>
+              <LocalizedText translate style={styles.checkoutBtnText}>Check In</LocalizedText>
             </TouchableOpacity>
           )}
         </View>
@@ -268,8 +271,8 @@ export default function RoomsScreen() {
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Room Management</Text>
-          <Text style={styles.subtitle}>Track guest occupancy across rooms</Text>
+          <LocalizedText translate style={styles.title}>Room Management</LocalizedText>
+          <LocalizedText translate style={styles.subtitle}>Track guest occupancy across rooms</LocalizedText>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
           <Ionicons name="add" size={22} color="#fff" />
@@ -292,10 +295,10 @@ export default function RoomsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Ionicons name="bed-outline" size={40} color={COLORS.muted} />
-              <Text style={styles.emptyTitle}>No rooms yet</Text>
-              <Text style={styles.emptySub}>Tap "+" to add your first room.</Text>
+              <LocalizedText translate style={styles.emptyTitle}>No rooms yet</LocalizedText>
+              <LocalizedText translate style={styles.emptySub}>Tap "+" to add your first room.</LocalizedText>
               <TouchableOpacity style={[styles.actionBtn, styles.checkinBtn, styles.emptyBtn]} onPress={openAddModal}>
-                <Text style={styles.checkoutBtnText}>+ Add Room</Text>
+                <LocalizedText translate style={styles.checkoutBtnText}>+ Add Room</LocalizedText>
               </TouchableOpacity>
             </View>
           }
@@ -306,22 +309,22 @@ export default function RoomsScreen() {
       <Modal visible={showAdd} transparent animationType="fade" onRequestClose={() => setShowAdd(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Add Room</Text>
-            <Text style={styles.modalLabel}>Room Number</Text>
+            <LocalizedText translate style={styles.modalTitle}>Add Room</LocalizedText>
+            <LocalizedText translate style={styles.modalLabel}>Room Number</LocalizedText>
             <TextInput
               style={styles.input}
               value={roomNumber}
               onChangeText={setRoomNumber}
-              placeholder="e.g. 204"
+              placeholder={localizeText("e.g. 204", language)}
               placeholderTextColor={COLORS.muted}
               keyboardType="number-pad"
             />
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.actionBtn, styles.grayBtn]} onPress={() => setShowAdd(false)}>
-                <Text style={styles.grayText}>Cancel</Text>
+                <LocalizedText translate style={styles.grayText}>Cancel</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionBtn, styles.checkinBtn]} onPress={handleAddRoom} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.checkoutBtnText}>Add Room</Text>}
+                {saving ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.checkoutBtnText}>Add Room</LocalizedText>}
               </TouchableOpacity>
             </View>
           </View>
@@ -332,34 +335,34 @@ export default function RoomsScreen() {
       <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
         <ScrollView contentContainerStyle={styles.modalOverlay}>
           <View style={[styles.modalBox, styles.occupancyBox]}>
-            <Text style={styles.modalTitle}>
-              {editing && editing.status === "OCCUPIED" ? "Edit Occupancy" : "Check In"} — Room {editing?.room_number}
-            </Text>
+            <LocalizedText style={styles.modalTitle}>
+              {editing && editing.status === "OCCUPIED" ? localizeText("Edit Occupancy", language) : localizeText("Check In", language)}{" — "}{localizeText("Room", language)} {editing?.room_number}
+            </LocalizedText>
 
-            <Text style={styles.modalLabel}>Total Guests</Text>
+            <LocalizedText translate style={styles.modalLabel}>Total Guests</LocalizedText>
             <TextInput style={styles.input} value={total} onChangeText={setTotal} placeholder="0" placeholderTextColor={COLORS.muted} keyboardType="number-pad" />
 
             <View style={styles.countRow}>
               <View style={styles.countCol}>
-                <Text style={styles.modalLabel}>Male</Text>
+                <LocalizedText translate style={styles.modalLabel}>Male</LocalizedText>
                 <TextInput style={styles.input} value={male} onChangeText={setMale} placeholder="0" placeholderTextColor={COLORS.muted} keyboardType="number-pad" />
               </View>
               <View style={styles.countCol}>
-                <Text style={styles.modalLabel}>Female</Text>
+                <LocalizedText translate style={styles.modalLabel}>Female</LocalizedText>
                 <TextInput style={styles.input} value={female} onChangeText={setFemale} placeholder="0" placeholderTextColor={COLORS.muted} keyboardType="number-pad" />
               </View>
               <View style={styles.countCol}>
-                <Text style={styles.modalLabel}>Children</Text>
+                <LocalizedText translate style={styles.modalLabel}>Children</LocalizedText>
                 <TextInput style={styles.input} value={children} onChangeText={setChildren} placeholder="0" placeholderTextColor={COLORS.muted} keyboardType="number-pad" />
               </View>
             </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.actionBtn, styles.grayBtn]} onPress={() => setShowModal(false)}>
-                <Text style={styles.grayText}>Cancel</Text>
+                <LocalizedText translate style={styles.grayText}>Cancel</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionBtn, styles.checkinBtn]} onPress={handleSaveOccupancy} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.checkoutBtnText}>Save</Text>}
+                {saving ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.checkoutBtnText}>Save</LocalizedText>}
               </TouchableOpacity>
             </View>
           </View>
@@ -372,8 +375,8 @@ export default function RoomsScreen() {
 function GuestStat({ label, value }) {
   return (
     <View style={styles.guestStat}>
-      <Text style={styles.guestStatValue}>{value}</Text>
-      <Text style={styles.guestStatLabel}>{label}</Text>
+      <LocalizedText style={styles.guestStatValue}>{value}</LocalizedText>
+      <LocalizedText style={styles.guestStatLabel}>{label}</LocalizedText>
     </View>
   );
 }

@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     View,
-    Text,
+    Text as NativeText,
     StyleSheet,
     ScrollView,
     TouchableOpacity,
@@ -11,7 +11,9 @@ import {
     Platform,
     TextInput,
     useWindowDimensions,
-} from 'react-native';
+} from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -162,6 +164,7 @@ const CATEGORY_ICONS = {
 };
 
 export default function SupportScreen() {
+    const { language } = useLocale();
     const navigation = useNavigation();
     const { width } = useWindowDimensions();
     const [expandedId, setExpandedId] = useState(null);
@@ -206,7 +209,7 @@ export default function SupportScreen() {
                     >
                         <Ionicons name="chevron-back" size={22} color="#111827" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Help & Support</Text>
+                    <LocalizedText translate style={styles.headerTitle}>Help & Support</LocalizedText>
                     <View style={{ width: 30 }} />
                 </View>
             </View>
@@ -217,17 +220,17 @@ export default function SupportScreen() {
                 stickyHeaderIndices={[1]}
             >
                 <View style={styles.introBlock}>
-                    <Text style={styles.introTitle}>Search for anything</Text>
-                    <Text style={styles.introSubtitle}>
+                    <LocalizedText translate style={styles.introTitle}>Search for anything</LocalizedText>
+                    <LocalizedText translate style={styles.introSubtitle}>
                         Or browse a topic below to find your answer
-                    </Text>
+                    </LocalizedText>
 
                     <View style={styles.searchBar}>
                         <Ionicons name="search" size={18} color="#9CA3AF" />
                         <TextInput
                             value={search}
                             onChangeText={setSearch}
-                            placeholder="Search questions, e.g. GST, discount, offline"
+                            placeholder={localizeText("Search questions, e.g. GST, discount, offline", language)}
                             placeholderTextColor="#9CA3AF"
                             style={styles.searchInput}
                         />
@@ -250,14 +253,14 @@ export default function SupportScreen() {
                             onPress={() => handleCategoryPress('All')}
                             style={[styles.pill, activeCategory === 'All' && styles.pillActive]}
                         >
-                            <Text
+                            <LocalizedText translate
                                 style={[
                                     styles.pillText,
                                     activeCategory === 'All' && styles.pillTextActive,
                                 ]}
                             >
                                 All
-                            </Text>
+                            </LocalizedText>
                         </TouchableOpacity>
                         {CATEGORIES.map((cat) => (
                             <TouchableOpacity
@@ -271,14 +274,14 @@ export default function SupportScreen() {
                                     color={activeCategory === cat ? '#fff' : '#4B5563'}
                                     style={{ marginRight: 6 }}
                                 />
-                                <Text
+                                <LocalizedText
                                     style={[
                                         styles.pillText,
                                         activeCategory === cat && styles.pillTextActive,
                                     ]}
                                 >
                                     {cat}
-                                </Text>
+                                </LocalizedText>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
@@ -286,18 +289,18 @@ export default function SupportScreen() {
 
                 <View style={styles.scrollContent}>
                     {/* Results count */}
-                    <Text style={styles.resultsLabel}>
+                    <LocalizedText style={styles.resultsLabel}>
                         {visibleFAQs.length} {visibleFAQs.length === 1 ? 'answer' : 'answers'}
                         {activeCategory !== 'All' ? ` in ${activeCategory}` : ''}
-                    </Text>
+                    </LocalizedText>
 
                     {visibleFAQs.length === 0 ? (
                         <View style={styles.emptyState}>
                             <Ionicons name="search-outline" size={30} color="#D1D5DB" />
-                            <Text style={styles.emptyTitle}>No matches found</Text>
-                            <Text style={styles.emptySubtitle}>
+                            <LocalizedText translate style={styles.emptyTitle}>No matches found</LocalizedText>
+                            <LocalizedText translate style={styles.emptySubtitle}>
                                 Try a different keyword or contact support below.
-                            </Text>
+                            </LocalizedText>
                         </View>
                     ) : (
                         <View style={styles.list}>
@@ -321,7 +324,7 @@ export default function SupportScreen() {
                                                     color="#10B981"
                                                 />
                                             </View>
-                                            <Text style={styles.faqQuestion}>{faq.question}</Text>
+                                            <LocalizedText style={styles.faqQuestion}>{faq.question}</LocalizedText>
                                             <Ionicons
                                                 name={isExpanded ? 'remove' : 'add'}
                                                 size={18}
@@ -329,7 +332,7 @@ export default function SupportScreen() {
                                             />
                                         </View>
                                         {isExpanded && (
-                                            <Text style={styles.faqAnswer}>{faq.answer}</Text>
+                                            <LocalizedText style={styles.faqAnswer}>{faq.answer}</LocalizedText>
                                         )}
                                     </TouchableOpacity>
                                 );
@@ -340,10 +343,10 @@ export default function SupportScreen() {
                     {/* Responsive Contact Section */}
                     <View style={[styles.contactSection, isSmallScreen && styles.contactSectionMobile]}>
                         <View style={[styles.contactLeft, isSmallScreen && styles.contactLeftMobile]}>
-                            <Text style={styles.contactTitle}>Still stuck?</Text>
-                            <Text style={styles.contactSubtitle}>
+                            <LocalizedText translate style={styles.contactTitle}>Still stuck?</LocalizedText>
+                            <LocalizedText translate style={styles.contactSubtitle}>
                                 Our support team usually replies within a few hours.
-                            </Text>
+                            </LocalizedText>
                         </View>
                         <TouchableOpacity
                             style={[styles.contactBtn, isSmallScreen && styles.contactBtnMobile]}
@@ -351,7 +354,7 @@ export default function SupportScreen() {
                             activeOpacity={0.85}
                         >
                             <Ionicons name="mail-outline" size={16} color="#111827" />
-                            <Text style={styles.contactBtnText}>Email us at support@servon.cloud</Text>
+                            <LocalizedText translate style={styles.contactBtnText}>Email us at support@servon.cloud</LocalizedText>
                         </TouchableOpacity>
                     </View>
 

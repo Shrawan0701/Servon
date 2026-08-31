@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
-    Text,
+    Text as NativeText,
     StyleSheet,
     ScrollView,
     TouchableOpacity,
@@ -11,7 +11,9 @@ import {
     Alert,
     ActivityIndicator,
     Platform,
-} from 'react-native';
+} from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +26,7 @@ import {
 } from '../api';
 
 const StaffScreen = ({ navigation }) => {
+    const { language } = useLocale();
     const [staff, setStaff] = useState([]);
     const [filteredStaff, setFilteredStaff] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -219,14 +222,14 @@ const StaffScreen = ({ navigation }) => {
                             style={styles.avatarRing}
                         >
                             <View style={styles.avatar}>
-                                <Text style={styles.avatarText}>
+                                <LocalizedText style={styles.avatarText}>
                                     {item.name.charAt(0).toUpperCase()}
-                                </Text>
+                                </LocalizedText>
                             </View>
                         </LinearGradient>
                         <View style={styles.cardHeaderText}>
-                            <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
-                            <Text style={styles.cardRole}>{item.role}</Text>
+                            <LocalizedText style={styles.cardName} numberOfLines={1}>{item.name}</LocalizedText>
+                            <LocalizedText style={styles.cardRole}>{item.role}</LocalizedText>
                         </View>
                     </View>
                     <View style={[
@@ -237,12 +240,12 @@ const StaffScreen = ({ navigation }) => {
                             styles.statusDot,
                             item.salary_paid_current_month ? styles.paidDot : styles.pendingDot
                         ]} />
-                        <Text style={[
+                        <LocalizedText style={[
                             styles.paymentBadgeText,
                             item.salary_paid_current_month ? styles.paidBadgeText : styles.pendingBadgeText
                         ]}>
                             {item.salary_paid_current_month ? 'Paid' : 'Pending'}
-                        </Text>
+                        </LocalizedText>
                     </View>
                 </View>
 
@@ -253,19 +256,19 @@ const StaffScreen = ({ navigation }) => {
                         <View style={styles.detailIconChip}>
                             <Ionicons name="call-outline" size={14} color="#059669" />
                         </View>
-                        <Text style={styles.detailText}>{item.phone}</Text>
+                        <LocalizedText style={styles.detailText}>{item.phone}</LocalizedText>
                     </View>
                     <View style={styles.detailRow}>
                         <View style={styles.detailIconChip}>
                             <Ionicons name="calendar-outline" size={14} color="#059669" />
                         </View>
-                        <Text style={styles.detailText}>Joined {item.joining_date}</Text>
+                        <LocalizedText style={styles.detailText}>Joined {item.joining_date}</LocalizedText>
                     </View>
                     <View style={styles.detailRow}>
                         <View style={styles.detailIconChip}>
                             <Ionicons name="cash-outline" size={14} color="#059669" />
                         </View>
-                        <Text style={styles.detailText}>₹{item.monthly_salary.toLocaleString()} / mo</Text>
+                        <LocalizedText style={styles.detailText}>₹{item.monthly_salary.toLocaleString()} / mo</LocalizedText>
                     </View>
                 </View>
 
@@ -280,7 +283,7 @@ const StaffScreen = ({ navigation }) => {
                             }}
                         >
                             <Ionicons name="cash-outline" size={16} color="#fff" />
-                            <Text style={styles.actionButtonText}>Pay</Text>
+                            <LocalizedText translate style={styles.actionButtonText}>Pay</LocalizedText>
                         </TouchableOpacity>
                     )}
                     <TouchableOpacity
@@ -292,7 +295,7 @@ const StaffScreen = ({ navigation }) => {
                         }}
                     >
                         <Ionicons name="create-outline" size={16} color="#059669" />
-                        <Text style={styles.editButtonText}>Edit</Text>
+                        <LocalizedText translate style={styles.editButtonText}>Edit</LocalizedText>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.actionButton, styles.deleteButton]}
@@ -308,7 +311,7 @@ const StaffScreen = ({ navigation }) => {
                         ) : (
                             <>
                                 <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                                <Text style={styles.deleteButtonText}>Remove</Text>
+                                <LocalizedText translate style={styles.deleteButtonText}>Remove</LocalizedText>
                             </>
                         )}
                     </TouchableOpacity>
@@ -333,7 +336,7 @@ const StaffScreen = ({ navigation }) => {
                     <Ionicons name="search-outline" size={20} color="#94A3B8" />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Search by name, role, or phone..."
+                        placeholder={localizeText("Search by name, role, or phone...", language)}
                         placeholderTextColor="#94A3B8"
                         value={searchQuery}
                         onChangeText={handleSearch}
@@ -347,9 +350,9 @@ const StaffScreen = ({ navigation }) => {
                         </TouchableOpacity>
                     )}
                 </View>
-                <Text style={styles.searchResultText}>
+                <LocalizedText style={styles.searchResultText}>
                     {filteredStaff.length} {filteredStaff.length === 1 ? 'staff member' : 'staff members'}
-                </Text>
+                </LocalizedText>
             </View>
 
             <ScrollView
@@ -364,28 +367,28 @@ const StaffScreen = ({ navigation }) => {
                         <View style={[styles.statIconChip, { backgroundColor: '#ECFDF5' }]}>
                             <Ionicons name="people-outline" size={18} color="#059669" />
                         </View>
-                        <Text style={styles.statNumber}>{stats.total_staff}</Text>
-                        <Text style={styles.statLabel}>TOTAL STAFF</Text>
+                        <LocalizedText style={styles.statNumber}>{stats.total_staff}</LocalizedText>
+                        <LocalizedText translate style={styles.statLabel}>TOTAL STAFF</LocalizedText>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statCard}>
                         <View style={[styles.statIconChip, { backgroundColor: '#ECFDF5' }]}>
                             <Ionicons name="checkmark-circle-outline" size={18} color="#059669" />
                         </View>
-                        <Text style={[styles.statNumber, styles.paidStat]}>
+                        <LocalizedText style={[styles.statNumber, styles.paidStat]}>
                             {stats.paid_this_month}
-                        </Text>
-                        <Text style={styles.statLabel}>PAID</Text>
+                        </LocalizedText>
+                        <LocalizedText translate style={styles.statLabel}>PAID</LocalizedText>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statCard}>
                         <View style={[styles.statIconChip, { backgroundColor: '#FFFBEB' }]}>
                             <Ionicons name="time-outline" size={18} color="#F59E0B" />
                         </View>
-                        <Text style={[styles.statNumber, styles.pendingStat]}>
+                        <LocalizedText style={[styles.statNumber, styles.pendingStat]}>
                             {stats.pending_payment}
-                        </Text>
-                        <Text style={styles.statLabel}>PENDING</Text>
+                        </LocalizedText>
+                        <LocalizedText translate style={styles.statLabel}>PENDING</LocalizedText>
                     </View>
                 </View>
 
@@ -398,16 +401,16 @@ const StaffScreen = ({ navigation }) => {
                                     <View style={styles.emptyIconWrap}>
                                         <Ionicons name="search-outline" size={48} color="#94A3B8" />
                                     </View>
-                                    <Text style={styles.emptyText}>No results found</Text>
-                                    <Text style={styles.emptySubtext}>
+                                    <LocalizedText translate style={styles.emptyText}>No results found</LocalizedText>
+                                    <LocalizedText translate style={styles.emptySubtext}>
                                         Try adjusting your search terms
-                                    </Text>
+                                    </LocalizedText>
                                     <TouchableOpacity
                                         style={styles.emptyButton}
                                         activeOpacity={0.85}
                                         onPress={() => handleSearch('')}
                                     >
-                                        <Text style={styles.emptyButtonText}>Clear Search</Text>
+                                        <LocalizedText translate style={styles.emptyButtonText}>Clear Search</LocalizedText>
                                     </TouchableOpacity>
                                 </>
                             ) : (
@@ -415,19 +418,19 @@ const StaffScreen = ({ navigation }) => {
                                     <View style={styles.emptyIconWrap}>
                                         <Ionicons name="people-outline" size={48} color="#059669" />
                                     </View>
-                                    <Text style={styles.emptyText}>No staff members yet</Text>
-                                    <Text style={styles.emptySubtext}>
+                                    <LocalizedText translate style={styles.emptyText}>No staff members yet</LocalizedText>
+                                    <LocalizedText translate style={styles.emptySubtext}>
                                         Add your team to start tracking attendance and payroll
-                                    </Text>
+                                    </LocalizedText>
                                     <TouchableOpacity
                                         style={styles.emptyButton}
                                         activeOpacity={0.85}
                                         onPress={handleAddStaff}
                                     >
                                         <Ionicons name="add" size={18} color="#fff" />
-                                        <Text style={styles.emptyButtonText}>
+                                        <LocalizedText translate style={styles.emptyButtonText}>
                                             Add Your First Staff Member
-                                        </Text>
+                                        </LocalizedText>
                                     </TouchableOpacity>
                                 </>
                             )}
@@ -462,9 +465,9 @@ const StaffScreen = ({ navigation }) => {
                     <View style={styles.modalContent}>
                         <View style={styles.modalHandle} />
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
+                            <LocalizedText style={styles.modalTitle}>
                                 {editingStaff ? 'Edit Staff' : 'Add Staff'}
-                            </Text>
+                            </LocalizedText>
                             <TouchableOpacity
                                 style={styles.modalCloseBtn}
                                 onPress={() => setModalVisible(false)}
@@ -474,19 +477,19 @@ const StaffScreen = ({ navigation }) => {
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text style={styles.inputLabel}>Full Name</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Full Name</LocalizedText>
                             <View style={styles.inputWrap}>
                                 <Ionicons name="person-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="e.g. Rahul Sharma"
+                                    placeholder={localizeText("e.g. Rahul Sharma", language)}
                                     placeholderTextColor="#B4BCC8"
                                     value={formData.name}
                                     onChangeText={(text) => setFormData({ ...formData, name: text })}
                                 />
                             </View>
 
-                            <Text style={styles.inputLabel}>Phone</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Phone</LocalizedText>
                             <View style={styles.inputWrap}>
                                 <Ionicons name="call-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
                                 <TextInput
@@ -499,19 +502,19 @@ const StaffScreen = ({ navigation }) => {
                                 />
                             </View>
 
-                            <Text style={styles.inputLabel}>Role</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Role</LocalizedText>
                             <View style={styles.inputWrap}>
                                 <Ionicons name="briefcase-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="e.g. Chef, Waiter"
+                                    placeholder={localizeText("e.g. Chef, Waiter", language)}
                                     placeholderTextColor="#B4BCC8"
                                     value={formData.role}
                                     onChangeText={(text) => setFormData({ ...formData, role: text })}
                                 />
                             </View>
 
-                            <Text style={styles.inputLabel}>Joining Date</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Joining Date</LocalizedText>
                             <View style={styles.inputWrap}>
                                 <Ionicons name="calendar-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
                                 <TextInput
@@ -523,9 +526,9 @@ const StaffScreen = ({ navigation }) => {
                                 />
                             </View>
 
-                            <Text style={styles.inputLabel}>Monthly Salary</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Monthly Salary</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Text style={styles.inputPrefix}>₹</Text>
+                                <LocalizedText translate style={styles.inputPrefix}>₹</LocalizedText>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="0"
@@ -547,9 +550,9 @@ const StaffScreen = ({ navigation }) => {
                                     end={{ x: 1, y: 0 }}
                                     style={styles.submitButton}
                                 >
-                                    <Text style={styles.submitButtonText}>
+                                    <LocalizedText style={styles.submitButtonText}>
                                         {editingStaff ? 'Update Staff' : 'Add Staff'}
-                                    </Text>
+                                    </LocalizedText>
                                 </LinearGradient>
                             </TouchableOpacity>
                             <View style={{ height: 12 }} />
@@ -569,7 +572,7 @@ const StaffScreen = ({ navigation }) => {
                     <View style={styles.modalContent}>
                         <View style={styles.modalHandle} />
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Pay Salary</Text>
+                            <LocalizedText translate style={styles.modalTitle}>Pay Salary</LocalizedText>
                             <TouchableOpacity
                                 style={styles.modalCloseBtn}
                                 onPress={() => setPaymentModalVisible(false)}
@@ -580,19 +583,19 @@ const StaffScreen = ({ navigation }) => {
 
                         <View style={styles.paymentInfoCard}>
                             <View style={styles.paymentInfoRow}>
-                                <Text style={styles.paymentInfoLabel}>Staff</Text>
-                                <Text style={styles.paymentInfoValue}>{selectedStaff?.name}</Text>
+                                <LocalizedText translate style={styles.paymentInfoLabel}>Staff</LocalizedText>
+                                <LocalizedText style={styles.paymentInfoValue}>{selectedStaff?.name}</LocalizedText>
                             </View>
                             <View style={styles.paymentInfoDivider} />
                             <View style={styles.paymentInfoRow}>
-                                <Text style={styles.paymentInfoLabel}>Month</Text>
-                                <Text style={styles.paymentInfoValue}>{new Date().toISOString().slice(0, 7)}</Text>
+                                <LocalizedText translate style={styles.paymentInfoLabel}>Month</LocalizedText>
+                                <LocalizedText style={styles.paymentInfoValue}>{new Date().toISOString().slice(0, 7)}</LocalizedText>
                             </View>
                         </View>
 
-                        <Text style={styles.inputLabel}>Amount</Text>
+                        <LocalizedText translate style={styles.inputLabel}>Amount</LocalizedText>
                         <View style={styles.inputWrap}>
-                            <Text style={styles.inputPrefix}>₹</Text>
+                            <LocalizedText translate style={styles.inputPrefix}>₹</LocalizedText>
                             <TextInput
                                 style={styles.input}
                                 placeholder="0"
@@ -603,11 +606,11 @@ const StaffScreen = ({ navigation }) => {
                             />
                         </View>
 
-                        <Text style={styles.inputLabel}>Notes</Text>
+                        <LocalizedText translate style={styles.inputLabel}>Notes</LocalizedText>
                         <View style={styles.inputWrap}>
                             <TextInput
                                 style={[styles.input, styles.textArea]}
-                                placeholder="Optional"
+                                placeholder={localizeText("Optional", language)}
                                 placeholderTextColor="#B4BCC8"
                                 value={paymentNotes}
                                 onChangeText={setPaymentNotes}
@@ -627,7 +630,7 @@ const StaffScreen = ({ navigation }) => {
                                 end={{ x: 1, y: 0 }}
                                 style={styles.submitButton}
                             >
-                                <Text style={styles.submitButtonText}>Mark as Paid</Text>
+                                <LocalizedText translate style={styles.submitButtonText}>Mark as Paid</LocalizedText>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -649,14 +652,14 @@ const StaffScreen = ({ navigation }) => {
                         <View style={styles.confirmIconWrap}>
                             <Ionicons name="trash-outline" size={26} color="#EF4444" />
                         </View>
-                        <Text style={styles.confirmTitle}>Delete Staff Member</Text>
-                        <Text style={styles.confirmMessage}>
+                        <LocalizedText translate style={styles.confirmTitle}>Delete Staff Member</LocalizedText>
+                        <LocalizedText style={styles.confirmMessage}>
                             Are you sure you want to delete{' '}
-                            <Text style={{ fontWeight: '700', color: '#0B1120' }}>
+                            <LocalizedText style={{ fontWeight: '700', color: '#0B1120' }}>
                                 {staffPendingDelete?.name}
-                            </Text>
+                            </LocalizedText>
                             ? This can't be undone.
-                        </Text>
+                        </LocalizedText>
                         <View style={styles.confirmActions}>
                             <TouchableOpacity
                                 style={[styles.confirmButton, styles.confirmCancelButton]}
@@ -667,7 +670,7 @@ const StaffScreen = ({ navigation }) => {
                                     setStaffPendingDelete(null);
                                 }}
                             >
-                                <Text style={styles.confirmCancelText}>Cancel</Text>
+                                <LocalizedText translate style={styles.confirmCancelText}>Cancel</LocalizedText>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.confirmButton, styles.confirmDeleteButton]}
@@ -678,7 +681,7 @@ const StaffScreen = ({ navigation }) => {
                                 {deletingId !== null ? (
                                     <ActivityIndicator size="small" color="#fff" />
                                 ) : (
-                                    <Text style={styles.confirmDeleteText}>Delete</Text>
+                                    <LocalizedText translate style={styles.confirmDeleteText}>Delete</LocalizedText>
                                 )}
                             </TouchableOpacity>
                         </View>

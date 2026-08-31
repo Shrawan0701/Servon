@@ -2,12 +2,13 @@
 import React from 'react';
 import {
     View,
-    Text,
+    Text as NativeText,
     StyleSheet,
     Animated,
     TouchableOpacity,
     Platform
-} from 'react-native';
+} from "react-native";
+import LocalizedText from "./LocalizedText";
 import { Wifi, WifiOff, RefreshCw, AlertCircle } from 'lucide-react-native';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
@@ -51,14 +52,14 @@ export function OfflineIndicator({ onPress }) {
             <TouchableOpacity onPress={onPress} style={styles.content} activeOpacity={0.8}>
                 <View style={styles.row}>
                     {icon}
-                    <Text style={styles.text}>{statusText}</Text>
+                    <LocalizedText style={styles.text}>{statusText}</LocalizedText>
                 </View>
                 {!isOnline && (
-                    <Text style={styles.subText}>Connect to internet to sync your changes</Text>
+                    <LocalizedText translate style={styles.subText}>Connect to internet to sync your changes</LocalizedText>
                 )}
                 {pendingActions > 0 && isOnline && (
                     <TouchableOpacity onPress={onPress} style={styles.syncNowBtn}>
-                        <Text style={styles.syncNowText}>Sync Now</Text>
+                        <LocalizedText translate style={styles.syncNowText}>Sync Now</LocalizedText>
                     </TouchableOpacity>
                 )}
             </TouchableOpacity>

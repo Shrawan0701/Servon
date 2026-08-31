@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
+  View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
   ActivityIndicator, Modal, TextInput, ScrollView, Platform, Alert,
 } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -58,6 +60,7 @@ const EMPTY_ITEM_FORM = { name: "", unit: "kg", current_stock: "", low_stock_thr
 
 export default function InventoryScreen() {
   const navigation = useNavigation();
+  const { language } = useLocale();
   const [activeTab, setActiveTab] = useState("stock"); // 'stock' | 'recipes'
   const [items, setItems] = useState([]);
   const [recipeMenu, setRecipeMenu] = useState([]);
@@ -137,7 +140,7 @@ export default function InventoryScreen() {
 
   const handleSaveItem = async () => {
     if (!itemForm.name.trim()) {
-      Alert.alert("Item name needed", "Please type a name for this item, like Tomato or Rice.");
+      Alert.alert(localizeText("Item name needed", language), localizeText("Please type a name for this item, like Tomato or Rice.", language));
       return;
     }
     setSavingItem(true);
@@ -159,7 +162,7 @@ export default function InventoryScreen() {
       setShowItemModal(false);
       await loadData();
     } catch (err) {
-      Alert.alert("Could not save", err.response?.data?.error || "Something went wrong. Please try again.");
+      Alert.alert(localizeText("Could not save", language), err.response?.data?.error || localizeText("Something went wrong. Please try again.", language));
     } finally {
       setSavingItem(false);
     }
@@ -174,7 +177,7 @@ export default function InventoryScreen() {
   const handleRestock = async (presetAmount) => {
     const amount = presetAmount ?? parseFloat(restockAmount);
     if (!amount || amount <= 0) {
-      Alert.alert("Enter an amount", "Please enter how much stock you're adding.");
+      Alert.alert(localizeText("Enter an amount", language), localizeText("Please enter how much stock you're adding.", language));
       return;
     }
     setRestocking(true);
@@ -183,7 +186,7 @@ export default function InventoryScreen() {
       setShowRestockModal(false);
       await loadData();
     } catch (err) {
-      Alert.alert("Could not restock", "Something went wrong. Please try again.");
+      Alert.alert(localizeText("Could not restock", language), localizeText("Something went wrong. Please try again.", language));
     } finally {
       setRestocking(false);
     }
@@ -202,7 +205,7 @@ export default function InventoryScreen() {
       setShowDeleteModal(false);
       setDeleteTarget(null);
     } catch (err) {
-      Alert.alert("Could not delete", "Something went wrong. Please try again.");
+      Alert.alert(localizeText("Could not delete", language), localizeText("Something went wrong. Please try again.", language));
     } finally {
       setDeleting(false);
     }
@@ -267,7 +270,7 @@ export default function InventoryScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#111" />
-        <Text style={styles.loadingText}>Loading inventory...</Text>
+        <LocalizedText translate style={styles.loadingText}>Loading inventory...</LocalizedText>
       </View>
     );
   }
@@ -281,12 +284,12 @@ export default function InventoryScreen() {
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Inventory</Text>
-            <Text style={styles.headerHint}>
+            <LocalizedText translate style={styles.headerTitle}>Inventory</LocalizedText>
+            <LocalizedText style={styles.headerHint}>
               {lowStockCount > 0
                 ? `${lowStockCount} item${lowStockCount > 1 ? "s" : ""} running low - restock soon`
                 : "Track your stock and link it to your menu"}
-            </Text>
+            </LocalizedText>
           </View>
         </View>
 
@@ -298,9 +301,9 @@ export default function InventoryScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="cube" size={16} color={activeTab === "stock" ? "#fff" : "#6B7280"} />
-            <Text style={[styles.tabBtnText, activeTab === "stock" && styles.tabBtnTextActive]}>
+            <LocalizedText translate style={[styles.tabBtnText, activeTab === "stock" && styles.tabBtnTextActive]}>
               My Stock
-            </Text>
+            </LocalizedText>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tabBtn, activeTab === "recipes" && styles.tabBtnActive]}
@@ -308,16 +311,16 @@ export default function InventoryScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="link" size={16} color={activeTab === "recipes" ? "#fff" : "#6B7280"} />
-            <Text style={[styles.tabBtnText, activeTab === "recipes" && styles.tabBtnTextActive]}>
+            <LocalizedText translate style={[styles.tabBtnText, activeTab === "recipes" && styles.tabBtnTextActive]}>
               Link Menu Items
-            </Text>
+            </LocalizedText>
           </TouchableOpacity>
         </View>
 
         {activeTab === "stock" && (
           <TouchableOpacity style={styles.headerAddBtn} onPress={openAddItem} activeOpacity={0.85}>
             <Ionicons name="add-circle" size={18} color="#fff" />
-            <Text style={styles.headerAddBtnText}>Add New Stock Item</Text>
+            <LocalizedText translate style={styles.headerAddBtnText}>Add New Stock Item</LocalizedText>
           </TouchableOpacity>
         )}
       </View>
@@ -393,24 +396,24 @@ export default function InventoryScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.formModal}>
             <View style={styles.formModalHeader}>
-              <Text style={styles.formModalTitle}>
+              <LocalizedText style={styles.formModalTitle}>
                 {editingItem ? "Edit Stock Item" : "Add New Stock Item"}
-              </Text>
+              </LocalizedText>
               <TouchableOpacity style={styles.closeIconBtn} onPress={() => setShowItemModal(false)}>
                 <Ionicons name="close" size={22} color="#6B7280" />
               </TouchableOpacity>
             </View>
             <ScrollView>
-              <Text style={styles.fieldLabel}>What is this item called?</Text>
+              <LocalizedText translate style={styles.fieldLabel}>What is this item called?</LocalizedText>
               <TextInput
                 style={styles.input}
                 value={itemForm.name}
                 onChangeText={(v) => setItemForm((p) => ({ ...p, name: v }))}
-                placeholder="For example: Tomato, Potato, Cold Drink"
+                placeholder={localizeText("For example: Tomato, Potato, Cold Drink", language)}
                 placeholderTextColor="#A8A29E"
               />
 
-              <Text style={styles.fieldLabel}>How do you measure it?</Text>
+              <LocalizedText translate style={styles.fieldLabel}>How do you measure it?</LocalizedText>
               <View style={styles.unitRow}>
                 {UNITS.map((u) => (
                   <TouchableOpacity
@@ -419,16 +422,16 @@ export default function InventoryScreen() {
                     onPress={() => setItemForm((p) => ({ ...p, unit: u.key }))}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.unitChipText, itemForm.unit === u.key && styles.unitChipTextActive]}>
+                    <LocalizedText style={[styles.unitChipText, itemForm.unit === u.key && styles.unitChipTextActive]}>
                       {u.label}
-                    </Text>
+                    </LocalizedText>
                   </TouchableOpacity>
                 ))}
               </View>
 
               {!editingItem && (
                 <>
-                  <Text style={styles.fieldLabel}>How much do you have right now?</Text>
+                  <LocalizedText translate style={styles.fieldLabel}>How much do you have right now?</LocalizedText>
                   <TextInput
                     style={styles.input}
                     value={itemForm.current_stock}
@@ -440,21 +443,21 @@ export default function InventoryScreen() {
                 </>
               )}
 
-              <Text style={styles.fieldLabel}>Warn me when stock falls below</Text>
-              <Text style={styles.fieldSubLabel}>
+              <LocalizedText translate style={styles.fieldLabel}>Warn me when stock falls below</LocalizedText>
+              <LocalizedText translate style={styles.fieldSubLabel}>
                 We'll show a low-stock alert once it drops under this number
-              </Text>
+              </LocalizedText>
               <TextInput
                 style={styles.input}
                 value={itemForm.low_stock_threshold}
                 onChangeText={(v) => setItemForm((p) => ({ ...p, low_stock_threshold: v }))}
                 keyboardType="decimal-pad"
-                placeholder="For example: 2"
+                placeholder={localizeText("For example: 2", language)}
                 placeholderTextColor="#A8A29E"
               />
             </ScrollView>
             <TouchableOpacity style={styles.formSaveBtn} onPress={handleSaveItem} disabled={savingItem} activeOpacity={0.85}>
-              {savingItem ? <ActivityIndicator color="#fff" /> : <Text style={styles.formSaveBtnText}>Save Item</Text>}
+              {savingItem ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.formSaveBtnText}>Save Item</LocalizedText>}
             </TouchableOpacity>
           </View>
         </View>
@@ -465,7 +468,7 @@ export default function InventoryScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.formModal}>
             <View style={styles.formModalHeader}>
-              <Text style={styles.formModalTitle}>Add Stock</Text>
+              <LocalizedText translate style={styles.formModalTitle}>Add Stock</LocalizedText>
               <TouchableOpacity style={styles.closeIconBtn} onPress={() => setShowRestockModal(false)}>
                 <Ionicons name="close" size={22} color="#6B7280" />
               </TouchableOpacity>
@@ -475,14 +478,14 @@ export default function InventoryScreen() {
                 <Ionicons name="cube" size={20} color="#111827" />
               </View>
               <View>
-                <Text style={styles.restockItemName}>{restockTarget?.name}</Text>
-                <Text style={styles.restockItemCurrent}>
+                <LocalizedText style={styles.restockItemName}>{restockTarget?.name}</LocalizedText>
+                <LocalizedText style={styles.restockItemCurrent}>
                   You currently have {restockTarget ? formatQty(restockTarget.current_stock) : 0} {restockTarget?.unit}
-                </Text>
+                </LocalizedText>
               </View>
             </View>
 
-            <Text style={styles.fieldLabel}>How much are you adding?</Text>
+            <LocalizedText translate style={styles.fieldLabel}>How much are you adding?</LocalizedText>
             <View style={styles.restockInputWrap}>
               <TextInput
                 style={styles.restockInput}
@@ -493,20 +496,20 @@ export default function InventoryScreen() {
                 placeholderTextColor="#A8A29E"
                 autoFocus
               />
-              <Text style={styles.restockInputUnit}>{restockTarget?.unit}</Text>
+              <LocalizedText style={styles.restockInputUnit}>{restockTarget?.unit}</LocalizedText>
             </View>
 
-            <Text style={styles.quickAddLabel}>Or tap a quick amount</Text>
+            <LocalizedText translate style={styles.quickAddLabel}>Or tap a quick amount</LocalizedText>
             <View style={styles.presetRow}>
               {[1, 5, 10, 25].map((p) => (
                 <TouchableOpacity key={p} style={styles.presetChip} onPress={() => handleRestock(p)} activeOpacity={0.8}>
-                  <Text style={styles.presetChipText}>+{p} {restockTarget?.unit}</Text>
+                  <LocalizedText style={styles.presetChipText}>+{p} {restockTarget?.unit}</LocalizedText>
                 </TouchableOpacity>
               ))}
             </View>
 
             <TouchableOpacity style={styles.formSaveBtn} onPress={() => handleRestock()} disabled={restocking} activeOpacity={0.85}>
-              {restocking ? <ActivityIndicator color="#fff" /> : <Text style={styles.formSaveBtnText}>Add to Stock</Text>}
+              {restocking ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.formSaveBtnText}>Add to Stock</LocalizedText>}
             </TouchableOpacity>
           </View>
         </View>
@@ -519,16 +522,16 @@ export default function InventoryScreen() {
             <View style={styles.deleteIconCircle}>
               <Ionicons name="trash-outline" size={28} color="#EF4444" />
             </View>
-            <Text style={styles.deleteTitle}>Remove {deleteTarget?.name}?</Text>
-            <Text style={styles.deleteSub}>
+            <LocalizedText style={styles.deleteTitle}>Remove {deleteTarget?.name}?</LocalizedText>
+            <LocalizedText translate style={styles.deleteSub}>
               This item and any menu links to it will be removed. This cannot be undone.
-            </Text>
+            </LocalizedText>
             <View style={styles.deleteActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDeleteModal(false)} activeOpacity={0.8}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <LocalizedText translate style={styles.cancelBtnText}>Cancel</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteConfirmBtn} onPress={confirmDelete} disabled={deleting} activeOpacity={0.85}>
-                {deleting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.deleteConfirmBtnText}>Yes, Remove</Text>}
+                {deleting ? <ActivityIndicator color="#fff" size="small" /> : <LocalizedText translate style={styles.deleteConfirmBtnText}>Yes, Remove</LocalizedText>}
               </TouchableOpacity>
             </View>
           </View>
@@ -540,10 +543,10 @@ export default function InventoryScreen() {
         <View style={{ flex: 1, backgroundColor: "#fff" }}>
           <View style={styles.recipeModalHeaderBar}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.formModalTitle}>{recipeMenuItem?.name}</Text>
-              <Text style={styles.recipeModalSub}>
+              <LocalizedText style={styles.formModalTitle}>{recipeMenuItem?.name}</LocalizedText>
+              <LocalizedText translate style={styles.recipeModalSub}>
                 Tick each ingredient this dish uses, and how much per order
-              </Text>
+              </LocalizedText>
             </View>
             <TouchableOpacity style={styles.closeIconBtn} onPress={() => setShowRecipeModal(false)}>
               <Ionicons name="close" size={22} color="#6B7280" />
@@ -553,10 +556,10 @@ export default function InventoryScreen() {
             {items.length === 0 ? (
               <View style={styles.recipeEmptyNotice}>
                 <Ionicons name="information-circle-outline" size={22} color="#9CA3AF" />
-                <Text style={styles.emptySub}>
+                <LocalizedText translate style={styles.emptySub}>
                   You haven't added any stock items yet. Go to the "My Stock" tab, add items like
                   tomato or rice, then come back here to link them.
-                </Text>
+                </LocalizedText>
               </View>
             ) : (
               items.map((invItem) => {
@@ -575,15 +578,15 @@ export default function InventoryScreen() {
                         color={isSelected ? "#10B981" : "#D1D5DB"}
                       />
                       <View style={{ marginLeft: 12, flex: 1 }}>
-                        <Text style={styles.ingredientName}>{invItem.name}</Text>
-                        <Text style={styles.ingredientStock}>
+                        <LocalizedText style={styles.ingredientName}>{invItem.name}</LocalizedText>
+                        <LocalizedText style={styles.ingredientStock}>
                           {formatQty(invItem.current_stock)} {invItem.unit} available now
-                        </Text>
+                        </LocalizedText>
                       </View>
                     </View>
                     {isSelected && (
                       <View style={styles.ingredientQtyWrap} onStartShouldSetResponder={() => true}>
-                        <Text style={styles.ingredientQtyLabel}>Used per order:</Text>
+                        <LocalizedText translate style={styles.ingredientQtyLabel}>Used per order:</LocalizedText>
                         <TextInput
                           style={styles.ingredientQtyInput}
                           value={recipeSelections[invItem.id]}
@@ -592,7 +595,7 @@ export default function InventoryScreen() {
                           placeholder="0"
                           placeholderTextColor="#A8A29E"
                         />
-                        <Text style={styles.ingredientQtyUnit}>{invItem.unit}</Text>
+                        <LocalizedText style={styles.ingredientQtyUnit}>{invItem.unit}</LocalizedText>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -602,7 +605,7 @@ export default function InventoryScreen() {
           </ScrollView>
           <View style={styles.recipeModalFooter}>
             <TouchableOpacity style={styles.formSaveBtn} onPress={handleSaveRecipe} disabled={savingRecipe} activeOpacity={0.85}>
-              {savingRecipe ? <ActivityIndicator color="#fff" /> : <Text style={styles.formSaveBtnText}>Save This Recipe</Text>}
+              {savingRecipe ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.formSaveBtnText}>Save This Recipe</LocalizedText>}
             </TouchableOpacity>
           </View>
         </View>
@@ -618,14 +621,14 @@ function EmptyStockState({ onAdd }) {
       <View style={styles.emptyIconCircle}>
         <Ionicons name="cube-outline" size={40} color="#111" />
       </View>
-      <Text style={styles.emptyTitle}>No stock items yet</Text>
-      <Text style={styles.emptySub}>
+      <LocalizedText translate style={styles.emptyTitle}>No stock items yet</LocalizedText>
+      <LocalizedText translate style={styles.emptySub}>
         Add raw materials you use every day - like tomato, potato, rice, or cold drinks -
         and we'll keep track of how much you have left.
-      </Text>
+      </LocalizedText>
       <TouchableOpacity style={styles.bigAddBtn} onPress={onAdd} activeOpacity={0.85}>
         <Ionicons name="add-circle" size={22} color="#fff" />
-        <Text style={styles.bigAddBtnText}>Add Your First Item</Text>
+        <LocalizedText translate style={styles.bigAddBtnText}>Add Your First Item</LocalizedText>
       </TouchableOpacity>
     </View>
   );
@@ -637,11 +640,11 @@ function EmptyRecipeState() {
       <View style={styles.emptyIconCircle}>
         <Ionicons name="link-outline" size={40} color="#111" />
       </View>
-      <Text style={styles.emptyTitle}>No menu items found</Text>
-      <Text style={styles.emptySub}>
+      <LocalizedText translate style={styles.emptyTitle}>No menu items found</LocalizedText>
+      <LocalizedText translate style={styles.emptySub}>
         Add items to your Menu tab first — like Vada Pav or Butter Chicken — then come back
         here to link each one to the stock it uses.
-      </Text>
+      </LocalizedText>
     </View>
   );
 }
@@ -750,27 +753,27 @@ function StockCardNative({ item, onRestock, onEdit, onDelete }) {
     <View style={styles.stockCard}>
       <View style={styles.stockCardTop}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.stockName}>{item.name}</Text>
-          <Text style={styles.stockUnitLabel}>{unitLabel(item.unit)}</Text>
+          <LocalizedText style={styles.stockName}>{item.name}</LocalizedText>
+          <LocalizedText style={styles.stockUnitLabel}>{unitLabel(item.unit)}</LocalizedText>
         </View>
         {item.is_low && (
           <View style={styles.lowBadge}>
             <Ionicons name="alert-circle" size={12} color="#EF4444" />
-            <Text style={styles.lowBadgeText}>Low Stock</Text>
+            <LocalizedText translate style={styles.lowBadgeText}>Low Stock</LocalizedText>
           </View>
         )}
       </View>
 
       <View style={styles.stockValueRow}>
-        <Text style={styles.stockValue}>{formatQty(item.current_stock)}</Text>
-        <Text style={styles.stockValueUnit}>{item.unit}</Text>
+        <LocalizedText style={styles.stockValue}>{formatQty(item.current_stock)}</LocalizedText>
+        <LocalizedText style={styles.stockValueUnit}>{item.unit}</LocalizedText>
       </View>
-      <Text style={styles.thresholdText}>Alert when below {formatQty(item.low_stock_threshold)} {item.unit}</Text>
+      <LocalizedText style={styles.thresholdText}>Alert when below {formatQty(item.low_stock_threshold)} {item.unit}</LocalizedText>
 
       <View style={styles.stockCardActions}>
         <TouchableOpacity style={styles.restockBtn} onPress={onRestock} activeOpacity={0.85}>
           <Ionicons name="add-circle-outline" size={16} color="#fff" />
-          <Text style={styles.restockBtnText}>Add Stock</Text>
+          <LocalizedText translate style={styles.restockBtnText}>Add Stock</LocalizedText>
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconActionBtn} onPress={onEdit} activeOpacity={0.8}>
           <Ionicons name="create-outline" size={16} color="#374151" />
@@ -791,16 +794,16 @@ function RecipeCardNative({ item, onPress }) {
         <Ionicons name="restaurant-outline" size={18} color={linked ? "#10B981" : "#9CA3AF"} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.recipeName}>{item.name}</Text>
-        <Text style={styles.recipeCategory}>{item.category}</Text>
+        <LocalizedText style={styles.recipeName}>{item.name}</LocalizedText>
+        <LocalizedText style={styles.recipeCategory}>{item.category}</LocalizedText>
       </View>
       {linked ? (
         <View style={styles.configuredBadge}>
-          <Text style={styles.configuredBadgeText}>{item.ingredient_count} linked</Text>
+          <LocalizedText style={styles.configuredBadgeText}>{item.ingredient_count} linked</LocalizedText>
         </View>
       ) : (
         <View style={styles.notConfiguredBadge}>
-          <Text style={styles.notConfiguredBadgeText}>Set up now</Text>
+          <LocalizedText translate style={styles.notConfiguredBadgeText}>Set up now</LocalizedText>
         </View>
       )}
       <Ionicons name="chevron-forward" size={17} color="#9CA3AF" />

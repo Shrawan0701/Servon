@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    Text,
+    Text as NativeText,
     StyleSheet,
     ActivityIndicator,
     TouchableOpacity,
     Platform
-} from 'react-native';
+} from "react-native";
+import LocalizedText from "./LocalizedText";
 import {
     Wifi,
     WifiOff,
@@ -105,12 +106,12 @@ export function SyncStatus() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.title}>Sync Status</Text>
+                <LocalizedText translate style={styles.title}>Sync Status</LocalizedText>
                 <View style={[styles.statusBadge, { backgroundColor: getSyncStatusColor() + '15' }]}>
                     {getSyncStatusIcon()}
-                    <Text style={[styles.statusText, { color: getSyncStatusColor() }]}>
+                    <LocalizedText style={[styles.statusText, { color: getSyncStatusColor() }]}>
                         {getSyncStatusText()}
-                    </Text>
+                    </LocalizedText>
                 </View>
             </View>
 
@@ -119,19 +120,19 @@ export function SyncStatus() {
                     <View style={styles.statIconContainer}>
                         <Cloud size={18} color="#6B7280" />
                     </View>
-                    <Text style={styles.statLabel}>Network</Text>
+                    <LocalizedText translate style={styles.statLabel}>Network</LocalizedText>
                     <View style={styles.statRow}>
                         {status.isOnline ? (
                             <Wifi size={14} color="#059669" />
                         ) : (
                             <WifiOff size={14} color="#DC2626" />
                         )}
-                        <Text style={[
+                        <LocalizedText style={[
                             styles.statValue,
                             status.isOnline ? styles.online : styles.offline
                         ]}>
                             {status.isOnline ? 'Online' : 'Offline'}
-                        </Text>
+                        </LocalizedText>
                     </View>
                 </View>
 
@@ -139,22 +140,22 @@ export function SyncStatus() {
                     <View style={styles.statIconContainer}>
                         <Database size={18} color="#6B7280" />
                     </View>
-                    <Text style={styles.statLabel}>Local Orders</Text>
-                    <Text style={styles.statValue}>
+                    <LocalizedText translate style={styles.statLabel}>Local Orders</LocalizedText>
+                    <LocalizedText style={styles.statValue}>
                         {status.unsyncedOrders > 0 ? (
-                            <Text style={styles.hasPending}>{status.unsyncedOrders}</Text>
+                            <LocalizedText style={styles.hasPending}>{status.unsyncedOrders}</LocalizedText>
                         ) : (
                             status.unsyncedOrders
                         )}
-                    </Text>
+                    </LocalizedText>
                 </View>
 
                 <View style={styles.statItem}>
                     <View style={styles.statIconContainer}>
                         <Clock size={18} color="#6B7280" />
                     </View>
-                    <Text style={styles.statLabel}>Last Sync</Text>
-                    <Text style={styles.statValue}>{formatTime(status.lastSyncTime)}</Text>
+                    <LocalizedText translate style={styles.statLabel}>Last Sync</LocalizedText>
+                    <LocalizedText style={styles.statValue}>{formatTime(status.lastSyncTime)}</LocalizedText>
                 </View>
             </View>
 
@@ -173,9 +174,9 @@ export function SyncStatus() {
                 ) : (
                     <View style={styles.syncButtonContent}>
                         <RefreshCw size={18} color="#FFFFFF" />
-                        <Text style={styles.syncButtonText}>
+                        <LocalizedText style={styles.syncButtonText}>
                             {!status.isOnline ? 'Offline - Waiting for connection' : 'Sync Now'}
-                        </Text>
+                        </LocalizedText>
                     </View>
                 )}
             </TouchableOpacity>

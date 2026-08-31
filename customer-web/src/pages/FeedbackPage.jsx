@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
+import { LanguageSelector, useLocale } from "../context/LocaleContext";
 
 export default function FeedbackPage() {
+  const { t } = useLocale();
   const { businessId } = useParams();
   const [searchParams] = useSearchParams();
   const tableNumber = searchParams.get("table") || "Unknown";
@@ -42,7 +44,7 @@ export default function FeedbackPage() {
 
   // ─── SUBMIT FEEDBACK ──────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (rating === 0) return alert("Please select a star rating!");
+    if (rating === 0) return alert(t("ratingNeeded"));
     setLoading(true);
 
     try {
@@ -56,7 +58,7 @@ export default function FeedbackPage() {
       });
       setSubmitted(true);
     } catch (err) {
-      alert("Failed to submit feedback. Please try again.");
+      alert(t("feedbackFailed"));
     } finally {
       setLoading(false);
     }
@@ -66,22 +68,23 @@ export default function FeedbackPage() {
     return (
       <div style={{ maxWidth: 480, margin: "0 auto", padding: 40, textAlign: "center", minHeight: "100vh", backgroundColor: "#fff" }}>
         <h1 style={{ fontSize: 60, margin: 0 }}>🎉</h1>
-        <h2 style={{ marginTop: 20, fontWeight: "800" }}>Thank you!</h2>
-        <p style={{ color: "#6B7280", marginTop: 10 }}>Your feedback helps us improve.</p>
+        <h2 style={{ marginTop: 20, fontWeight: "800" }}>{t("feedbackThanks")}</h2>
+        <p style={{ color: "#6B7280", marginTop: 10 }}>{t("feedbackHelp")}</p>
       </div>
     );
   }
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: 30, minHeight: "100vh", backgroundColor: "#fff" }}>
-      <h2 style={{ fontWeight: "800", fontSize: 24, textAlign: "center", marginBottom: 5 }}>How was your meal?</h2>
-      <p style={{ textAlign: "center", color: "#6B7280", marginBottom: 20 }}>Table {tableNumber}</p>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><LanguageSelector /></div>
+      <h2 style={{ fontWeight: "800", fontSize: 24, textAlign: "center", marginBottom: 5 }}>{t("mealQuestion")}</h2>
+      <p style={{ textAlign: "center", color: "#6B7280", marginBottom: 20 }}>{t("table")} {tableNumber}</p>
 
       {/* DISPLAY SPECIFIC ORDERED ITEMS */}
       {orderedItems.length > 0 && (
         <div style={{ backgroundColor: "#F9FAFB", borderRadius: 12, padding: 12, marginBottom: 25, border: "1px solid #F3F4F6" }}>
           <span style={{ fontSize: 12, fontWeight: "700", color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 8 }}>
-            Your Order
+            {t("yourOrder")}
           </span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {orderedItems.map((item, idx) => (
@@ -122,11 +125,11 @@ export default function FeedbackPage() {
       </div>
 
       <div style={{ marginBottom: 20 }}>
-        <label style={{ fontWeight: "600", display: "block", marginBottom: 8 }}>Any specific comments?</label>
+        <label style={{ fontWeight: "600", display: "block", marginBottom: 8 }}>{t("comments")}</label>
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="Tell us what you loved, or what we can improve..."
+          placeholder={t("commentsPlaceholder")}
           rows={4}
           style={{ width: "100%", padding: 15, borderRadius: 12, border: "1px solid #E5E7EB", resize: "none", fontFamily: "inherit" }}
         />
@@ -147,7 +150,7 @@ export default function FeedbackPage() {
           cursor: rating === 0 ? "not-allowed" : "pointer",
         }}
       >
-        {loading ? "Submitting..." : "Submit Feedback"}
+        {loading ? t("submitting") : t("submitFeedback")}
       </button>
     </div>
   );

@@ -5,9 +5,11 @@ import OrderSuccessPage from "./pages/OrderSuccessPage";
 import NotFoundPage from "./pages/NotFoundPage"; 
 import { CartProvider } from "./context/CartContext"; 
 import FeedbackPage from "./pages/FeedbackPage";
+import { LocaleProvider } from "./context/LocaleContext";
  
 export default function App() { 
   return ( 
+    <LocaleProvider>
     <CartProvider> 
       <BrowserRouter> 
         <Routes> 
@@ -20,6 +22,7 @@ export default function App() {
           <Route path="*" element={<NotFoundPage />} /> 
         </Routes> 
       </BrowserRouter> 
-    </CartProvider> 
+    </CartProvider>
+    </LocaleProvider>
   );
 }

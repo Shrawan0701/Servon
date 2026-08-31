@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { placeOrder, getBusinessProfile } from "../api";
+import { LanguageSelector, useLocale } from "../context/LocaleContext";
 
 // --- Helper Functions ---
 
@@ -40,6 +41,7 @@ function ThaliContents({ item, allItems }) {
 // --- Main Component ---
 
 export default function CartPage() {
+  const { t } = useLocale();
   const { businessId, tableId } = useParams();
   const navigate = useNavigate();
   const { cartItems, addToCart, removeFromCart } = useCart();
@@ -125,7 +127,7 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
       });
     } catch (err) {
       setError(
-        err.response?.data?.error || "Failed to place order. Please try again."
+        err.response?.data?.error || t("orderFailed")
       );
     } finally {
       setPlacing(false);
@@ -139,9 +141,9 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
         style={{ height: "100vh" }}
       >
         <div style={{ fontSize: 48 }}>🛒</div>
-        <h5 className="mt-3">Your cart is empty</h5>
+        <h5 className="mt-3">{t("cartEmpty")}</h5>
         <button className="btn btn-dark mt-3" onClick={() => navigate(-1)}>
-          Go Back to Menu
+          {t("goBackMenu")}
         </button>
       </div>
     );
@@ -152,7 +154,8 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
       {/* Header */}
       <div style={styles.header}>
         <button onClick={() => navigate(-1)} style={styles.backBtn}>←</button>
-        <h5 className="mb-0 fw-bold">Your Cart</h5>
+        <h5 className="mb-0 fw-bold">{t("yourCart")}</h5>
+        <div style={{ marginLeft: "auto" }}><LanguageSelector /></div>
       </div>
 
       <div style={styles.content}>
@@ -161,9 +164,9 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 <span style={{ fontWeight: 600, fontSize: 15 }}>{item.name}</span>
-                {item.is_thali && <span style={styles.thaliBadge}>Thali</span>}
+                {item.is_thali && <span style={styles.thaliBadge}>{t("thali")}</span>}
               </div>
-              <div style={{ color: "#888", fontSize: 13, marginTop: 2 }}>₹{item.price} each</div>
+              <div style={{ color: "#888", fontSize: 13, marginTop: 2 }}>{t("each", { price: item.price })}</div>
               {item.is_thali && <ThaliContents item={item} allItems={cartItems} />}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                 <button className="qty-btn" onClick={() => removeFromCart(item.id)}>–</button>
@@ -179,11 +182,11 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
 
         {/* Special Instructions */}
         <div style={styles.instructionsContainer}>
-          <label style={styles.label}>Special Instructions</label>
+          <label style={styles.label}>{t("specialInstructions")}</label>
           <textarea
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
-            placeholder="E.g. No onions, extra spicy..."
+            placeholder={t("instructionsPlaceholder")}
             rows={3}
             style={styles.textarea}
           />
@@ -192,7 +195,7 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
         {/* Bill Summary with GST */}
        {/* Bill Summary */}
 <div style={styles.billSummary}>
-  <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 15 }}>Bill Summary</div>
+  <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 15 }}>{t("billSummary")}</div>
   {cartItems.map((item) => (
     <div key={item.id} style={styles.billRow}>
       <span>{item.name} × {item.quantity}</span>
@@ -200,7 +203,7 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
     </div>
   ))}
   <div style={styles.billSubtotal}>
-    <span>Subtotal</span>
+    <span>{t("subtotal")}</span>
     <span>₹{subtotal.toFixed(2)}</span>
   </div>
   {cgstAmount > 0 && (
@@ -216,7 +219,7 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
     </div>
   )}
   <div style={styles.billGrandTotal}>
-    <span>Grand Total</span>
+    <span>{t("grandTotal")}</span>
     <span>₹{grandTotal.toFixed(2)}</span>
   </div>
 </div>
@@ -224,7 +227,7 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
         {error && <div className="alert alert-danger mt-3" style={{ fontSize: 14 }}>{error}</div>}
 
         <div style={styles.paymentNotice}>
-          Confirm your order and pay on billing counter
+          {t("paymentNotice")}
         </div>
 
         <button
@@ -234,8 +237,8 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
           style={styles.confirmBtn}
         >
           {placing
-            ? "Placing Order..."
-            : `Confirm Order · ₹${grandTotal.toFixed(0)}`}
+            ? t("placingOrder")
+            : t("confirmOrder", { total: grandTotal.toFixed(0) })}
         </button>
       </div>
     </div>

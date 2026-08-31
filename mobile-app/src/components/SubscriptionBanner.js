@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native"; 
+import { View, Text as NativeText, TouchableOpacity, StyleSheet } from "react-native";
+import LocalizedText from "./LocalizedText"; 
 import { useAuth } from "../context/AuthContext"; 
 import { useNavigation } from "@react-navigation/native"; 
 
@@ -16,10 +17,10 @@ export default function SubscriptionBanner() {
   if (status === "INACTIVE") { 
     return ( 
       <View style={[styles.banner, { backgroundColor: "#1a1a1a" }]}> 
-        <Text style={styles.bannerText}>Your account is inactive. Activate Servon to start receiving orders.</Text>
+        <LocalizedText translate style={styles.bannerText}>Your account is inactive. Activate Servon to start receiving orders.</LocalizedText>
         {/* CHANGED TO Profile */}
         <TouchableOpacity onPress={() => navigation.navigate("Profile")}> 
-          <Text style={styles.bannerAction}>Activate →</Text> 
+          <LocalizedText translate style={styles.bannerAction}>Activate →</LocalizedText> 
         </TouchableOpacity> 
       </View> 
     ); 
@@ -28,10 +29,10 @@ export default function SubscriptionBanner() {
   if (status === "EXPIRED") { 
     return ( 
       <View style={[styles.banner, { backgroundColor: "#dc3545" }]}> 
-        <Text style={styles.bannerText}>Subscription expired. Renew to continue.</Text> 
+        <LocalizedText translate style={styles.bannerText}>Subscription expired. Renew to continue.</LocalizedText> 
         {/* CHANGED TO Profile */}
         <TouchableOpacity onPress={() => navigation.navigate("Profile")}> 
-          <Text style={styles.bannerAction}>Renew →</Text> 
+          <LocalizedText translate style={styles.bannerAction}>Renew →</LocalizedText> 
         </TouchableOpacity> 
       </View> 
     ); 
@@ -40,10 +41,10 @@ export default function SubscriptionBanner() {
   if (status === "ACTIVE" && daysLeft <= 5) { 
     return ( 
       <View style={[styles.banner, { backgroundColor: "#fd7e14" }]}> 
-        <Text style={styles.bannerText}>Subscription expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}.</Text> 
+        <LocalizedText style={styles.bannerText}>Subscription expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}.</LocalizedText> 
         {/* CHANGED TO Profile */}
         <TouchableOpacity onPress={() => navigation.navigate("Profile")}> 
-          <Text style={styles.bannerAction}>Renew →</Text> 
+          <LocalizedText translate style={styles.bannerAction}>Renew →</LocalizedText> 
         </TouchableOpacity> 
       </View> 
     ); 

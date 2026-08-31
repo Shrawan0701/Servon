@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    Text,
+    Text as NativeText,
     StyleSheet,
     ScrollView,
     TouchableOpacity,
@@ -11,12 +11,15 @@ import {
     TextInput,
     RefreshControl,
     Platform,
-} from 'react-native';
+} from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getStaffById, updateStaff, markSalaryPaid } from '../api';
 
 const StaffProfileScreen = ({ route, navigation }) => {
+    const { language } = useLocale();
     const { staffId } = route.params;
     const [staff, setStaff] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -128,7 +131,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
     if (!staff) {
         return (
             <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>Staff member not found</Text>
+                <LocalizedText translate style={styles.errorText}>Staff member not found</LocalizedText>
             </View>
         );
     }
@@ -150,40 +153,40 @@ const StaffProfileScreen = ({ route, navigation }) => {
             >
                 <View style={styles.avatarRing}>
                     <View style={styles.avatarLarge}>
-                        <Text style={styles.avatarLargeText}>
+                        <LocalizedText style={styles.avatarLargeText}>
                             {staff.name.charAt(0).toUpperCase()}
-                        </Text>
+                        </LocalizedText>
                     </View>
                 </View>
-                <Text style={styles.name}>{staff.name}</Text>
+                <LocalizedText style={styles.name}>{staff.name}</LocalizedText>
                 <View style={styles.rolePill}>
-                    <Text style={styles.role}>{staff.role}</Text>
+                    <LocalizedText style={styles.role}>{staff.role}</LocalizedText>
                 </View>
 
                 <View style={styles.headerStatsRow}>
                     <View style={styles.headerStat}>
-                        <Text style={styles.headerStatValue}>₹{staff.monthly_salary.toLocaleString()}</Text>
-                        <Text style={styles.headerStatLabel}>MONTHLY</Text>
+                        <LocalizedText style={styles.headerStatValue}>₹{staff.monthly_salary.toLocaleString()}</LocalizedText>
+                        <LocalizedText translate style={styles.headerStatLabel}>MONTHLY</LocalizedText>
                     </View>
                     <View style={styles.headerStatDivider} />
                     <View style={styles.headerStat}>
-                        <Text style={styles.headerStatValue}>{formatDate(staff.joining_date).split(' ').slice(0, 2).join(' ')}</Text>
-                        <Text style={styles.headerStatLabel}>JOINED</Text>
+                        <LocalizedText style={styles.headerStatValue}>{formatDate(staff.joining_date).split(' ').slice(0, 2).join(' ')}</LocalizedText>
+                        <LocalizedText translate style={styles.headerStatLabel}>JOINED</LocalizedText>
                     </View>
                 </View>
             </LinearGradient>
 
             {/* Contact Details */}
             <View style={styles.section}>
-                <Text style={styles.sectionEyebrow}>CONTACT DETAILS</Text>
+                <LocalizedText translate style={styles.sectionEyebrow}>CONTACT DETAILS</LocalizedText>
                
                 <View style={styles.detailItem}>
                     <View style={styles.detailIconChip}>
                         <Ionicons name="call-outline" size={17} color="#059669" />
                     </View>
                     <View style={styles.detailTextWrap}>
-                        <Text style={styles.detailLabel}>Phone</Text>
-                        <Text style={styles.detailValue}>{staff.phone}</Text>
+                        <LocalizedText translate style={styles.detailLabel}>Phone</LocalizedText>
+                        <LocalizedText style={styles.detailValue}>{staff.phone}</LocalizedText>
                     </View>
                 </View>
                 <View style={styles.detailItem}>
@@ -191,8 +194,8 @@ const StaffProfileScreen = ({ route, navigation }) => {
                         <Ionicons name="calendar-outline" size={17} color="#059669" />
                     </View>
                     <View style={styles.detailTextWrap}>
-                        <Text style={styles.detailLabel}>Joining Date</Text>
-                        <Text style={styles.detailValue}>{formatDate(staff.joining_date)}</Text>
+                        <LocalizedText translate style={styles.detailLabel}>Joining Date</LocalizedText>
+                        <LocalizedText style={styles.detailValue}>{formatDate(staff.joining_date)}</LocalizedText>
                     </View>
                 </View>
                 <View style={[styles.detailItem, { marginBottom: 0 }]}>
@@ -200,8 +203,8 @@ const StaffProfileScreen = ({ route, navigation }) => {
                         <Ionicons name="cash-outline" size={17} color="#059669" />
                     </View>
                     <View style={styles.detailTextWrap}>
-                        <Text style={styles.detailLabel}>Monthly Salary</Text>
-                        <Text style={styles.detailValue}>₹{staff.monthly_salary.toLocaleString()}</Text>
+                        <LocalizedText translate style={styles.detailLabel}>Monthly Salary</LocalizedText>
+                        <LocalizedText style={styles.detailValue}>₹{staff.monthly_salary.toLocaleString()}</LocalizedText>
                     </View>
                 </View>
             </View>
@@ -209,7 +212,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
             {/* Payment Status */}
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionEyebrow}>CURRENT MONTH PAYMENT</Text>
+                    <LocalizedText translate style={styles.sectionEyebrow}>CURRENT MONTH PAYMENT</LocalizedText>
                     <View style={[
                         styles.statusBadge,
                         staff.current_month_paid ? styles.paidBadge : styles.pendingBadge
@@ -218,34 +221,34 @@ const StaffProfileScreen = ({ route, navigation }) => {
                             styles.statusDot,
                             staff.current_month_paid ? styles.paidDot : styles.pendingDot
                         ]} />
-                        <Text style={[
+                        <LocalizedText style={[
                             styles.statusBadgeText,
                             staff.current_month_paid ? styles.paidBadgeText : styles.pendingBadgeText
                         ]}>
                             {staff.current_month_paid ? 'Paid' : 'Pending'}
-                        </Text>
+                        </LocalizedText>
                     </View>
                 </View>
                 {staff.current_month_paid && staff.current_month_payment && (
                     <View style={styles.paymentDetails}>
                         <View style={styles.paymentDetailRow}>
-                            <Text style={styles.paymentDetailLabel}>Amount</Text>
-                            <Text style={styles.paymentDetailValue}>
+                            <LocalizedText translate style={styles.paymentDetailLabel}>Amount</LocalizedText>
+                            <LocalizedText style={styles.paymentDetailValue}>
                                 ₹{staff.current_month_payment.amount.toLocaleString()}
-                            </Text>
+                            </LocalizedText>
                         </View>
                         <View style={styles.paymentDetailRow}>
-                            <Text style={styles.paymentDetailLabel}>Date</Text>
-                            <Text style={styles.paymentDetailValue}>
+                            <LocalizedText translate style={styles.paymentDetailLabel}>Date</LocalizedText>
+                            <LocalizedText style={styles.paymentDetailValue}>
                                 {new Date(staff.current_month_payment.paid_date).toLocaleDateString()}
-                            </Text>
+                            </LocalizedText>
                         </View>
                         {staff.current_month_payment.notes && (
                             <View style={styles.paymentDetailRow}>
-                                <Text style={styles.paymentDetailLabel}>Notes</Text>
-                                <Text style={[styles.paymentDetailValue, { flexShrink: 1, textAlign: 'right' }]}>
+                                <LocalizedText translate style={styles.paymentDetailLabel}>Notes</LocalizedText>
+                                <LocalizedText style={[styles.paymentDetailValue, { flexShrink: 1, textAlign: 'right' }]}>
                                     {staff.current_month_payment.notes}
-                                </Text>
+                                </LocalizedText>
                             </View>
                         )}
                     </View>
@@ -263,7 +266,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                             style={styles.payButton}
                         >
                             <Ionicons name="cash-outline" size={19} color="#fff" />
-                            <Text style={styles.payButtonText}>Pay Salary</Text>
+                            <LocalizedText translate style={styles.payButtonText}>Pay Salary</LocalizedText>
                         </LinearGradient>
                     </TouchableOpacity>
                 )}
@@ -271,7 +274,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
 
             {/* Salary History */}
             <View style={styles.section}>
-                <Text style={styles.sectionEyebrow}>SALARY HISTORY</Text>
+                <LocalizedText translate style={styles.sectionEyebrow}>SALARY HISTORY</LocalizedText>
                 {staff.salary_history && staff.salary_history.length > 0 ? (
                     staff.salary_history.map((payment, idx) => (
                         <View
@@ -285,27 +288,27 @@ const StaffProfileScreen = ({ route, navigation }) => {
                                 <Ionicons name="checkmark" size={15} color="#059669" />
                             </View>
                             <View style={styles.historyLeft}>
-                                <Text style={styles.historyMonth}>
+                                <LocalizedText style={styles.historyMonth}>
                                     {formatMonth(payment.month)}
-                                </Text>
-                                <Text style={styles.historyNotes}>
+                                </LocalizedText>
+                                <LocalizedText style={styles.historyNotes}>
                                     {payment.notes || 'No notes'}
-                                </Text>
+                                </LocalizedText>
                             </View>
                             <View style={styles.historyRight}>
-                                <Text style={styles.historyAmount}>
+                                <LocalizedText style={styles.historyAmount}>
                                     ₹{payment.amount.toLocaleString()}
-                                </Text>
-                                <Text style={styles.historyDate}>
+                                </LocalizedText>
+                                <LocalizedText style={styles.historyDate}>
                                     {new Date(payment.paid_date).toLocaleDateString()}
-                                </Text>
+                                </LocalizedText>
                             </View>
                         </View>
                     ))
                 ) : (
                     <View style={styles.emptyHistory}>
                         <Ionicons name="receipt-outline" size={28} color="#CBD5E1" />
-                        <Text style={styles.emptyHistoryText}>No salary payments recorded</Text>
+                        <LocalizedText translate style={styles.emptyHistoryText}>No salary payments recorded</LocalizedText>
                     </View>
                 )}
             </View>
@@ -317,7 +320,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                 onPress={() => setEditModalVisible(true)}
             >
                 <Ionicons name="create-outline" size={19} color="#059669" />
-                <Text style={styles.editButtonText}>Edit Staff</Text>
+                <LocalizedText translate style={styles.editButtonText}>Edit Staff</LocalizedText>
             </TouchableOpacity>
             <View style={{ height: 24 }} />
 
@@ -332,7 +335,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                     <View style={styles.modalContent}>
                         <View style={styles.modalHandle} />
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Edit Staff</Text>
+                            <LocalizedText translate style={styles.modalTitle}>Edit Staff</LocalizedText>
                             <TouchableOpacity
                                 style={styles.modalCloseBtn}
                                 onPress={() => setEditModalVisible(false)}
@@ -342,12 +345,12 @@ const StaffProfileScreen = ({ route, navigation }) => {
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            <Text style={styles.inputLabel}>Full Name</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Full Name</LocalizedText>
                             <View style={styles.inputWrap}>
                                 <Ionicons name="person-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Full Name *"
+                                    placeholder={localizeText("Full Name *", language)}
                                     placeholderTextColor="#B4BCC8"
                                     value={formData.name}
                                     onChangeText={(text) => setFormData({ ...formData, name: text })}
@@ -356,12 +359,12 @@ const StaffProfileScreen = ({ route, navigation }) => {
 
                             
 
-                            <Text style={styles.inputLabel}>Phone</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Phone</LocalizedText>
                             <View style={styles.inputWrap}>
                                 <Ionicons name="call-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Phone *"
+                                    placeholder={localizeText("Phone *", language)}
                                     placeholderTextColor="#B4BCC8"
                                     value={formData.phone}
                                     onChangeText={(text) => setFormData({ ...formData, phone: text })}
@@ -369,19 +372,19 @@ const StaffProfileScreen = ({ route, navigation }) => {
                                 />
                             </View>
 
-                            <Text style={styles.inputLabel}>Role</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Role</LocalizedText>
                             <View style={styles.inputWrap}>
                                 <Ionicons name="briefcase-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Role *"
+                                    placeholder={localizeText("Role *", language)}
                                     placeholderTextColor="#B4BCC8"
                                     value={formData.role}
                                     onChangeText={(text) => setFormData({ ...formData, role: text })}
                                 />
                             </View>
 
-                            <Text style={styles.inputLabel}>Joining Date</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Joining Date</LocalizedText>
                             <View style={styles.inputWrap}>
                                 <Ionicons name="calendar-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
                                 <TextInput
@@ -393,9 +396,9 @@ const StaffProfileScreen = ({ route, navigation }) => {
                                 />
                             </View>
 
-                            <Text style={styles.inputLabel}>Monthly Salary</Text>
+                            <LocalizedText translate style={styles.inputLabel}>Monthly Salary</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Text style={styles.inputPrefix}>₹</Text>
+                                <LocalizedText translate style={styles.inputPrefix}>₹</LocalizedText>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="0"
@@ -417,7 +420,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                                     end={{ x: 1, y: 0 }}
                                     style={styles.submitButton}
                                 >
-                                    <Text style={styles.submitButtonText}>Update Staff</Text>
+                                    <LocalizedText translate style={styles.submitButtonText}>Update Staff</LocalizedText>
                                 </LinearGradient>
                             </TouchableOpacity>
                             <View style={{ height: 12 }} />
@@ -437,7 +440,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                     <View style={styles.modalContent}>
                         <View style={styles.modalHandle} />
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Pay Salary</Text>
+                            <LocalizedText translate style={styles.modalTitle}>Pay Salary</LocalizedText>
                             <TouchableOpacity
                                 style={styles.modalCloseBtn}
                                 onPress={() => setPaymentModalVisible(false)}
@@ -448,19 +451,19 @@ const StaffProfileScreen = ({ route, navigation }) => {
 
                         <View style={styles.paymentInfoCard}>
                             <View style={styles.paymentInfoRow}>
-                                <Text style={styles.paymentInfoLabel}>Staff</Text>
-                                <Text style={styles.paymentInfoValue}>{staff.name}</Text>
+                                <LocalizedText translate style={styles.paymentInfoLabel}>Staff</LocalizedText>
+                                <LocalizedText style={styles.paymentInfoValue}>{staff.name}</LocalizedText>
                             </View>
                             <View style={styles.paymentInfoDivider} />
                             <View style={styles.paymentInfoRow}>
-                                <Text style={styles.paymentInfoLabel}>Month</Text>
-                                <Text style={styles.paymentInfoValue}>{new Date().toISOString().slice(0, 7)}</Text>
+                                <LocalizedText translate style={styles.paymentInfoLabel}>Month</LocalizedText>
+                                <LocalizedText style={styles.paymentInfoValue}>{new Date().toISOString().slice(0, 7)}</LocalizedText>
                             </View>
                         </View>
 
-                        <Text style={styles.inputLabel}>Amount</Text>
+                        <LocalizedText translate style={styles.inputLabel}>Amount</LocalizedText>
                         <View style={styles.inputWrap}>
-                            <Text style={styles.inputPrefix}>₹</Text>
+                            <LocalizedText translate style={styles.inputPrefix}>₹</LocalizedText>
                             <TextInput
                                 style={styles.input}
                                 placeholder="0"
@@ -471,11 +474,11 @@ const StaffProfileScreen = ({ route, navigation }) => {
                             />
                         </View>
 
-                        <Text style={styles.inputLabel}>Notes</Text>
+                        <LocalizedText translate style={styles.inputLabel}>Notes</LocalizedText>
                         <View style={styles.inputWrap}>
                             <TextInput
                                 style={[styles.input, styles.textArea]}
-                                placeholder="Optional"
+                                placeholder={localizeText("Optional", language)}
                                 placeholderTextColor="#B4BCC8"
                                 value={paymentNotes}
                                 onChangeText={setPaymentNotes}
@@ -495,7 +498,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                                 end={{ x: 1, y: 0 }}
                                 style={styles.submitButton}
                             >
-                                <Text style={styles.submitButtonText}>Mark as Paid</Text>
+                                <LocalizedText translate style={styles.submitButtonText}>Mark as Paid</LocalizedText>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>

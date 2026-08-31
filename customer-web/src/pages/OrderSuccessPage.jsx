@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { LanguageSelector, useLocale } from "../context/LocaleContext";
 
 export default function OrderSuccessPage() {
+  const { t } = useLocale();
   const { orderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -57,16 +59,16 @@ export default function OrderSuccessPage() {
     }}>
       
       <h1 style={{ fontSize: 36, fontWeight: 900, color: "#111827", marginBottom: 12 }}>
-        Order Placed!
+        {t("orderPlaced")}
       </h1>
       <p style={{ fontSize: 16, color: "#4B5563", maxWidth: 400, marginBottom: 40, lineHeight: 1.5 }}>
-        Your order has been sent to the kitchen. The restaurant will start preparing it shortly.
+        {t("orderSent")}
       </p>
 
       {timeLeft > 0 ? (
         <div style={{ marginBottom: 40, width: "100%", maxWidth: 300 }}>
           <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 8, fontWeight: 500 }}>
-            Edit window closes in
+            {t("editWindow")}
           </p>
           <div style={{ fontSize: 56, fontWeight: 900, color: "#111827", marginBottom: 20 }}>
             {timeLeft}s
@@ -88,11 +90,11 @@ export default function OrderSuccessPage() {
               boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
             }}
           >
-            Edit Order
+            {t("editOrder")}
           </button>
           
           <p style={{ fontSize: 13, color: "#9CA3AF", marginTop: 16 }}>
-            Go back to menu to modify your order
+            {t("editHelp")}
           </p>
         </div>
       ) : (
@@ -104,12 +106,12 @@ export default function OrderSuccessPage() {
           marginBottom: 40 
         }}>
           <p style={{ color: "#065F46", fontSize: 16, fontWeight: 700, margin: 0 }}>
-            🔥 Order is now being prepared!
+            {t("preparing")}
           </p>
         </div>
       )}
 
-      <p style={{ fontSize: 13, color: "#9CA3AF" }}>Order ID: {orderId}</p>
+      <p style={{ fontSize: 13, color: "#9CA3AF" }}>{t("orderId", { id: orderId })}</p>
 
       {/* Show a "Order More" button when the timer expires so they aren't stuck on this page forever */}
       {timeLeft === 0 && businessId && tableId && (
@@ -127,10 +129,11 @@ export default function OrderSuccessPage() {
             cursor: "pointer" 
           }}
         >
-          Order More Items
+          {t("orderMore")}
         </button>
       )}
 
+      <div style={{ position: "fixed", top: 12, right: 12 }}><LanguageSelector /></div>
     </div>
   );
 }

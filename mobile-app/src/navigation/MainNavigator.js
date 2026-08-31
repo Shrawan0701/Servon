@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
+import { useLocale } from "../context/LocaleContext";
 
 // Import your screens
 import DashboardScreen from "../screens/DashboardScreen";
@@ -29,6 +30,7 @@ const Stack = createNativeStackNavigator();
 function TabNavigator() {
   const insets = useSafeAreaInsets();
   const { isChefMode } = useAuth();
+  const { t } = useLocale();
 
   return (
     <Tab.Navigator
@@ -61,14 +63,14 @@ function TabNavigator() {
         }
       })}
     >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Orders" component={OrdersScreen} />
-      <Tab.Screen name="Menu" component={MenuScreen} />
-      <Tab.Screen name="Tables" component={TablesScreen} />
+      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: t("nav.dashboard") }} />
+      <Tab.Screen name="Orders" component={OrdersScreen} options={{ tabBarLabel: t("nav.orders") }} />
+      <Tab.Screen name="Menu" component={MenuScreen} options={{ tabBarLabel: t("nav.menu") }} />
+      <Tab.Screen name="Tables" component={TablesScreen} options={{ tabBarLabel: t("nav.tables") }} />
       
       {/* Hide Analytics completely if Chef Mode is active */}
       {!isChefMode && (
-        <Tab.Screen name="Analytics" component={AnalyticsScreen} />
+        <Tab.Screen name="Analytics" component={AnalyticsScreen} options={{ tabBarLabel: t("nav.analytics") }} />
       )}
     </Tab.Navigator>
   );
@@ -76,10 +78,11 @@ function TabNavigator() {
 
 // 2. The Main Wrapper
 export default function MainNavigator() {
+  const { t } = useLocale();
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Tabs" component={TabNavigator} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: t("profile.title") }} />
       <Stack.Screen name="Referrals" component={ReferralsScreen} />
       <Stack.Screen name="Reviews" component={ReviewsScreen} />
       <Stack.Screen 

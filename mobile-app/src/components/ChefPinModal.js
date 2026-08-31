@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { Modal, View, Text as NativeText, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import LocalizedText from "../components/LocalizedText";
 import { Ionicons } from '@expo/vector-icons';
 import { verifyAdminPin } from '../api';
 
@@ -42,8 +43,8 @@ export default function ChefPinModal({ visible, onClose, onSuccess }) {
           </TouchableOpacity>
           
           <Ionicons name="lock-closed" size={40} color="#111" style={{ alignSelf: 'center', marginBottom: 10 }} />
-          <Text style={styles.title}>Owner Access</Text>
-          <Text style={styles.subtitle}>Enter 4-digit PIN to exit Chef Mode</Text>
+          <LocalizedText translate style={styles.title}>Owner Access</LocalizedText>
+          <LocalizedText translate style={styles.subtitle}>Enter 4-digit PIN to exit Chef Mode</LocalizedText>
 
           <View style={styles.dotsContainer}>
             {[0, 1, 2, 3].map(i => (
@@ -51,18 +52,18 @@ export default function ChefPinModal({ visible, onClose, onSuccess }) {
             ))}
           </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <LocalizedText style={styles.error}>{error}</LocalizedText> : null}
           {loading ? <ActivityIndicator size="large" color="#111" style={{ marginVertical: 10 }} /> : null}
 
           <View style={styles.dialpad}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
               <TouchableOpacity key={num} style={styles.key} onPress={() => handlePress(num.toString())}>
-                <Text style={styles.keyText}>{num}</Text>
+                <LocalizedText style={styles.keyText}>{num}</LocalizedText>
               </TouchableOpacity>
             ))}
             <View style={styles.key} />
             <TouchableOpacity style={styles.key} onPress={() => handlePress("0")}>
-              <Text style={styles.keyText}>0</Text>
+              <LocalizedText translate style={styles.keyText}>0</LocalizedText>
             </TouchableOpacity>
             <TouchableOpacity style={styles.key} onPress={handleDelete}>
               <Ionicons name="backspace-outline" size={28} color="#111" />

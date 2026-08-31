@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   View,
-  Text,
+  Text as NativeText,
   ScrollView,
   StyleSheet,
   RefreshControl,
@@ -16,6 +16,8 @@ import {
   Animated,
   Easing,
 } from "react-native";
+import LocalizedText, { localizeText } from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { getAnalytics, getExpenses, addExpense, deleteExpense, updateExpense, askAdvisor } from "../api";
 import {
@@ -130,9 +132,9 @@ const renderHighlightedInsight = (text) => {
   const parts = text.split(HIGHLIGHT_RE).filter((p) => p !== undefined);
   return parts.map((part, i) =>
     HIGHLIGHT_RE.test(part) ? (
-      <Text key={i} style={advStyles.highlight}>{part}</Text>
+      <LocalizedText key={i} style={advStyles.highlight}>{part}</LocalizedText>
     ) : (
-      <Text key={i} style={advStyles.body}>{part}</Text>
+      <LocalizedText key={i} style={advStyles.body}>{part}</LocalizedText>
     )
   );
 };
@@ -169,9 +171,9 @@ function AnimatedNumber({ value, formatter, style, numberOfLines = 1 }) {
   }, [value]);
 
   return (
-    <Text style={style} numberOfLines={numberOfLines} adjustsFontSizeToFit>
+    <LocalizedText style={style} numberOfLines={numberOfLines} adjustsFontSizeToFit>
       {formatter(display)}
-    </Text>
+    </LocalizedText>
   );
 }
 
@@ -179,6 +181,7 @@ function AnimatedNumber({ value, formatter, style, numberOfLines = 1 }) {
 // ROOT SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function AnalyticsScreen() {
+  const { language } = useLocale();
   const [activeMainTab, setActiveMainTab] = useState("Analytics");
   const [data,          setData]          = useState(null);
   const [loading,       setLoading]       = useState(true);
@@ -226,7 +229,7 @@ export default function AnalyticsScreen() {
       setData(res.data);
     } catch (err) {
       console.error(err);
-      Alert.alert("Error", "Unable to load analytics. Please try again.");
+      Alert.alert(localizeText("Error", language), localizeText("Unable to load analytics. Please try again.", language));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -253,7 +256,7 @@ export default function AnalyticsScreen() {
 
     const token = await AsyncStorage.getItem("token");
     if (!token) {
-      Alert.alert("Session Expired", "Please log in again and retry the download.");
+      Alert.alert(localizeText("Session Expired", language), localizeText("Please log in again and retry the download.", language));
       return;
     }
 
@@ -303,7 +306,7 @@ export default function AnalyticsScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={ACCENT} />
-        <Text style={[styles.loadingText, { marginTop: 12 }]}>Refining your data...</Text>
+        <LocalizedText translate style={[styles.loadingText, { marginTop: 12 }]}>Refining your data...</LocalizedText>
       </View>
     );
   }
@@ -355,12 +358,12 @@ export default function AnalyticsScreen() {
 
   const goToAdvisor = () => {
     try { navigation.navigate("Advisor"); }
-    catch { Alert.alert("AI Advisor", "Open the AI Business Advisor tab for the full breakdown."); }
+    catch { Alert.alert(localizeText("AI Advisor", language), localizeText("Open the AI Business Advisor tab for the full breakdown.", language)); }
   };
 
   const goToAllItems = () => {
     try { navigation.navigate("Menu"); }
-    catch { Alert.alert("Top Items", "Full item list is available on the Menu screen."); }
+    catch { Alert.alert(localizeText("Top Items", language), localizeText("Full item list is available on the Menu screen.", language)); }
   };
 
   return (
@@ -375,7 +378,7 @@ export default function AnalyticsScreen() {
               onPress={() => setActiveMainTab(tab)}
             >
               <Ionicons name={tab === "Analytics" ? "bar-chart" : "receipt"} size={18} color={activeMainTab === tab ? "#fff" : TEXT_MUTED} />
-              <Text style={[styles.mainTabText, activeMainTab === tab && styles.mainTabTextActive]}>{tab}</Text>
+              <LocalizedText style={[styles.mainTabText, activeMainTab === tab && styles.mainTabTextActive]}>{tab}</LocalizedText>
             </TouchableOpacity>
           ))}
         </View>
@@ -392,9 +395,9 @@ export default function AnalyticsScreen() {
           {/* HEADER */}
           <View style={[styles.header, { paddingHorizontal: H_PAD }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>Performance Overview</Text>
-              <Text style={styles.headerTitle}>Analytics</Text>
-              <Text style={styles.headerSub}>{startDate} — {endDate}</Text>
+              <LocalizedText translate style={styles.greeting}>Performance Overview</LocalizedText>
+              <LocalizedText translate style={styles.headerTitle}>Analytics</LocalizedText>
+              <LocalizedText style={styles.headerSub}>{startDate} — {endDate}</LocalizedText>
             </View>
             <TouchableOpacity style={styles.refreshBtn} onPress={() => { setRefreshing(true); loadAnalytics(); }} activeOpacity={0.7}>
               <Ionicons name="sync" size={20} color={PRIMARY} />
@@ -418,7 +421,7 @@ export default function AnalyticsScreen() {
           <View style={[styles.splitWorkspace, { paddingHorizontal: H_PAD }, isMobileView && { flexDirection: "column" }]}>
             <View style={isMobileView ? { width: "100%" } : { flex: 1.5 }}>
               <View style={styles.chartHeaderRow}>
-                <Text style={styles.premiumCardTitle}>Sales Overview</Text>
+                <LocalizedText translate style={styles.premiumCardTitle}>Sales Overview</LocalizedText>
                 <View style={styles.periodTabs}>
                   {[["daily", "Day"], ["weekly", "Week"], ["monthly", "Month"]].map(([key, label]) => (
                     <TouchableOpacity
@@ -426,7 +429,7 @@ export default function AnalyticsScreen() {
                       style={[styles.periodTab, chartPeriod === key && styles.periodTabActive]}
                       onPress={() => setChartPeriod(key)}
                     >
-                      <Text style={[styles.periodTabText, chartPeriod === key && styles.periodTabTextActive]}>{label}</Text>
+                      <LocalizedText style={[styles.periodTabText, chartPeriod === key && styles.periodTabTextActive]}>{label}</LocalizedText>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -479,20 +482,20 @@ export default function AnalyticsScreen() {
                 {activeDay && (
                   <View style={styles.chartInfoCard}>
                     <View>
-                      <Text style={styles.chartInfoDate}>
+                      <LocalizedText style={styles.chartInfoDate}>
                         {chartPeriod === "daily"
                           ? new Date(activeDay.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
                           : activeDay.x}
-                      </Text>
-                      <Text style={styles.chartInfoSub}>{activeDay.orders} {activeDay.orders === 1 ? "order" : "orders"}</Text>
+                      </LocalizedText>
+                      <LocalizedText style={styles.chartInfoSub}>{activeDay.orders} {activeDay.orders === 1 ? "order" : "orders"}</LocalizedText>
                     </View>
-                    <Text style={styles.chartInfoValue}>₹{activeDay.y.toLocaleString("en-IN")}</Text>
+                    <LocalizedText style={styles.chartInfoValue}>₹{activeDay.y.toLocaleString("en-IN")}</LocalizedText>
                   </View>
                 )}
                 {revenueChartData.length === 0 || revenueChartData.every(d => d.y === 0) ? (
                   <View style={styles.chartEmpty}>
                     <Ionicons name="trending-up-outline" size={36} color={TEXT_FAINT} />
-                    <Text style={styles.chartEmptyText}>No sales activity recorded</Text>
+                    <LocalizedText translate style={styles.chartEmptyText}>No sales activity recorded</LocalizedText>
                   </View>
                 ) : null}
               </View>
@@ -500,9 +503,9 @@ export default function AnalyticsScreen() {
 
             <View style={isMobileView ? { width: "100%", marginTop: 28 } : { flex: 1 }}>
               <View style={styles.topItemsHeaderRow}>
-                <Text style={styles.premiumCardTitle}>Top Items</Text>
+                <LocalizedText translate style={styles.premiumCardTitle}>Top Items</LocalizedText>
                 <TouchableOpacity onPress={goToAllItems} activeOpacity={0.7}>
-                  <Text style={styles.viewAllText}>View all</Text>
+                  <LocalizedText translate style={styles.viewAllText}>View all</LocalizedText>
                 </TouchableOpacity>
               </View>
               <View style={styles.premiumCard}>
@@ -511,17 +514,17 @@ export default function AnalyticsScreen() {
                     const pct = maxQty > 0 ? (parseInt(item.total_qty) || 0) / maxQty : 0;
                     return (
                       <View key={i} style={[styles.itemRow, i === topItems.length - 1 && { marginBottom: 0 }]}>
-                        <Text style={styles.itemRank}>{i + 1}.</Text>
-                        <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                        <LocalizedText style={styles.itemRank}>{i + 1}.</LocalizedText>
+                        <LocalizedText style={styles.itemName} numberOfLines={1}>{item.name}</LocalizedText>
                         <View style={styles.progressTrack}>
                           <View style={[styles.progressFill, { width: `${pct * 100}%` }]} />
                         </View>
-                        <Text style={styles.itemQty}>{item.total_qty}</Text>
+                        <LocalizedText style={styles.itemQty}>{item.total_qty}</LocalizedText>
                       </View>
                     );
                   })
                 ) : (
-                  <View style={styles.emptyItems}><Text style={styles.emptyText}>Data compiling...</Text></View>
+                  <View style={styles.emptyItems}><LocalizedText translate style={styles.emptyText}>Data compiling...</LocalizedText></View>
                 )}
               </View>
             </View>
@@ -542,13 +545,13 @@ export default function AnalyticsScreen() {
             <SectionHeader title="Report Extraction Hub" subtitle="Export authenticated data ledgers" icon="cloud-download-outline" />
             <View style={[styles.premiumCard, !isMobileView && styles.webReportCardRow]}>
               <View style={[!isMobileView && { flex: 1, marginRight: 24 }]}>
-                <Text style={styles.fieldLabel}>CHOOSE PERIOD TIME RANGE</Text>
+                <LocalizedText translate style={styles.fieldLabel}>CHOOSE PERIOD TIME RANGE</LocalizedText>
                 <View style={styles.rangeSelector}>
                   {[7, 30, 90].map((d) => {
                     const isActive = startDate === toDateStr(new Date(Date.now() - d * 86400000));
                     return (
                       <TouchableOpacity key={d} style={[styles.rangeTab, isActive && styles.rangeTabActive]} onPress={() => handleRangeSelect(d)}>
-                        <Text style={[styles.rangeTabText, isActive && { color: "#fff" }]}>{d} Days</Text>
+                        <LocalizedText style={[styles.rangeTabText, isActive && { color: "#fff" }]}>{d} Days</LocalizedText>
                       </TouchableOpacity>
                     );
                   })}
@@ -556,11 +559,11 @@ export default function AnalyticsScreen() {
               </View>
               <View style={[!isMobileView && styles.webReportBtnStack, isMobileView && { gap: 12, marginTop: 12 }]}>
                 <TouchableOpacity style={[styles.exportBtn, downloading && { opacity: 0.7 }]} onPress={() => downloadReport("pdf")} disabled={downloading}>
-                  {downloading ? <ActivityIndicator color="#fff" /> : <><Ionicons name="document-text" size={20} color="#fff" /><Text style={styles.exportBtnText}>Export PDF Document</Text></>}
+                  {downloading ? <ActivityIndicator color="#fff" /> : <><Ionicons name="document-text" size={20} color="#fff" /><LocalizedText translate style={styles.exportBtnText}>Export PDF Document</LocalizedText></>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.csvBtn} onPress={() => downloadReport("csv")}>
                   <Ionicons name="grid-outline" size={18} color={PRIMARY} />
-                  <Text style={styles.csvBtnText}>Extract CSV Spreadsheet</Text>
+                  <LocalizedText translate style={styles.csvBtnText}>Extract CSV Spreadsheet</LocalizedText>
                 </TouchableOpacity>
               </View>
             </View>
@@ -586,7 +589,7 @@ function SectionHeader({ title, subtitle, icon }) {
   return (
     <View style={secStyles.container}>
       <View style={secStyles.iconBox}><Ionicons name={icon} size={18} color={PRIMARY} /></View>
-      <View style={{ flex: 1 }}><Text style={secStyles.title}>{title}</Text><Text style={secStyles.sub}>{subtitle}</Text></View>
+      <View style={{ flex: 1 }}><LocalizedText style={secStyles.title}>{title}</LocalizedText><LocalizedText style={secStyles.sub}>{subtitle}</LocalizedText></View>
     </View>
   );
 }
@@ -607,7 +610,7 @@ function KPICard({ label, rawValue, formatter, trend, icon, color, bg, isMobile 
   return (
     <View style={[styles.kpiCard, isMobile ? styles.kpiCardMobile : styles.kpiCardWeb]}>
       <View style={styles.kpiTopRow}>
-        <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
+        <LocalizedText style={styles.kpiLabel} numberOfLines={1}>{label}</LocalizedText>
         <View style={[styles.kpiIconBox, { backgroundColor: bg }]}>
           <Ionicons name={icon} size={16} color={color} />
         </View>
@@ -616,9 +619,9 @@ function KPICard({ label, rawValue, formatter, trend, icon, color, bg, isMobile 
       {hasTrend && (
         <View style={styles.trendRow}>
           <Ionicons name={isUp ? "arrow-up" : "arrow-down"} size={11} color={isUp ? ACCENT : DANGER} />
-          <Text style={[styles.trendText, { color: isUp ? ACCENT : DANGER }]}>
+          <LocalizedText style={[styles.trendText, { color: isUp ? ACCENT : DANGER }]}>
             {Math.abs(trend).toFixed(1)}% vs yesterday
-          </Text>
+          </LocalizedText>
         </View>
       )}
     </View>
@@ -632,17 +635,17 @@ function TablesCard({ occupied, total, hasData, isMobile }) {
   return (
     <View style={[styles.kpiCard, isMobile ? styles.kpiCardMobile : styles.kpiCardWeb]}>
       <View style={styles.kpiTopRow}>
-        <Text style={styles.kpiLabel} numberOfLines={1}>Tables Occupied</Text>
+        <LocalizedText translate style={styles.kpiLabel} numberOfLines={1}>Tables Occupied</LocalizedText>
         <View style={[styles.kpiIconBox, { backgroundColor: "#F5F3FF" }]}>
           <Ionicons name="restaurant" size={16} color="#8B5CF6" />
         </View>
       </View>
-      <Text style={styles.kpiValue} numberOfLines={1}>
+      <LocalizedText style={styles.kpiValue} numberOfLines={1}>
         {hasData ? `${occupied}/${total}` : "—/—"}
-      </Text>
+      </LocalizedText>
       <View style={styles.liveBadge}>
         <View style={styles.liveDot} />
-        <Text style={styles.liveBadgeText}>{hasData ? "Live" : "Awaiting data"}</Text>
+        <LocalizedText style={styles.liveBadgeText}>{hasData ? "Live" : "Awaiting data"}</LocalizedText>
       </View>
     </View>
   );
@@ -658,11 +661,11 @@ function AdvisorCard({ insight, onViewMore }) {
         <View style={advStyles.iconBox}>
           <Ionicons name="sparkles" size={16} color={ACCENT} />
         </View>
-        <Text style={advStyles.eyebrow}>AI Business Advisor</Text>
+        <LocalizedText translate style={advStyles.eyebrow}>AI Business Advisor</LocalizedText>
       </View>
-      <Text style={advStyles.insight}>{renderHighlightedInsight(insight)}</Text>
+      <LocalizedText style={advStyles.insight}>{renderHighlightedInsight(insight)}</LocalizedText>
       <TouchableOpacity style={advStyles.linkBtn} onPress={onViewMore} activeOpacity={0.8}>
-        <Text style={advStyles.linkText}>View Full Insights</Text>
+        <LocalizedText translate style={advStyles.linkText}>View Full Insights</LocalizedText>
       </TouchableOpacity>
     </View>
   );
@@ -684,6 +687,7 @@ const advStyles = StyleSheet.create({
 // ASK ADVISOR BOX (FIXED - Actually Sends Questions)
 // ═══════════════════════════════════════════════════════════════════════════════
 function AskAdvisorBox() {
+  const { language } = useLocale();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState(null);
@@ -703,7 +707,7 @@ function AskAdvisorBox() {
       setQuery("");
     } catch (error) {
       console.error("❌ Advisor error:", error);
-      Alert.alert("Error", "Could not get response. Please try again.");
+      Alert.alert(localizeText("Error", language), localizeText("Could not get response. Please try again.", language));
     } finally {
       setLoading(false);
     }
@@ -716,7 +720,7 @@ function AskAdvisorBox() {
           style={askStyles.input}
           value={query}
           onChangeText={setQuery}
-          placeholder="Ask anything about your business..."
+          placeholder={localizeText("Ask anything about your business...", language)}
           placeholderTextColor={TEXT_FAINT}
           onSubmitEditing={submit}
           returnKeyType="send"
@@ -740,16 +744,16 @@ function AskAdvisorBox() {
         <View style={askStyles.responseContainer}>
           <View style={askStyles.responseHeader}>
             <Ionicons name="sparkles" size={14} color={ACCENT} />
-            <Text style={askStyles.responseLabel}>AI Response</Text>
+            <LocalizedText translate style={askStyles.responseLabel}>AI Response</LocalizedText>
           </View>
-          <Text style={askStyles.responseText} numberOfLines={4} ellipsizeMode="tail">
+          <LocalizedText style={askStyles.responseText} numberOfLines={4} ellipsizeMode="tail">
             {response.answer || response.message}
-          </Text>
+          </LocalizedText>
           <TouchableOpacity 
             style={askStyles.viewFullBtn}
             onPress={() => navigation.navigate("Advisor")}
           >
-            <Text style={askStyles.viewFullText}>View Full Conversation</Text>
+            <LocalizedText translate style={askStyles.viewFullText}>View Full Conversation</LocalizedText>
             <Ionicons name="arrow-forward" size={12} color={ACCENT} />
           </TouchableOpacity>
         </View>
@@ -984,9 +988,9 @@ function ExpensesTab() {
     if (Platform.OS === "web") {
       if (window.confirm(msg)) confirmDelete(exp.id);
     } else {
-      Alert.alert("Delete Expense", msg, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => confirmDelete(exp.id) },
+      Alert.alert(localizeText("Delete Expense", language), msg, [
+        { text: localizeText("Cancel", language), style: "cancel" },
+        { text: localizeText("Delete", language), style: "destructive", onPress: () => confirmDelete(exp.id) },
       ]);
     }
   };
@@ -994,7 +998,7 @@ function ExpensesTab() {
   const confirmDelete = async (id) => {
     setDeleting(id);
     try { await deleteExpense(id); load(); }
-    catch { Alert.alert("Error", "Could not delete expense. Try again."); }
+    catch { Alert.alert(localizeText("Error", language), localizeText("Could not delete expense. Try again.", language)); }
     finally { setDeleting(null); }
   };
 
@@ -1003,7 +1007,7 @@ function ExpensesTab() {
 
   const exportCSV = async () => {
   if (!expenses.length) {
-    Alert.alert("No Data", "No expenses to export.");
+    Alert.alert(localizeText("No Data", language), localizeText("No expenses to export.", language));
     return;
   }
   setExporting(true);
@@ -1113,7 +1117,7 @@ const hotelDisplayName = (
     }
   } catch (err) {
     console.error("CSV Export Error:", err);
-    Alert.alert("Export Error", "Could not export CSV. Please try again.");
+    Alert.alert(localizeText("Export Error", language), localizeText("Could not export CSV. Please try again.", language));
   } finally {
     setExporting(false);
   }
@@ -1121,7 +1125,7 @@ const hotelDisplayName = (
 
  const exportPDF = async () => {
   if (!expenses.length) {
-    Alert.alert("No Data", "No expenses to export.");
+    Alert.alert(localizeText("No Data", language), localizeText("No expenses to export.", language));
     return;
   }
   setExporting(true);
@@ -1344,7 +1348,7 @@ const hotelDisplayName = (
     }
   } catch (err) {
     console.error("PDF error:", err);
-    Alert.alert("Export Error", "Could not generate PDF. Please try again.");
+    Alert.alert(localizeText("Export Error", language), localizeText("Could not generate PDF. Please try again.", language));
   } finally {
     setExporting(false);
   }
@@ -1373,42 +1377,42 @@ const hotelDisplayName = (
         
         <View style={[isDesktop ? { width: 360, marginRight: 24 } : { width: "100%" }]}>
           <View style={FL.totalsBanner}>
-            <Text style={FL.panelHeaderTitle}>Financial Summary</Text>
+            <LocalizedText translate style={FL.panelHeaderTitle}>Financial Summary</LocalizedText>
             
             <View style={FL.totalsRow}>
               <View style={[FL.totalsIcon, { backgroundColor: "#ECFDF5" }]}><Ionicons name="trending-up" size={14} color={FL_GREEN} /></View>
-              <Text style={FL.totalsLabel}>TOTAL REVENUE</Text>
-              <Text style={[FL.totalsValue, { color: FL_GREEN }]}>{fmt(totalSales)}</Text>
+              <LocalizedText translate style={FL.totalsLabel}>TOTAL REVENUE</LocalizedText>
+              <LocalizedText style={[FL.totalsValue, { color: FL_GREEN }]}>{fmt(totalSales)}</LocalizedText>
             </View>
             
             <View style={FL.totalsRow}>
               <View style={[FL.totalsIcon, { backgroundColor: "#FEF2F2" }]}><Ionicons name="trending-down" size={14} color={FL_RED} /></View>
-              <Text style={FL.totalsLabel}>ACCUMULATED EXPENSES</Text>
-              <Text style={[FL.totalsValue, { color: FL_RED }]}>{fmt(grandTotal)}</Text>
+              <LocalizedText translate style={FL.totalsLabel}>ACCUMULATED EXPENSES</LocalizedText>
+              <LocalizedText style={[FL.totalsValue, { color: FL_RED }]}>{fmt(grandTotal)}</LocalizedText>
             </View>
             
             <View style={FL.netProfitContainer}>
               <View style={[FL.totalsIcon, { backgroundColor: netProfit >= 0 ? "#ECFDF5" : "#FEF2F2" }]}>
                 <Ionicons name={netProfit >= 0 ? "checkmark-circle" : "alert-circle"} size={14} color={netProfit >= 0 ? FL_GREEN : FL_RED} />
               </View>
-              <Text style={FL.totalsLabel}>NET OPERATION PROFIT</Text>
-              <Text style={[FL.totalsValue, { color: netProfit >= 0 ? FL_GREEN : FL_RED }]}>{netProfit >= 0 ? "" : "-"}{fmt(Math.abs(netProfit))}</Text>
+              <LocalizedText translate style={FL.totalsLabel}>NET OPERATION PROFIT</LocalizedText>
+              <LocalizedText style={[FL.totalsValue, { color: netProfit >= 0 ? FL_GREEN : FL_RED }]}>{netProfit >= 0 ? "" : "-"}{fmt(Math.abs(netProfit))}</LocalizedText>
             </View>
           </View>
 
           <View style={FL.controlContainerCard}>
-            <Text style={FL.panelHeaderTitle}>Filter Horizon</Text>
+            <LocalizedText translate style={FL.panelHeaderTitle}>Filter Horizon</LocalizedText>
             <View style={FL.tabRow}>
               {["Sales", "Expenses"].map((t) => (
                 <TouchableOpacity key={t} style={[FL.tabBtn, ledgerTab === t && FL.tabBtnActive]} onPress={() => setLedgerTab(t)}>
-                  <Text style={[FL.tabBtnText, ledgerTab === t && FL.tabBtnTextActive]}>{t}</Text>
+                  <LocalizedText style={[FL.tabBtnText, ledgerTab === t && FL.tabBtnTextActive]}>{t}</LocalizedText>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={FL.periodRow}>
               {PERIODS.map((p) => (
                 <TouchableOpacity key={p} style={[FL.periodChip, period === p && FL.periodChipActive]} onPress={() => setPeriod(p)}>
-                  <Text style={[FL.periodChipText, period === p && FL.periodChipTextActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+                  <LocalizedText style={[FL.periodChipText, period === p && FL.periodChipTextActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</LocalizedText>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1417,14 +1421,14 @@ const hotelDisplayName = (
 
         <View style={FL.listStreamContainer}>
           <View style={FL.ledgerHeaderRow}>
-            <Text style={FL.sectionTitleLabel}>{ledgerTab} Records</Text>
+            <LocalizedText style={FL.sectionTitleLabel}>{ledgerTab} Records</LocalizedText>
             {ledgerTab === "Expenses" && (
               <View style={FL.exportRow}>
                 <TouchableOpacity style={[FL.exportBtn, { backgroundColor: FL_DARK }, exporting && { opacity: 0.5 }]} onPress={exportPDF} disabled={exporting}>
-                  {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-text-outline" size={14} color="#fff" /><Text style={FL.exportBtnText}>PDF</Text></>}
+                  {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-text-outline" size={14} color="#fff" /><LocalizedText translate style={FL.exportBtnText}>PDF</LocalizedText></>}
                 </TouchableOpacity>
                 <TouchableOpacity style={[FL.exportBtn, { backgroundColor: "#059669" }, exporting && { opacity: 0.5 }]} onPress={exportCSV} disabled={exporting}>
-                  {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-outline" size={14} color="#fff" /><Text style={FL.exportBtnText}>CSV</Text></>}
+                  {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-outline" size={14} color="#fff" /><LocalizedText translate style={FL.exportBtnText}>CSV</LocalizedText></>}
                 </TouchableOpacity>
               </View>
             )}
@@ -1440,27 +1444,27 @@ const hotelDisplayName = (
               !salesList.length ? (
                 <View style={FL.emptyWrap}>
                   <View style={FL.emptyIconBox}><Ionicons name="cash-outline" size={32} color="#94A3B8" /></View>
-                  <Text style={FL.emptyTitle}>No transactions recorded</Text>
-                  <Text style={FL.emptySub}>Sales tracks automatically materialize here as client orders are processed.</Text>
+                  <LocalizedText translate style={FL.emptyTitle}>No transactions recorded</LocalizedText>
+                  <LocalizedText translate style={FL.emptySub}>Sales tracks automatically materialize here as client orders are processed.</LocalizedText>
                 </View>
               ) : (
                 salesList.map((sale, i) => (
                   <View key={i} style={FL.expRow}>
-                    <View style={FL.dateBlock}><Text style={FL.dateDay}>{dayOf(sale.date)}</Text><Text style={FL.dateMon}>{monOf(sale.date)}</Text></View>
+                    <View style={FL.dateBlock}><LocalizedText style={FL.dateDay}>{dayOf(sale.date)}</LocalizedText><LocalizedText style={FL.dateMon}>{monOf(sale.date)}</LocalizedText></View>
                     <View style={[FL.catIconBox, { backgroundColor: "#ECFDF5" }]}><Ionicons name="receipt" size={18} color={FL_GREEN} /></View>
                     <View style={{ flex: 1 }}>
-                      <Text style={FL.expCat}>{sale.orders} {sale.orders === 1 ? "order" : "orders"}</Text>
-                      <Text style={FL.expDesc}>Daily incoming operational revenue</Text>
+                      <LocalizedText style={FL.expCat}>{sale.orders} {sale.orders === 1 ? "order" : "orders"}</LocalizedText>
+                      <LocalizedText translate style={FL.expDesc}>Daily incoming operational revenue</LocalizedText>
                     </View>
-                    <Text style={[FL.expAmt, { color: FL_GREEN }]}>+{fmt(sale.revenue)}</Text>
+                    <LocalizedText style={[FL.expAmt, { color: FL_GREEN }]}>+{fmt(sale.revenue)}</LocalizedText>
                   </View>
                 ))
               )
             ) : !expenses.length ? (
               <View style={FL.emptyWrap}>
                 <View style={FL.emptyIconBox}><Ionicons name="receipt-outline" size={32} color="#94A3B8" /></View>
-                <Text style={FL.emptyTitle}>Log clear</Text>
-                <Text style={FL.emptySub}>No metrics listed for this horizon window view.</Text>
+                <LocalizedText translate style={FL.emptyTitle}>Log clear</LocalizedText>
+                <LocalizedText translate style={FL.emptySub}>No metrics listed for this horizon window view.</LocalizedText>
               </View>
             ) : (
               expenses.map((exp) => {
@@ -1468,20 +1472,20 @@ const hotelDisplayName = (
                 const isDeleting = deleting === exp.id;
                 return (
                   <View key={exp.id} style={FL.expRow}>
-                    <View style={FL.dateBlock}><Text style={FL.dateDay}>{dayOf(exp.expense_date)}</Text><Text style={FL.dateMon}>{monOf(exp.expense_date)}</Text></View>
+                    <View style={FL.dateBlock}><LocalizedText style={FL.dateDay}>{dayOf(exp.expense_date)}</LocalizedText><LocalizedText style={FL.dateMon}>{monOf(exp.expense_date)}</LocalizedText></View>
                     <View style={[FL.catIconBox, { backgroundColor: cat.bg }]}><Ionicons name={cat.icon} size={18} color={cat.color} /></View>
                     <View style={{ flex: 1, marginRight: 8 }}>
-                      <Text style={FL.expCat} numberOfLines={1}>{exp.category}</Text>
-                      <Text style={FL.expDesc} numberOfLines={1}>{exp.description || cat.desc}</Text>
+                      <LocalizedText style={FL.expCat} numberOfLines={1}>{exp.category}</LocalizedText>
+                      <LocalizedText style={FL.expDesc} numberOfLines={1}>{exp.description || cat.desc}</LocalizedText>
                       {exp.receipt_url && (
                         <View style={FL.receiptBadge}>
                           <Ionicons name="camera" size={10} color="#3B82F6" />
-                          <Text style={FL.receiptBadgeText}>invoice link</Text>
+                          <LocalizedText translate style={FL.receiptBadgeText}>invoice link</LocalizedText>
                         </View>
                       )}
                     </View>
                     <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
-                      <Text style={FL.expAmt}>-{fmt(exp.amount)}</Text>
+                      <LocalizedText style={FL.expAmt}>-{fmt(exp.amount)}</LocalizedText>
                       <View style={FL.rowActions}>
                         <TouchableOpacity style={FL.editBtn} onPress={() => handleEdit(exp)} disabled={isDeleting}><Ionicons name="pencil" size={13} color="#3B82F6" /></TouchableOpacity>
                         <TouchableOpacity style={FL.deleteBtn} onPress={() => handleDelete(exp)} disabled={isDeleting}>
@@ -1500,7 +1504,7 @@ const hotelDisplayName = (
 
       <TouchableOpacity style={FL.fab} onPress={handleAddNew} activeOpacity={0.85}>
         <Ionicons name="add" size={20} color="#fff" />
-        <Text style={FL.fabText}>LOG EXPENSE</Text>
+        <LocalizedText translate style={FL.fabText}>LOG EXPENSE</LocalizedText>
       </TouchableOpacity>
 
       <ExpenseModal
@@ -1517,6 +1521,7 @@ const hotelDisplayName = (
 // EXPENSE MODAL (Keeping your existing code)
 // ═══════════════════════════════════════════════════════════════════════════════
 function ExpenseModal({ visible, expense, onClose, onSaved }) {
+  const { language } = useLocale();
   const isEdit = !!expense;
 
   const [category,        setCategory]        = useState(CATEGORIES[0].key);
@@ -1563,7 +1568,7 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
       if (Platform.OS !== "web") {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== "granted") {
-          Alert.alert("Permission Required", "Please allow photo library access in Settings.");
+          Alert.alert(localizeText("Permission Required", language), localizeText("Please allow photo library access in Settings.", language));
           return;
         }
       }
@@ -1578,13 +1583,13 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
         setSavedReceiptUrl(null);
       }
     } catch {
-      Alert.alert("Error", "Could not open photo library.");
+      Alert.alert(localizeText("Error", language), localizeText("Could not open photo library.", language));
     }
   };
 
   const handleSave = async () => {
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0)
-      return Alert.alert("Invalid Amount", "Please enter a valid amount greater than 0.");
+      return Alert.alert(localizeText("Invalid Amount", language), localizeText("Please enter a valid amount greater than 0.", language));
 
     setSaving(true);
     try {
@@ -1649,18 +1654,18 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
 
             <View style={[MD.titleBar, IS_WEB && { borderTopLeftRadius: 16, borderTopRightRadius: 16 }]}>
               <Ionicons name={isEdit ? "pencil" : "add-circle"} size={18} color="#fff" />
-              <Text style={MD.titleText}>{isEdit ? "EDIT EXPENSE LOG" : "LOG SYSTEM EXPENSE"}</Text>
+              <LocalizedText style={MD.titleText}>{isEdit ? "EDIT EXPENSE LOG" : "LOG SYSTEM EXPENSE"}</LocalizedText>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ paddingHorizontal: 20 }}>
 
               <View style={{ marginTop: 20 }}>
-                <Text style={MD.fieldLabel}>EXPENSE CATEGORY</Text>
+                <LocalizedText translate style={MD.fieldLabel}>EXPENSE CATEGORY</LocalizedText>
                 <TouchableOpacity style={MD.dropdown} onPress={() => setDropOpen(!dropOpen)} activeOpacity={0.8}>
                   <View style={[MD.dropIconBox, { backgroundColor: selectedCat.bg }]}>
                     <Ionicons name={selectedCat.icon} size={16} color={selectedCat.color} />
                   </View>
-                  <Text style={MD.dropText}>{category}</Text>
+                  <LocalizedText style={MD.dropText}>{category}</LocalizedText>
                   <Ionicons name={dropOpen ? "chevron-up" : "chevron-down"} size={18} color={FL_DARK} />
                 </TouchableOpacity>
                 {dropOpen && (
@@ -1675,8 +1680,8 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                           <Ionicons name={cat.icon} size={16} color={cat.color} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={[MD.dropItemText, category === cat.key && { fontWeight: "700", color: FL_DARK }]}>{cat.key}</Text>
-                          <Text style={MD.dropItemDesc}>{cat.desc}</Text>
+                          <LocalizedText style={[MD.dropItemText, category === cat.key && { fontWeight: "700", color: FL_DARK }]}>{cat.key}</LocalizedText>
+                          <LocalizedText style={MD.dropItemDesc}>{cat.desc}</LocalizedText>
                         </View>
                         {category === cat.key && <Ionicons name="checkmark-circle" size={18} color={FL_GREEN} />}
                       </TouchableOpacity>
@@ -1686,7 +1691,7 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
               </View>
 
               <View style={{ marginTop: 24 }}>
-                <Text style={MD.fieldLabel}>VALUATION AMOUNT (INR)</Text>
+                <LocalizedText translate style={MD.fieldLabel}>VALUATION AMOUNT (INR)</LocalizedText>
                 <TextInput
                   style={MD.amountInput}
                   value={amount}
@@ -1699,12 +1704,12 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
               </View>
 
               <View style={{ marginTop: 20 }}>
-                <Text style={MD.fieldLabel}>TRANSACTION MEMO / NOTE</Text>
+                <LocalizedText translate style={MD.fieldLabel}>TRANSACTION MEMO / NOTE</LocalizedText>
                 <TextInput
                   style={MD.noteInput}
                   value={note}
                   onChangeText={setNote}
-                  placeholder="Provide transaction contexts..."
+                  placeholder={localizeText("Provide transaction contexts...", language)}
                   placeholderTextColor="#94A3B8"
                   multiline
                 />
@@ -1714,7 +1719,7 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
               <View style={MD.dateRow}>
                 <View style={MD.dateIconBox}><Ionicons name="calendar" size={16} color={FL_DARK} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={MD.datePre}>RECORD POST DATE</Text>
+                  <LocalizedText translate style={MD.datePre}>RECORD POST DATE</LocalizedText>
                   <TextInput
                     style={MD.dateInput}
                     value={date}
@@ -1724,21 +1729,21 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                     keyboardType="numeric"
                   />
                 </View>
-                <Text style={MD.dateLabelSmall}>{dateLabel}</Text>
+                <LocalizedText style={MD.dateLabelSmall}>{dateLabel}</LocalizedText>
               </View>
 
               <View style={{ marginBottom: 24 }}>
-                <Text style={MD.fieldLabel}>SUPPORTING INVOICE SLIP (OPTIONAL)</Text>
+                <LocalizedText translate style={MD.fieldLabel}>SUPPORTING INVOICE SLIP (OPTIONAL)</LocalizedText>
                 {thumbUri ? (
                   <View style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
                     <Image source={{ uri: thumbUri }} style={{ width: "100%", height: 140 }} resizeMode="cover" />
                     <TouchableOpacity onPress={() => openPreview(thumbUri)} style={MD.imgOverlayLeft}>
                       <Ionicons name="eye-outline" size={12} color="#fff" />
-                      <Text style={MD.imgOverlayText}>Inspect</Text>
+                      <LocalizedText translate style={MD.imgOverlayText}>Inspect</LocalizedText>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={pickReceipt} style={MD.imgOverlayRight}>
                       <Ionicons name="camera" size={12} color="#fff" />
-                      <Text style={MD.imgOverlayText}>Replace</Text>
+                      <LocalizedText translate style={MD.imgOverlayText}>Replace</LocalizedText>
                     </TouchableOpacity>
                     <TouchableOpacity style={MD.imgRemoveBtn} onPress={() => { setReceipt(null); setSavedReceiptUrl(null); }}>
                       <Ionicons name="close-circle" size={24} color={FL_RED} />
@@ -1748,8 +1753,8 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                   <TouchableOpacity style={MD.receiptBtn} onPress={pickReceipt} activeOpacity={0.8}>
                     <View style={MD.receiptIconBox}><Ionicons name="camera" size={18} color="#fff" /></View>
                     <View style={{ flex: 1 }}>
-                      <Text style={MD.receiptTitle}>ATTACH INVOICE RECEIPT</Text>
-                      <Text style={MD.receiptSub}>Click to deploy visual validation file</Text>
+                      <LocalizedText translate style={MD.receiptTitle}>ATTACH INVOICE RECEIPT</LocalizedText>
+                      <LocalizedText translate style={MD.receiptSub}>Click to deploy visual validation file</LocalizedText>
                     </View>
                   </TouchableOpacity>
                 )}
@@ -1757,14 +1762,14 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
 
               <View style={MD.actionRow}>
                 <TouchableOpacity style={MD.cancelBtn} onPress={handleClose}>
-                  <Text style={MD.cancelText}>Dismiss</Text>
+                  <LocalizedText translate style={MD.cancelText}>Dismiss</LocalizedText>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[MD.confirmBtn, (!amount || saving) && { opacity: 0.5 }]}
                   onPress={handleSave}
                   disabled={!amount || saving}
                 >
-                  {saving ? <ActivityIndicator color="#fff" /> : <Text style={MD.confirmText}>{isEdit ? "Update" : "Confirm Entry"}</Text>}
+                  {saving ? <ActivityIndicator color="#fff" /> : <LocalizedText style={MD.confirmText}>{isEdit ? "Update" : "Confirm Entry"}</LocalizedText>}
                 </TouchableOpacity>
               </View>
               <View style={{ height: 20 }} />
