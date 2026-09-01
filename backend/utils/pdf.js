@@ -1,4 +1,5 @@
 const PDFDocument = require("pdfkit");
+const path = require("path");
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 // Monochrome, professional business-report palette. Color is used only for
@@ -396,9 +397,57 @@ const generateSalesReportPDF = (reportData) => {
   });
 };
 
+// ─── QR CODE PDF LOCALIZATION ─────────────────────────────────────────────────
+// Uses the same locale codes the app already exposes (en | mr | hi). Only the
+// user-facing static copy inside the QR PDF is localized — every business value
+// (name, table number, QR, phone, URLs) stays dynamic/unchanged. Unknown or
+// missing languages safely fall back to English.
+const QR_FONT = {
+  reg: path.join(__dirname, "..", "assets", "fonts", "Devanagari-Regular.ttf"),
+  bold: path.join(__dirname, "..", "assets", "fonts", "Devanagari-Bold.ttf"),
+};
+
+const QR_I18N = {
+  en: {
+    subtitle: "DIGITAL MENU & EASY ORDERING",
+    table: "TABLE",
+    cardHeading: "Scan to View Menu & Order",
+    cardSub: "Point your camera at the QR code to order instantly",
+    steps: ["Open Phone Camera", "Scan the QR Code", "Browse Digital Menu", "Place Your Order"],
+    help: "Need assistance? Please ask staff member.",
+    powered: "Powered by Servon Labs  •  Call us at {phone}",
+  },
+  mr: {
+    subtitle: "डिजिटल मेनू आणि सहज ऑर्डरिंग",
+    table: "टेबल",
+    cardHeading: "मेनू पाहण्यासाठी स्कॅन करा आणि ऑर्डर करा",
+    cardSub: "झटपट ऑर्डर करण्यासाठी तुमचा कॅमेरा QR कोडकडे दाखवा",
+    steps: ["फोन कॅमेरा उघडा", "QR कोड स्कॅन करा", "डिजिटल मेनू पहा", "तुमची ऑर्डर द्या"],
+    help: "मदत हवी आहे का? कृपया स्टाफ सदस्याला विचारा.",
+    powered: "Servon Labs द्वारा समर्थित  •  आम्हाला कॉल करा: {phone}",
+  },
+  hi: {
+    subtitle: "डिजिटल मेनू और आसान ऑर्डरिंग",
+    table: "टेबल",
+    cardHeading: "मेनू देखने के लिए स्कैन करें और ऑर्डर करें",
+    cardSub: "तुरंत ऑर्डर करने के लिए अपना कैमरा QR कोड पर रखें",
+    steps: ["फ़ोन कैमरा खोलें", "QR कोड स्कैन करें", "डिजिटल मेनू देखें", "अपना ऑर्डर दें"],
+    help: "सहायता चाहिए? कृपया स्टाफ सदस्य से पूछें।",
+    powered: "Servon Labs द्वारा संचालित  •  हमें कॉल करें: {phone}",
+  },
+};
+
+function normalizeQRLang(lang) {
+  return QR_I18N[lang] ? lang : "en"; // en | mr | hi, unknown → en
+}
+
+function qrFill(template, values) {
+  return template.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? "");
+}
+
 // ─── QR CODE PDF (UNCHANGED) ─────────────────────────────────────────────────
 
-const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Restaurant") => {
+const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Restaurant", lang = "en") => {
   return new Promise((resolve, reject) => {
     const W   = 360;
     const H   = 556;
@@ -408,6 +457,19 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     doc.on("data",  (chunk) => buffers.push(chunk));
     doc.on("end",   () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
+
+    // Localized static copy + fonts. English keeps the exact original Helvetica
+    // styling; Marathi/Hindi use a bundled Devanagari font (Helvetica cannot
+    // render the script) with the same sizes, weights and spacing.
+    const _lang    = normalizeQRLang(lang);
+    const T        = QR_I18N[_lang];
+    const isNative = _lang !== "en";
+    if (isNative) {
+      doc.registerFont("NSDevanagari-Bold", QR_FONT.bold);
+      doc.registerFont("NSDevanagari", QR_FONT.reg);
+    }
+    const FB = isNative ? "NSDevanagari-Bold" : "Helvetica-Bold";
+    const FN = isNative ? "NSDevanagari" : "Helvetica";
 
     // ── 1. Page Background ────────────────────────────────────────────────
     doc.rect(0, 0, W, H).fill("#FAF9F6");
@@ -419,7 +481,7 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     // Top Decorative Accent Lines
     doc.rect(0, 0, W, 5).fill("#FF6B35"); // Vibrant Coral Bar
 
-    // Business Name Heading (White)
+    // Business Name Heading (White) — business value, left unchanged
     doc
       .fontSize(20)
       .font("Helvetica-Bold")
@@ -433,9 +495,9 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     // Subtitle Tagline (Light Lavender)
     doc
       .fontSize(9)
-      .font("Helvetica-Bold")
+      .font(FB)
       .fillColor("#E0E7FF")
-      .text("DIGITAL MENU & EASY ORDERING", 16, 56, {
+      .text(T.subtitle, 16, 56, {
         width: W - 32,
         align: "center",
         characterSpacing: 2,
@@ -454,12 +516,12 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     doc.roundedRect(pillX, pillY, pillW, pillH, 8).fill("#FFFFFF");
     doc.roundedRect(pillX, pillY, pillW, pillH, 8).strokeColor("#FF6B35").lineWidth(2).stroke();
 
-    // Table Label inside Pill
+    // Table Label inside Pill (table number stays dynamic)
     doc
       .fontSize(13)
-      .font("Helvetica-Bold")
+      .font(FB)
       .fillColor("#FF6B35")
-      .text(`TABLE  ${tableNumber}`, 0, pillY + 10, {
+      .text(`${T.table}  ${tableNumber}`, 0, pillY + 10, {
         align: "center",
         characterSpacing: 1.5,
       });
@@ -488,18 +550,18 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
 
     doc
       .fontSize(15)
-      .font("Helvetica-Bold")
+      .font(FB)
       .fillColor("#111827")
-      .text("Scan to View Menu & Order", cardX, cardTextY, {
+      .text(T.cardHeading, cardX, cardTextY, {
         width: cardW,
         align: "center",
       });
 
     doc
       .fontSize(8.5)
-      .font("Helvetica")
+      .font(FN)
       .fillColor("#6B7280")
-      .text("Point your camera at the QR code to order instantly", cardX, cardTextY + 20, {
+      .text(T.cardSub, cardX, cardTextY + 20, {
         width: cardW,
         align: "center",
       });
@@ -507,12 +569,7 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     // ── 5. How To Order (4-Step Guide) ───────────────────────────────────
     const stepsY   = cardY + cardH + 18;
     const stepColW = (W - 48) / 2;
-    const steps = [
-      { num: "1", text: "Open Phone Camera" },
-      { num: "2", text: "Scan the QR Code" },
-      { num: "3", text: "Browse Digital Menu" },
-      { num: "4", text: "Place Your Order" },
-    ];
+    const steps = T.steps.map((text, i) => ({ num: String(i + 1), text }));
 
     steps.forEach((step, i) => {
       const col = i % 2;
@@ -526,14 +583,14 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
       // White Step Number
       doc
         .fontSize(8.5)
-        .font("Helvetica-Bold")
+        .font(FB)
         .fillColor("#FFFFFF")
         .text(step.num, sx + 5, sy + 2, { width: 10, align: "center" });
 
       // Step Text Label
       doc
         .fontSize(8.5)
-        .font("Helvetica-Bold")
+        .font(FB)
         .fillColor("#374151")
         .text(step.text, sx + 26, sy + 2, { width: stepColW - 28 });
     });
@@ -551,19 +608,19 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
 
     doc
       .fontSize(8.5)
-      .font("Helvetica")
+      .font(FN)
       .fillColor("#6B7280")
-      .text("Need assistance? Please ask staff member.", 0, footerY + 8, {
+      .text(T.help, 0, footerY + 8, {
         align: "center",
       });
 
-    // Footer Table Tag
+    // Footer Table Tag (business name & table number stay dynamic)
     doc
       .fontSize(7.5)
-      .font("Helvetica-Bold")
+      .font(FB)
       .fillColor("#4F46E5")
       .text(
-        `${String(businessName).toUpperCase()}  •  TABLE ${tableNumber}`,
+        qrFill(`${String(businessName).toUpperCase()}  •  ${T.table} {n}`, { n: tableNumber }),
         0,
         footerY + 22,
         { align: "center", characterSpacing: 1 }
@@ -572,10 +629,10 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
     // Powered By Line
     doc
       .fontSize(7)
-      .font("Helvetica")
+      .font(FN)
       .fillColor("#9CA3AF")
       .text(
-        "Powered by Servon Labs  •  Call us at 9834386415",
+        qrFill(T.powered, { phone: "9834386415" }),
         0,
         footerY + 36,
         { align: "center", characterSpacing: 0.5 }

@@ -120,10 +120,13 @@ router.get("/:id/qr-pdf", auth, subscription, async (req, res) => {
     const businessName = businessResult.rows[0]?.business_name || "Our Restaurant";
 
     // 3. Generate PDF with table number, QR URL, and business name
+    //    The app's currently selected language (en | mr | hi) is passed through;
+    //    unknown/invalid values safely fall back to English in the generator.
     const pdfBuffer = await generateQRPDF(
       table.table_number,
       table.qr_code_url,
-      businessName
+      businessName,
+      req.query?.lang
     );
 
     // 4. Send PDF response
