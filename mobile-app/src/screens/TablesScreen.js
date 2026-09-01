@@ -96,7 +96,7 @@ export default function TablesScreen() {
     try {
       const token = await AsyncStorage.getItem("token");
       const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://192.168.x.x:5000"; 
-      const downloadUrl = `${baseUrl}/api/tables/${table.id}/qr-pdf?token=${token}`;
+      const downloadUrl = `${baseUrl}/api/tables/${table.id}/qr-pdf?token=${token}&lang=${language}`;
 
       if (Platform.OS === 'web') {
         window.open(downloadUrl, '_blank');
