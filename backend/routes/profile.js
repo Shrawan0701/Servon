@@ -25,7 +25,8 @@ router.get("/", auth, async (req, res) => {
               sgst_percentage,
               subscription_status,
               subscription_start_date,
-              subscription_end_date
+              subscription_end_date,
+              upi_id
        FROM businesses
        WHERE id = $1`,
       [req.businessId]
@@ -54,9 +55,9 @@ router.put("/", auth, async (req, res) => {
     state,
     pincode,
     gstNumber,
-    
-    cgstPercentage, // <-- Changed to CGST
-    sgstPercentage, // <-- Changed to SGST
+    cgstPercentage,
+    sgstPercentage,
+    upiId, // <-- ADDED UPI ID
   } = req.body;
 
   try {
@@ -90,8 +91,9 @@ router.put("/", auth, async (req, res) => {
         logo_url = $10,
         cgst_percentage = $11,
         sgst_percentage = $12,
+        upi_id = $13,
         updated_at = NOW()
-       WHERE id = $13
+       WHERE id = $14
        RETURNING id,
                  business_name,
                  owner_name,
@@ -106,7 +108,8 @@ router.put("/", auth, async (req, res) => {
                  gst_number,
                  cgst_percentage,
                  sgst_percentage,
-                 admin_pin`,
+                 admin_pin,
+                 upi_id`,
       [
         businessName || biz.business_name,
         ownerName || biz.owner_name,
@@ -118,8 +121,9 @@ router.put("/", auth, async (req, res) => {
         pincode !== undefined ? pincode : biz.pincode,
         gstNumber !== undefined ? gstNumber : biz.gst_number,
         logoUrl || biz.logo_url,
-        cgstPercentage !== undefined ? cgstPercentage : biz.cgst_percentage, 
-        sgstPercentage !== undefined ? sgstPercentage : biz.sgst_percentage, 
+        cgstPercentage !== undefined ? cgstPercentage : biz.cgst_percentage,
+        sgstPercentage !== undefined ? sgstPercentage : biz.sgst_percentage,
+        upiId !== undefined ? upiId : biz.upi_id,
         req.businessId,
       ]
     );
@@ -172,16 +176,13 @@ router.post("/verify-pin", auth, async (req, res) => {
 });
 
 // Upload Business Logo
-// Upload Business Logo
 router.post("/upload-logo", auth, async (req, res) => {
   try {
-    // 1. Check if files exist at all
     if (!req.files || Object.keys(req.files).length === 0) {
       console.log("No files found in request");
       return res.status(400).json({ error: "No files were uploaded." });
     }
 
-    // 2. Check for the specific key "logo"
     const logoFile = req.files.logo;
     if (!logoFile) {
       console.log("File found, but key is not 'logo'");
@@ -190,11 +191,8 @@ router.post("/upload-logo", auth, async (req, res) => {
 
     console.log(`Uploading logo for business ${req.businessId}...`);
 
-    // 3. Upload to Cloudinary
-    // Note: Use logoFile.data (the buffer)
     const logoUrl = await uploadImage(logoFile.data, "servon/logos");
 
-    // 4. Update Database
     const result = await pool.query(
       `UPDATE businesses 
        SET logo_url = $1, updated_at = NOW() 
@@ -209,12 +207,13 @@ router.post("/upload-logo", auth, async (req, res) => {
     res.status(500).json({ error: "Internal server error during upload" });
   }
 });
+
 // ─── PUBLIC: Get business profile (no auth) ──────────────────────────
 router.get("/public/:businessId", async (req, res) => {
   try {
     const { businessId } = req.params;
     const result = await pool.query(
-      `SELECT id, business_name, cgst_percentage, sgst_percentage, gst_number 
+      `SELECT id, business_name, cgst_percentage, sgst_percentage, gst_number, upi_id 
        FROM businesses WHERE id = $1`,
       [businessId]
     );
