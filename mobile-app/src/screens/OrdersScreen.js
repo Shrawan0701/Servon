@@ -33,17 +33,8 @@ import syncManager from "../services/SyncManager";
 
 // ─── CONSTANTS ──────────────────────────────────────────────────────────
 
-// How long (ms) we trust a locally-updated order over whatever the server
-// returns on the next focus-triggered fetch. This avoids the "status
-// reverts after navigating away and back" bug caused by read-after-write
-// lag on the backend. Bumped up from 4s -> 20s: the web print flow opens
-// a native browser print dialog which can block the JS thread for longer
-// than a few seconds while the user picks a printer/saves as PDF, so a
-// short window was causing confirmed "PAID" updates to be stomped by a
-// stale server response as soon as the dialog closed.
 const LOCAL_UPDATE_TRUST_WINDOW_MS = 20000;
 
-// Original status colors (for normal mode)
 const statusColor = (s) =>
   ({
     EDITABLE: "#6B7280",
@@ -55,7 +46,6 @@ const statusColor = (s) =>
     REJECTED: "#EF4444",
   }[s] || "#888");
 
-// Original status filters (for normal mode)
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
   { key: "EDITABLE", label: "EDITABLE" },
@@ -67,39 +57,37 @@ const STATUS_FILTERS = [
   { key: "PREVIOUS", label: "PREVIOUS" },
 ];
 
-// ─── CHEF‑MODE STATUS CONFIG ──────────────────────────────────────────
-
 const CHEF_STATUSES = {
   EDITABLE: {
-    label: "EDITABLE", // Changed from "New"
+    label: "EDITABLE",
     color: "#6B7280",
     bg: "#F3F4F6",
     icon: "time-outline",
     priority: 4,
   },
   CONFIRMED: {
-    label: "CONFIRMED", // Changed from "Confirmed"
+    label: "CONFIRMED",
     color: "#3B82F6",
     bg: "#EFF6FF",
     icon: "checkmark-circle-outline",
     priority: 3,
   },
   PREPARING: {
-    label: "PREPARING", // Changed from "Cooking"
+    label: "PREPARING",
     color: "#F59E0B",
     bg: "#FFFBEB",
     icon: "flame-outline",
     priority: 2,
   },
   SERVED: {
-    label: "SERVED", // Changed from "Ready"
+    label: "SERVED",
     color: "#10B981",
     bg: "#ECFDF5",
     icon: "checkmark-done-outline",
     priority: 1,
   },
   TABLE_ACTIVE: {
-    label: "TABLE ACTIVE", // Changed from "Active"
+    label: "TABLE ACTIVE",
     color: "#8B5CF6",
     bg: "#F5F3FF",
     icon: "people-outline",
@@ -124,7 +112,6 @@ const CHEF_STATUSES = {
 const getChefStatusConfig = (status) => CHEF_STATUSES[status] || CHEF_STATUSES.EDITABLE;
 const CHEF_PRIORITY_ORDER = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"];
 
-// ─── CHEF FILTERS - NOW SHOWS SAME STATUS NAMES ──────────────────────
 const CHEF_FILTERS = [
   { key: "all", label: "All" },
   { key: "EDITABLE", label: "EDITABLE" },
@@ -140,8 +127,6 @@ const ChefStatusBadge = React.memo(({ status, size = "medium" }) => {
   const config = getChefStatusConfig(status);
   const fontSize = size === "small" ? 10 : 12;
   const padding = size === "small" ? 4 : 8;
-
-  // Show the actual status name (not friendly label)
   const label = status.replace("_", " ");
 
   return (
@@ -171,7 +156,6 @@ const ChefOrderCard = React.memo((props) => {
   const isPreparing = order.status === "PREPARING";
   const isServed = order.status === "SERVED";
   const isTableActive = order.status === "TABLE_ACTIVE";
-  const isPaid = order.status === "PAID";
 
   const isToday = (date) => {
     const today = new Date();
@@ -179,14 +163,10 @@ const ChefOrderCard = React.memo((props) => {
     return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   };
 
-  // Reprint is available any time a bill could plausibly already exist
-  // (served onward), so staff can recover from a printer that failed to
-  // open without re-triggering the paid/checkout flow.
   const canReprint = !isChefMode && isToday(order.created_at) && ["SERVED", "TABLE_ACTIVE", "PAID"].includes(order.status);
 
   return (
     <View style={styles.chefOrderCard}>
-      {/* Header */}
       <View style={styles.chefCardHeader}>
         <View style={styles.chefTableRow}>
           <View style={styles.chefTableIconWrap}>
@@ -209,7 +189,6 @@ const ChefOrderCard = React.memo((props) => {
         </View>
       </View>
 
-      {/* Items */}
       <View style={styles.chefItemsContainer}>
         {items.map((item, idx) => (
           <View key={idx} style={[styles.chefItemRow, idx !== items.length - 1 && styles.chefItemRowDivider]}>
@@ -224,7 +203,6 @@ const ChefOrderCard = React.memo((props) => {
         ))}
       </View>
 
-      {/* Instructions */}
       {order.special_instructions && (
         <View style={styles.chefInstructions}>
           <Ionicons name="chatbubble-outline" size={14} color="#92400E" />
@@ -232,7 +210,6 @@ const ChefOrderCard = React.memo((props) => {
         </View>
       )}
 
-      {/* Footer */}
       <View style={styles.chefCardFooter}>
         <View style={styles.chefTimestampRow}>
           <Ionicons name="time-outline" size={12} color="#9CA3AF" />
@@ -469,7 +446,6 @@ export default function OrdersScreen() {
   const { language } = useLocale();
   const { isChefMode, isPremium, loading: authLoading } = useAuth();
 
-  // ─── STATE ──────────────────────────────────────────────────────────
   const [orders, setOrders] = useState([]);
   const [profile, setProfile] = useState(null);
   const [filter, setFilter] = useState("all");
@@ -481,7 +457,9 @@ export default function OrdersScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [showPicker, setShowPicker] = useState(false);
 
-  // ===== OFFLINE STATE =====
+  // ─── PRINT LOCK STATE ──────────────────────────────────────────────
+  const [isPrinting, setIsPrinting] = useState(false);
+
   const [isOffline, setIsOffline] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -491,7 +469,6 @@ export default function OrdersScreen() {
   const [discountType, setDiscountType] = useState("none");
   const [discountValue, setDiscountValue] = useState("");
 
-  // Tracks per-order timestamps of local (optimistic) status changes
   const localUpdateTimestamps = useRef({});
 
   const isWeb = Platform.OS === "web";
@@ -500,14 +477,10 @@ export default function OrdersScreen() {
     DateTimePicker = require("@react-native-community/datetimepicker").default;
   }
 
-  // ─── HOOKS ──────────────────────────────────────────────────────────
-
-  // ===== NETWORK STATUS LISTENER =====
   useEffect(() => {
     const unsubscribe = networkMonitor.subscribe((online) => {
       setIsOffline(!online);
       if (online) {
-        // Back online - refresh data
         loadData();
         syncManager.startSync();
       }
@@ -515,7 +488,6 @@ export default function OrdersScreen() {
     return () => unsubscribe();
   }, []);
 
-  // ===== SYNC STATUS LISTENER =====
   useEffect(() => {
     const updatePendingCount = async () => {
       try {
@@ -554,36 +526,17 @@ export default function OrdersScreen() {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  // In OrdersScreen.js - Add this for testing
-useEffect(() => {
-    const checkLocalDB = async () => {
-        try {
-            const stats = await localDB.getStats();
-            console.log(' Local DB Stats:', stats);
-            
-            const orders = await localDB.getOrders();
-            console.log(' Local Orders Count:', orders.length);
-        } catch (error) {
-            console.error('Local DB check error:', error);
-        }
-    };
-    
-    // Check after 2 seconds
-    setTimeout(checkLocalDB, 2000);
-}, []);
+
   useFocusEffect(
     useCallback(() => {
       loadData();
     }, [])
   );
 
-  // ─── DATA LOADING ──────────────────────────────────────────────────
-
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // 1. Try to load from local DB first (fast)
       let localOrders = [];
       try {
         if (filter === 'PREVIOUS') {
@@ -598,19 +551,17 @@ useEffect(() => {
         console.log('Local DB read error:', dbError);
       }
 
-      // 2. Try to fetch from API if online
       const isOnline = await networkMonitor.checkConnectivity();
-      
+
       if (isOnline) {
         const [ordersRes, profileRes] = await Promise.all([
           getOrders(),
           getProfile()
         ]);
-        
+
         const freshOrders = ordersRes.data || [];
         const now = Date.now();
 
-        // Merge with local updates
         setOrders((prev) => {
           const prevById = new Map(prev.map((o) => [o.id, o]));
           return freshOrders.map((fresh) => {
@@ -623,13 +574,11 @@ useEffect(() => {
           });
         });
 
-        // Save to local DB for offline use
         await localDB.saveOrders(freshOrders);
         setProfile(profileRes.data);
         setIsOffline(false);
       } else {
         setIsOffline(true);
-        // If we have no local orders, try to load from local DB again
         if (!localOrders || localOrders.length === 0) {
           const fallbackOrders = await localDB.getOrders();
           if (fallbackOrders && fallbackOrders.length > 0) {
@@ -639,7 +588,6 @@ useEffect(() => {
       }
     } catch (err) {
       console.error("Data load error:", err);
-      // Try to load from local DB as fallback
       try {
         const fallbackOrders = await localDB.getOrders();
         if (fallbackOrders && fallbackOrders.length > 0) {
@@ -654,25 +602,19 @@ useEffect(() => {
     }
   }, [filter, selectedDate]);
 
-  // ─── HELPERS ──────────────────────────────────────────────────────
   const isToday = (date) => {
     const today = new Date();
     const d = new Date(date);
     return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   };
 
-  // ─── HANDLERS ──────────────────────────────────────────────────────
-
   const handleStatusUpdate = useCallback(async (orderId, status) => {
     try {
-      // 1. Update local DB immediately (optimistic)
       await localDB.updateOrderStatus(orderId, status);
-      
-      // 2. Update local state
+
       localUpdateTimestamps.current[orderId] = Date.now();
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
 
-      // 3. Try to update on server if online
       const isOnline = await networkMonitor.checkConnectivity();
       if (isOnline) {
         try {
@@ -683,7 +625,6 @@ useEffect(() => {
         }
       }
 
-      // 4. Update pending count
       const count = await localDB.getPendingActionsCount();
       setPendingSyncCount(count);
 
@@ -693,153 +634,369 @@ useEffect(() => {
     }
   }, []);
 
-  // Builds the printable bill HTML for a given set of (already same-table,
-  // same-day) orders. Pulled out of handlePrintAndCheckout so both the
-  // checkout flow and the standalone "Reprint" button share one source of
-  // truth for how a bill is generated.
+  // ─── BUILD BILL HTML WITH UPI QR ──────────────────────────────────
+  // Redesigned as a clean, monochrome thermal-receipt style layout —
+  // no emoji, no green accents, dashed rules and a bordered total box.
   const buildBillHtml = useCallback(
-  (tableOrders, discount) => {
-    let combinedSubtotal = 0;
-    const combinedItems = {};
+    (tableOrders, discount) => {
+      let combinedSubtotal = 0;
+      const combinedItems = {};
 
-    tableOrders.forEach((o) => {
-      const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || "[]");
-      items.forEach((item) => {
-        const itemPrice = parseFloat(item.price || 0);
-        const itemQty = parseInt(item.quantity || 1, 10);
-        
-        // Calculate subtotal from real menu item prices
-        combinedSubtotal += itemPrice * itemQty;
+      tableOrders.forEach((o) => {
+        const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || "[]");
+        items.forEach((item) => {
+          const itemPrice = parseFloat(item.price || 0);
+          const itemQty = parseInt(item.quantity || 1, 10);
+          combinedSubtotal += itemPrice * itemQty;
 
-        if (combinedItems[item.name]) {
-          combinedItems[item.name].quantity += itemQty;
-        } else {
-          combinedItems[item.name] = { ...item, price: itemPrice, quantity: itemQty };
-        }
+          if (combinedItems[item.name]) {
+            combinedItems[item.name].quantity += itemQty;
+          } else {
+            combinedItems[item.name] = { ...item, price: itemPrice, quantity: itemQty };
+          }
+        });
       });
-    });
 
-    const finalItemsList = Object.values(combinedItems);
+      const finalItemsList = Object.values(combinedItems);
 
-    let discountAmount = 0;
-    if (discount && discount.type !== "none" && discount.value > 0) {
-      if (discount.type === "percentage") discountAmount = (combinedSubtotal * discount.value) / 100;
-      else if (discount.type === "flat") discountAmount = Math.min(discount.value, combinedSubtotal);
-    }
+      let discountAmount = 0;
+      if (discount && discount.type !== "none" && discount.value > 0) {
+        if (discount.type === "percentage") discountAmount = (combinedSubtotal * discount.value) / 100;
+        else if (discount.type === "flat") discountAmount = Math.min(discount.value, combinedSubtotal);
+      }
 
-    const amountAfterDiscount = combinedSubtotal - discountAmount;
-    const cgstPercent = parseFloat(profile?.cgst_percentage || 0);
-    const sgstPercent = parseFloat(profile?.sgst_percentage || 0);
-    const cgstAmount = (amountAfterDiscount * cgstPercent) / 100;
-    const sgstAmount = (amountAfterDiscount * sgstPercent) / 100;
-    
-    // Round grand total cleanly to exact integer or 2 decimal places
-    const grandTotal = Math.round(amountAfterDiscount + cgstAmount + sgstAmount);
+const amountAfterDiscount = combinedSubtotal - discountAmount;
+const cgstPercent = parseFloat(profile?.cgst_percentage || 0);
+const sgstPercent = parseFloat(profile?.sgst_percentage || 0);
+const cgstAmount = (amountAfterDiscount * cgstPercent) / 100;
+const sgstAmount = (amountAfterDiscount * sgstPercent) / 100;
 
-    let itemsHtml = "";
-    finalItemsList.forEach((i) => {
-      itemsHtml += `
-        <tr>
-          <td style="padding: 4px 0;">${localizedItemName(i, language)}</td>
-          <td style="text-align: center;">${i.quantity}</td>
-          <td style="text-align: right;">₹${(i.price * i.quantity).toFixed(2)}</td>
-        </tr>
-      `;
-    });
-
-    const discountHtml =
-      discountAmount > 0
-        ? `<tr><td>Discount (${discount.type === "percentage" ? discount.value + "%" : "Flat"})</td><td class="right">-₹${discountAmount.toFixed(2)}</td></tr>`
-        : "";
-
-   // Change this line inside buildBillHtml:
-// const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${tableOrders[0]?.table_number}`;
-
-// TO THIS:
-const primaryOrderId = tableOrders[tableOrders.length - 1]?.id || tableOrders[0]?.id;
-const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${tableOrders[0]?.table_number}&orderId=${primaryOrderId}`;
-
-    return `
-      <html>
-        <head><style>
-          body { font-family: monospace; width: 80mm; padding: 10px; color: #000; margin: 0 auto; }
-          h2 { text-align: center; margin: 0 0 5px 0; font-size: 24px; }
-          .center { text-align: center; font-size: 14px; margin-bottom: 5px; }
-          .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
-          table { width: 100%; border-collapse: collapse; font-size: 14px; }
-          .right { text-align: right; }
-          .bold { font-weight: bold; }
-        </style></head>
-        <body>
-          <h2>${profile?.business_name || "Restaurant"}</h2>
-          ${profile?.gst_number ? `<div class="center">GSTIN: ${profile.gst_number}</div>` : ""}
-          <div class="center">Table: ${tableOrders[0]?.table_number}</div>
-          <div class="center">Date: ${new Date().toLocaleString("en-IN")}</div>
-          <div class="divider"></div>
-          <table>
-            <tr class="bold" style="border-bottom: 1px solid #000;">
-              <td style="padding-bottom: 5px;">Item</td>
-              <td class="center" style="padding-bottom: 5px;">Qty</td>
-              <td class="right" style="padding-bottom: 5px;">Price</td>
-            </tr>
-            ${itemsHtml}
-          </table>
-          <div class="divider"></div>
-          <table>
-            <tr><td>Subtotal:</td><td class="right">₹${combinedSubtotal.toFixed(2)}</td></tr>
-            ${discountHtml}
-            ${discountAmount > 0 ? `<tr><td>After Discount:</td><td class="right">₹${amountAfterDiscount.toFixed(2)}</td></tr>` : ""}
-            ${cgstPercent > 0 ? `<tr><td>CGST (${cgstPercent}%):</td><td class="right">₹${cgstAmount.toFixed(2)}</td></tr>` : ""}
-            ${sgstPercent > 0 ? `<tr><td>SGST (${sgstPercent}%):</td><td class="right">₹${sgstAmount.toFixed(2)}</td></tr>` : ""}
-            <tr class="bold">
-              <td style="font-size: 18px; padding-top: 10px;">GRAND TOTAL:</td>
-              <td class="right" style="font-size: 18px; padding-top: 10px;">₹${grandTotal.toFixed(2)}</td>
-            </tr>
-          </table>
-          <div class="divider"></div>
-          <div class="center" style="font-weight: bold; font-size: 16px;">Thank You for Visiting!</div>
-          <div class="center" style="margin-top: 15px;">
-            <p style="font-size: 12px; margin-bottom: 5px;">How was your food? Scan to rate us!</p>
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(feedbackLink)}" width="100" height="100" />
-          </div>
-        </body>
-      </html>
-    `;
-  },
-  [profile, language]
+// Round grand total cleanly to exact integer or 2 decimal places
+const grandTotal = Math.round(
+  amountAfterDiscount + cgstAmount + sgstAmount
 );
 
-  // Sends already-built HTML to the printer (web iframe / native Print).
+let itemsHtml = "";
+finalItemsList.forEach((i) => {
+  itemsHtml += `
+    <tr>
+      <td style="padding: 4px 0;">${localizedItemName(i, language)}</td>
+      <td class="center-col">${i.quantity}</td>
+      <td class="right">₹${(i.price * i.quantity).toFixed(2)}</td>
+    </tr>
+  `;
+});
+
+const discountHtml =
+  discountAmount > 0
+    ? `<tr><td>Discount (${discount.type === "percentage" ? discount.value + "%" : "Flat"})</td><td class="right">-₹${discountAmount.toFixed(2)}</td></tr>`
+    : "";
+
+// ─── UPI PAYMENT QR ──────────────────────────────────────────
+const upiId = profile?.upi_id || "";
+const merchantName = encodeURIComponent(
+  profile?.business_name || "Restaurant"
+);
+const amount = grandTotal.toFixed(2);
+
+const upiString = upiId
+  ? `upi://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR&tn=Payment`
+  : "";
+
+const qrCodeUrl = upiId
+  ? `https://quickchart.io/qr?text=${encodeURIComponent(upiString)}&size=200&margin=2`
+  : null;
+
+const qrCodeUrlFallback = upiId
+  ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiString)}`
+  : null;
+
+return `
+  <html>
+    <head>
+      <style>
+        body {
+          font-family: monospace;
+          width: 80mm;
+          padding: 10px;
+          color: #000;
+          margin: 0 auto;
+        }
+
+        h2 {
+          text-align: center;
+          margin: 0 0 5px 0;
+          font-size: 24px;
+        }
+
+        .center {
+          text-align: center;
+          font-size: 14px;
+          margin-bottom: 5px;
+        }
+
+        .divider {
+          border-bottom: 1px dashed #000;
+          margin: 10px 0;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 14px;
+        }
+
+        .right {
+          text-align: right;
+        }
+
+        .bold {
+          font-weight: bold;
+        }
+
+        .upi-section {
+          text-align: center;
+          margin-top: 15px;
+          padding: 15px;
+          border-top: 2px dashed #000;
+        }
+
+        .upi-title {
+          font-size: 16px;
+          font-weight: 800;
+          color: #000;
+          margin-bottom: 4px;
+        }
+
+        .upi-amount {
+          font-size: 20px;
+          font-weight: 900;
+          color: #000;
+          margin-bottom: 10px;
+        }
+
+        .upi-qr-wrapper {
+          display: flex;
+          justify-content: center;
+          margin: 8px 0;
+        }
+
+        .upi-qr-wrapper img {
+          width: 150px;
+          height: 150px;
+          border: 2px solid #000;
+          border-radius: 12px;
+        }
+
+        .upi-id {
+          font-size: 13px;
+          color: #333;
+          margin-top: 8px;
+          font-weight: 600;
+        }
+
+        .upi-instruction {
+          font-size: 10px;
+          color: #666;
+          margin-top: 4px;
+        }
+
+        .upi-error {
+          font-size: 12px;
+          color: #000;
+          padding: 10px;
+          background: #F8F8F8;
+          border-radius: 8px;
+          border: 1px solid #ccc;
+        }
+
+        .thank-you {
+          text-align: center;
+          font-weight: bold;
+          font-size: 16px;
+          margin-top: 15px;
+          color: #000;
+        }
+      </style>
+    </head>
+
+    <body>
+      <h2>${profile?.business_name || "Restaurant"}</h2>
+
+      ${
+        profile?.gst_number
+          ? `<div class="center">GSTIN: ${profile.gst_number}</div>`
+          : ""
+      }
+
+      <div class="center">
+        Table: ${tableOrders[0]?.table_number}
+      </div>
+
+      <div class="center">
+        Date: ${new Date().toLocaleString("en-IN")}
+      </div>
+
+      <div class="divider"></div>
+
+      <table>
+        <tr class="bold" style="border-bottom: 1px solid #000;">
+          <td style="padding-bottom: 5px;">Item</td>
+          <td class="center" style="padding-bottom: 5px;">Qty</td>
+          <td class="right" style="padding-bottom: 5px;">Price</td>
+        </tr>
+
+        ${itemsHtml}
+      </table>
+
+      <div class="divider"></div>
+
+      <table>
+        <tr>
+          <td>Subtotal:</td>
+          <td class="right">₹${combinedSubtotal.toFixed(2)}</td>
+        </tr>
+
+        ${discountHtml}
+
+        ${
+          discountAmount > 0
+            ? `<tr>
+                <td>After Discount:</td>
+                <td class="right">₹${amountAfterDiscount.toFixed(2)}</td>
+              </tr>`
+            : ""
+        }
+
+        ${
+          cgstPercent > 0
+            ? `<tr>
+                <td>CGST (${cgstPercent}%):</td>
+                <td class="right">₹${cgstAmount.toFixed(2)}</td>
+              </tr>`
+            : ""
+        }
+
+        ${
+          sgstPercent > 0
+            ? `<tr>
+                <td>SGST (${sgstPercent}%):</td>
+                <td class="right">₹${sgstAmount.toFixed(2)}</td>
+              </tr>`
+            : ""
+        }
+
+        <tr class="bold">
+          <td style="font-size: 18px; padding-top: 10px;">
+            GRAND TOTAL:
+          </td>
+
+          <td
+            class="right"
+            style="font-size: 18px; padding-top: 10px;"
+          >
+            ₹${grandTotal.toFixed(2)}
+          </td>
+        </tr>
+      </table>
+
+      <div class="divider"></div>
+
+      <!-- ─── UPI PAYMENT QR ─── -->
+      <div class="upi-section">
+        <div class="upi-title">PAY BILL</div>
+
+        <div class="upi-amount">
+          ₹${grandTotal.toFixed(2)}
+        </div>
+
+        ${
+          upiId
+            ? `
+              <div class="upi-qr-wrapper">
+                <img
+                  src="${qrCodeUrl}"
+                  alt="UPI Payment QR"
+                  onerror="this.src='${qrCodeUrlFallback}';"
+                />
+              </div>
+
+              <div class="upi-id">
+                UPI ID: ${upiId}
+              </div>
+
+              <div class="upi-instruction">
+                Scan using Google Pay, PhonePe, Paytm, or any UPI app
+              </div>
+            `
+            : `
+              <div class="upi-error">
+                UPI ID not configured. Please contact restaurant.
+              </div>
+            `
+        }
+      </div>
+
+      <div class="thank-you">
+        Thank You for Visiting!
+      </div>
+    </body>
+  </html>
+`;
+
+  // ─── PRINT HTML ──────────────────────────────────────────────────
   const printHtml = useCallback(async (htmlContent) => {
+    // Prevent multiple print requests
+    if (isPrinting) {
+      console.log('⏳ Print already in progress, skipping...');
+      return;
+    }
+
     if (Platform.OS === "web") {
+      // Remove any existing print iframe
+      const existingIframe = document.getElementById('servon-print-iframe');
+      if (existingIframe) {
+        document.body.removeChild(existingIframe);
+      }
+
       const iframe = document.createElement("iframe");
+      iframe.id = 'servon-print-iframe';
       iframe.style.cssText = "position:absolute;width:0px;height:0px;border:none;";
       document.body.appendChild(iframe);
+
       iframe.contentWindow.document.open();
       iframe.contentWindow.document.write(htmlContent);
       iframe.contentWindow.document.close();
+
       setTimeout(() => {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
       }, 500);
+
       setTimeout(() => {
-        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
       }, 3000);
+
     } else {
       await Print.printAsync({ html: htmlContent });
     }
-  }, []);
+  }, [isPrinting]);
 
+  // ─── HANDLE PRINT AND CHECKOUT ──────────────────────────────────
   const handlePrintAndCheckout = useCallback(
     async (currentOrder, discount) => {
+      // Prevent multiple print requests
+      if (isPrinting) {
+        console.log('⏳ Print already in progress, skipping...');
+        return;
+      }
+
       setProcessingTable(currentOrder.table_number);
+      setIsPrinting(true);
+
       try {
-        // IMPORTANT: only combine TODAY's unpaid orders for this table.
-        // Without the isToday() check, any stale SERVED/TABLE_ACTIVE order
-        // left over from a previous session (e.g. one that never got
-        // marked PAID because of the race below) would silently get
-        // folded into the next bill, inflating the quantity/total shown
-        // on the printed receipt.
         const tableOrders = orders.filter(
           (o) =>
             o.table_number === currentOrder.table_number &&
@@ -847,17 +1004,13 @@ const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${
             o.status !== "REJECTED" &&
             isToday(o.created_at)
         );
-        if (tableOrders.length === 0) return;
+        if (tableOrders.length === 0) {
+          setIsPrinting(false);
+          return;
+        }
 
         const htmlContent = buildBillHtml(tableOrders, discount);
 
-        // Mark the orders PAID (local DB + local state) FIRST, and push
-        // the update to the server, BEFORE handing off to print(). The
-        // native/browser print dialog can block the JS thread for as
-        // long as the user takes to save/select a printer, so doing the
-        // status update afterwards risked it never completing (or being
-        // overwritten on the next refresh — this was the "shows PAID,
-        // then reverts to SERVED on refresh" bug).
         const now = Date.now();
         await Promise.all(
           tableOrders.map(async (o) => {
@@ -891,42 +1044,48 @@ const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${
         const count = await localDB.getPendingActionsCount();
         setPendingSyncCount(count);
 
-        // Print only after the PAID status has been safely recorded.
         await printHtml(htmlContent);
+
       } catch (err) {
         console.error("Print Error", err);
         Alert.alert(localizeText("Print Failed", language), localizeText("Could not print the bill.", language));
       } finally {
         setProcessingTable(null);
+        setIsPrinting(false);
       }
     },
-    [orders, buildBillHtml, printHtml]
+    [orders, buildBillHtml, printHtml, isPrinting]
   );
 
-  // Reprint: for when the printer didn't open / the user closed the
-  // dialog by mistake. Reprints today's bill for this table WITHOUT
-  // touching order status (the order may already be PAID). Note: any
-  // discount applied on the original checkout isn't persisted per-order,
-  // so a reprint shows the plain (no-discount) subtotal/total.
- // Reprint: Reprints ONLY the selected order bill without combining other orders on the table
-const handleReprint = useCallback(
-  async (currentOrder) => {
-    setProcessingTable(currentOrder.table_number);
-    try {
-      if (!currentOrder) return;
-      
-      // Pass only this specific order card to buildBillHtml
-      const htmlContent = buildBillHtml([currentOrder], { type: "none", value: 0 });
-      await printHtml(htmlContent);
-    } catch (err) {
-      console.error("Reprint Error", err);
-      Alert.alert(localizeText("Reprint Failed", language), localizeText("Could not reprint the bill.", language));
-    } finally {
-      setProcessingTable(null);
-    }
-  },
-  [buildBillHtml, printHtml]
-);
+  // ─── HANDLE REPRINT ──────────────────────────────────────────────
+  const handleReprint = useCallback(
+    async (currentOrder) => {
+      // Prevent multiple print requests
+      if (isPrinting) {
+        console.log('⏳ Print already in progress, skipping reprint...');
+        return;
+      }
+
+      setProcessingTable(currentOrder.table_number);
+      setIsPrinting(true);
+
+      try {
+        if (!currentOrder) {
+          setIsPrinting(false);
+          return;
+        }
+        const htmlContent = buildBillHtml([currentOrder], { type: "none", value: 0 });
+        await printHtml(htmlContent);
+      } catch (err) {
+        console.error("Reprint Error", err);
+        Alert.alert(localizeText("Reprint Failed", language), localizeText("Could not reprint the bill.", language));
+      } finally {
+        setProcessingTable(null);
+        setIsPrinting(false);
+      }
+    },
+    [buildBillHtml, printHtml, isPrinting]
+  );
 
   const openDiscountModal = useCallback((order) => {
     setSelectedOrderForDiscount(order);
@@ -974,9 +1133,6 @@ const handleReprint = useCallback(
     }
   };
 
-  // ─── RENDER ORDER ITEMS ──────────────────────────────────────────────
-
-  // Original render (normal mode)
   const renderOrderItemOld = ({ item }) => {
     const items = Array.isArray(item.items) ? item.items : JSON.parse(item.items || "[]");
     const isProcessing = processingTable === item.table_number;
@@ -1088,7 +1244,6 @@ const handleReprint = useCallback(
     );
   };
 
-  // Chef render
   const renderOrderItemChef = useCallback(
     ({ item }) => {
       const orderTime = new Date(item.updated_at || item.created_at).getTime();
@@ -1115,8 +1270,6 @@ const handleReprint = useCallback(
     [currentTime, handleStatusUpdate, processingTable, isChefMode, openDiscountModal, handleReprint]
   );
 
-  // ─── FILTER HELPERS ──────────────────────────────────────────────
-
   const getFilteredData = useCallback(() => {
     let result;
     if (filter === "all") {
@@ -1126,7 +1279,6 @@ const handleReprint = useCallback(
     } else {
       result = orders.filter((o) => o.status === filter && isToday(o.created_at));
     }
-    // Sort by priority (only for chef mode)
     if (isChefMode) {
       result.sort((a, b) => {
         const priorityA = CHEF_PRIORITY_ORDER.indexOf(a.status);
@@ -1154,8 +1306,6 @@ const handleReprint = useCallback(
     return Object.keys(groups).map((date) => ({ title: date, data: groups[date] }));
   };
 
-  // ─── LOADING / PREMIUM ─────────────────────────────────────────────
-
   if (authLoading || isPremium === null) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -1168,11 +1318,8 @@ const handleReprint = useCallback(
     return <UpgradeGate />;
   }
 
-  // ─── RENDER ─────────────────────────────────────────────────────────
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
-      {/* Filter Tabs */}
       <View style={isWeb ? { maxWidth: 1200, alignSelf: "center", width: "100%" } : null}>
         {isChefMode ? (
           <FlatList
@@ -1213,7 +1360,6 @@ const handleReprint = useCallback(
         )}
       </View>
 
-      {/* Main Content */}
       <View style={[{ flex: 1 }, isWeb && { maxWidth: 1200, alignSelf: "center", width: "100%" }]}>
         {filter === "PREVIOUS" ? (
           <>
@@ -1288,7 +1434,6 @@ const handleReprint = useCallback(
         )}
       </View>
 
-      {/* Discount Modal */}
       <DiscountModal
         visible={showDiscountModal}
         onClose={() => {
@@ -1310,7 +1455,6 @@ const handleReprint = useCallback(
 // ─── STYLES ──────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // ─── NORMAL MODE STYLES (old) ────────────────────────────────────
   orderCardOld: {
     backgroundColor: "#fff",
     borderRadius: 18,
@@ -1342,7 +1486,6 @@ const styles = StyleSheet.create({
   },
   reprintBtnTextOld: { fontSize: 11, fontWeight: "700", color: "#6B7280" },
 
-  // ─── CHEF MODE STYLES ─────────────────────────────────────────────
   chefBadge: { flexDirection: "row", alignItems: "center", borderRadius: 12, gap: 4 },
   chefBadgeLabel: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
 
@@ -1400,7 +1543,6 @@ const styles = StyleSheet.create({
   chefWaitingBadge: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, gap: 8 },
   chefWaitingText: { color: "#6B7280", fontWeight: "600", fontSize: 13 },
 
-  // ─── SHARED / GENERAL ─────────────────────────────────────────────
   filterTab: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1, borderColor: "#E8E2D9", backgroundColor: "#fff" },
   filterTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
   filterTabText: { fontSize: 13, fontWeight: "700", color: "#4B5563" },
@@ -1425,7 +1567,6 @@ const styles = StyleSheet.create({
   mobileDateBtn: { backgroundColor: "#FAF8F5", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#E8E2D9", flexDirection: "row", alignItems: "center", gap: 6 },
   mobileDateText: { fontSize: 14, fontWeight: "700", color: "#111827" },
 
-  // ─── DISCOUNT MODAL ──────────────────────────────────────────────
   discountModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
   discountModal: { backgroundColor: "#fff", borderRadius: 22, padding: 22, width: "100%", maxWidth: 380 },
   discountModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },

@@ -438,19 +438,35 @@ export const setAdminPin = (pin) => API.patch("/profile/pin", { pin });
 export const verifyAdminPin = (pin) => API.post("/profile/verify-pin", { pin });
 
 // ==========================================================
-// EXPENSES
+// EXPENSES - ENHANCED VERSION
 // ==========================================================
 
-export const getExpenses = (period = "monthly") => API.get(`/expenses?period=${period}`);
+// Get expenses with period filter (returns enhanced data with supplier, payment_status, etc.)
+export const getExpenses = (period = "monthly") => 
+  API.get(`/expenses?period=${period}`);
+
+// Get outstanding/payables summary
+export const getOutstandingSummary = (period = "monthly") => 
+  API.get(`/expenses/outstanding?period=${period}`);
+
+// Get unique supplier suggestions for autocomplete
+export const getSupplierSuggestions = () => 
+  API.get("/expenses/suppliers");
+
+// Add expense with form data (supports receipt upload)
 export const addExpense = (formData) =>
   API.post("/expenses", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
-export const deleteExpense = (id) => API.delete(`/expenses/${id}`);
+
+// Update expense with form data (supports receipt upload)
 export const updateExpense = (id, formData) =>
   API.put(`/expenses/${id}`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+
+// Delete expense
+export const deleteExpense = (id) => API.delete(`/expenses/${id}`);
 
 // ==========================================================
 // AI BUSINESS ADVISOR

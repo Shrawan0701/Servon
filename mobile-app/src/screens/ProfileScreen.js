@@ -174,6 +174,7 @@ export default function ProfileScreen({ onNavigate }) {
         gstNumber:      form.gst_number,
         cgstPercentage: form.cgst_percentage,
         sgstPercentage: form.sgst_percentage,
+        upiId:          form.upi_id, // <-- ADDED UPI ID
       });
       setProfile(res.data);
       setForm({ ...res.data });
@@ -410,10 +411,12 @@ export default function ProfileScreen({ onNavigate }) {
   const endDate   = subDetails?.subscription_end_date;
   const daysLeft  = endDate ? Math.ceil((new Date(endDate) - new Date()) / (1000 * 60 * 60 * 24)) : null;
 
+  // ─── UPDATED BILLING FIELDS WITH UPI ID ───────────────────────────────────
   const billingFields = [
     { key: "gst_number",      label: "GSTIN Number", placeholder: "Enter GSTIN (optional)", autoCapitalize: "characters" },
     { key: "cgst_percentage", label: "CGST %",        placeholder: "e.g. 9", keyboardType: "numeric" },
     { key: "sgst_percentage", label: "SGST %",        placeholder: "e.g. 9", keyboardType: "numeric" },
+    { key: "upi_id",          label: "UPI ID",        placeholder: "e.g. hotelname@upi", keyboardType: "default" }, // <-- ADDED
   ];
 
   const basicFields = [
@@ -474,8 +477,6 @@ export default function ProfileScreen({ onNavigate }) {
     null
   )?.id;
 
-  // Which plan the user is actually on right now, and the next tier up (for the upgrade nudge).
-  // Purely presentational — doesn't touch selectedPlan or any payment logic.
   const currentPlanId = subDetails?.plan_type || 'monthly';
   const currentPlanIndex = plans.findIndex((p) => p.id === currentPlanId);
   const nextUpgradePlan = currentPlanIndex >= 0 ? plans[currentPlanIndex + 1] : null;
@@ -633,7 +634,6 @@ export default function ProfileScreen({ onNavigate }) {
                 </View>
 
                 <View style={styles.sidebarFooter}>
-                  {/* ✅ AI SUPPORT BUTTON (Web) */}
                   <TouchableOpacity style={styles.sidebarFooterBtn} onPress={() => navigation.navigate("Support")} activeOpacity={0.7}>
                     <Ionicons name="chatbubbles-outline" size={15} color="#10B981" />
                     <LocalizedText translate style={styles.sidebarFooterBtnText}> Support</LocalizedText>
@@ -1044,7 +1044,6 @@ export default function ProfileScreen({ onNavigate }) {
                 )}
               </View>
 
-              {/* ✅ AI SUPPORT BUTTON (Mobile) - ADDED */}
               <TouchableOpacity style={styles.ghostBtn} onPress={() => navigation.navigate("Support")} activeOpacity={0.8}>
                 <Ionicons name="chatbubbles-outline" size={16} color="#10B981" />
                 <LocalizedText translate style={styles.ghostBtnText}>Contact Support</LocalizedText>

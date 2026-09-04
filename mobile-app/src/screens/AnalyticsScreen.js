@@ -19,7 +19,7 @@ import {
 import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { getAnalytics, getExpenses, addExpense, deleteExpense, updateExpense, askAdvisor } from "../api";
+import { getAnalytics, getExpenses, addExpense, deleteExpense, updateExpense, askAdvisor, getSupplierSuggestions } from "../api";
 import {
   VictoryArea,
   VictoryLine,
@@ -684,7 +684,7 @@ const advStyles = StyleSheet.create({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ASK ADVISOR BOX (FIXED - Actually Sends Questions)
+// ASK ADVISOR BOX
 // ═══════════════════════════════════════════════════════════════════════════════
 function AskAdvisorBox() {
   const { language } = useLocale();
@@ -940,7 +940,7 @@ const styles = StyleSheet.create({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// EXPENSES TAB (Keeping your existing code unchanged)
+// EXPENSES TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 function ExpensesTab() {
   const [period,        setPeriod]        = useState("monthly");
@@ -955,6 +955,7 @@ function ExpensesTab() {
   const [ledgerTab,     setLedgerTab]     = useState("Expenses");
   const [exporting,     setExporting]     = useState(false);
 
+  const { language } = useLocale();
   const { width: screenWidth } = useWindowDimensions();
   const isDesktop = screenWidth >= 900;
   const H_PAD = screenWidth < 768 ? 16 : 32;
@@ -1006,197 +1007,179 @@ function ExpensesTab() {
   const handleAddNew = ()    => { setEditingExp(null); setShowModal(true); };
 
   const exportCSV = async () => {
-  if (!expenses.length) {
-    Alert.alert(localizeText("No Data", language), localizeText("No expenses to export.", language));
-    return;
-  }
-  setExporting(true);
-
-  try {
-    const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
-
-    // Business / Hotel name lookup
-   // Replace this line:
-// reportData?.business_name || reportData?.businessName || ...
-
-// With this:
-const hotelDisplayName = (
-  typeof businessName !== "undefined" ? businessName :
-  typeof user !== "undefined" ? user?.business_name :
-  "HOTEL ANALYTICS"
-).toUpperCase();
-
-    // IST Timestamp
-    const todayIST = new Date().toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      dateStyle: "medium",
-      timeStyle: "short",
-    }) + " IST";
-
-    const parsedSales = parseFloat(totalSales || 0);
-    const parsedExpenses = parseFloat(grandTotal || 0);
-    const netProfit = parsedSales - parsedExpenses;
-
-    // Category Breakdown Calculation
-    const catTotals = {};
-    expenses.forEach((e) => {
-      catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0);
-    });
-
-    const catRows = Object.entries(catTotals)
-      .sort((a, b) => b[1] - a[1])
-      .map(([cat, amt]) => {
-        const pct = parsedExpenses ? ((amt / parsedExpenses) * 100).toFixed(1) : "0.0";
-        return [cat, amt.toFixed(2), `${pct}%`];
-      });
-
-    // Build Structured CSV Sections
-    const rows = [
-      // 1. Report Header
-      [hotelDisplayName],
-      ["EXPENSE & FINANCIAL REPORT"],
-      ["Period", periodLabel],
-      ["Generated At", todayIST],
-      [],
-
-      // 2. Financial Summary
-      ["FINANCIAL SUMMARY"],
-      ["Metric", "Amount (INR)"],
-      ["Total Sales", parsedSales.toFixed(2)],
-      ["Total Expenses", parsedExpenses.toFixed(2)],
-      ["Net Operating Profit", netProfit.toFixed(2)],
-      [],
-
-      // 3. Category Breakdown Table
-      ["CATEGORY BREAKDOWN"],
-      ["Category", "Amount (INR)", "% of Total"],
-      ...catRows,
-      ["TOTAL EXPENSES", parsedExpenses.toFixed(2), "100.0%"],
-      [],
-
-      // 4. Detailed Ledger Table
-      ["DETAILED LEDGER"],
-      ["Date", "Category", "Description", "Amount (INR)"],
-      ...expenses.map((e) => [
-        e.expense_date?.split("T")[0] || "",
-        e.category || "General",
-        e.description || "—",
-        parseFloat(e.amount || 0).toFixed(2),
-      ]),
-      ["TOTAL EXPENSES", "", `${expenses.length} Records`, parsedExpenses.toFixed(2)],
-    ];
-
-    // Escape special characters and convert array to CSV string format
-    const csvContent = rows
-      .map((r) =>
-        r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")
-      )
-      .join("\n");
-
-    const fileName = `expenses_${period}_${new Date().toISOString().split("T")[0]}.csv`;
-
-    if (Platform.OS === "web") {
-      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } else {
-      const path = FileSystem.cacheDirectory + fileName;
-      await FileSystem.writeAsStringAsync(path, csvContent, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      await Sharing.shareAsync(path, {
-        mimeType: "text/csv",
-        dialogTitle: "Export Expenses CSV",
-      });
+    if (!expenses.length) {
+      Alert.alert(localizeText("No Data", language), localizeText("No expenses to export.", language));
+      return;
     }
-  } catch (err) {
-    console.error("CSV Export Error:", err);
-    Alert.alert(localizeText("Export Error", language), localizeText("Could not export CSV. Please try again.", language));
-  } finally {
-    setExporting(false);
-  }
-};
+    setExporting(true);
 
- const exportPDF = async () => {
-  if (!expenses.length) {
-    Alert.alert(localizeText("No Data", language), localizeText("No expenses to export.", language));
-    return;
-  }
-  setExporting(true);
+    try {
+      const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
 
-  try {
-    const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
+      const hotelDisplayName = (
+        typeof businessName !== "undefined" ? businessName :
+        typeof user !== "undefined" ? user?.business_name :
+        "HOTEL ANALYTICS"
+      ).toUpperCase();
 
-    // Business / Hotel name lookup
-   // Replace this line:
-// reportData?.business_name || reportData?.businessName || ...
+      const todayIST = new Date().toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        dateStyle: "medium",
+        timeStyle: "short",
+      }) + " IST";
 
-// With this:
-const hotelDisplayName = (
-  typeof businessName !== "undefined" ? businessName :
-  typeof user !== "undefined" ? user?.business_name :
-  "HOTEL ANALYTICS"
-).toUpperCase();
+      const parsedSales = parseFloat(totalSales || 0);
+      const parsedExpenses = parseFloat(grandTotal || 0);
+      const netProfit = parsedSales - parsedExpenses;
 
-    // IST Timestamp
-    const todayIST = new Date().toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      dateStyle: "medium",
-      timeStyle: "short",
-    }) + " IST";
+      const catTotals = {};
+      expenses.forEach((e) => {
+        catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0);
+      });
 
-    // Currency Formatter Helper
-    const fmtCurr = (val) =>
-      `₹${Number(val || 0).toLocaleString("en-IN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
+      const catRows = Object.entries(catTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([cat, amt]) => {
+          const pct = parsedExpenses ? ((amt / parsedExpenses) * 100).toFixed(1) : "0.0";
+          return [cat, amt.toFixed(2), `${pct}%`];
+        });
 
-    const parsedSales = parseFloat(totalSales || 0);
-    const parsedExpenses = parseFloat(grandTotal || 0);
-    const netProfit = parsedSales - parsedExpenses;
+      const rows = [
+        [hotelDisplayName],
+        ["EXPENSE & FINANCIAL REPORT"],
+        ["Period", periodLabel],
+        ["Generated At", todayIST],
+        [],
+        ["FINANCIAL SUMMARY"],
+        ["Metric", "Amount (INR)"],
+        ["Total Sales", parsedSales.toFixed(2)],
+        ["Total Expenses", parsedExpenses.toFixed(2)],
+        ["Net Operating Profit", netProfit.toFixed(2)],
+        [],
+        ["CATEGORY BREAKDOWN"],
+        ["Category", "Amount (INR)", "% of Total"],
+        ...catRows,
+        ["TOTAL EXPENSES", parsedExpenses.toFixed(2), "100.0%"],
+        [],
+        ["DETAILED LEDGER"],
+        ["Date", "Category", "Description", "Amount (INR)"],
+        ...expenses.map((e) => [
+          e.expense_date?.split("T")[0] || "",
+          e.category || "General",
+          e.description || "—",
+          parseFloat(e.amount || 0).toFixed(2),
+        ]),
+        ["TOTAL EXPENSES", "", `${expenses.length} Records`, parsedExpenses.toFixed(2)],
+      ];
 
-    // Category Breakdown Calculation
-    const catTotals = {};
-    expenses.forEach((e) => {
-      catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0);
-    });
+      const csvContent = rows
+        .map((r) =>
+          r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")
+        )
+        .join("\n");
 
-    const catRows = Object.entries(catTotals)
-      .sort((a, b) => b[1] - a[1])
-      .map(([cat, amt]) => {
-        const pct = parsedExpenses ? ((amt / parsedExpenses) * 100).toFixed(1) : "0.0";
-        return `
-          <tr>
-            <td style="font-weight:600;color:#111827">${cat}</td>
-            <td style="text-align:right;font-weight:700;color:#111827">${fmtCurr(amt)}</td>
-            <td style="text-align:right;color:#6B7280">${pct}%</td>
-          </tr>`;
-      })
-      .join("");
+      const fileName = `expenses_${period}_${new Date().toISOString().split("T")[0]}.csv`;
 
-    // Detailed Ledger Rows
-    const expRows = expenses
-      .map((e, i) => {
-        const dateStr = e.expense_date ? e.expense_date.split("T")[0] : "—";
-        const rowBg = i % 2 === 0 ? "#FFFFFF" : "#FAFAFA";
-        return `
-          <tr style="background:${rowBg}">
-            <td style="color:#374151;white-space:nowrap">${dateStr}</td>
-            <td style="font-weight:600;color:#111827">${e.category || "General"}</td>
-            <td style="color:#4B5563">${e.description || "—"}</td>
-            <td style="text-align:right;font-weight:700;color:#EF4444">${fmtCurr(e.amount)}</td>
-          </tr>`;
-      })
-      .join("");
+      if (Platform.OS === "web") {
+        const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        const path = FileSystem.cacheDirectory + fileName;
+        await FileSystem.writeAsStringAsync(path, csvContent, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        await Sharing.shareAsync(path, {
+          mimeType: "text/csv",
+          dialogTitle: "Export Expenses CSV",
+        });
+      }
+    } catch (err) {
+      console.error("CSV Export Error:", err);
+      Alert.alert(localizeText("Export Error", language), localizeText("Could not export CSV. Please try again.", language));
+    } finally {
+      setExporting(false);
+    }
+  };
 
-    const html = `<!DOCTYPE html>
+  const exportPDF = async () => {
+    if (!expenses.length) {
+      Alert.alert(localizeText("No Data", language), localizeText("No expenses to export.", language));
+      return;
+    }
+    setExporting(true);
+
+    try {
+      const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
+
+      const hotelDisplayName = (
+        typeof businessName !== "undefined" ? businessName :
+        typeof user !== "undefined" ? user?.business_name :
+        "HOTEL ANALYTICS"
+      ).toUpperCase();
+
+      const todayIST = new Date().toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        dateStyle: "medium",
+        timeStyle: "short",
+      }) + " IST";
+
+      const fmtCurr = (val) =>
+        `₹${Number(val || 0).toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+
+      const parsedSales = parseFloat(totalSales || 0);
+      const parsedExpenses = parseFloat(grandTotal || 0);
+      const netProfit = parsedSales - parsedExpenses;
+
+      const catTotals = {};
+      expenses.forEach((e) => {
+        catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0);
+      });
+
+      const catRows = Object.entries(catTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([cat, amt]) => {
+          const pct = parsedExpenses ? ((amt / parsedExpenses) * 100).toFixed(1) : "0.0";
+          return `
+            <tr>
+              <td style="font-weight:600;color:#111827">${cat}</td>
+              <td style="text-align:right;font-weight:700;color:#111827">${fmtCurr(amt)}</td>
+              <td style="text-align:right;color:#6B7280">${pct}%</td>
+            </tr>`;
+        })
+        .join("");
+
+      const expRows = expenses
+        .map((e, i) => {
+          const dateStr = e.expense_date ? e.expense_date.split("T")[0] : "—";
+          const rowBg = i % 2 === 0 ? "#FFFFFF" : "#FAFAFA";
+          const supplierInfo = e.supplier ? `<span style="color:#6B7280;font-weight:500;font-size:11px;display:block">${e.supplier}</span>` : '';
+          const statusInfo = e.payment_status ? `<span style="font-size:10px;color:${e.payment_status === 'paid' ? '#10B981' : e.payment_status === 'partially_paid' ? '#F59E0B' : '#EF4444'};font-weight:600;display:block">${e.payment_status.replace('_', ' ').toUpperCase()}</span>` : '';
+          return `
+            <tr style="background:${rowBg}">
+              <td style="color:#374151;white-space:nowrap">${dateStr}</td>
+              <td style="font-weight:600;color:#111827">${e.category || "General"}${e.sub_category ? `<br/><span style="font-size:10px;color:#6B7280">${e.sub_category}</span>` : ''}</td>
+              <td style="color:#4B5563">${e.description || "—"}${supplierInfo}</td>
+              <td style="text-align:right;font-weight:700;color:#EF4444">
+                ${fmtCurr(e.amount)}
+                ${statusInfo}
+                ${e.amount_paid ? `<span style="font-size:9px;color:#6B7280;display:block">Paid: ${fmtCurr(e.amount_paid)}</span>` : ''}
+                ${e.amount_paid && (e.amount - e.amount_paid) > 0 ? `<span style="font-size:9px;color:#EF4444;display:block">Remaining: ${fmtCurr(e.amount - e.amount_paid)}</span>` : ''}
+              </td>
+            </tr>`;
+        })
+        .join("");
+
+      const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
@@ -1207,35 +1190,23 @@ const hotelDisplayName = (
       body { padding: 20px; }
       .no-print { display: none !important; }
     }
-    
-    /* Header Chrome */
     .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 2px solid #1E3A5F; margin-bottom: 24px; }
     .hotel-name { font-size: 22px; font-weight: 900; color: #1E3A5F; letter-spacing: 0.5px; text-transform: uppercase; }
     .report-title { font-size: 13px; font-weight: 700; color: #6B7280; margin-top: 4px; letter-spacing: 1px; }
     .badge { display: inline-block; background: #1E3A5F; color: #FFFFFF; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px; }
     .gen-date { font-size: 11px; color: #9CA3AF; margin-top: 6px; text-align: right; }
-
-    /* Summary Cards */
     .summary { display: flex; gap: 16px; margin-bottom: 28px; }
     .card { flex: 1; border-radius: 8px; padding: 14px 16px; border: 1px solid #E5E7EB; background: #F9FAFB; }
     .card-label { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
     .card-value { font-size: 20px; font-weight: 900; }
-    
     .card-green { background: #F0FDF4; border-color: #BBF7D0; } .card-green .card-label, .card-green .card-value { color: #059669; }
     .card-red { background: #FEF2F2; border-color: #FECACA; } .card-red .card-label, .card-red .card-value { color: #EF4444; }
     .card-blue { background: #EFF6FF; border-color: #BFDBFE; }
-
-    /* Section Headers */
     .section-title { font-size: 12px; font-weight: 800; color: #1E3A5F; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px; margin-top: 24px; border-left: 3px solid #059669; padding-left: 8px; }
-    
-    /* Tables */
     table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
     th { background: #F7F7F6; color: #1E3A5F; padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; border-top: 1px solid #D1D5DB; border-bottom: 1px solid #D1D5DB; text-transform: uppercase; }
     td { padding: 9px 12px; border-bottom: 1px solid #E5E7EB; }
-    
     .total-row td { font-weight: 900; background: #F7F7F6; color: #1E3A5F; border-top: 1.5px solid #1E3A5F; border-bottom: 1.5px solid #1E3A5F; font-size: 12px; }
-    
-    /* Footer */
     .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #E5E7EB; font-size: 10px; color: #9CA3AF; display: flex; justify-content: space-between; }
     .print-hint { text-align: center; padding: 12px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; font-size: 12px; color: #059669; font-weight: 700; margin-bottom: 20px; }
   </style>
@@ -1297,8 +1268,8 @@ const hotelDisplayName = (
       <tr>
         <th>Date</th>
         <th>Category</th>
-        <th>Description</th>
-        <th style="text-align:right">Amount</th>
+        <th>Description / Supplier</th>
+        <th style="text-align:right">Amount / Status</th>
       </tr>
     </thead>
     <tbody>
@@ -1318,41 +1289,41 @@ const hotelDisplayName = (
 </body>
 </html>`;
 
-    if (Platform.OS === "web") {
-      const newTab = window.open("", "_blank");
-      if (newTab) {
-        newTab.document.write(html);
-        newTab.document.close();
-        newTab.focus();
-        setTimeout(() => {
-          newTab.print();
-        }, 600);
+      if (Platform.OS === "web") {
+        const newTab = window.open("", "_blank");
+        if (newTab) {
+          newTab.document.write(html);
+          newTab.document.close();
+          newTab.focus();
+          setTimeout(() => {
+            newTab.print();
+          }, 600);
+        } else {
+          const blob = new Blob([html], { type: "text/html" });
+          const href = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = href;
+          a.download = `expenses_${period}_${new Date().toISOString().split("T")[0]}.html`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(href);
+          Alert.alert(
+            "Popup Blocked",
+            "Your browser blocked the PDF window. The file was downloaded as HTML — open it in your browser and press Ctrl+P to save as PDF."
+          );
+        }
       } else {
-        const blob = new Blob([html], { type: "text/html" });
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = `expenses_${period}_${new Date().toISOString().split("T")[0]}.html`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(href);
-        Alert.alert(
-          "Popup Blocked",
-          "Your browser blocked the PDF window. The file was downloaded as HTML — open it in your browser and press Ctrl+P to save as PDF."
-        );
+        const { uri } = await Print.printToFileAsync({ html, base64: false });
+        await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Export Expenses PDF" });
       }
-    } else {
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Export Expenses PDF" });
+    } catch (err) {
+      console.error("PDF error:", err);
+      Alert.alert(localizeText("Export Error", language), localizeText("Could not generate PDF. Please try again.", language));
+    } finally {
+      setExporting(false);
     }
-  } catch (err) {
-    console.error("PDF error:", err);
-    Alert.alert(localizeText("Export Error", language), localizeText("Could not generate PDF. Please try again.", language));
-  } finally {
-    setExporting(false);
-  }
-};
+  };
 
   if (loading) return <View style={FL.center}><ActivityIndicator size="large" color={FL_DARK} /></View>;
 
@@ -1468,26 +1439,76 @@ const hotelDisplayName = (
               </View>
             ) : (
               expenses.map((exp) => {
-                const cat        = getCat(exp.category);
+                const cat = getCat(exp.category);
                 const isDeleting = deleting === exp.id;
+                const status = exp.payment_status || 'unpaid';
+                
+                const getStatusColor = (s) => {
+                  const colors = { paid: "#10B981", partially_paid: "#F59E0B", unpaid: "#EF4444" };
+                  return colors[s] || "#6B7280";
+                };
+                
+                const getStatusBg = (s) => {
+                  const bgColors = { paid: "#D1FAE5", partially_paid: "#FEF3C7", unpaid: "#FEE2E2" };
+                  return bgColors[s] || "#F3F4F6";
+                };
+                
+                const getStatusLabel = (s) => {
+                  const labels = { 
+                    paid: localizeText("Paid", language), 
+                    partially_paid: localizeText("Partially Paid", language), 
+                    unpaid: localizeText("Unpaid", language) 
+                  };
+                  return labels[s] || s;
+                };
+
+                const remaining = (parseFloat(exp.amount) || 0) - (parseFloat(exp.amount_paid) || 0);
+
                 return (
                   <View key={exp.id} style={FL.expRow}>
-                    <View style={FL.dateBlock}><LocalizedText style={FL.dateDay}>{dayOf(exp.expense_date)}</LocalizedText><LocalizedText style={FL.dateMon}>{monOf(exp.expense_date)}</LocalizedText></View>
-                    <View style={[FL.catIconBox, { backgroundColor: cat.bg }]}><Ionicons name={cat.icon} size={18} color={cat.color} /></View>
+                    <View style={FL.dateBlock}>
+                      <LocalizedText style={FL.dateDay}>{dayOf(exp.expense_date)}</LocalizedText>
+                      <LocalizedText style={FL.dateMon}>{monOf(exp.expense_date)}</LocalizedText>
+                    </View>
+                    <View style={[FL.catIconBox, { backgroundColor: cat.bg }]}>
+                      <Ionicons name={cat.icon} size={18} color={cat.color} />
+                    </View>
                     <View style={{ flex: 1, marginRight: 8 }}>
-                      <LocalizedText style={FL.expCat} numberOfLines={1}>{exp.category}</LocalizedText>
-                      <LocalizedText style={FL.expDesc} numberOfLines={1}>{exp.description || cat.desc}</LocalizedText>
-                      {exp.receipt_url && (
-                        <View style={FL.receiptBadge}>
-                          <Ionicons name="camera" size={10} color="#3B82F6" />
-                          <LocalizedText translate style={FL.receiptBadgeText}>invoice link</LocalizedText>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <LocalizedText style={FL.expCat} numberOfLines={1}>{exp.category}</LocalizedText>
+                        {exp.supplier && (
+                          <LocalizedText style={[FL.expCat, { fontSize: 12, color: TEXT_MUTED, fontWeight: "500" }]} numberOfLines={1}>• {exp.supplier}</LocalizedText>
+                        )}
+                      </View>
+                      <LocalizedText style={FL.expDesc} numberOfLines={1}>
+                        {exp.description || cat.desc}
+                        {exp.sub_category && ` (${exp.sub_category})`}
+                      </LocalizedText>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
+                        <View style={[FL.statusBadge, { backgroundColor: getStatusBg(status), paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 4 }]}>
+                          <View style={[FL.statusDot, { backgroundColor: getStatusColor(status), width: 6, height: 6, borderRadius: 3 }]} />
+                          <LocalizedText style={[FL.statusText, { color: getStatusColor(status), fontSize: 10, fontWeight: "600" }]}>
+                            {getStatusLabel(status)}
+                          </LocalizedText>
                         </View>
-                      )}
+                        {parseFloat(exp.amount_paid) > 0 && remaining > 0 && (
+                          <LocalizedText style={{ fontSize: 10, color: TEXT_MUTED }}>
+                            {localizeText("Remaining", language)}: ₹{remaining.toFixed(0)}
+                          </LocalizedText>
+                        )}
+                        {exp.receipt_url && (
+                          <View style={FL.receiptBadge}>
+                            <Ionicons name="camera" size={10} color="#3B82F6" />
+                          </View>
+                        )}
+                      </View>
                     </View>
                     <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
                       <LocalizedText style={FL.expAmt}>-{fmt(exp.amount)}</LocalizedText>
                       <View style={FL.rowActions}>
-                        <TouchableOpacity style={FL.editBtn} onPress={() => handleEdit(exp)} disabled={isDeleting}><Ionicons name="pencil" size={13} color="#3B82F6" /></TouchableOpacity>
+                        <TouchableOpacity style={FL.editBtn} onPress={() => handleEdit(exp)} disabled={isDeleting}>
+                          <Ionicons name="pencil" size={13} color="#3B82F6" />
+                        </TouchableOpacity>
                         <TouchableOpacity style={FL.deleteBtn} onPress={() => handleDelete(exp)} disabled={isDeleting}>
                           {isDeleting ? <ActivityIndicator size="small" color={FL_RED} /> : <Ionicons name="trash" size={13} color={FL_RED} />}
                         </TouchableOpacity>
@@ -1518,50 +1539,151 @@ const hotelDisplayName = (
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// EXPENSE MODAL (Keeping your existing code)
+// EXPENSE MODAL - ENHANCED VERSION
 // ═══════════════════════════════════════════════════════════════════════════════
 function ExpenseModal({ visible, expense, onClose, onSaved }) {
   const { language } = useLocale();
   const isEdit = !!expense;
 
-  const [category,        setCategory]        = useState(CATEGORIES[0].key);
-  const [dropOpen,        setDropOpen]        = useState(false);
-  const [amount,          setAmount]          = useState("");
-  const [note,            setNote]            = useState("");
-  const [date,            setDate]            = useState(new Date().toISOString().split("T")[0]);
-  const [receipt,         setReceipt]         = useState(null);
+  const CATEGORIES_WITH_SUB = [
+    { key: "Utilities",     icon: "flash", color: "#F59E0B", bg: "#FEF3C7", desc: "Power, water & utility charges" },
+    { key: "Payroll",       icon: "people", color: "#3B82F6", bg: "#EFF6FF", desc: "Wages, salaries & advances" },
+    { key: "Procurement",   icon: "cube", color: "#8B5CF6", bg: "#F5F3FF", desc: "Raw materials & supplies" },
+    { key: "Maintenance",   icon: "construct", color: "#F97316", bg: "#FFF7ED", desc: "Equipment & repair costs" },
+    { key: "Waste",         icon: "trash", color: "#EF4444", bg: "#FEF2F2", desc: "Expired or wasted items" },
+    { key: "Other",         icon: "ellipsis-horizontal-circle", color: "#6B7280", bg: "#F3F4F6", desc: "Miscellaneous expenses" },
+  ];
+
+  const SUB_CATEGORIES = [
+    "Groceries", "Vegetables & Fruits", "Dairy", "Meat/Chicken/Fish",
+    "Beverages", "Cooking Oil", "Spices & Ingredients", "Packaging",
+    "Cleaning Supplies", "Other Supplies"
+  ];
+
+  const [category, setCategory] = useState(CATEGORIES_WITH_SUB[0].key);
+  const [subCategory, setSubCategory] = useState("");
+  const [dropOpen, setDropOpen] = useState(false);
+  const [subDropOpen, setSubDropOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [amountPaid, setAmountPaid] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [supplierSuggestions, setSupplierSuggestions] = useState([]);
+  const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [receipt, setReceipt] = useState(null);
   const [savedReceiptUrl, setSavedReceiptUrl] = useState(null);
-  const [saving,          setSaving]          = useState(false);
-  const [previewVisible,  setPreviewVisible]  = useState(false);
-  const [previewUri,      setPreviewUri]      = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewUri, setPreviewUri] = useState(null);
+
+  useEffect(() => {
+    if (visible && supplier.length > 1) {
+      const loadSuggestions = async () => {
+        try {
+          const response = await getSupplierSuggestions();
+          const allSuppliers = response.data?.suppliers || [];
+          const filtered = allSuppliers.filter(s => 
+            s.toLowerCase().includes(supplier.toLowerCase())
+          );
+          setSupplierSuggestions(filtered.slice(0, 5));
+          setShowSupplierSuggestions(filtered.length > 0);
+        } catch (error) {
+          console.error("Error loading supplier suggestions:", error);
+        }
+      };
+      loadSuggestions();
+    } else {
+      setShowSupplierSuggestions(false);
+    }
+  }, [supplier, visible]);
 
   useEffect(() => {
     if (!visible) return;
     if (isEdit && expense) {
-      setCategory(expense.category || CATEGORIES[0].key);
+      setCategory(expense.category || CATEGORIES_WITH_SUB[0].key);
+      setSubCategory(expense.sub_category || "");
       setAmount(String(expense.amount || ""));
+      setAmountPaid(String(expense.amount_paid || ""));
+      setSupplier(expense.supplier || "");
       setNote(expense.description || "");
       setDate(expense.expense_date?.split("T")[0] || toDateStr(new Date()));
+      setPurchaseDate(expense.purchase_date || "");
+      setInvoiceNumber(expense.invoice_number || "");
       setReceipt(null);
       setSavedReceiptUrl(expense.receipt_url || null);
     } else {
-      setCategory(CATEGORIES[0].key);
+      setCategory(CATEGORIES_WITH_SUB[0].key);
+      setSubCategory("");
       setAmount("");
+      setAmountPaid("");
+      setSupplier("");
       setNote("");
       setDate(new Date().toISOString().split("T")[0]);
+      setPurchaseDate("");
+      setInvoiceNumber("");
       setReceipt(null);
       setSavedReceiptUrl(null);
     }
     setDropOpen(false);
+    setSubDropOpen(false);
   }, [visible, expense]);
 
   const reset = () => {
-    setCategory(CATEGORIES[0].key); setDropOpen(false); setAmount(""); setNote("");
-    setDate(new Date().toISOString().split("T")[0]); setReceipt(null); setSavedReceiptUrl(null);
+    setCategory(CATEGORIES_WITH_SUB[0].key);
+    setSubCategory("");
+    setDropOpen(false);
+    setSubDropOpen(false);
+    setAmount("");
+    setAmountPaid("");
+    setSupplier("");
+    setNote("");
+    setDate(new Date().toISOString().split("T")[0]);
+    setPurchaseDate("");
+    setInvoiceNumber("");
+    setReceipt(null);
+    setSavedReceiptUrl(null);
   };
 
-  const handleClose  = () => { reset(); onClose(); };
-  const openPreview  = (uri) => { setPreviewUri(uri); setPreviewVisible(true); };
+  const handleClose = () => { reset(); onClose(); };
+  const openPreview = (uri) => { setPreviewUri(uri); setPreviewVisible(true); };
+
+  const totalAmount = parseFloat(amount) || 0;
+  const paidAmount = parseFloat(amountPaid) || 0;
+  const remainingAmount = Math.max(0, totalAmount - paidAmount);
+  
+  let paymentStatus = "unpaid";
+  if (paidAmount >= totalAmount && totalAmount > 0) paymentStatus = "paid";
+  else if (paidAmount > 0 && paidAmount < totalAmount) paymentStatus = "partially_paid";
+
+  const getPaymentStatusLabel = (status) => {
+    const labels = {
+      paid: localizeText("Paid", language),
+      partially_paid: localizeText("Partially Paid", language),
+      unpaid: localizeText("Unpaid", language),
+    };
+    return labels[status] || status;
+  };
+
+  const getPaymentStatusColor = (status) => {
+    const colors = {
+      paid: "#10B981",
+      partially_paid: "#F59E0B",
+      unpaid: "#EF4444",
+    };
+    return colors[status] || "#6B7280";
+  };
+
+  const getPaymentStatusBg = (status) => {
+    const bgColors = {
+      paid: "#D1FAE5",
+      partially_paid: "#FEF3C7",
+      unpaid: "#FEE2E2",
+    };
+    return bgColors[status] || "#F3F4F6";
+  };
 
   const pickReceipt = async () => {
     try {
@@ -1591,25 +1713,35 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0)
       return Alert.alert(localizeText("Invalid Amount", language), localizeText("Please enter a valid amount greater than 0.", language));
 
+    if (parseFloat(amountPaid) > parseFloat(amount)) {
+      return Alert.alert(localizeText("Invalid Payment", language), localizeText("Amount paid cannot exceed total amount.", language));
+    }
+
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append("category",    category);
-      fd.append("amount",      amount);
+      fd.append("category", category);
+      fd.append("amount", amount);
       fd.append("description", note);
       fd.append("expenseDate", date);
+      fd.append("supplier", supplier);
+      fd.append("amountPaid", amountPaid || "0");
+      fd.append("paymentStatus", paymentStatus);
+      fd.append("invoiceNumber", invoiceNumber);
+      fd.append("purchaseDate", purchaseDate || date);
+      fd.append("subCategory", subCategory);
 
       if (receipt) {
         if (Platform.OS === "web") {
-          const response  = await fetch(receipt.uri);
-          const blob      = await response.blob();
-          const mimeType  = blob.type || "image/jpeg";
-          const ext       = mimeType.split("/")[1] || "jpg";
-          const filename  = `receipt_${Date.now()}.${ext}`;
+          const response = await fetch(receipt.uri);
+          const blob = await response.blob();
+          const mimeType = blob.type || "image/jpeg";
+          const ext = mimeType.split("/")[1] || "jpg";
+          const filename = `receipt_${Date.now()}.${ext}`;
           fd.append("receipt", blob, filename);
         } else {
           fd.append("receipt", {
-            uri:  receipt.uri,
+            uri: receipt.uri,
             name: `receipt_${Date.now()}.jpg`,
             type: "image/jpeg",
           });
@@ -1621,7 +1753,7 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
       }
 
       if (isEdit) await updateExpense(expense.id, fd);
-      else        await addExpense(fd);
+      else await addExpense(fd);
 
       reset();
       onSaved();
@@ -1635,8 +1767,8 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
     }
   };
 
-  const selectedCat = getCat(category);
-  const dateLabel   = (() => {
+  const selectedCat = CATEGORIES_WITH_SUB.find(c => c.key === category) || CATEGORIES_WITH_SUB[0];
+  const dateLabel = (() => {
     try {
       const d = new Date(date), t = new Date();
       return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }).toUpperCase() +
@@ -1670,7 +1802,7 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                 </TouchableOpacity>
                 {dropOpen && (
                   <View style={MD.dropList}>
-                    {CATEGORIES.map((cat) => (
+                    {CATEGORIES_WITH_SUB.map((cat) => (
                       <TouchableOpacity
                         key={cat.key}
                         style={[MD.dropItem, category === cat.key && { backgroundColor: cat.bg }]}
@@ -1690,8 +1822,32 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                 )}
               </View>
 
-              <View style={{ marginTop: 24 }}>
-                <LocalizedText translate style={MD.fieldLabel}>VALUATION AMOUNT (INR)</LocalizedText>
+              {category === "Procurement" && (
+                <View style={{ marginTop: 16 }}>
+                  <LocalizedText translate style={MD.fieldLabel}>SUB-CATEGORY</LocalizedText>
+                  <TouchableOpacity style={MD.dropdown} onPress={() => setSubDropOpen(!subDropOpen)} activeOpacity={0.8}>
+                    <LocalizedText style={MD.dropText}>{subCategory || "Select sub-category"}</LocalizedText>
+                    <Ionicons name={subDropOpen ? "chevron-up" : "chevron-down"} size={18} color={FL_DARK} />
+                  </TouchableOpacity>
+                  {subDropOpen && (
+                    <View style={MD.dropList}>
+                      {SUB_CATEGORIES.map((sub) => (
+                        <TouchableOpacity
+                          key={sub}
+                          style={[MD.dropItem, subCategory === sub && { backgroundColor: "#F5F3FF" }]}
+                          onPress={() => { setSubCategory(sub); setSubDropOpen(false); }}
+                        >
+                          <LocalizedText style={[MD.dropItemText, subCategory === sub && { fontWeight: "700", color: FL_DARK }]}>{sub}</LocalizedText>
+                          {subCategory === sub && <Ionicons name="checkmark-circle" size={18} color={FL_GREEN} />}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              <View style={{ marginTop: 20 }}>
+                <LocalizedText translate style={MD.fieldLabel}>TOTAL AMOUNT (INR)</LocalizedText>
                 <TextInput
                   style={MD.amountInput}
                   value={amount}
@@ -1703,7 +1859,84 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                 <View style={MD.underline} />
               </View>
 
-              <View style={{ marginTop: 20 }}>
+              <View style={{ marginTop: 16 }}>
+                <LocalizedText translate style={MD.fieldLabel}>AMOUNT PAID (INR)</LocalizedText>
+                <TextInput
+                  style={MD.amountInput}
+                  value={amountPaid}
+                  onChangeText={setAmountPaid}
+                  keyboardType="numeric"
+                  placeholder="0.00"
+                  placeholderTextColor="#94A3B8"
+                />
+                <View style={MD.underline} />
+              </View>
+
+              {amount && parseFloat(amount) > 0 && (
+                <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <LocalizedText translate style={MD.fieldLabel}>PAYMENT STATUS</LocalizedText>
+                  <View style={{ 
+                    backgroundColor: getPaymentStatusBg(paymentStatus),
+                    paddingHorizontal: 12,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                  }}>
+                    <LocalizedText style={{ 
+                      fontSize: 12, 
+                      fontWeight: "700", 
+                      color: getPaymentStatusColor(paymentStatus)
+                    }}>
+                      {getPaymentStatusLabel(paymentStatus)}
+                    </LocalizedText>
+                  </View>
+                </View>
+              )}
+
+              {amount && parseFloat(amount) > 0 && parseFloat(amountPaid) > 0 && (
+                <View style={{ marginTop: 4, flexDirection: "row", justifyContent: "flex-end" }}>
+                  <LocalizedText style={{ fontSize: 12, color: TEXT_MUTED }}>
+                    {localizeText("Remaining", language)}: ₹{remainingAmount.toFixed(2)}
+                  </LocalizedText>
+                </View>
+              )}
+
+              <View style={{ marginTop: 16 }}>
+                <LocalizedText translate style={MD.fieldLabel}>SUPPLIER / VENDOR</LocalizedText>
+                <TextInput
+                  style={MD.input}
+                  value={supplier}
+                  onChangeText={setSupplier}
+                  placeholder={localizeText("e.g. Sharma Kirana, ABC Vegetables", language)}
+                  placeholderTextColor="#94A3B8"
+                />
+                {showSupplierSuggestions && supplier.length > 0 && (
+                  <View style={MD.suggestionsList}>
+                    {supplierSuggestions.map((s, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={MD.suggestionItem}
+                        onPress={() => { setSupplier(s); setShowSupplierSuggestions(false); }}
+                      >
+                        <Ionicons name="storefront-outline" size={14} color={FL_GREEN} />
+                        <LocalizedText style={MD.suggestionText}>{s}</LocalizedText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              <View style={{ marginTop: 12 }}>
+                <LocalizedText translate style={MD.fieldLabel}>INVOICE NUMBER (OPTIONAL)</LocalizedText>
+                <TextInput
+                  style={MD.input}
+                  value={invoiceNumber}
+                  onChangeText={setInvoiceNumber}
+                  placeholder={localizeText("e.g. INV-2024-001", language)}
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={{ marginTop: 16 }}>
                 <LocalizedText translate style={MD.fieldLabel}>TRANSACTION MEMO / NOTE</LocalizedText>
                 <TextInput
                   style={MD.noteInput}
@@ -1719,7 +1952,7 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
               <View style={MD.dateRow}>
                 <View style={MD.dateIconBox}><Ionicons name="calendar" size={16} color={FL_DARK} /></View>
                 <View style={{ flex: 1 }}>
-                  <LocalizedText translate style={MD.datePre}>RECORD POST DATE</LocalizedText>
+                  <LocalizedText translate style={MD.datePre}>EXPENSE DATE</LocalizedText>
                   <TextInput
                     style={MD.dateInput}
                     value={date}
@@ -1730,6 +1963,21 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                   />
                 </View>
                 <LocalizedText style={MD.dateLabelSmall}>{dateLabel}</LocalizedText>
+              </View>
+
+              <View style={[MD.dateRow, { borderTopWidth: 0 }]}>
+                <View style={MD.dateIconBox}><Ionicons name="calendar-outline" size={16} color={FL_DARK} /></View>
+                <View style={{ flex: 1 }}>
+                  <LocalizedText translate style={MD.datePre}>PURCHASE DATE (OPTIONAL)</LocalizedText>
+                  <TextInput
+                    style={MD.dateInput}
+                    value={purchaseDate}
+                    onChangeText={setPurchaseDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                  />
+                </View>
               </View>
 
               <View style={{ marginBottom: 24 }}>
@@ -1836,6 +2084,9 @@ const FL = StyleSheet.create({
   expCat:     { fontSize: 14, fontWeight: "700", color: FL_DARK },
   expDesc:    { fontSize: 12, color: TEXT_MUTED, marginTop: 1 },
   expAmt:     { fontSize: 14, fontWeight: "700", color: FL_RED },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 4 },
+  statusDot:   { width: 6, height: 6, borderRadius: 3 },
+  statusText:  { fontSize: 10, fontWeight: "600" },
   receiptBadge:    { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4, backgroundColor: "#EFF6FF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: "flex-start" },
   receiptBadgeText:{ fontSize: 9, color: "#3B82F6", fontWeight: "600" },
   rowActions: { flexDirection: "row", gap: 6, marginTop: 4 },
@@ -1874,12 +2125,17 @@ const MD = StyleSheet.create({
   amountInput:  { fontSize: 28, fontWeight: "700", color: FL_DARK, padding: 0 },
   underline:    { height: 1, backgroundColor: BORDER, marginTop: 4, marginBottom: 4 },
   noteInput:    { fontSize: 14, fontWeight: "500", color: FL_DARK, padding: 0, minHeight: 32 },
+  input:        { fontSize: 14, fontWeight: "500", color: FL_DARK, paddingVertical: 8, paddingHorizontal: 0 },
 
   dateRow:       { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14, marginBottom: 18, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   dateIconBox:   { width: 26, height: 26, borderRadius: 6, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
   datePre:       { fontSize: 10, fontWeight: "600", color: TEXT_MUTED },
   dateInput:     { fontSize: 14, fontWeight: "700", color: FL_DARK, padding: 0 },
   dateLabelSmall:{ fontSize: 12, color: TEXT_MUTED, fontWeight: "500" },
+
+  suggestionsList: { marginTop: 4, borderWidth: 1, borderColor: FL_BORD, borderRadius: 8, backgroundColor: "#fff", overflow: "hidden" },
+  suggestionItem:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  suggestionText:  { fontSize: 13, fontWeight: "500", color: FL_DARK },
 
   imgOverlayLeft:  { position: "absolute", bottom: 8, left: 8, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(15,23,42,0.8)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   imgOverlayRight: { position: "absolute", bottom: 8, right: 8, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(15,23,42,0.8)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
