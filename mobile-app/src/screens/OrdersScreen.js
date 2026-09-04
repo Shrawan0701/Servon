@@ -943,7 +943,9 @@ return `
     </body>
   </html>
 `;
-
+ },
+    [language, profile]
+  );
   // ─── PRINT HTML ──────────────────────────────────────────────────
   const printHtml = useCallback(async (htmlContent) => {
     // Prevent multiple print requests
