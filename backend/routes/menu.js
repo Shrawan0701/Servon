@@ -37,32 +37,33 @@ router.get("/", auth, async (req, res) => {
 
 // Add menu item (Combined Logic)
 router.post("/", auth, subscription, async (req, res) => {
-  const { 
-    name, 
-    description, 
-    price, 
-    category, 
-    image_url, 
-    is_thali, 
-    thali_includes, 
-    thali_custom 
+  const {
+    name,
+    name_mr,
+    name_hi,
+    description,
+    price,
+    category,
+    image_url,
+    is_thali,
+    thali_includes,
+    thali_custom
   } = req.body;
 
   if (!name || !price || !category) {
     return res
       .status(400)
-      .json({ error: "Name, price, and category are required" });
+      .json({ error: "Name, price,and category are required" });
   }
 
   try {
     const result = await pool.query(
-      `INSERT INTO menu_items 
-       (business_id, name, description, price, image_url, category, is_thali, thali_includes, thali_custom)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
+      'INSERT INTO menu_items (business_id,name,name_mr,name_hi,description,price,image_url,category,is_thali,thali_includes,thali_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
       [
         req.businessId,
         name,
+        name_mr || null,
+        name_hi || null,
         description,
         price,
         image_url || null,
@@ -82,15 +83,17 @@ router.post("/", auth, subscription, async (req, res) => {
 
 // Update menu item (Combined Logic)
 router.put("/:id", auth, subscription, async (req, res) => {
-  const { 
-    name, 
-    description, 
-    price, 
-    category, 
-    image_url, 
-    is_thali, 
-    thali_includes, 
-    thali_custom 
+  const {
+    name,
+    name_mr,
+    name_hi,
+    description,
+    price,
+    category,
+    image_url,
+    is_thali,
+    thali_includes,
+    thali_custom
   } = req.body;
 
   try {
@@ -106,20 +109,11 @@ router.put("/:id", auth, subscription, async (req, res) => {
     const finalImageUrl = image_url !== undefined ? image_url : existing.rows[0].image_url;
 
     const result = await pool.query(
-      `UPDATE menu_items 
-       SET name = $1,
-           description = $2,
-           price = $3,
-           image_url = $4,
-           category = $5,
-           is_thali = $6,
-           thali_includes = $7,
-           thali_custom = $8,
-           updated_at = NOW()
-       WHERE id = $9 AND business_id = $10
-       RETURNING *`,
+      'UPDATE menu_items SET name = $1,name_mr = $2,name_hi = $3,description = $4,price = $5,image_url = $6,category = $7,is_thali = $8,thali_includes = $9,thali_custom = $10,updated_at = NOW() WHERE id = $11 AND business_id = $12 RETURNING *',
       [
         name || existing.rows[0].name,
+        name_mr !== undefined ? name_mr : existing.rows[0].name_mr,
+        name_hi !== undefined ? name_hi : existing.rows[0].name_hi,
         description !== undefined ? description : existing.rows[0].description,
         price || existing.rows[0].price,
         finalImageUrl,
@@ -138,7 +132,6 @@ router.put("/:id", auth, subscription, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
 // Toggle availability
 router.patch("/:id/availability", auth, async (req, res) => {
   try {

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBusinessProfile, placeOrder, servonVoicePublic } from "../api";
 import { useLocale } from "../context/LocaleContext";
+import { localizedItemName } from "../utils/itemName";
 
 // Voice Order Modal — mini-cart + checkout for the voice order path.
 // Detected items are reviewed/adjusted HERE, never on the Cart page.
 // Confirmation reuses the EXISTING customer QR order flow (/orders/place).
 export default function VoiceOrderModal({ open, onClose, businessId, tableId, menuItems }) {
-  const { t } = useLocale();
+  const { t, language } = useLocale();
   const navigate = useNavigate();
 
   const [stage, setStage] = useState("idle"); // idle | listening | thinking | review
@@ -95,7 +96,7 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
             it.menuItem ||
             {};
           if (!full.is_available) {
-            freshUnavailable.push(full.name || it.requestedName);
+            freshUnavailable.push(localizedItemName(full, language) || it.requestedName);
             return;
           }
           const qty = Math.max(1, parseInt(it.quantity, 10) || 1);
@@ -106,6 +107,8 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
             next.push({
               id: full.id,
               name: full.name,
+              name_mr: full.name_mr,
+              name_hi: full.name_hi,
               price: parseFloat(full.price) || 0,
               image_url: full.image_url,
               quantity: qty,
@@ -196,6 +199,8 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
         {
           id: option.id,
           name: option.name,
+          name_mr: option.name_mr,
+          name_hi: option.name_hi,
           price: parseFloat(option.price) || 0,
           image_url: option.image_url,
           quantity: 1,
@@ -348,7 +353,7 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
                     onClick={() => pickAmbiguity(amb.requestedName, opt)}
                     style={{ display: "block", width: "100%", textAlign: "left", background: "#fff", border: "1px solid #eee", borderRadius: 8, padding: "8px 10px", marginBottom: 6, fontSize: 13, cursor: "pointer" }}
                   >
-                    {opt.name} · ₹{parseFloat(opt.price) || 0}
+                    {localizedItemName(opt, language)} · ₹{parseFloat(opt.price) || 0}
                   </button>
                 ))}
               </div>
@@ -361,7 +366,7 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
                 {cart.map((item) => (
                   <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{localizedItemName(item, language)}</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
                         <button className="qty-btn" onClick={() => dec(item.id)}>–</button>
                         <span style={{ fontWeight: 700, minWidth: 18, textAlign: "center" }}>{item.quantity}</span>

@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { placeOrder, getBusinessProfile } from "../api";
 import { LanguageSelector, useLocale } from "../context/LocaleContext";
+import { localizedItemName } from "../utils/itemName";
 
 // --- Helper Functions ---
 
-function getThaliContents(item, allItems) {
+function getThaliContents(item, allItems, language) {
   let includes = item.thali_includes || [];
   if (typeof includes === "string") {
     includes = includes.split(",").map((s) => s.trim()).filter(Boolean);
@@ -18,7 +19,7 @@ function getThaliContents(item, allItems) {
   const picked = includes.map(String);
   const pickedNames = allItems
     .filter((i) => picked.includes(String(i.id)))
-    .map((i) => i.name);
+    .map((i) => localizedItemName(i, language));
   const custom = (item.thali_custom || "")
     .split(",")
     .map((s) => s.trim())
@@ -26,8 +27,8 @@ function getThaliContents(item, allItems) {
   return [...pickedNames, ...custom];
 }
 
-function ThaliContents({ item, allItems }) {
-  const contents = getThaliContents(item, allItems);
+function ThaliContents({ item, allItems, language }) {
+  const contents = getThaliContents(item, allItems, language);
   if (!contents.length) return null;
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
@@ -41,7 +42,7 @@ function ThaliContents({ item, allItems }) {
 // --- Main Component ---
 
 export default function CartPage() {
-  const { t } = useLocale();
+  const { t, language } = useLocale();
   const { businessId, tableId } = useParams();
   const navigate = useNavigate();
   const { cartItems, addToCart, removeFromCart } = useCart();
@@ -163,11 +164,11 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
           <div key={item.id} style={styles.cartItem}>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 600, fontSize: 15 }}>{item.name}</span>
+                <span style={{ fontWeight: 600, fontSize: 15 }}>{localizedItemName(item, language)}</span>
                 {item.is_thali && <span style={styles.thaliBadge}>{t("thali")}</span>}
               </div>
               <div style={{ color: "#888", fontSize: 13, marginTop: 2 }}>{t("each", { price: item.price })}</div>
-              {item.is_thali && <ThaliContents item={item} allItems={cartItems} />}
+              {item.is_thali && <ThaliContents item={item} allItems={cartItems} language={language} />}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                 <button className="qty-btn" onClick={() => removeFromCart(item.id)}>–</button>
                 <span style={{ fontWeight: 700, minWidth: 20, textAlign: "center" }}>{item.quantity}</span>
@@ -198,7 +199,7 @@ const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent }
   <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 15 }}>{t("billSummary")}</div>
   {cartItems.map((item) => (
     <div key={item.id} style={styles.billRow}>
-      <span>{item.name} × {item.quantity}</span>
+      <span>{localizedItemName(item, language)} × {item.quantity}</span>
       <span>₹{(item.price * item.quantity).toFixed(2)}</span>
     </div>
   ))}

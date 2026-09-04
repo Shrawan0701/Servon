@@ -7,6 +7,7 @@ import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { getMenu, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../api";
+import { localizedItemName } from "../utils/localizedItemName";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,7 +18,7 @@ const UPLOAD_PRESET = "servon_menu";
 const isWeb = Platform.OS === "web";
 
 const EMPTY_FORM = {
-  name: "", description: "", price: "", category: "Starters",
+  name: "", name_mr: "", name_hi: "", description: "", price: "", category: "Starters",
   image_url: null, is_thali: false, thali_includes: [], thali_custom: []
 };
 
@@ -112,6 +113,8 @@ export default function MenuScreen() {
   setEditItem(item);
   setForm({
     name: item.name,
+    name_mr: item.name_mr || "",
+    name_hi: item.name_hi || "",
     description: item.description || "",
     price: String(item.price),
     category: item.category,
@@ -201,6 +204,8 @@ export default function MenuScreen() {
 
     const data = {
       name: form.name,
+      name_mr: form.name_mr,
+      name_hi: form.name_hi,
       description: form.description,
       price: parseFloat(form.price),
       category: form.category,
@@ -351,7 +356,7 @@ export default function MenuScreen() {
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: 'flex-start' }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, flexWrap: 'wrap' }}>
-                    <LocalizedText style={styles.itemName}>{item.name}</LocalizedText>
+                    <NativeText style={styles.itemName}>{localizedItemName(item, language)}</NativeText>
                     {item.is_thali && (
                       <View style={styles.thaliBadge}><LocalizedText translate style={styles.thaliBadgeText}>Thali</LocalizedText></View>
                     )}
@@ -397,7 +402,7 @@ const found = items.find(i => String(i.id) === String(id));
   return (
     <View key={`inc-${idx}`} style={styles.thaliChip}>
       <LocalizedText style={styles.thaliChipText}>
-        {found ? found.name : `❌ Missing ${id}`}
+        {found ? localizedItemName(found, language) : `❌ Missing ${id}`}
       </LocalizedText>
     </View>
   );
@@ -459,7 +464,7 @@ const found = items.find(i => String(i.id) === String(id));
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
                   {items.filter((i) => form.thali_includes.map(String).includes(String(i.id))).map((i) => (
                     <TouchableOpacity key={i.id} style={styles.selectedChip} onPress={() => toggleThaliItem(i.id)}>
-                      <LocalizedText style={styles.selectedChipText}>{i.name}</LocalizedText>
+                      <LocalizedText style={styles.selectedChipText}>{localizedItemName(i, language)}</LocalizedText>
                       <Ionicons name="close" size={12} color="#111" />
                     </TouchableOpacity>
                   ))}
@@ -498,6 +503,10 @@ const found = items.find(i => String(i.id) === String(id));
             </TouchableOpacity>
             <LocalizedText translate style={styles.fieldLabel}>Item Name *</LocalizedText>
             <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder="Name" />
+            <LocalizedText translate style={styles.fieldLabel}>Marathi Name (optional)</LocalizedText>
+            <TextInput style={styles.input} value={form.name_mr} onChangeText={(v) => setForm((p) => ({ ...p, name_mr: v }))} placeholder="मराठी नाव" />
+            <LocalizedText translate style={styles.fieldLabel}>Hindi Name (optional)</LocalizedText>
+            <TextInput style={styles.input} value={form.name_hi} onChangeText={(v) => setForm((p) => ({ ...p, name_hi: v }))} placeholder="हिन्दी नाम" />
             <LocalizedText translate style={styles.fieldLabel}>Price (₹) *</LocalizedText>
             <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} keyboardType="decimal-pad" placeholder="0.00" />
             <LocalizedText translate style={styles.fieldLabel}>Category *</LocalizedText>
@@ -526,7 +535,7 @@ const found = items.find(i => String(i.id) === String(id));
                       const active = form.thali_includes.map(String).includes(String(item.id));
                         return (
                             <TouchableOpacity style={[styles.pickerRow, active && styles.pickerRowActive]} onPress={() => toggleThaliItem(item.id)}>
-                                <LocalizedText style={[styles.pickerRowText, active && {color: '#fff'}]}>{item.name}</LocalizedText>
+                                <NativeText style={[styles.pickerRowText, active && {color: '#fff'}]}>{localizedItemName(item, language)}</NativeText>
                                 <Ionicons name={active ? "checkmark-circle" : "ellipse-outline"} size={20} color={active ? "#fff" : "#ccc"} />
                             </TouchableOpacity>
                         );

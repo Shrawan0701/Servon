@@ -22,6 +22,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { getOrders, updateOrderStatus, getProfile } from "../api";
+import { localizedItemName } from "../utils/localizedItemName";
 import * as Print from "expo-print";
 import { useAuth } from "../context/AuthContext";
 
@@ -152,6 +153,7 @@ const ChefStatusBadge = React.memo(({ status, size = "medium" }) => {
 });
 
 const ChefOrderCard = React.memo((props) => {
+  const { language } = useLocale();
   const {
     order,
     onAccept,
@@ -212,7 +214,7 @@ const ChefOrderCard = React.memo((props) => {
         {items.map((item, idx) => (
           <View key={idx} style={[styles.chefItemRow, idx !== items.length - 1 && styles.chefItemRowDivider]}>
             <LocalizedText style={styles.chefItemName} numberOfLines={2}>
-              • {item.name}
+              • {localizedItemName(item, language)}
             </LocalizedText>
             <View style={styles.chefItemMeta}>
               <LocalizedText style={styles.chefItemQty}>×{item.quantity}</LocalizedText>
@@ -738,7 +740,7 @@ useEffect(() => {
     finalItemsList.forEach((i) => {
       itemsHtml += `
         <tr>
-          <td style="padding: 4px 0;">${i.name}</td>
+          <td style="padding: 4px 0;">${localizedItemName(i, language)}</td>
           <td style="text-align: center;">${i.quantity}</td>
           <td style="text-align: right;">₹${(i.price * i.quantity).toFixed(2)}</td>
         </tr>
@@ -804,7 +806,7 @@ const feedbackLink = `https://menu.servon.cloud/feedback/${profile?.id}?table=${
       </html>
     `;
   },
-  [profile]
+  [profile, language]
 );
 
   // Sends already-built HTML to the printer (web iframe / native Print).
@@ -1006,7 +1008,7 @@ const handleReprint = useCallback(
         </View>
         {items.map((i, idx) => (
           <LocalizedText key={idx} style={{ fontSize: 15, color: "#374151", marginBottom: 5, fontWeight: "500", lineHeight: 20 }}>
-            • {i.name} × {i.quantity} - <LocalizedText style={{ fontWeight: "700" }}>₹{(i.price * i.quantity).toFixed(0)}</LocalizedText>
+            • {localizedItemName(i, language)} × {i.quantity} - <LocalizedText style={{ fontWeight: "700" }}>₹{(i.price * i.quantity).toFixed(0)}</LocalizedText>
           </LocalizedText>
         ))}
         {item.special_instructions && (

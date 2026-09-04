@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS menu_items (
 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), 
 business_id UUID REFERENCES businesses(id) ON DELETE CASCADE, 
 name VARCHAR(255) NOT NULL, 
+name_mr VARCHAR(255), 
+name_hi VARCHAR(255), 
 description TEXT, 
 price NUMERIC(10,2) NOT NULL, 
 image_url TEXT, 
@@ -144,3 +146,7 @@ CREATE TABLE IF NOT EXISTS hotel_rooms (
 );
 
 CREATE INDEX IF NOT EXISTS idx_hotel_rooms_business_id ON hotel_rooms(business_id);
+
+-- ─── Localized menu item names (name_mr / name_hi) — idempotent for existing DBs ──
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS name_mr VARCHAR(255);
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS name_hi VARCHAR(255);

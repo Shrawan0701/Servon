@@ -11,6 +11,8 @@ import {
   Dimensions 
 } from "react-native";
 import LocalizedText from "../components/LocalizedText";
+import { useLocale } from "../context/LocaleContext";
+import { localizedItemName } from "../utils/localizedItemName";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -66,6 +68,7 @@ const ratingAccentColor = (rating) => {
 };
 
 export default function ReviewsScreen() {
+  const { language } = useLocale();
   const navigation = useNavigation();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -345,7 +348,7 @@ export default function ReviewsScreen() {
                         <View style={styles.itemsGrid}>
                           {orderedItems.map((food, idx) => (
                             <View key={idx} style={styles.itemPill}>
-                              <LocalizedText style={styles.itemText}>{food.name} × {food.quantity}</LocalizedText>
+                              <LocalizedText style={styles.itemText}>{localizedItemName(food, language)} × {food.quantity}</LocalizedText>
                             </View>
                           ))}
                         </View>

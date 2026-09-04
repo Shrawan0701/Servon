@@ -351,7 +351,33 @@ router.get("/", auth, async (req, res) => {
        ORDER BY o.created_at DESC`,
       [req.businessId]
     );
-    res.json(result.rows);
+
+    const orders = result.rows;
+
+    // Enrich each order item with the CURRENT localized menu names (name_mr /
+    // name_hi) so the hotel can display item names in its currently selected
+    // platform language, falling back to the stored snapshot name when a menu
+    // item no longer exists. The item's own identity/id/price snapshot are kept
+    // untouched (localization never changes ordering/business data).
+    const menuRes = await pool.query(
+      "SELECT id, name_mr, name_hi FROM menu_items WHERE business_id = $1",
+      [req.businessId]
+    );
+    const menuMap = new Map(menuRes.rows.map((r) => [String(r.id), r]));
+    orders.forEach((o) => {
+      if (typeof o.items === "string") {
+        try { o.items = JSON.parse(o.items); } catch { o.items = []; }
+      }
+      (Array.isArray(o.items) ? o.items : []).forEach((item) => {
+        if (item && item.id && menuMap.has(String(item.id))) {
+          const m = menuMap.get(String(item.id));
+          if (!("name_mr" in item)) item.name_mr = m.name_mr ?? null;
+          if (!("name_hi" in item)) item.name_hi = m.name_hi ?? null;
+        }
+      });
+    });
+
+    res.json(orders);
   } catch (err) {
     console.error("Fetch orders error:", err);
     res.status(500).json({ error: "Server error" });

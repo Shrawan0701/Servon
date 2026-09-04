@@ -4,11 +4,12 @@ import { fetchPublicMenu, fetchTableInfo } from "../api";
 import { useCart } from "../context/CartContext";
 import { LanguageSelector, useLocale } from "../context/LocaleContext";
 import VoiceOrderModal from "../components/VoiceOrderModal";
+import { localizedItemName } from "../utils/itemName";
 
 // --- Helper Functions from Friend's Push ---
 
 // Builds the full list of items in a thali from allItems + thali_custom string
-function getThaliContents(item, allItems) {
+function getThaliContents(item, allItems, language) {
   let includes = item.thali_includes;
 
   // ✅ FIX: Convert string → array
@@ -24,7 +25,7 @@ function getThaliContents(item, allItems) {
 
   const pickedNames = allItems
     .filter((i) => picked.includes(String(i.id)))
-    .map((i) => i.name);
+    .map((i) => localizedItemName(i, language));
 
   const custom = (item.thali_custom || "")
     .split(",")
@@ -36,7 +37,7 @@ function getThaliContents(item, allItems) {
 
 // Inline chip list with +N more toggle
 function ThaliContents({ contents }) {
-  const { t } = useLocale();
+  const { t, language } = useLocale();
   const [expanded, setExpanded] = useState(false);
   const LIMIT = 3;
   const visible = expanded ? contents : contents.slice(0, LIMIT);
@@ -69,7 +70,7 @@ function ThaliContents({ contents }) {
 // --- Main Component ---
 
 export default function MenuPage() {
-  const { t } = useLocale();
+  const { t, language } = useLocale();
   const navigate = useNavigate();
   const location = useLocation(); // ✅ Added to read query string (?restaurantId=...)
   
@@ -182,7 +183,7 @@ export default function MenuPage() {
         <div className="row g-3">
           {filteredItems.map((item) => {
             const qty = getQuantity(item.id);
-            const thaliContents = item.is_thali ? getThaliContents(item, menuItems) : [];
+            const thaliContents = item.is_thali ? getThaliContents(item, menuItems, language) : [];
 
             return (
               <div key={item.id} className="col-6">
@@ -192,7 +193,7 @@ export default function MenuPage() {
                     {item.image_url ? (
                       <img
                         src={item.image_url}
-                        alt={item.name}
+                        alt={localizedItemName(item, language)}
                         onClick={() => setSelectedImage(item.image_url)}
                         style={{
                           width: "100%",
@@ -226,7 +227,7 @@ export default function MenuPage() {
 
                   <div className="p-2 d-flex flex-column" style={{ flex: 1 }}>
                     <div className="fw-600" style={{ fontSize: 14 }}>
-                      {item.name}
+                      {localizedItemName(item, language)}
                     </div>
 
                     {/* Logical Combination: Show Thali Contents or Description */}

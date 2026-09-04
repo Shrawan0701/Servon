@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { LanguageSelector, useLocale } from "../context/LocaleContext";
+import { localizedItemName } from "../utils/itemName";
 
 export default function FeedbackPage() {
-  const { t } = useLocale();
+  const { t, language } = useLocale();
   const { businessId } = useParams();
   const [searchParams] = useSearchParams();
   const tableNumber = searchParams.get("table") || "Unknown";
@@ -99,7 +100,7 @@ export default function FeedbackPage() {
                   color: "#374151",
                 }}
               >
-                {item.name} × {item.quantity || 1}
+                {localizedItemName(item, language)} × {item.quantity || 1}
               </span>
             ))}
           </div>
