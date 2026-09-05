@@ -45,12 +45,14 @@
       "@react-native-community/datetimepicker",
       "expo-notifications",
       "expo-sqlite",
-      [
-        "expo-audio",
-        {
-          "microphonePermission": "Allow Servon to use your microphone for Voice AI Business Advisor."
-        }
-      ],
+     [
+  "expo-audio",
+  {
+    "microphonePermission": "Allow Servon to use your microphone for Voice AI Business Advisor.",
+    "enableBackgroundRecording": false,
+    "enableBackgroundPlayback": false
+  }
+],
       "expo-asset",
       "expo-font"
     ]
