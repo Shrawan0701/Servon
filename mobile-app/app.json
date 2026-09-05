@@ -4,7 +4,7 @@
     "slug": "servon-business",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/servon-logo.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
@@ -50,7 +50,9 @@
         {
           "microphonePermission": "Allow Servon to use your microphone for Voice AI Business Advisor."
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font"
     ]
   }
 }

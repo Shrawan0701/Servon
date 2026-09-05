@@ -54,3 +54,4 @@ node_modules/
 .project
 .classpath
 .settings/
+mobile-app/.expo/
