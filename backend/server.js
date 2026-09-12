@@ -44,11 +44,11 @@ const allowedOrigins = [
   "http://192.168.1.8:3000",
   "http://192.168.1.8:3001",
   "http://10.61.96.12:3000",
-  "http://10.198.185.12:3000",
-  "http://10.198.185.12:3001",
-  "http://10.198.185.12:8081",
-  "http://10.198.185.12:19000",
-  "exp://10.198.185.12:19000",
+  "http://10.132.59.12:3000",
+  "http://10.132.59.12:3001",
+  "http://10.132.59.12:8081",
+  "http://10.132.59.12:19000",
+  "exp://10.132.59.12:19000",
 ];
 
 app.use(
@@ -63,7 +63,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-branch-id"], // ✅ Added x-branch-id
   })
 );
 
@@ -99,6 +99,11 @@ app.use("/api/rooms", require("./routes/rooms"));
 app.use("/api/inventory", require("./routes/inventory"));
 app.use("/api/notifications", require("./routes/notifications"));
 
+// ─── BRANCH ROUTES (NEW) ───────────────────────────────────────────────
+const branchRoutes = require('./routes/branches');
+app.use('/api/branches', branchRoutes);
+console.log('✅ Branch routes registered at /api/branches');
+
 // ─── ADMIN ROUTES ──────────────────────────────────────────────────────
 const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
@@ -117,11 +122,12 @@ cron.schedule("0 6 * * *", async () => {
   console.log("🔄 Running Daily AI Summary...");
 
   try {
-    // Get all businesses with active subscription
+    // ✅ Get all businesses with active subscription (main branch only)
     const businesses = await pool.query(
       `SELECT id, business_name, owner_name, push_token, email 
        FROM businesses 
-       WHERE subscription_status = 'ACTIVE'`
+       WHERE subscription_status = 'ACTIVE'
+       AND (is_main_branch = true OR parent_id IS NULL)`
     );
 
     for (const biz of businesses.rows) {
@@ -129,74 +135,87 @@ cron.schedule("0 6 * * *", async () => {
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split("T")[0];
 
-      // Check if summary already exists for yesterday
-      const existing = await pool.query(
-        `SELECT id FROM daily_summaries 
-         WHERE business_id = $1 AND summary_date = $2`,
-        [biz.id, yesterdayStr]
-      );
-      
-      if (existing.rows.length > 0) {
-        console.log(`⏭️ Summary already exists for ${biz.business_name}`);
-        continue;
-      }
-
-      const data = await collectDailyData(biz.id, yesterday);
-      
-      if (data.totalOrders === 0) {
-        console.log(`⏭️ No orders for ${biz.business_name}, skipping.`);
-        continue;
-      }
-
-      // ─── Generate full summary ──────────────────────────────────────
-      console.log(`🤖 Generating summary for ${biz.business_name}...`);
-      const summary = await generateSummary(data);
-
-      // Save summary
-      await pool.query(
-        `INSERT INTO daily_summaries (business_id, summary_date, summary_text, key_metrics, displayed)
-         VALUES ($1, $2, $3, $4, false)`,
-        [biz.id, yesterdayStr, summary, JSON.stringify(data)]
+      // ✅ Get all branches of this business
+      const branches = await pool.query(
+        `SELECT id, branch_name FROM businesses 
+         WHERE parent_id = $1 OR id = $1
+         ORDER BY is_main_branch DESC`,
+        [biz.id]
       );
 
-      // ─── Generate hourly insights ──────────────────────────────────
-      const insights = await generateInsights(data);
-
-      // Delete any previous hourly insights for yesterday
-      await pool.query(
-        `DELETE FROM hourly_insights 
-         WHERE business_id = $1 AND insight_date = $2`,
-        [biz.id, yesterdayStr]
-      );
-
-      for (let i = 0; i < insights.length; i++) {
-        const insightType = [
-          "orders",
-          "revenue",
-          "top_item",
-          "peak_hour",
-          "avg_order",
-          "recommendation",
-        ][i] || "summary";
+      for (const branch of branches.rows) {
+        const branchId = branch.id;
         
+        // Check if summary already exists for yesterday
+        const existing = await pool.query(
+          `SELECT id FROM daily_summaries 
+           WHERE branch_id = $1 AND summary_date = $2`,
+          [branchId, yesterdayStr]
+        );
+        
+        if (existing.rows.length > 0) {
+          console.log(`⏭️ Summary already exists for ${biz.business_name} - ${branch.branch_name}`);
+          continue;
+        }
+
+        const data = await collectDailyData(branchId, yesterday);
+        
+        if (data.totalOrders === 0) {
+          console.log(`⏭️ No orders for ${biz.business_name} - ${branch.branch_name}, skipping.`);
+          continue;
+        }
+
+        // ─── Generate full summary ──────────────────────────────────────
+        console.log(`🤖 Generating summary for ${biz.business_name} - ${branch.branch_name}...`);
+        const summary = await generateSummary(data);
+
+        // ✅ Save summary with branch_id
         await pool.query(
-          `INSERT INTO hourly_insights 
-           (business_id, insight_date, insight_order, insight_type, insight_text)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [biz.id, yesterdayStr, i + 1, insightType, insights[i]]
+          `INSERT INTO daily_summaries (business_id, branch_id, summary_date, summary_text, key_metrics, displayed)
+           VALUES ($1, $2, $3, $4, $5, false)`,
+          [biz.id, branchId, yesterdayStr, summary, JSON.stringify(data)]
         );
-      }
 
-      // ─── Send push notification ────────────────────────────────────
-      if (biz.push_token) {
-        sendPush(
-          biz.push_token,
-          "📊 Daily Summary Ready",
-          `Yesterday: ${data.totalOrders} orders, ₹${data.totalRevenue.toFixed(0)} revenue. Open app to view insights.`
+        // ─── Generate hourly insights ──────────────────────────────────
+        const insights = await generateInsights(data);
+
+        // ✅ Delete previous insights for this branch
+        await pool.query(
+          `DELETE FROM hourly_insights 
+           WHERE branch_id = $1 AND insight_date = $2`,
+          [branchId, yesterdayStr]
         );
-      }
 
-      console.log(`✅ Summary & insights sent to ${biz.business_name}`);
+        for (let i = 0; i < insights.length; i++) {
+          const insightType = [
+            "orders",
+            "revenue",
+            "top_item",
+            "peak_hour",
+            "avg_order",
+            "recommendation",
+          ][i] || "summary";
+          
+          // ✅ Insert insights with branch_id
+          await pool.query(
+            `INSERT INTO hourly_insights 
+             (business_id, branch_id, insight_date, insight_order, insight_type, insight_text)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [biz.id, branchId, yesterdayStr, i + 1, insightType, insights[i]]
+          );
+        }
+
+        // ─── Send push notification ────────────────────────────────────
+        if (biz.push_token) {
+          sendPush(
+            biz.push_token,
+            "📊 Daily Summary Ready",
+            `Yesterday: ${data.totalOrders} orders, ₹${data.totalRevenue.toFixed(0)} revenue. Open app to view insights.`
+          );
+        }
+
+        console.log(`✅ Summary & insights sent to ${biz.business_name} - ${branch.branch_name}`);
+      }
     }
     console.log("✅ Daily AI Summary completed.");
   } catch (err) {
@@ -209,7 +228,8 @@ cron.schedule("0 10 * * *", async () => {
   try {
     const result = await pool.query(
       `SELECT push_token FROM businesses 
-       WHERE subscription_end_date::date = (CURRENT_DATE + INTERVAL '3 days')::date`
+       WHERE subscription_end_date::date = (CURRENT_DATE + INTERVAL '3 days')::date
+       AND (is_main_branch = true OR parent_id IS NULL)`
     );
     
     result.rows.forEach((row) => {

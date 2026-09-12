@@ -7,7 +7,7 @@ import { localizedItemName } from "../utils/itemName";
 // Voice Order Modal — mini-cart + checkout for the voice order path.
 // Detected items are reviewed/adjusted HERE, never on the Cart page.
 // Confirmation reuses the EXISTING customer QR order flow (/orders/place).
-export default function VoiceOrderModal({ open, onClose, businessId, tableId, menuItems }) {
+export default function VoiceOrderModal({ open, onClose, businessId, tableId, branchId, menuItems }) {
   const { t, language } = useLocale();
   const navigate = useNavigate();
 
@@ -226,7 +226,7 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
     };
   }, [subtotal, profile]);
 
-  // Confirm — reuses the EXISTING /orders/place QR order API (no new backend flow)
+  // Confirm — reuses the EXISTING /orders/place QR order API
   const handleConfirm = async () => {
     if (cart.length === 0) return;
     setPlacing(true);
@@ -245,15 +245,16 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
       const activeOrderId = sessionStorage.getItem("activeOrderId");
       const res = await placeOrder({
         businessId,
+        branchId,  // ✅ FIX: Include branchId in the order
         tableId,
         items: orderItems,
-        totalAmount: subtotal, // backend computes final total (GST/discount)
+        totalAmount: subtotal,
         specialInstructions: "",
         orderId: activeOrderId,
       });
       sessionStorage.setItem("activeOrderId", res.data.id);
       onClose();
-      navigate(`/order-success/${res.data.id}`, { state: { businessId, tableId } });
+      navigate(`/order-success/${res.data.id}`, { state: { businessId, tableId, branchId } });
     } catch (err) {
       setError((err.response && err.response.data && err.response.data.error) || t("orderFailed"));
     } finally {
@@ -336,7 +337,7 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
           <div style={{ textAlign: "center", padding: "24px 6px" }}>
             <div style={{ fontSize: 42, marginBottom: 10 }}>🤔</div>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{t("understanding")}</div>
-            {transcript && <div style={{ color: "#666", fontSize: 13, fontStyle: "italic" }}>“{transcript}”</div>}
+            {transcript && <div style={{ color: "#666", fontSize: 13, fontStyle: "italic" }}>"{transcript}"</div>}
           </div>
         )}
 
@@ -345,7 +346,7 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
             {ambiguities.map((amb) => (
               <div key={amb.requestedName} style={{ background: "#f8f9fa", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
-                  “{amb.requestedName}” — {t("pickOne")}
+                  "{amb.requestedName}" — {t("pickOne")}
                 </div>
                 {amb.options.map((opt) => (
                   <button

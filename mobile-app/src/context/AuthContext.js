@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import API from "../api";
+import API, { setCurrentBranchIdSync } from "../api";
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -18,6 +18,13 @@ export function AuthProvider({ children }) {
   const [business, setBusiness] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isChefModeState, setIsChefModeState] = useState(false);
+
+  // ✅ NEW: Branch state
+  const [branches, setBranches] = useState([]);
+  const [currentBranch, setCurrentBranch] = useState(null);
+  
+  // ✅ NEW: Switching branch flag (prevents stale data flash)
+  const [switchingBranch, setSwitchingBranch] = useState(false);
 
   useEffect(() => {
     loadAuth();
@@ -68,7 +75,6 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       // Silently fail or log minimally for debugging if needed
-      // console.log("Push registration error:", err);
     }
   };
 
@@ -77,6 +83,9 @@ export function AuthProvider({ children }) {
       const storedToken = await AsyncStorage.getItem("token");
       const storedBusiness = await AsyncStorage.getItem("business");
       const storedChefMode = await AsyncStorage.getItem("isChefMode");
+      // ✅ Load stored branches
+      const storedBranches = await AsyncStorage.getItem("branches");
+      const storedBranchId = await AsyncStorage.getItem("currentBranchId");
 
       if (storedToken) {
         setToken(storedToken);
@@ -85,6 +94,22 @@ export function AuthProvider({ children }) {
         if (storedBusiness) {
           const businessData = JSON.parse(storedBusiness);
           setBusiness(businessData);
+        }
+
+        // ✅ Load branches from storage
+        if (storedBranches) {
+          const branchesData = JSON.parse(storedBranches);
+          setBranches(branchesData);
+          
+          // ✅ Set current branch from storage
+          if (storedBranchId) {
+            const branch = branchesData.find(b => b.id === storedBranchId);
+            if (branch) {
+              setCurrentBranch(branch);
+              // ✅ Prime the SYNC cache so interceptors never read stale data
+              setCurrentBranchIdSync(branch.id);
+            }
+          }
         }
         
         registerPush(); 
@@ -100,23 +125,31 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const login = async (tokenValue, businessData) => {
+  const login = async (tokenValue, businessData, branchesData = []) => {
     try {
       await AsyncStorage.setItem("token", tokenValue);
       await AsyncStorage.setItem("business", JSON.stringify(businessData));
+      // ✅ Store branches
+      await AsyncStorage.setItem("branches", JSON.stringify(branchesData));
 
       API.defaults.headers.common["Authorization"] = `Bearer ${tokenValue}`;
 
       setToken(tokenValue);
       setBusiness(businessData);
+      setBranches(branchesData);
+
+      // ✅ Set main branch as default
+      const mainBranch = branchesData.find(b => b.is_main_branch) || branchesData[0];
+      if (mainBranch) {
+        // ✅ SYNC cache FIRST — before any async awaits
+        setCurrentBranchIdSync(mainBranch.id);
+        setCurrentBranch(mainBranch);
+        await AsyncStorage.setItem("currentBranchId", mainBranch.id);
+      }
 
       try {
         const res = await API.get("/auth/me");
-       
-        // ✅ FIX: The business object is directly in res.data
         const latestBusiness = res.data;
-      
-        
         setBusiness(latestBusiness);
         await AsyncStorage.setItem("business", JSON.stringify(latestBusiness));
       } catch (e) {
@@ -134,10 +167,16 @@ export function AuthProvider({ children }) {
       await AsyncStorage.removeItem("token");
       await AsyncStorage.removeItem("business");
       await AsyncStorage.removeItem("isChefMode");
+      // ✅ Remove branch data
+      await AsyncStorage.removeItem("branches");
+      await AsyncStorage.removeItem("currentBranchId");
       delete API.defaults.headers.common["Authorization"];
+      setCurrentBranchIdSync(null); // ✅ Clear sync cache
       setToken(null);
       setBusiness(null);
       setIsChefModeState(false);
+      setBranches([]);
+      setCurrentBranch(null);
     } catch (e) {
       console.error("Logout error:", e);
     }
@@ -154,6 +193,59 @@ export function AuthProvider({ children }) {
     await AsyncStorage.setItem("isChefMode", value ? "true" : "false");
   };
 
+  // ✅ NEW: Switch to a different branch (WITH switching flag + sync cache)
+  const switchBranch = async (branch) => {
+    try {
+      if (!branch) return false;
+
+      // ✅ STEP 1 — Update the SYNCHRONOUS cache FIRST, before any awaits.
+      // From this line forward, EVERY API request will carry the new
+      // x-branch-id header — no stale AsyncStorage reads possible.
+      setCurrentBranchIdSync(branch.id);
+
+      setSwitchingBranch(true);  // ✅ Flag ON
+      setCurrentBranch(branch);
+
+      // Persist to AsyncStorage (async — but the interceptor no longer
+      // depends on this being finished first).
+      await AsyncStorage.setItem("currentBranchId", branch.id);
+
+      // ✅ Reload business data for this branch — now correctly scoped
+      const res = await API.get("/auth/me");
+      setBusiness(res.data);
+      await AsyncStorage.setItem("business", JSON.stringify(res.data));
+
+      setSwitchingBranch(false); // ✅ Flag OFF
+      return true;
+    } catch (error) {
+      console.error("Switch branch error:", error);
+      setSwitchingBranch(false);
+      return false;
+    }
+  };
+
+  // ✅ NEW: Refresh branches list from server
+  const refreshBranches = async () => {
+    try {
+      const res = await API.get("/branches");
+      if (res.data?.data) {
+        setBranches(res.data.data);
+        await AsyncStorage.setItem("branches", JSON.stringify(res.data.data));
+
+        // ✅ If current branch no longer exists, reset to main
+        const stillExists = res.data.data.find(b => b.id === currentBranch?.id);
+        if (!stillExists && res.data.data.length > 0) {
+          const mainBranch = res.data.data.find(b => b.is_main_branch) || res.data.data[0];
+          setCurrentBranchIdSync(mainBranch.id); // ✅ Sync cache FIRST
+          setCurrentBranch(mainBranch);
+          await AsyncStorage.setItem("currentBranchId", mainBranch.id);
+        }
+      }
+    } catch (error) {
+      console.error("Refresh branches error:", error);
+    }
+  };
+
   // ===== ✅ FIXED: Premium Status (includes TRIAL) =====
   const isPremium = loading ? null : ['ACTIVE', 'TRIAL'].includes(business?.subscription_status);
 
@@ -167,7 +259,13 @@ export function AuthProvider({ children }) {
       updateBusiness,
       isChefMode: isChefModeState,
       setIsChefMode,
-      isPremium
+      isPremium,
+      // ✅ NEW: Branch context
+      branches,
+      currentBranch,
+      switchBranch,
+      refreshBranches,
+      switchingBranch,  // ✅ NEW: Exposed
     }}>
       {children}
     </AuthContext.Provider>

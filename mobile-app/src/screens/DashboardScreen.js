@@ -641,7 +641,8 @@ const recordTrialToastShown = () => {
 
 export default function DashboardScreen() {
   const { language } = useLocale();
-  const { business, updateBusiness, isChefMode } = useAuth();
+  // ✅ FIX: destructure switchingBranch + currentBranch for branch-switch glitch fix
+  const { business, updateBusiness, isChefMode, switchingBranch, currentBranch } = useAuth();
   // Voice announcement playback — same expo-audio playback approach as the
   // existing Voice AI Business Advisor. Kept separate from the notification beep.
   const announcementPlayer = useAudioPlayer(null);
@@ -702,6 +703,18 @@ export default function DashboardScreen() {
   const responsiveMaxWidth = isWideWidth ? 960 : isTabletWidth ? 760 : 600;
   const statCardMinWidth = isTabletWidth ? '23%' : '46%';
 
+  // ✅ FIX: Clear stale data immediately when branch switches
+  // This prevents the flash of previous-branch data before new data loads.
+  useEffect(() => {
+    setLiveOrders([]);
+    setNotifications([]);
+    setAnalytics(null);
+    setAiAlerts([]);
+    setTrialNotifications([]);
+    setBusinessSummary(null);
+    setLoading(true);
+  }, [currentBranch?.id]);
+
   const isToday = (date) => {
     const today = new Date();
     const d = new Date(date);
@@ -756,6 +769,13 @@ export default function DashboardScreen() {
   };
 
   const loadData = async () => {
+    // ✅ FIX: Clear old data first if switching branch — prevents stale flash
+    if (switchingBranch) {
+      setLiveOrders([]);
+      setNotifications([]);
+      setAnalytics(null);
+    }
+    
     try {
       const [analyticsRes, ordersRes, notifRes, subRes] = await Promise.all([
         getAnalytics(), getOrders(), getNotifications(), getSubscriptionDetails()
@@ -1021,6 +1041,17 @@ export default function DashboardScreen() {
     setShowProfileMenu(false);
     navigation.navigate(screenName);
   };
+
+  // ✅ FIX: Show "Switching branch..." screen while branch is switching.
+  // Placed BEFORE the loading check so it takes priority.
+  if (switchingBranch) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#111" />
+        <NativeText style={{ marginTop: 12, color: '#666' }}>Switching branch...</NativeText>
+      </View>
+    );
+  }
 
   if (loading) {
     return (

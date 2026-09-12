@@ -5,11 +5,12 @@ const authenticateToken = require('../middleware/auth');
 
 /**
  * GET /staff
- * Get all staff members for the authenticated business with current month payment status
+ * Get all staff members for the authenticated branch with current month payment status
  */
 router.get('/', authenticateToken, async (req, res) => {
     try {
-        const businessId = req.businessId;
+        // ✅ Use branchId if available
+        const filterId = req.branchId || req.businessId;
         const currentMonth = new Date().toISOString().slice(0, 7);
 
         const query = `
@@ -26,12 +27,12 @@ router.get('/', authenticateToken, async (req, res) => {
             LEFT JOIN salary_payments sp ON 
                 s.id = sp.staff_id 
                 AND sp.month = $2
-            WHERE s.business_id = $1 
+            WHERE (s.branch_id = $1 OR s.business_id = $1) 
                 AND s.is_active = true
             ORDER BY s.created_at DESC
         `;
 
-        const result = await pool.query(query, [businessId, currentMonth]);
+        const result = await pool.query(query, [filterId, currentMonth]);
         
         const statsQuery = `
             SELECT 
@@ -42,11 +43,11 @@ router.get('/', authenticateToken, async (req, res) => {
             LEFT JOIN salary_payments sp ON 
                 s.id = sp.staff_id 
                 AND sp.month = $2
-            WHERE s.business_id = $1 
+            WHERE (s.branch_id = $1 OR s.business_id = $1) 
                 AND s.is_active = true
         `;
         
-        const statsResult = await pool.query(statsQuery, [businessId, currentMonth]);
+        const statsResult = await pool.query(statsQuery, [filterId, currentMonth]);
 
         res.json({
             staff: result.rows,
@@ -65,14 +66,14 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        const businessId = req.businessId;
+        const filterId = req.branchId || req.businessId;
         const currentMonth = new Date().toISOString().slice(0, 7);
 
         const staffQuery = `
             SELECT * FROM staff 
-            WHERE id = $1 AND business_id = $2 AND is_active = true
+            WHERE id = $1 AND (branch_id = $2 OR business_id = $2) AND is_active = true
         `;
-        const staffResult = await pool.query(staffQuery, [id, businessId]);
+        const staffResult = await pool.query(staffQuery, [id, filterId]);
 
         if (staffResult.rows.length === 0) {
             return res.status(404).json({ error: 'Staff member not found' });
@@ -111,7 +112,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
  */
 router.post('/', authenticateToken, async (req, res) => {
     try {
-        const businessId = req.businessId;
+        const branchId = req.branchId || req.businessId;
         const { name, phone, role, joining_date, monthly_salary } = req.body;
 
         if (!name || !phone || !role || !joining_date || monthly_salary === undefined) {
@@ -124,13 +125,13 @@ router.post('/', authenticateToken, async (req, res) => {
 
         const query = `
             INSERT INTO staff (
-                business_id, name, phone, role, 
+                business_id, branch_id, name, phone, role, 
                 joining_date, monthly_salary
-            ) VALUES ($1, $2, $3, $4, $5, $6)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
         `;
 
-        const values = [businessId, name, phone, role, joining_date, monthly_salary];
+        const values = [req.businessId, branchId, name, phone, role, joining_date, monthly_salary];
         const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
@@ -147,11 +148,11 @@ router.post('/', authenticateToken, async (req, res) => {
 router.put('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        const businessId = req.businessId;
+        const filterId = req.branchId || req.businessId;
         const { name, phone, role, joining_date, monthly_salary, is_active } = req.body;
 
-        const checkQuery = 'SELECT id FROM staff WHERE id = $1 AND business_id = $2';
-        const checkResult = await pool.query(checkQuery, [id, businessId]);
+        const checkQuery = 'SELECT id FROM staff WHERE id = $1 AND (branch_id = $2 OR business_id = $2)';
+        const checkResult = await pool.query(checkQuery, [id, filterId]);
         
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Staff member not found' });
@@ -165,7 +166,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
             updates.push(`name = $${paramCount++}`);
             values.push(name);
         }
-        
         if (phone !== undefined) {
             updates.push(`phone = $${paramCount++}`);
             values.push(phone);
@@ -198,11 +198,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const query = `
             UPDATE staff 
             SET ${updates.join(', ')} 
-            WHERE id = $${paramCount} AND business_id = $${paramCount + 1}
+            WHERE id = $${paramCount} AND (branch_id = $${paramCount + 1} OR business_id = $${paramCount + 1})
             RETURNING *
         `;
 
-        values.push(businessId);
+        values.push(filterId);
         const result = await pool.query(query, values);
 
         res.json(result.rows[0]);
@@ -214,24 +214,21 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
 /**
  * DELETE /staff/:id
- * Delete staff member - HARD DELETE (direct removal from database)
  */
 router.delete('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        const businessId = req.businessId;
+        const filterId = req.branchId || req.businessId;
 
-        const checkQuery = 'SELECT id, name FROM staff WHERE id = $1 AND business_id = $2 AND is_active = true';
-        const checkResult = await pool.query(checkQuery, [id, businessId]);
+        const checkQuery = 'SELECT id, name FROM staff WHERE id = $1 AND (branch_id = $2 OR business_id = $2) AND is_active = true';
+        const checkResult = await pool.query(checkQuery, [id, filterId]);
 
         if (checkResult.rows.length === 0) {
-            return res.status(404).json({ 
-                error: 'Staff member not found or already deleted'
-            });
+            return res.status(404).json({ error: 'Staff member not found or already deleted' });
         }
 
-        const deleteQuery = 'DELETE FROM staff WHERE id = $1 AND business_id = $2 RETURNING id, name';
-        const deleteResult = await pool.query(deleteQuery, [id, businessId]);
+        const deleteQuery = 'DELETE FROM staff WHERE id = $1 AND (branch_id = $2 OR business_id = $2) RETURNING id, name';
+        const deleteResult = await pool.query(deleteQuery, [id, filterId]);
 
         if (deleteResult.rows.length === 0) {
             return res.status(404).json({ error: 'Failed to delete staff member' });
@@ -241,29 +238,24 @@ router.delete('/:id', authenticateToken, async (req, res) => {
             message: 'Staff member deleted successfully',
             deleted: deleteResult.rows[0]
         });
-
     } catch (error) {
         console.error('Error deleting staff:', error);
-        res.status(500).json({ 
-            error: 'Failed to delete staff member',
-            details: error.message 
-        });
+        res.status(500).json({ error: 'Failed to delete staff member', details: error.message });
     }
 });
 
 /**
  * POST /staff/:id/salary/pay
- * Mark salary as paid for current month
  */
 router.post('/:id/salary/pay', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        const businessId = req.businessId;
+        const filterId = req.branchId || req.businessId;
         const { amount, notes } = req.body;
         const currentMonth = new Date().toISOString().slice(0, 7);
 
-        const staffQuery = 'SELECT monthly_salary FROM staff WHERE id = $1 AND business_id = $2 AND is_active = true';
-        const staffResult = await pool.query(staffQuery, [id, businessId]);
+        const staffQuery = 'SELECT monthly_salary FROM staff WHERE id = $1 AND (branch_id = $2 OR business_id = $2) AND is_active = true';
+        const staffResult = await pool.query(staffQuery, [id, filterId]);
 
         if (staffResult.rows.length === 0) {
             return res.status(404).json({ error: 'Staff member not found' });

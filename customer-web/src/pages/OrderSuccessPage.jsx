@@ -10,12 +10,11 @@ export default function OrderSuccessPage() {
   const location = useLocation();
   const { clearCart } = useCart();
 
-  // Retrieve the IDs passed from the CartPage
-  const { businessId, tableId } = location.state || {};
+  // ✅ Retrieve IDs INCLUDING branchId from state
+  const { businessId, tableId, branchId } = location.state || {};
 
   const [timeLeft, setTimeLeft] = useState(60);
 
-  // 60-Second Countdown Timer
   useEffect(() => {
     if (timeLeft <= 0) {
       sessionStorage.removeItem("activeOrderId");
@@ -31,11 +30,11 @@ export default function OrderSuccessPage() {
   }, [timeLeft, clearCart]);
 
   const handleEditOrder = () => {
-    // Route back to the specific restaurant and table menu
     if (businessId && tableId) {
-      navigate(`/menu/${businessId}/${tableId}`);
+      // ✅ PRESERVE branchId in URL
+      const url = `/menu/${businessId}/${tableId}${branchId ? `?branchId=${branchId}` : ''}`;
+      navigate(url);
     } else {
-      // Safe fallback just in case they refreshed the page
       navigate(-1);
     }
   };
@@ -43,7 +42,9 @@ export default function OrderSuccessPage() {
   const handleOrderMore = () => {
     sessionStorage.removeItem("activeOrderId");
     clearCart();
-    navigate(`/menu/${businessId}/${tableId}`);
+    // ✅ PRESERVE branchId in URL
+    const url = `/menu/${businessId}/${tableId}${branchId ? `?branchId=${branchId}` : ''}`;
+    navigate(url);
   };
 
   return (

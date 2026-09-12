@@ -243,64 +243,68 @@ export default function AnalyticsScreen() {
     setEndDate(toDateStr(end));
   };
 
-  const downloadReport = async (format) => {
-    if (isLikelyUnreachableHost) {
-      Alert.alert(
-        "Server Not Configured",
-        "This app build is still pointing at localhost for its API, which isn't reachable from a real device. " +
-        "Set EXPO_PUBLIC_API_URL to your deployed API's https:// address in the build profile (e.g. eas.json) " +
-        "and rebuild — this is why report downloads fail only in the installed app.",
-      );
-      return;
-    }
+ const downloadReport = async (format) => {
+  if (isLikelyUnreachableHost) {
+    Alert.alert(
+      "Server Not Configured",
+      "This app build is still pointing at localhost for its API, which isn't reachable from a real device. " +
+      "Set EXPO_PUBLIC_API_URL to your deployed API's https:// address in the build profile (e.g. eas.json) " +
+      "and rebuild — this is why report downloads fail only in the installed app.",
+    );
+    return;
+  }
 
-    const token = await AsyncStorage.getItem("token");
-    if (!token) {
-      Alert.alert(localizeText("Session Expired", language), localizeText("Please log in again and retry the download.", language));
-      return;
-    }
+  const token = await AsyncStorage.getItem("token");
+  if (!token) {
+    Alert.alert(localizeText("Session Expired", language), localizeText("Please log in again and retry the download.", language));
+    return;
+  }
 
-    const url = `${API_BASE_URL}/api/sales/${format}?startDate=${startDate}&endDate=${endDate}&token=${token}&includeDailyTable=true`;
+  // ✅ Get current branch ID from storage
+  const branchId = await AsyncStorage.getItem("currentBranchId");
 
-    setDownloading(true);
-    try {
-      if (Platform.OS === "web") {
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute("download", `report-${startDate}-to-${endDate}.${format}`);
-        link.setAttribute("target", "_blank");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        const filename = `servon-report-${Date.now()}.${format}`;
-        const fileUri = FileSystem.cacheDirectory + filename;
-        const res = await FileSystem.downloadAsync(url, fileUri, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+  // ✅ Include branchId in the URL
+  const url = `${API_BASE_URL}/api/sales/${format}?startDate=${startDate}&endDate=${endDate}&token=${token}&branchId=${branchId || ''}&includeDailyTable=true`;
 
-        if (res.status !== 200) {
-          throw new Error(`Server responded with status ${res.status}`);
-        }
+  setDownloading(true);
+  try {
+    if (Platform.OS === "web") {
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `report-${startDate}-to-${endDate}.${format}`);
+      link.setAttribute("target", "_blank");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      const filename = `servon-report-${Date.now()}.${format}`;
+      const fileUri = FileSystem.cacheDirectory + filename;
+      const res = await FileSystem.downloadAsync(url, fileUri, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(res.uri, {
-            mimeType: format === "pdf" ? "application/pdf" : "text/csv",
-            dialogTitle: `Business Report (${format.toUpperCase()})`,
-            UTI: format === "pdf" ? "com.adobe.pdf" : "public.comma-separated-values-text",
-          });
-        }
+      if (res.status !== 200) {
+        throw new Error(`Server responded with status ${res.status}`);
       }
-    } catch (error) {
-      console.error("downloadReport error:", error);
-      Alert.alert(
-        "Export Error",
-        `Could not download the report.\n\n${error?.message || "Unknown error"}`,
-      );
-    } finally {
-      setDownloading(false);
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(res.uri, {
+          mimeType: format === "pdf" ? "application/pdf" : "text/csv",
+          dialogTitle: `Business Report (${format.toUpperCase()})`,
+          UTI: format === "pdf" ? "com.adobe.pdf" : "public.comma-separated-values-text",
+        });
+      }
     }
-  };
+  } catch (error) {
+    console.error("downloadReport error:", error);
+    Alert.alert(
+      "Export Error",
+      `Could not download the report.\n\n${error?.message || "Unknown error"}`,
+    );
+  } finally {
+    setDownloading(false);
+  }
+};
 
   if (loading) {
     return (

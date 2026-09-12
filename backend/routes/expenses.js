@@ -33,53 +33,53 @@ const getDateRange = (period) => {
 router.get("/", auth, async (req, res) => {
   const period = req.query.period || "monthly";
   const { start, end } = getDateRange(period);
+  
+  // ✅ Use branchId if available
+  const filterId = req.branchId || req.businessId;
 
   try {
-    // Updated query to include new fields
     const rows = await pool.query(
       `SELECT id, category, amount, description, receipt_url, expense_date, created_at,
               supplier, amount_paid, payment_status, invoice_number, purchase_date, sub_category
        FROM expenses
-       WHERE business_id = $1
+       WHERE (branch_id = $1)
          AND expense_date >= $2
          AND expense_date < $3
        ORDER BY expense_date DESC, created_at DESC`,
-      [req.businessId, start, end]
+      [filterId, start, end]
     );
 
     const totals = await pool.query(
       `SELECT category, COALESCE(SUM(amount), 0) AS total
        FROM expenses
-       WHERE business_id = $1
+       WHERE (branch_id = $1)
          AND expense_date >= $2
          AND expense_date < $3
        GROUP BY category`,
-      [req.businessId, start, end]
+      [filterId, start, end]
     );
 
     const grand = await pool.query(
       `SELECT COALESCE(SUM(amount), 0) AS total
        FROM expenses
-       WHERE business_id = $1
+       WHERE (branch_id = $1)
          AND expense_date >= $2
          AND expense_date < $3`,
-      [req.businessId, start, end]
+      [filterId, start, end]
     );
 
-    // Calculate outstanding summary
     const outstanding = await pool.query(
       `SELECT 
          COALESCE(SUM(amount), 0) AS total_expenses,
          COALESCE(SUM(amount_paid), 0) AS total_paid,
          COALESCE(SUM(amount - amount_paid), 0) AS total_outstanding
        FROM expenses
-       WHERE business_id = $1
+       WHERE (branch_id = $1)
          AND expense_date >= $2
          AND expense_date < $3`,
-      [req.businessId, start, end]
+      [filterId, start, end]
     );
 
-    // Get supplier-wise outstanding
     const supplierSummary = await pool.query(
       `SELECT 
          supplier,
@@ -87,14 +87,14 @@ router.get("/", auth, async (req, res) => {
          COALESCE(SUM(amount_paid), 0) AS paid,
          COALESCE(SUM(amount - amount_paid), 0) AS remaining
        FROM expenses
-       WHERE business_id = $1
+       WHERE (branch_id = $1)
          AND expense_date >= $2
          AND expense_date < $3
          AND supplier IS NOT NULL
        GROUP BY supplier
        HAVING COALESCE(SUM(amount - amount_paid), 0) > 0
        ORDER BY supplier`,
-      [req.businessId, start, end]
+      [filterId, start, end]
     );
 
     res.json({
@@ -145,18 +145,19 @@ router.post("/", auth, async (req, res) => {
   }
 
   try {
+    // ✅ Determine branch_id for this expense
+    const branchId = req.branchId || req.businessId;
+
     let receiptUrl = null;
 
     if (req.files && req.files.receipt) {
       receiptUrl = await uploadImage(req.files.receipt.data, "servon/receipts");
     }
 
-    // Calculate amount_paid and payment_status if not provided
     const totalAmount = parseFloat(amount);
     const paid = amountPaid !== undefined ? parseFloat(amountPaid) : 0;
     let status = paymentStatus;
 
-    // Auto-calculate payment status if not provided
     if (!status) {
       if (paid >= totalAmount) {
         status = 'paid';
@@ -167,15 +168,17 @@ router.post("/", auth, async (req, res) => {
       }
     }
 
+    // ✅ Insert with branch_id
     const result = await pool.query(
       `INSERT INTO expenses (
-        business_id, category, amount, description, receipt_url, expense_date,
+        business_id, branch_id, category, amount, description, receipt_url, expense_date,
         supplier, amount_paid, payment_status, invoice_number, purchase_date, sub_category
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         req.businessId,
+        branchId,  // ✅ Added branch_id
         category,
         parseFloat(amount),
         description || null,
@@ -201,9 +204,12 @@ router.post("/", auth, async (req, res) => {
 // ── DELETE /api/expenses/:id ──────────────────────────────────────────────────
 router.delete("/:id", auth, async (req, res) => {
   try {
+    // ✅ Use branchId if available
+    const filterId = req.branchId || req.businessId;
+
     const result = await pool.query(
-      "DELETE FROM expenses WHERE id = $1 AND business_id = $2 RETURNING id",
-      [req.params.id, req.businessId]
+      "DELETE FROM expenses WHERE id = $1 AND (branch_id = $2 OR business_id = $2) RETURNING id",
+      [req.params.id, filterId]
     );
 
     if (result.rows.length === 0) {
@@ -248,6 +254,9 @@ router.put("/:id", auth, async (req, res) => {
   }
 
   try {
+    // ✅ Use branchId if available
+    const filterId = req.branchId || req.businessId;
+
     let receiptUrl = undefined;
 
     if (req.files && req.files.receipt) {
@@ -256,7 +265,6 @@ router.put("/:id", auth, async (req, res) => {
       receiptUrl = existingReceiptUrl || null;
     }
 
-    // Calculate amount_paid and payment_status
     const totalAmount = parseFloat(amount);
     const paid = amountPaid !== undefined ? parseFloat(amountPaid) : 0;
     let status = paymentStatus;
@@ -304,12 +312,12 @@ router.put("/:id", auth, async (req, res) => {
     const idIdx  = values.length + 1;
     const bizIdx = values.length + 2;
     values.push(req.params.id);
-    values.push(req.businessId);
+    values.push(filterId);  // ✅ Use filterId instead of businessId
 
     const result = await pool.query(
       `UPDATE expenses
        SET ${fields.join(", ")}
-       WHERE id = $${idIdx} AND business_id = $${bizIdx}
+       WHERE id = $${idIdx} AND (branch_id = $${bizIdx} OR business_id = $${bizIdx})
        RETURNING *`,
       values
     );
@@ -327,17 +335,19 @@ router.put("/:id", auth, async (req, res) => {
 });
 
 // ── GET /api/expenses/suppliers ─────────────────────────────────────────────
-// Get unique supplier suggestions for autocomplete
 router.get("/suppliers", auth, async (req, res) => {
   try {
+    // ✅ Use branchId if available
+    const filterId = req.branchId || req.businessId;
+
     const result = await pool.query(
       `SELECT DISTINCT supplier 
        FROM expenses 
-       WHERE business_id = $1 
+       WHERE (branch_id = $1)
          AND supplier IS NOT NULL 
          AND supplier != ''
        ORDER BY supplier`,
-      [req.businessId]
+      [filterId]
     );
 
     res.json({ suppliers: result.rows.map(row => row.supplier) });
@@ -349,26 +359,26 @@ router.get("/suppliers", auth, async (req, res) => {
 });
 
 // ── GET /api/expenses/outstanding ────────────────────────────────────────────
-// Get outstanding payables summary
 router.get("/outstanding", auth, async (req, res) => {
   const period = req.query.period || "monthly";
   const { start, end } = getDateRange(period);
+  
+  // ✅ Use branchId if available
+  const filterId = req.branchId || req.businessId;
 
   try {
-    // Overall summary
     const summary = await pool.query(
       `SELECT 
          COALESCE(SUM(amount), 0) AS total_expenses,
          COALESCE(SUM(amount_paid), 0) AS total_paid,
          COALESCE(SUM(amount - amount_paid), 0) AS total_outstanding
        FROM expenses
-       WHERE business_id = $1
+       WHERE (branch_id = $1)
          AND expense_date >= $2
          AND expense_date < $3`,
-      [req.businessId, start, end]
+      [filterId, start, end]
     );
 
-    // Supplier-wise outstanding
     const suppliers = await pool.query(
       `SELECT 
          supplier,
@@ -376,14 +386,14 @@ router.get("/outstanding", auth, async (req, res) => {
          COALESCE(SUM(amount_paid), 0) AS paid,
          COALESCE(SUM(amount - amount_paid), 0) AS remaining
        FROM expenses
-       WHERE business_id = $1
+       WHERE (branch_id = $1)
          AND expense_date >= $2
          AND expense_date < $3
          AND supplier IS NOT NULL
        GROUP BY supplier
        HAVING COALESCE(SUM(amount - amount_paid), 0) > 0
        ORDER BY remaining DESC`,
-      [req.businessId, start, end]
+      [filterId, start, end]
     );
 
     res.json({

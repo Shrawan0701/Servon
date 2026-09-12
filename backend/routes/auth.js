@@ -40,13 +40,13 @@ router.post("/signup", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // --- 2. INSERT BUSINESS ---
+    // --- 2. INSERT BUSINESS (Added is_main_branch, branch_name) ---
     const result = await pool.query(
       `INSERT INTO businesses 
-      (business_name, owner_name, email, phone, password_hash, subscription_status, referral_code, referred_by)
-      VALUES ($1, $2, $3, $4, $5, 'INACTIVE', $6, $7)
-      RETURNING id, business_name, owner_name, email, phone, subscription_status, referral_code`,
-      [businessName, ownerName, email, phone, passwordHash, newReferralCode, referrerId]
+      (business_name, branch_name, owner_name, email, phone, password_hash, subscription_status, referral_code, referred_by, is_main_branch)
+      VALUES ($1, $2, $3, $4, $5, $6, 'INACTIVE', $7, $8, true)
+      RETURNING id, business_name, branch_name, owner_name, email, phone, subscription_status, referral_code`,
+      [businessName, businessName, ownerName, email, phone, passwordHash, newReferralCode, referrerId]
     );
 
     const business = result.rows[0];
@@ -82,7 +82,7 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-// Login
+// Login (UPDATED to return branches)
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -128,9 +128,28 @@ router.post("/login", async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
 
+    // ✅ Get parent business ID (for branches)
+    const parentId = business.is_branch && business.parent_id 
+      ? business.parent_id 
+      : business.id;
+
+    // ✅ Get branches for this business (including main)
+    const branches = await pool.query(
+      `SELECT id, business_name, branch_name, branch_code, is_main_branch
+       FROM businesses 
+       WHERE (id = $1 OR parent_id = $1) AND is_active != false
+       ORDER BY is_main_branch DESC, created_at ASC`,
+      [parentId]
+    );
+
     const { password_hash, otp_code, otp_expires_at, ...safeData } = business;
 
-    res.json({ token, business: safeData });
+    res.json({ 
+      token, 
+      business: safeData,
+      branches: branches.rows,  // ✅ Include branches
+      parentBusinessId: parentId  // ✅ Include parent ID
+    });
 
   } catch (err) {
     console.error("Login error:", err);
@@ -253,23 +272,47 @@ router.post("/forgot-password/reset", async (req, res) => {
   }
 });
 
-// Get current business (me)
+// Get current business (me) - UPDATED with branch info
 router.get("/me", authMiddleware, async (req, res) => {
   try {
+    // ✅ Use branchId if available
+    const targetId = req.branchId || req.businessId;
+    
     const result = await pool.query(
-      `SELECT id, business_name, owner_name, email, phone, logo_url, description,
-      address, city, state, pincode, gst_number, referral_code,
-      subscription_status, subscription_start_date,
-      subscription_end_date, created_at
+      `SELECT id, business_name, branch_name, branch_code, owner_name, email, phone, 
+      logo_url, description, address, city, state, pincode, gst_number, referral_code,
+      subscription_status, subscription_start_date, subscription_end_date, 
+      plan_type, subscription_plan, parent_id, is_branch, is_main_branch,
+      created_at
       FROM businesses WHERE id = $1`,
-      [req.businessId]
+      [targetId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Not found" });
     }
 
-    res.json(result.rows[0]);
+    const business = result.rows[0];
+    
+    // ✅ Get parent business ID for subscription
+    const parentId = business.is_branch && business.parent_id 
+      ? business.parent_id 
+      : business.id;
+
+    // ✅ Get branches
+    const branches = await pool.query(
+      `SELECT id, business_name, branch_name, branch_code, is_main_branch
+       FROM businesses 
+       WHERE (id = $1 OR parent_id = $1) AND is_active != false
+       ORDER BY is_main_branch DESC, created_at ASC`,
+      [parentId]
+    );
+
+    res.json({
+      ...business,
+      branches: branches.rows,
+      parentBusinessId: parentId
+    });
 
   } catch (err) {
     console.error(err);
