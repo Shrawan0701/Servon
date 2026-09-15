@@ -5,15 +5,14 @@ const auth    = require("../middleware/auth");
 const { generateSalesReportPDF } = require("../utils/pdf");
 
 // ─── DATA FETCHER ─────────────────────────────────────────────────────────────
-
-const getReportData = async (businessId, startDate, endDate) => {
+const getReportData = async (filterId, startDate, endDate) => {
   const orders = await pool.query(
     `SELECT *
      FROM orders
-     WHERE business_id = $1
-       AND DATE(created_at) BETWEEN $2 AND $3
+     WHERE branch_id = $1
+       AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') BETWEEN $2 AND $3
        AND status != 'REJECTED'`,
-    [businessId, startDate, endDate]
+    [filterId, startDate, endDate]
   );
 
   const totalOrders  = orders.rows.length;
@@ -31,18 +30,19 @@ const getReportData = async (businessId, startDate, endDate) => {
     }
   }
 
-  // ── Daily revenue aggregation ────────────────────────────────────────────────
-  // Build a map of date → { orders, revenue }
+  // ── Daily revenue aggregation (using IST) ────────────────────────────────
   const dailyMap = {};
   for (const order of orders.rows) {
-    // created_at may be a Date object or ISO string
-    const dateStr = new Date(order.created_at).toISOString().split("T")[0];
+    // ✅ Convert to IST date
+    const dateStr = new Date(
+      new Date(order.created_at).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    ).toISOString().split("T")[0];
+    
     if (!dailyMap[dateStr]) dailyMap[dateStr] = { date: dateStr, orders: 0, revenue: 0 };
     dailyMap[dateStr].orders  += 1;
     dailyMap[dateStr].revenue += parseFloat(order.total_amount || 0);
   }
 
-  // Sort by date ascending
   const dailyRevenue = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
 
   return {
@@ -51,18 +51,19 @@ const getReportData = async (businessId, startDate, endDate) => {
     totalOrders,
     totalRevenue,
     items: Object.values(itemMap).sort((a, b) => b.qty_sold - a.qty_sold),
-    dailyRevenue, // ← new field consumed by PDF + CSV
+    dailyRevenue,
   };
 };
 
 // ─── CSV EXPORT ───────────────────────────────────────────────────────────────
-
 router.get("/csv", auth, async (req, res) => {
   const { startDate, endDate } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: "Date range required" });
 
   try {
-    const data = await getReportData(req.businessId, startDate, endDate);
+    // ✅ Use branchId if available
+    const filterId = req.branchId || req.businessId;
+    const data = await getReportData(filterId, startDate, endDate);
 
     let csv = `SERVON BUSINESS DASHBOARD\n`;
     csv += `========================================\n`;
@@ -72,7 +73,6 @@ router.get("/csv", auth, async (req, res) => {
     csv += `Avg Order Value (INR):,${data.totalOrders > 0 ? (data.totalRevenue / data.totalOrders).toFixed(2) : "0.00"}\n`;
     csv += `========================================\n\n`;
 
-    // ── Top Items section ──────────────────────────────────────────────────────
     csv += `TOP SELLING ITEMS\n`;
     csv += `ITEM NAME,QUANTITY SOLD,REVENUE (INR)\n`;
     for (const item of data.items) {
@@ -82,7 +82,6 @@ router.get("/csv", auth, async (req, res) => {
 
     csv += `\n`;
 
-    // ── Daily Revenue section ──────────────────────────────────────────────────
     csv += `DAILY REVENUE BREAKDOWN\n`;
     csv += `DATE,DAY,ORDERS,REVENUE (INR),AVG ORDER VALUE (INR)\n`;
     for (const row of data.dailyRevenue) {
@@ -90,7 +89,6 @@ router.get("/csv", auth, async (req, res) => {
       const avg     = row.orders > 0 ? (row.revenue / row.orders).toFixed(2) : "0.00";
       csv += `${row.date},"${dayName}",${row.orders},${row.revenue.toFixed(2)},${avg}\n`;
     }
-    // Totals row
     csv += `TOTAL,,${data.totalOrders},${data.totalRevenue.toFixed(2)},\n`;
 
     res.set({
@@ -106,13 +104,13 @@ router.get("/csv", auth, async (req, res) => {
 });
 
 // ─── PDF EXPORT ───────────────────────────────────────────────────────────────
-
 router.get("/pdf", auth, async (req, res) => {
   const { startDate, endDate } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: "Date range required" });
 
   try {
-    const data      = await getReportData(req.businessId, startDate, endDate);
+    const filterId = req.branchId || req.businessId;
+    const data      = await getReportData(filterId, startDate, endDate);
     const pdfBuffer = await generateSalesReportPDF(data);
 
     res.set({

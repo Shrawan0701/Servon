@@ -4,104 +4,97 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 const { collectDailyData } = require("../utils/dailySummary");
 const { generateSummary } = require("../services/aiSummaryService");
+
+// ─── GET ANALYTICS (Strict Branch Isolation) ──────────────────────────
 router.get("/", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
+    const filterId = req.branchId || req.businessId;
 
-    // Today stats
-   const todayStats = await pool.query(
+    const todayStats = await pool.query(
       `SELECT COUNT(*) as total_orders,
               COALESCE(SUM(total_amount), 0) as total_revenue
        FROM orders
-       WHERE business_id = $1
+       WHERE branch_id = $1
        AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
        AND status != 'REJECTED'`,
-      [businessId]
+      [filterId]
     );
 
-    // Active tables (currently occupied — excludes rejected, already-served,
-    // and paid orders, since a paid table has settled its bill and is free
-    // again even if it hasn't been physically cleared yet)
-   const activeTables = await pool.query(
+    const activeTables = await pool.query(
       `SELECT COUNT(DISTINCT table_id) as count
        FROM orders
-       WHERE business_id = $1
+       WHERE branch_id = $1
        AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
        AND status NOT IN ('REJECTED', 'SERVED', 'PAID')`,
-      [businessId]
+      [filterId]
     );
 
-    // Total tables this business has configured
     const totalTablesResult = await pool.query(
-      `SELECT COUNT(*) as count FROM tables WHERE business_id = $1`,
-      [businessId]
+      `SELECT COUNT(*) as count FROM tables 
+       WHERE branch_id = $1`,
+      [filterId]
     );
 
-    // Most ordered item today
-   const mostOrdered = await pool.query(
+    const mostOrdered = await pool.query(
       `SELECT item->>'name' as name,
               SUM((item->>'quantity')::int) as total_qty
        FROM orders,
             jsonb_array_elements(items) as item
-       WHERE business_id = $1
+       WHERE branch_id = $1
        AND DATE(created_at AT TIME ZONE 'Asia/Kolkata') = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
        AND status != 'REJECTED'
        GROUP BY item->>'name'
        ORDER BY total_qty DESC
        LIMIT 1`,
-      [businessId]
+      [filterId]
     );
 
-    // Last 30 days daily stats
     const last30Days = await pool.query(
       `SELECT DATE(created_at) as date,
               COUNT(*) as orders,
               COALESCE(SUM(total_amount), 0) as revenue
        FROM orders
-       WHERE business_id = $1
+       WHERE branch_id = $1
        AND created_at >= NOW() - INTERVAL '30 days'
        AND status != 'REJECTED'
        GROUP BY DATE(created_at)
        ORDER BY date`,
-      [businessId]
+      [filterId]
     );
 
-    // Last 90 days summary
     const last90Days = await pool.query(
       `SELECT COUNT(*) as total_orders,
               COALESCE(SUM(total_amount), 0) as total_revenue
        FROM orders
-       WHERE business_id = $1
+       WHERE branch_id = $1
        AND created_at >= NOW() - INTERVAL '90 days'
        AND status != 'REJECTED'`,
-      [businessId]
+      [filterId]
     );
 
-    // Top 5 items (all time)
     const topItems = await pool.query(
       `SELECT item->>'name' as name,
               SUM((item->>'quantity')::int) as total_qty
        FROM orders,
             jsonb_array_elements(items) as item
-       WHERE business_id = $1
+       WHERE branch_id = $1
        AND status != 'REJECTED'
        GROUP BY item->>'name'
        ORDER BY total_qty DESC
        LIMIT 5`,
-      [businessId]
+      [filterId]
     );
 
-    // Peak order hour
     const peakHour = await pool.query(
       `SELECT EXTRACT(HOUR FROM created_at) as hour,
               COUNT(*) as count
        FROM orders
-       WHERE business_id = $1
+       WHERE branch_id = $1
        AND status != 'REJECTED'
        GROUP BY hour
        ORDER BY count DESC
        LIMIT 1`,
-      [businessId]
+      [filterId]
     );
 
     res.json({
@@ -115,7 +108,6 @@ router.get("/", auth, async (req, res) => {
       last90Days: last90Days.rows[0],
       topItems: topItems.rows,
       peakHour: peakHour.rows[0] || null,
-      // Top-level fields consumed directly by AnalyticsScreen's Tables card
       tablesOccupied: parseInt(activeTables.rows[0].count),
       totalTables: parseInt(totalTablesResult.rows[0].count),
     });
@@ -126,50 +118,45 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-
-// ─── GET DAILY SUMMARY (On‑Demand) ──────────────────────────────────
+// ─── GET DAILY SUMMARY (Strict Branch) ──────────────────────────────
 router.get("/daily-summary", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
+    const filterId = req.branchId || req.businessId;
     
-    // Yesterday's date
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-    // ─── 1. Check if summary already exists ──────────────────────
+    // ✅ Add ORDER BY generated_at DESC LIMIT 1
     let result = await pool.query(
       `SELECT id, summary_date, summary_text, key_metrics, displayed
        FROM daily_summaries 
-       WHERE business_id = $1 AND summary_date = $2`,
-      [businessId, yesterdayStr]
+       WHERE branch_id = $1 AND summary_date = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [filterId, yesterdayStr]
     );
 
     let row = result.rows[0];
 
-    // ─── 2. If NOT exists, generate it NOW (on‑demand) ──────────
     if (!row) {
-      console.log(`🔄 Generating on‑demand summary for ${businessId}...`);
+      console.log(`🔄 Generating on-demand summary for ${filterId}...`);
 
-      // Collect yesterday's data
-      const data = await collectDailyData(businessId, yesterday);
+      const data = await collectDailyData(filterId, yesterday);
 
-      // Only generate if there were orders
       if (data.totalOrders > 0) {
         const summary = await generateSummary(data);
 
-        // Save to database with displayed = false
         const insertResult = await pool.query(
           `INSERT INTO daily_summaries 
-           (business_id, summary_date, summary_text, key_metrics, displayed)
-           VALUES ($1, $2, $3, $4, false)
+           (business_id, branch_id, summary_date, summary_text, key_metrics, displayed)
+           VALUES ($1, $2, $3, $4, $5, false)
            RETURNING id, summary_date, summary_text, key_metrics, displayed`,
-          [businessId, yesterdayStr, summary, JSON.stringify(data)]
+          [req.businessId, filterId, yesterdayStr, summary, JSON.stringify(data)]
         );
         row = insertResult.rows[0];
-        console.log(`✅ On‑demand summary generated and saved.`);
+        console.log(`✅ On-demand summary generated and saved.`);
       } else {
-        // No orders yesterday – return no summary
         return res.json({ 
           hasSummary: false, 
           message: "No orders found for yesterday." 
@@ -177,11 +164,9 @@ router.get("/daily-summary", auth, async (req, res) => {
       }
     }
 
-    // ─── 3. Extract data ──────────────────────────────────────────
     const metrics = row.key_metrics || {};
     const isNew = !row.displayed;
 
-    // ─── 4. Mark as displayed (so it doesn't pop up again) ──────
     if (isNew) {
       await pool.query(
         `UPDATE daily_summaries SET displayed = true WHERE id = $1`,
@@ -189,7 +174,6 @@ router.get("/daily-summary", auth, async (req, res) => {
       );
     }
 
-    // ─── 5. Return the summary ────────────────────────────────────
     res.json({
       hasSummary: true,
       summary_date: row.summary_date,
@@ -205,12 +189,12 @@ router.get("/daily-summary", auth, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-// ─── GET NEXT HOURLY INSIGHT ──────────────────────────────────────
+
+// ─── GET NEXT HOURLY INSIGHT (Strict Branch) ────────────────────────
 router.get("/next-insight", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
+    const filterId = req.branchId || req.businessId;
     
-    // Always use yesterday's date (insights are generated for yesterday)
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -218,10 +202,11 @@ router.get("/next-insight", auth, async (req, res) => {
     const result = await pool.query(
       `SELECT id, insight_text, insight_order, insight_type
        FROM hourly_insights
-       WHERE business_id = $1 AND insight_date = $2 AND displayed = false
+       WHERE branch_id = $1 
+       AND insight_date = $2 AND displayed = false
        ORDER BY insight_order ASC
        LIMIT 1`,
-      [businessId, yesterdayStr]
+      [filterId, yesterdayStr]
     );
 
     if (result.rows.length === 0) {
@@ -245,39 +230,42 @@ router.get("/next-insight", auth, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
 // ══════════════════════════════════════════════════════════════════════
-// AI BUSINESS SUMMARY + ALERTS  (new additive feature)
+// AI BUSINESS SUMMARY + ALERTS (Strict Branch)
 // ══════════════════════════════════════════════════════════════════════
 const { generateAndSaveBrief, runAlertsCheck } = require("../jobs/scheduler");
 
-// ─── GET CURRENT BUSINESS SUMMARY (today / current hour) ──────────────
-// If no row exists yet, generate it on demand.
+// ─── GET CURRENT BUSINESS SUMMARY ─────────────────────────────────────
 router.get("/business-summary/current", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
-    // Use IST (Asia/Kolkata) for date & hour — server may run in UTC
+    const filterId = req.branchId || req.businessId;
+    
     const summaryDate = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
     const summaryHour = parseInt(
       new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }),
       10
     );
 
+    // ✅ Add ORDER BY generated_at DESC LIMIT 1
     let result = await pool.query(
       `SELECT * FROM business_summaries
-       WHERE business_id = $1 AND summary_date = $2 AND summary_hour = $3`,
-      [businessId, summaryDate, summaryHour]
+       WHERE branch_id = $1 
+       AND summary_date = $2 AND summary_hour = $3
+       ORDER BY generated_at DESC
+       LIMIT 1`,
+      [filterId, summaryDate, summaryHour]
     );
 
     let row = result.rows[0];
     let isNew = false;
 
     if (!row) {
-      console.log(`🔄 Generating on-demand business summary for ${businessId}...`);
-      row = await generateAndSaveBrief(businessId);
+      console.log(`🔄 Generating on-demand business summary for ${filterId}...`);
+      row = await generateAndSaveBrief(filterId);
       isNew = true;
     }
 
-    // Mark read after viewing
     if (!row.is_read) {
       await pool.query(
         `UPDATE business_summaries SET is_read = true WHERE id = $1`,
@@ -300,8 +288,8 @@ router.get("/business-summary/current", auth, async (req, res) => {
 // ─── POST GENERATE BUSINESS SUMMARY (manual button) ──────────────────
 router.post("/business-summary/generate", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
-    const row = await generateAndSaveBrief(businessId);
+    const filterId = req.branchId || req.businessId;
+    const row = await generateAndSaveBrief(filterId);
     res.json({ ...row, is_new: true });
   } catch (err) {
     console.error("Business summary generate error:", err);
@@ -309,24 +297,24 @@ router.post("/business-summary/generate", auth, async (req, res) => {
   }
 });
 
-// ─── GET ALERTS (recent alerts + unread count) ───────────────────────
+// ─── GET ALERTS (Strict Branch) ───────────────────────────────────────
 router.get("/alerts", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
+    const filterId = req.branchId || req.businessId;
     const limit = parseInt(req.query.limit, 10) || 30;
 
     const alertsResult = await pool.query(
       `SELECT * FROM business_alerts
-       WHERE business_id = $1
+       WHERE branch_id = $1
        ORDER BY created_at DESC
        LIMIT $2`,
-      [businessId, limit]
+      [filterId, limit]
     );
 
     const unreadResult = await pool.query(
       `SELECT COUNT(*)::int AS count FROM business_alerts
-       WHERE business_id = $1 AND is_read = false`,
-      [businessId]
+       WHERE branch_id = $1 AND is_read = false`,
+      [filterId]
     );
 
     res.json({
@@ -342,12 +330,13 @@ router.get("/alerts", auth, async (req, res) => {
 // ─── POST MARK SINGLE ALERT READ ─────────────────────────────────────
 router.post("/alerts/:id/read", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
+    const filterId = req.branchId || req.businessId;
+    
     const result = await pool.query(
       `UPDATE business_alerts SET is_read = true
-       WHERE id = $1 AND business_id = $2
+       WHERE id = $1 AND branch_id = $2
        RETURNING *`,
-      [req.params.id, businessId]
+      [req.params.id, filterId]
     );
 
     if (result.rows.length === 0) {
@@ -364,12 +353,13 @@ router.post("/alerts/:id/read", auth, async (req, res) => {
 // ─── POST MARK ALL ALERTS READ ───────────────────────────────────────
 router.post("/alerts/read-all", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
+    const filterId = req.branchId || req.businessId;
+    
     const result = await pool.query(
       `UPDATE business_alerts SET is_read = true
-       WHERE business_id = $1 AND is_read = false
+       WHERE branch_id = $1 AND is_read = false
        RETURNING id`,
-      [businessId]
+      [filterId]
     );
 
     res.json({ updated: result.rows.length });
@@ -379,11 +369,12 @@ router.post("/alerts/read-all", auth, async (req, res) => {
   }
 });
 
-// ─── POST CHECK-ALERTS-NOW (manual trigger for testing) ──────────────
+// ─── POST CHECK-ALERTS-NOW ──────────────────────────────────────────
 router.post("/alerts/check-now", auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
-    const newAlerts = await runAlertsCheck(businessId);
+    const filterId = req.branchId || req.businessId;
+    
+    const newAlerts = await runAlertsCheck(filterId);
     res.json({ newAlerts, count: newAlerts.length });
   } catch (err) {
     console.error("Check alerts now error:", err);

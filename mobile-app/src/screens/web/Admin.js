@@ -21,6 +21,11 @@ import {
     adminCreateBusiness,
     adminUpdateBusiness,
     adminDeleteBusiness,
+    adminCreateBranch,
+    adminGetBranches,
+    adminUpdateBranch,
+    adminToggleBranchStatus,
+    adminDeleteBranch,
 } from '../../api';
 
 // ─── ADMIN LOGIN COMPONENT ──────────────────────────────────────────────────
@@ -437,7 +442,12 @@ function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showBranchModal, setShowBranchModal] = useState(false);
+    const [showBranchesListModal, setShowBranchesListModal] = useState(false);
     const [editingBusiness, setEditingBusiness] = useState(null);
+    const [parentBusinessForBranch, setParentBusinessForBranch] = useState(null);
+    const [branchesOfBusiness, setBranchesOfBusiness] = useState([]);
+    const [loadingBranches, setLoadingBranches] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [formData, setFormData] = useState({
@@ -449,10 +459,27 @@ function AdminDashboard() {
         referralCode: '',
         subscription_status: 'TRIAL',
     });
+    const [branchFormData, setBranchFormData] = useState({
+        branchName: '',
+        address: '',
+        phone: '',
+        email: '',
+    });
     const [submitting, setSubmitting] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
     const { width } = useWindowDimensions();
     const isMobile = width < 700;
+
+    // ─── BRANCH MANAGEMENT STATE ────────────────────────────────────────
+    const [editingBranch, setEditingBranch] = useState(null);
+    const [showEditBranchModal, setShowEditBranchModal] = useState(false);
+    const [editBranchFormData, setEditBranchFormData] = useState({
+        branchName: '',
+        address: '',
+        phone: '',
+        email: '',
+    });
+    const [updatingBranchId, setUpdatingBranchId] = useState(null);
 
     // Fetch businesses
     const fetchBusinesses = async (isRefresh = false) => {
@@ -473,7 +500,7 @@ function AdminDashboard() {
         fetchBusinesses();
     }, []);
 
-    // Handle create/update business
+    // ─── BUSINESS CRUD ──────────────────────────────────────────────────
     const handleSubmit = async () => {
         if (!formData.businessName || !formData.ownerName || !formData.email || !formData.phone) {
             Alert.alert('Error', 'Please fill in all required fields');
@@ -511,7 +538,6 @@ function AdminDashboard() {
                 Alert.alert('Success', editingBusiness ? 'Business updated successfully!' : 'Business created successfully!');
                 closeModal();
                 await fetchBusinesses(true);
-                // Fetch again to ensure fresh data
                 const freshResponse = await adminGetBusinesses();
                 setBusinesses(freshResponse.data.data || []);
             }
@@ -523,27 +549,179 @@ function AdminDashboard() {
         }
     };
 
-    // Handle delete business
-    const handleDelete = (business) => {
-        console.log('🗑️ Delete clicked:', business.business_name);
+    // ─── CREATE BRANCH ──────────────────────────────────────────────────
+    const handleCreateBranch = async () => {
+        if (!branchFormData.branchName) {
+            Alert.alert('Error', 'Branch name is required');
+            return;
+        }
 
-        const confirmDelete = () => {
-            console.log('🗑️ Confirmed delete for:', business.id);
-            try {
-                adminDeleteBusiness(business.id)
-                    .then(() => {
-                        console.log('✅ Deleted successfully');
-                        fetchBusinesses(true);
-                        Alert.alert('Success', 'Business deleted successfully');
-                    })
-                    .catch((error) => {
-                        console.error('❌ Delete error:', error);
-                        Alert.alert('Error', error.response?.data?.error || 'Failed to delete business');
-                    });
-            } catch (error) {
-                console.error('❌ Delete error:', error);
-                Alert.alert('Error', 'Failed to delete business');
+        if (!parentBusinessForBranch) {
+            Alert.alert('Error', 'No parent business selected');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const response = await adminCreateBranch({
+                parentBusinessId: parentBusinessForBranch.id,
+                branchName: branchFormData.branchName,
+                address: branchFormData.address,
+                phone: branchFormData.phone,
+                email: branchFormData.email,
+            });
+
+            if (response.data.success) {
+                Alert.alert('Success', 'Branch created successfully!');
+                closeBranchModal();
+                await fetchBusinesses(true);
             }
+        } catch (error) {
+            console.error('❌ Branch submit error:', error);
+            Alert.alert('Error', error.response?.data?.error || 'Failed to create branch');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // ─── VIEW BRANCHES ──────────────────────────────────────────────────
+    const handleViewBranches = async (business) => {
+        setParentBusinessForBranch(business);
+        setShowBranchesListModal(true);
+        setLoadingBranches(true);
+        try {
+            const response = await adminGetBranches(business.id);
+            setBranchesOfBusiness(response.data.data || []);
+        } catch (error) {
+            console.error('Error fetching branches:', error);
+            Alert.alert('Error', 'Failed to load branches');
+            setBranchesOfBusiness([]);
+        } finally {
+            setLoadingBranches(false);
+        }
+    };
+
+    // ─── EDIT BRANCH ────────────────────────────────────────────────────
+    const openEditBranchModal = (branch) => {
+        setEditingBranch(branch);
+        setEditBranchFormData({
+            branchName: branch.branch_name || branch.business_name || '',
+            address: branch.address || '',
+            phone: branch.phone || '',
+            email: branch.email || '',
+        });
+        setShowEditBranchModal(true);
+    };
+
+    const closeEditBranchModal = () => {
+        setEditingBranch(null);
+        setShowEditBranchModal(false);
+        setEditBranchFormData({
+            branchName: '',
+            address: '',
+            phone: '',
+            email: '',
+        });
+    };
+
+    const handleUpdateBranch = async () => {
+        if (!editBranchFormData.branchName) {
+            Alert.alert('Error', 'Branch name is required');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const response = await adminUpdateBranch(editingBranch.id, {
+                branchName: editBranchFormData.branchName,
+                address: editBranchFormData.address,
+                phone: editBranchFormData.phone,
+                email: editBranchFormData.email,
+            });
+
+            if (response.data.success) {
+                Alert.alert('Success', 'Branch updated successfully!');
+                closeEditBranchModal();
+                // Refresh the branches list
+                if (parentBusinessForBranch) {
+                    handleViewBranches(parentBusinessForBranch);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Update branch error:', error);
+            Alert.alert('Error', error.response?.data?.error || 'Failed to update branch');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // ─── TOGGLE BRANCH STATUS ───────────────────────────────────────────
+    const handleToggleBranchStatus = async (branch, newStatus) => {
+        setUpdatingBranchId(branch.id);
+        try {
+            const response = await adminToggleBranchStatus(branch.id, newStatus);
+            if (response.data.success) {
+                // Update local state
+                setBranchesOfBusiness(prev =>
+                    prev.map(b => b.id === branch.id
+                        ? { ...b, subscription_status: newStatus }
+                        : b
+                    )
+                );
+                Alert.alert('Success', `Branch ${newStatus === 'ACTIVE' ? 'activated' : 'deactivated'} successfully`);
+            }
+        } catch (error) {
+            console.error('❌ Toggle status error:', error);
+            Alert.alert('Error', error.response?.data?.error || 'Failed to update status');
+        } finally {
+            setUpdatingBranchId(null);
+        }
+    };
+
+    // ─── DELETE BRANCH ──────────────────────────────────────────────────
+    const handleDeleteBranch = (branch) => {
+        const confirmDelete = async () => {
+            try {
+                const response = await adminDeleteBranch(branch.id);
+                if (response.data.success) {
+                    Alert.alert('Success', 'Branch deleted successfully');
+                    // Remove from local list
+                    setBranchesOfBusiness(prev => prev.filter(b => b.id !== branch.id));
+                    // Refresh businesses list
+                    await fetchBusinesses(true);
+                }
+            } catch (error) {
+                console.error('❌ Delete branch error:', error);
+                Alert.alert('Error', error.response?.data?.error || 'Failed to delete branch');
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm(`Are you sure you want to delete "${branch.branch_name}"?`)) {
+                confirmDelete();
+            }
+        } else {
+            Alert.alert(
+                'Delete Branch',
+                `Are you sure you want to delete "${branch.branch_name}"?`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+                ]
+            );
+        }
+    };
+
+    const handleDelete = (business) => {
+        const confirmDelete = () => {
+            adminDeleteBusiness(business.id)
+                .then(() => {
+                    fetchBusinesses(true);
+                    Alert.alert('Success', 'Business deleted successfully');
+                })
+                .catch((error) => {
+                    Alert.alert('Error', error.response?.data?.error || 'Failed to delete business');
+                });
         };
 
         if (Platform.OS === 'web') {
@@ -562,7 +740,6 @@ function AdminDashboard() {
         }
     };
 
-    // Open modal for create/edit
     const openModal = (business = null) => {
         if (business) {
             setEditingBusiness(business);
@@ -604,14 +781,40 @@ function AdminDashboard() {
         });
     };
 
-    // Logout
+    const openBranchModal = (business) => {
+        setParentBusinessForBranch(business);
+        setBranchFormData({
+            branchName: '',
+            address: '',
+            phone: '',
+            email: '',
+        });
+        setShowBranchModal(true);
+    };
+
+    const closeBranchModal = () => {
+        setShowBranchModal(false);
+        setParentBusinessForBranch(null);
+        setBranchFormData({
+            branchName: '',
+            address: '',
+            phone: '',
+            email: '',
+        });
+    };
+
+    const closeBranchesListModal = () => {
+        setShowBranchesListModal(false);
+        setParentBusinessForBranch(null);
+        setBranchesOfBusiness([]);
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('adminToken');
         localStorage.removeItem('adminData');
         window.location.reload();
     };
 
-    // Filtered list (search + status filter)
     const filteredBusinesses = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
         return businesses.filter((b) => {
@@ -811,7 +1014,6 @@ function AdminDashboard() {
                     </View>
                 </View>
             ) : isMobile ? (
-                // ── Card list (mobile) ──
                 <View style={styles.cardList}>
                     {filteredBusinesses.map((biz) => {
                         const meta = STATUS_META[biz.subscription_status] || STATUS_META.INACTIVE;
@@ -856,6 +1058,14 @@ function AdminDashboard() {
                                         <Text style={[styles.bizCardActionText, { color: '#2953C4' }]}>Edit</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
+                                        style={[styles.bizCardActionBtn, { borderColor: '#C7E9D5', backgroundColor: '#F1FAF5' }]}
+                                        onPress={() => openBranchModal(biz)}
+                                        activeOpacity={0.75}
+                                    >
+                                        <Ionicons name="git-branch-outline" size={15} color="#0D7A4C" />
+                                        <Text style={[styles.bizCardActionText, { color: '#0D7A4C' }]}>Add Branch</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
                                         style={[styles.bizCardActionBtn, { borderColor: '#F6CFCB', backgroundColor: '#FEF6F5' }]}
                                         onPress={() => handleDelete(biz)}
                                         activeOpacity={0.75}
@@ -864,26 +1074,32 @@ function AdminDashboard() {
                                         <Text style={[styles.bizCardActionText, { color: '#C0362C' }]}>Delete</Text>
                                     </TouchableOpacity>
                                 </View>
+
+                                <TouchableOpacity
+                                    style={styles.viewBranchesLink}
+                                    onPress={() => handleViewBranches(biz)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="list-outline" size={14} color="#0A2E23" />
+                                    <Text style={styles.viewBranchesLinkText}>View Branches</Text>
+                                </TouchableOpacity>
                             </View>
                         );
                     })}
                 </View>
             ) : (
-                // ── Table (tablet / desktop) ──
                 <View style={styles.tableContainer}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <View style={styles.tableWrapper}>
-                            {/* Header Row */}
                             <View style={[styles.tableRow, styles.tableHeaderRow]}>
                                 <Text style={[styles.tableCell, styles.headerCell, { minWidth: 220 }]}>Business Name</Text>
                                 <Text style={[styles.tableCell, styles.headerCell, { minWidth: 150 }]}>Owner</Text>
                                 <Text style={[styles.tableCell, styles.headerCell, { minWidth: 190 }]}>Email</Text>
                                 <Text style={[styles.tableCell, styles.headerCell, { minWidth: 120 }]}>Phone</Text>
                                 <Text style={[styles.tableCell, styles.headerCell, { minWidth: 110 }]}>Status</Text>
-                                <Text style={[styles.tableCell, styles.headerCell, { minWidth: 100, textAlign: 'center' }]}>Actions</Text>
+                                <Text style={[styles.tableCell, styles.headerCell, { minWidth: 180, textAlign: 'center' }]}>Actions</Text>
                             </View>
 
-                            {/* Data Rows */}
                             {filteredBusinesses.map((biz, idx) => {
                                 const meta = STATUS_META[biz.subscription_status] || STATUS_META.INACTIVE;
                                 return (
@@ -919,18 +1135,36 @@ function AdminDashboard() {
                                                 </Text>
                                             </View>
                                         </View>
-                                        <View style={[styles.tableCell, { minWidth: 100, flexDirection: 'row', justifyContent: 'center', gap: 8 }]}>
+                                        <View style={[styles.tableCell, { minWidth: 180, flexDirection: 'row', justifyContent: 'center', gap: 6 }]}>
                                             <TouchableOpacity
                                                 style={styles.actionBtn}
                                                 onPress={() => openModal(biz)}
                                                 activeOpacity={0.7}
+                                                title="Edit"
                                             >
                                                 <Ionicons name="create-outline" size={16} color="#2953C4" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.actionBtn, { borderColor: '#C7E9D5', backgroundColor: '#F1FAF5' }]}
+                                                onPress={() => openBranchModal(biz)}
+                                                activeOpacity={0.7}
+                                                title="Add Branch"
+                                            >
+                                                <Ionicons name="git-branch-outline" size={16} color="#0D7A4C" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.actionBtn, { borderColor: '#E7E2D6', backgroundColor: '#FAF9F5' }]}
+                                                onPress={() => handleViewBranches(biz)}
+                                                activeOpacity={0.7}
+                                                title="View Branches"
+                                            >
+                                                <Ionicons name="list-outline" size={16} color="#0A2E23" />
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={[styles.actionBtn, styles.actionBtnDanger]}
                                                 onPress={() => handleDelete(biz)}
                                                 activeOpacity={0.7}
+                                                title="Delete"
                                             >
                                                 <Ionicons name="trash-outline" size={16} color="#C0362C" />
                                             </TouchableOpacity>
@@ -949,7 +1183,7 @@ function AdminDashboard() {
                 </Text>
             )}
 
-            {/* Create/Edit Modal */}
+            {/* ─── CREATE/EDIT BUSINESS MODAL ─── */}
             <Modal
                 visible={showCreateModal}
                 transparent
@@ -977,7 +1211,6 @@ function AdminDashboard() {
                         </View>
 
                         <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 8 }}>
-                            {/* Business Name */}
                             <View style={styles.fieldGroup}>
                                 <Text style={styles.fieldLabel}>Business Name *</Text>
                                 <View style={[styles.fieldInputWrap, focusedField === 'businessName' && styles.fieldInputWrapFocused]}>
@@ -994,7 +1227,6 @@ function AdminDashboard() {
                                 </View>
                             </View>
 
-                            {/* Owner Name */}
                             <View style={styles.fieldGroup}>
                                 <Text style={styles.fieldLabel}>Owner Name *</Text>
                                 <View style={[styles.fieldInputWrap, focusedField === 'ownerName' && styles.fieldInputWrapFocused]}>
@@ -1011,7 +1243,6 @@ function AdminDashboard() {
                                 </View>
                             </View>
 
-                            {/* Email */}
                             <View style={styles.fieldGroup}>
                                 <Text style={styles.fieldLabel}>Email Address *</Text>
                                 <View style={[styles.fieldInputWrap, focusedField === 'email' && styles.fieldInputWrapFocused]}>
@@ -1030,7 +1261,6 @@ function AdminDashboard() {
                                 </View>
                             </View>
 
-                            {/* Phone */}
                             <View style={styles.fieldGroup}>
                                 <Text style={styles.fieldLabel}>Phone Number *</Text>
                                 <View style={[styles.fieldInputWrap, focusedField === 'phone' && styles.fieldInputWrapFocused]}>
@@ -1048,7 +1278,6 @@ function AdminDashboard() {
                                 </View>
                             </View>
 
-                            {/* Password (only for new accounts) */}
                             {!editingBusiness && (
                                 <View style={styles.fieldGroup}>
                                     <Text style={styles.fieldLabel}>Password *</Text>
@@ -1068,7 +1297,6 @@ function AdminDashboard() {
                                 </View>
                             )}
 
-                            {/* Referral Code (Optional) - Only for new accounts */}
                             {!editingBusiness && (
                                 <View style={styles.fieldGroup}>
                                     <View style={styles.labelRow}>
@@ -1091,7 +1319,6 @@ function AdminDashboard() {
                                 </View>
                             )}
 
-                            {/* Status (only for editing) */}
                             {editingBusiness && (
                                 <View style={styles.fieldGroup}>
                                     <Text style={styles.fieldLabel}>Status</Text>
@@ -1154,6 +1381,436 @@ function AdminDashboard() {
                     </View>
                 </View>
             </Modal>
+
+            {/* ─── CREATE BRANCH MODAL ─── */}
+            <Modal
+                visible={showBranchModal}
+                transparent
+                animationType="fade"
+                onRequestClose={closeBranchModal}
+            >
+                <View style={[styles.modalOverlay, isMobile && styles.modalOverlayMobile]}>
+                    <View style={[styles.modalContent, isMobile && styles.modalContentMobile]}>
+                        <View style={styles.modalHeader}>
+                            <View style={styles.modalHeaderLeft}>
+                                <View style={[styles.modalIconWrap, { backgroundColor: '#E9F8F1' }]}>
+                                    <Ionicons name="git-branch-outline" size={18} color="#0D7A4C" />
+                                </View>
+                                <Text style={styles.modalTitle}>
+                                    Add Branch
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={closeBranchModal} style={styles.modalCloseBtn}>
+                                <Ionicons name="close" size={20} color="#6B6759" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 8 }}>
+                            {/* Parent business info */}
+                            <View style={styles.parentInfoBox}>
+                                <Text style={styles.parentInfoLabel}>Parent Business</Text>
+                                <Text style={styles.parentInfoValue}>{parentBusinessForBranch?.business_name}</Text>
+                                <Text style={styles.parentInfoSub}>{parentBusinessForBranch?.email}</Text>
+                            </View>
+
+                            <View style={styles.fieldGroup}>
+                                <Text style={styles.fieldLabel}>Branch Name *</Text>
+                                <View style={[styles.fieldInputWrap, focusedField === 'branchName' && styles.fieldInputWrapFocused]}>
+                                    <Ionicons name="storefront-outline" size={16} color={focusedField === 'branchName' ? '#0A2E23' : '#9C9890'} style={styles.fieldIcon} />
+                                    <TextInput
+                                        style={styles.fieldInput}
+                                        value={branchFormData.branchName}
+                                        onChangeText={(v) => setBranchFormData({ ...branchFormData, branchName: v })}
+                                        placeholder="e.g. Mumbai Branch"
+                                        placeholderTextColor="#B7B2A6"
+                                        onFocus={() => setFocusedField('branchName')}
+                                        onBlur={() => setFocusedField(null)}
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={styles.fieldGroup}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.fieldLabel}>Address</Text>
+                                    <Text style={styles.optionalBadge}>Optional</Text>
+                                </View>
+                                <View style={[styles.fieldInputWrap, focusedField === 'address' && styles.fieldInputWrapFocused]}>
+                                    <Ionicons name="location-outline" size={16} color={focusedField === 'address' ? '#0A2E23' : '#9C9890'} style={styles.fieldIcon} />
+                                    <TextInput
+                                        style={styles.fieldInput}
+                                        value={branchFormData.address}
+                                        onChangeText={(v) => setBranchFormData({ ...branchFormData, address: v })}
+                                        placeholder="Street address"
+                                        placeholderTextColor="#B7B2A6"
+                                        onFocus={() => setFocusedField('address')}
+                                        onBlur={() => setFocusedField(null)}
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={[styles.fieldRowResponsive, isMobile && styles.fieldRowResponsiveMobile]}>
+                                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                                    <View style={styles.labelRow}>
+                                        <Text style={styles.fieldLabel}>Phone</Text>
+                                        <Text style={styles.optionalBadge}>Optional</Text>
+                                    </View>
+                                    <View style={[styles.fieldInputWrap, focusedField === 'branchPhone' && styles.fieldInputWrapFocused]}>
+                                        <Ionicons name="call-outline" size={16} color={focusedField === 'branchPhone' ? '#0A2E23' : '#9C9890'} style={styles.fieldIcon} />
+                                        <TextInput
+                                            style={styles.fieldInput}
+                                            value={branchFormData.phone}
+                                            onChangeText={(v) => setBranchFormData({ ...branchFormData, phone: v })}
+                                            placeholder="10-digit number"
+                                            placeholderTextColor="#B7B2A6"
+                                            keyboardType="phone-pad"
+                                            onFocus={() => setFocusedField('branchPhone')}
+                                            onBlur={() => setFocusedField(null)}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                                    <View style={styles.labelRow}>
+                                        <Text style={styles.fieldLabel}>Email</Text>
+                                        <Text style={styles.optionalBadge}>Optional</Text>
+                                    </View>
+                                    <View style={[styles.fieldInputWrap, focusedField === 'branchEmail' && styles.fieldInputWrapFocused]}>
+                                        <Ionicons name="mail-outline" size={16} color={focusedField === 'branchEmail' ? '#0A2E23' : '#9C9890'} style={styles.fieldIcon} />
+                                        <TextInput
+                                            style={styles.fieldInput}
+                                            value={branchFormData.email}
+                                            onChangeText={(v) => setBranchFormData({ ...branchFormData, email: v })}
+                                            placeholder="branch@example.com"
+                                            placeholderTextColor="#B7B2A6"
+                                            autoCapitalize="none"
+                                            keyboardType="email-address"
+                                            onFocus={() => setFocusedField('branchEmail')}
+                                            onBlur={() => setFocusedField(null)}
+                                        />
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={styles.modalActions}>
+                                <TouchableOpacity
+                                    style={[styles.modalBtn, styles.modalCancelBtn]}
+                                    onPress={closeBranchModal}
+                                    activeOpacity={0.75}
+                                >
+                                    <Text style={styles.modalCancelText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modalBtn, styles.modalSubmitBtn, { backgroundColor: '#0D7A4C' }]}
+                                    onPress={handleCreateBranch}
+                                    disabled={submitting}
+                                    activeOpacity={0.85}
+                                >
+                                    {submitting ? (
+                                        <ActivityIndicator color="#fff" size="small" />
+                                    ) : (
+                                        <Text style={styles.modalSubmitText}>Create Branch</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ─── VIEW BRANCHES MODAL ─── */}
+            <Modal
+                visible={showBranchesListModal}
+                transparent
+                animationType="fade"
+                onRequestClose={closeBranchesListModal}
+            >
+                <View style={[styles.modalOverlay, isMobile && styles.modalOverlayMobile]}>
+                    <View style={[styles.modalContent, isMobile && styles.modalContentMobile, { maxWidth: 600 }]}>
+                        <View style={styles.modalHeader}>
+                            <View style={styles.modalHeaderLeft}>
+                                <View style={[styles.modalIconWrap, { backgroundColor: '#EAF1FF' }]}>
+                                    <Ionicons name="list-outline" size={18} color="#2953C4" />
+                                </View>
+                                <Text style={styles.modalTitle}>
+                                    Branches of {parentBusinessForBranch?.business_name}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={closeBranchesListModal} style={styles.modalCloseBtn}>
+                                <Ionicons name="close" size={20} color="#6B6759" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 8 }}>
+                            {loadingBranches ? (
+                                <View style={{ padding: 40, alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color="#0A2E23" />
+                                    <Text style={{ marginTop: 10, color: '#797469' }}>Loading branches...</Text>
+                                </View>
+                            ) : branchesOfBusiness.length === 0 ? (
+                                <View style={{ padding: 40, alignItems: 'center' }}>
+                                    <Ionicons name="git-branch-outline" size={40} color="#ACA79A" />
+                                    <Text style={{ marginTop: 12, fontSize: 16, fontWeight: '700', color: '#14181C' }}>
+                                        No branches yet
+                                    </Text>
+                                    <Text style={{ marginTop: 6, color: '#797469', textAlign: 'center' }}>
+                                        This business has no branches. Click "Add Branch" to create one.
+                                    </Text>
+                                </View>
+                            ) : (
+                                branchesOfBusiness.map((branch) => {
+                                    const meta = STATUS_META[branch.subscription_status] || STATUS_META.INACTIVE;
+                                    const isUpdating = updatingBranchId === branch.id;
+                                    const isMain = branch.is_main_branch;
+
+                                    return (
+                                        <View key={branch.id} style={styles.branchListItem}>
+                                            <View style={[styles.avatarCircle, { width: 38, height: 38, borderRadius: 19 }]}>
+                                                <Ionicons name="storefront" size={18} color="#0A2E23" />
+                                            </View>
+                                            <View style={{ flex: 1, marginLeft: 12 }}>
+                                                <Text style={styles.branchListName}>{branch.branch_name}</Text>
+                                                <Text style={styles.branchListCode}>Code: {branch.branch_code || 'N/A'}</Text>
+                                                {branch.address && (
+                                                    <Text style={styles.branchListAddress} numberOfLines={1}>
+                                                        {branch.address}
+                                                    </Text>
+                                                )}
+                                            </View>
+
+                                            {/* Status badge */}
+                                            <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
+                                                <View style={[styles.statusDot, { backgroundColor: meta.dot }]} />
+                                                <Text style={[styles.statusText, { color: meta.text }]}>
+                                                    {branch.subscription_status || 'INACTIVE'}
+                                                </Text>
+                                            </View>
+
+                                            {/* Actions (only for branches, not main) */}
+                                            {!isMain && (
+                                                <View style={styles.branchActions}>
+                                                    {/* Edit */}
+                                                    <TouchableOpacity
+                                                        style={styles.branchActionBtn}
+                                                        onPress={() => openEditBranchModal(branch)}
+                                                        disabled={isUpdating}
+                                                        title="Edit"
+                                                    >
+                                                        <Ionicons name="create-outline" size={14} color="#2953C4" />
+                                                    </TouchableOpacity>
+
+                                                    {/* Toggle Active/Inactive */}
+                                                    <TouchableOpacity
+                                                        style={[styles.branchActionBtn, {
+                                                            backgroundColor: branch.subscription_status === 'ACTIVE' ? '#FEF6F5' : '#F1FAF5',
+                                                            borderColor: branch.subscription_status === 'ACTIVE' ? '#F6CFCB' : '#C7E9D5',
+                                                        }]}
+                                                        onPress={() => handleToggleBranchStatus(
+                                                            branch,
+                                                            branch.subscription_status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+                                                        )}
+                                                        disabled={isUpdating}
+                                                        title={branch.subscription_status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                                                    >
+                                                        {isUpdating ? (
+                                                            <ActivityIndicator size="small" color="#0A2E23" />
+                                                        ) : (
+                                                            <Ionicons
+                                                                name={branch.subscription_status === 'ACTIVE' ? 'pause-circle-outline' : 'play-circle-outline'}
+                                                                size={14}
+                                                                color={branch.subscription_status === 'ACTIVE' ? '#C0362C' : '#0D7A4C'}
+                                                            />
+                                                        )}
+                                                    </TouchableOpacity>
+
+                                                    {/* Delete */}
+                                                    <TouchableOpacity
+                                                        style={[styles.branchActionBtn, {
+                                                            backgroundColor: '#FEF6F5',
+                                                            borderColor: '#F6CFCB',
+                                                        }]}
+                                                        onPress={() => handleDeleteBranch(branch)}
+                                                        disabled={isUpdating}
+                                                        title="Delete"
+                                                    >
+                                                        <Ionicons name="trash-outline" size={14} color="#C0362C" />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            )}
+                                        </View>
+                                    );
+                                })
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ─── EDIT BRANCH MODAL ─── */}
+            <Modal
+                visible={showEditBranchModal}
+                transparent
+                animationType="fade"
+                onRequestClose={closeEditBranchModal}
+            >
+                <View style={[styles.modalOverlay, isMobile && styles.modalOverlayMobile]}>
+                    <View style={[styles.modalContent, isMobile && styles.modalContentMobile]}>
+                        <View style={styles.modalHeader}>
+                            <View style={styles.modalHeaderLeft}>
+                                <View style={[styles.modalIconWrap, { backgroundColor: '#EAF1FF' }]}>
+                                    <Ionicons name="create-outline" size={18} color="#2953C4" />
+                                </View>
+                                <View>
+                                    <Text style={styles.modalTitle}>Edit Branch</Text>
+                                    <Text style={styles.modalSubtitleSmall} numberOfLines={1}>
+                                        {editingBranch?.branch_name}
+                                    </Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity onPress={closeEditBranchModal} style={styles.modalCloseBtn} hitSlop={8}>
+                                <Ionicons name="close" size={20} color="#6B6759" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 8 }}>
+                            {/* Branch code + parent (read-only summary) */}
+                            <View style={styles.branchMetaCard}>
+                                <View style={styles.branchMetaRow}>
+                                    <View style={styles.branchMetaIconWrap}>
+                                        <Ionicons name="pricetag-outline" size={14} color="#2953C4" />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.branchMetaLabel}>Branch Code</Text>
+                                        <Text style={styles.branchMetaValue}>
+                                            {editingBranch?.branch_code || 'N/A'}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <View style={styles.branchMetaDivider} />
+                                <View style={styles.branchMetaRow}>
+                                    <View style={styles.branchMetaIconWrap}>
+                                        <Ionicons name="business-outline" size={14} color="#2953C4" />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.branchMetaLabel}>Parent Business</Text>
+                                        <Text style={styles.branchMetaValue} numberOfLines={1}>
+                                            {parentBusinessForBranch?.business_name}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* Section: Basic info */}
+                            <Text style={styles.sectionHeading}>Branch details</Text>
+
+                            <View style={styles.fieldGroup}>
+                                <Text style={styles.fieldLabel}>Branch Name *</Text>
+                                <View style={[styles.fieldInputWrap, focusedField === 'editBranchName' && styles.fieldInputWrapFocused]}>
+                                    <Ionicons name="storefront-outline" size={16} color={focusedField === 'editBranchName' ? '#0A2E23' : '#9C9890'} style={styles.fieldIcon} />
+                                    <TextInput
+                                        style={styles.fieldInput}
+                                        value={editBranchFormData.branchName}
+                                        onChangeText={(v) => setEditBranchFormData({ ...editBranchFormData, branchName: v })}
+                                        placeholder="Branch name"
+                                        placeholderTextColor="#B7B2A6"
+                                        onFocus={() => setFocusedField('editBranchName')}
+                                        onBlur={() => setFocusedField(null)}
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={styles.fieldGroup}>
+                                <View style={styles.labelRow}>
+                                    <Text style={styles.fieldLabel}>Address</Text>
+                                    <Text style={styles.optionalBadge}>Optional</Text>
+                                </View>
+                                <View style={[styles.fieldInputWrap, focusedField === 'editAddress' && styles.fieldInputWrapFocused]}>
+                                    <Ionicons name="location-outline" size={16} color={focusedField === 'editAddress' ? '#0A2E23' : '#9C9890'} style={styles.fieldIcon} />
+                                    <TextInput
+                                        style={styles.fieldInput}
+                                        value={editBranchFormData.address}
+                                        onChangeText={(v) => setEditBranchFormData({ ...editBranchFormData, address: v })}
+                                        placeholder="Branch address"
+                                        placeholderTextColor="#B7B2A6"
+                                        onFocus={() => setFocusedField('editAddress')}
+                                        onBlur={() => setFocusedField(null)}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Section: Contact info */}
+                            <Text style={styles.sectionHeading}>Contact info</Text>
+
+                            <View style={[styles.fieldRowResponsive, isMobile && styles.fieldRowResponsiveMobile]}>
+                                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                                    <View style={styles.labelRow}>
+                                        <Text style={styles.fieldLabel}>Phone</Text>
+                                        <Text style={styles.optionalBadge}>Optional</Text>
+                                    </View>
+                                    <View style={[styles.fieldInputWrap, focusedField === 'editPhone' && styles.fieldInputWrapFocused]}>
+                                        <Ionicons name="call-outline" size={16} color={focusedField === 'editPhone' ? '#0A2E23' : '#9C9890'} style={styles.fieldIcon} />
+                                        <TextInput
+                                            style={styles.fieldInput}
+                                            value={editBranchFormData.phone}
+                                            onChangeText={(v) => setEditBranchFormData({ ...editBranchFormData, phone: v })}
+                                            placeholder="Phone number"
+                                            placeholderTextColor="#B7B2A6"
+                                            keyboardType="phone-pad"
+                                            onFocus={() => setFocusedField('editPhone')}
+                                            onBlur={() => setFocusedField(null)}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                                    <View style={styles.labelRow}>
+                                        <Text style={styles.fieldLabel}>Email</Text>
+                                        <Text style={styles.optionalBadge}>Optional</Text>
+                                    </View>
+                                    <View style={[styles.fieldInputWrap, focusedField === 'editEmail' && styles.fieldInputWrapFocused]}>
+                                        <Ionicons name="mail-outline" size={16} color={focusedField === 'editEmail' ? '#0A2E23' : '#9C9890'} style={styles.fieldIcon} />
+                                        <TextInput
+                                            style={styles.fieldInput}
+                                            value={editBranchFormData.email}
+                                            onChangeText={(v) => setEditBranchFormData({ ...editBranchFormData, email: v })}
+                                            placeholder="branch@example.com"
+                                            placeholderTextColor="#B7B2A6"
+                                            autoCapitalize="none"
+                                            keyboardType="email-address"
+                                            onFocus={() => setFocusedField('editEmail')}
+                                            onBlur={() => setFocusedField(null)}
+                                        />
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={styles.modalActions}>
+                                <TouchableOpacity
+                                    style={[styles.modalBtn, styles.modalCancelBtn]}
+                                    onPress={closeEditBranchModal}
+                                    activeOpacity={0.75}
+                                >
+                                    <Text style={styles.modalCancelText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.modalBtn, styles.modalSubmitBtn, { backgroundColor: '#2953C4' }]}
+                                    onPress={handleUpdateBranch}
+                                    disabled={submitting || !editBranchFormData.branchName}
+                                    activeOpacity={0.85}
+                                >
+                                    {submitting ? (
+                                        <ActivityIndicator color="#fff" size="small" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                                            <Text style={styles.modalSubmitText}>Save Changes</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 }
@@ -1165,7 +1822,6 @@ export default function Admin() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check if admin is already logged in
         const token = localStorage.getItem('adminToken');
         if (token) {
             setIsAuthenticated(true);
@@ -1661,6 +2317,21 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
 
+    // View Branches link (mobile)
+    viewBranchesLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        marginTop: 10,
+        paddingVertical: 8,
+    },
+    viewBranchesLinkText: {
+        fontSize: 12.5,
+        fontWeight: '700',
+        color: '#0A2E23',
+    },
+
     // Modal Styles
     modalOverlay: {
         flex: 1,
@@ -1728,6 +2399,12 @@ const styles = StyleSheet.create({
         flexShrink: 1,
         letterSpacing: -0.2,
     },
+    modalSubtitleSmall: {
+        fontSize: 12,
+        color: '#9C9890',
+        marginTop: 2,
+        fontWeight: '500',
+    },
     modalBody: {
         padding: 20,
     },
@@ -1735,7 +2412,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 12,
     },
-    fieldRowMobile: {
+    fieldRowResponsive: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    fieldRowResponsiveMobile: {
         flexDirection: 'column',
         gap: 0,
     },
@@ -1810,9 +2491,12 @@ const styles = StyleSheet.create({
     },
     modalBtn: {
         flex: 1,
+        flexDirection: 'row',
+        gap: 7,
         paddingVertical: 15,
         borderRadius: 11,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     modalCancelBtn: {
         backgroundColor: '#F2F1EA',
@@ -1835,5 +2519,129 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         fontSize: 14,
         letterSpacing: 0.1,
+    },
+
+    // Parent business info box
+    parentInfoBox: {
+        backgroundColor: '#F7F5EF',
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#EDE8DC',
+    },
+    parentInfoLabel: {
+        fontSize: 10.5,
+        fontWeight: '700',
+        color: '#8A8578',
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        marginBottom: 5,
+    },
+    parentInfoValue: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#14181C',
+    },
+    parentInfoSub: {
+        fontSize: 12.5,
+        color: '#797469',
+        marginTop: 3,
+    },
+
+    // Branch code / parent meta card (Edit Branch modal)
+    branchMetaCard: {
+        backgroundColor: '#F7F5EF',
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: '#EDE8DC',
+        padding: 14,
+        marginBottom: 22,
+    },
+    branchMetaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 11,
+    },
+    branchMetaIconWrap: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        backgroundColor: '#EAF1FF',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    branchMetaLabel: {
+        fontSize: 10.5,
+        fontWeight: '700',
+        color: '#8A8578',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 2,
+    },
+    branchMetaValue: {
+        fontSize: 13.5,
+        fontWeight: '700',
+        color: '#14181C',
+    },
+    branchMetaDivider: {
+        height: 1,
+        backgroundColor: '#EDE8DC',
+        marginVertical: 11,
+        marginLeft: 39,
+    },
+
+    // Section headings inside modals
+    sectionHeading: {
+        fontSize: 11.5,
+        fontWeight: '800',
+        color: '#0A2E23',
+        textTransform: 'uppercase',
+        letterSpacing: 0.7,
+        marginBottom: 12,
+        marginTop: 2,
+    },
+
+    // Branches list modal
+    branchListItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 6,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F1EB',
+    },
+    branchListName: {
+        fontSize: 14.5,
+        fontWeight: '700',
+        color: '#14181C',
+    },
+    branchListCode: {
+        fontSize: 11.5,
+        color: '#797469',
+        marginTop: 2,
+        fontWeight: '500',
+    },
+    branchListAddress: {
+        fontSize: 11.5,
+        color: '#9C9890',
+        marginTop: 2,
+    },
+
+    // Branch action buttons
+    branchActions: {
+        flexDirection: 'row',
+        gap: 6,
+        marginLeft: 8,
+    },
+    branchActionBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#E7E2D6',
+        backgroundColor: '#FAF9F5',
     },
 });

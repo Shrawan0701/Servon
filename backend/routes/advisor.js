@@ -8,12 +8,14 @@ const { toFile } = require('openai');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const saveConversation = async (businessId, question, result) => {
+// ─── SAVE CONVERSATION WITH BRANCH ──────────────────────────────────
+const saveConversation = async (businessId, branchId, question, result) => {
   const insertResult = await pool.query(
-    `INSERT INTO advisor_conversations (business_id, question, answer, context_data, tokens_used)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO advisor_conversations 
+       (business_id, branch_id, question, answer, context_data, tokens_used)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id`,
-    [businessId, question, result.answer, {}, result.tokensUsed]
+    [businessId, branchId, question, result.answer, {}, result.tokensUsed]
   );
   return insertResult.rows[0].id;
 };
@@ -29,11 +31,14 @@ router.post('/ask', auth, async (req, res) => {
 
     console.log("Question:", question);
 
-    const businessId = req.businessId;
-    const result = await askAdvisor(businessId, question);
+    // ✅ Use filterId (branch or business)
+    const filterId = req.branchId || req.businessId;
+    const parentBusinessId = req.parentBusinessId || req.businessId;
 
-    // Save conversation
-    const id = await saveConversation(businessId, question, result);
+    const result = await askAdvisor(filterId, question);
+
+    // ✅ Save conversation with both IDs
+    const id = await saveConversation(parentBusinessId, filterId, question, result);
 
     res.json({
       success: true,
@@ -48,9 +53,7 @@ router.post('/ask', auth, async (req, res) => {
   }
 });
 
-// ORDER ANNOUNCEMENT TTS: text -> spoken mp3, reusing the exact same OpenAI
-// voice stack (gpt-4o-mini-tts) as the Voice AI Business Advisor. Used by the
-// hotel-side dashboard to audibly announce new QR orders.
+// ─── ORDER ANNOUNCEMENT TTS ─────────────────────────────────────────
 router.post('/speak', auth, async (req, res) => {
   try {
     const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 4096) : '';
@@ -75,26 +78,15 @@ router.post('/speak', auth, async (req, res) => {
   }
 });
 
-// VOICE ADVISOR: audio upload -> transcription -> existing advisor -> spoken reply.
-// Audio is kept in memory only and is never written to disk by this endpoint.
+// ─── VOICE ADVISOR ──────────────────────────────────────────────────
 router.post('/voice', auth, async (req, res) => {
   try {
     console.log("========== VOICE ADVISOR REQUEST ==========");
     console.log("Business ID:", req.businessId);
-
-    console.log("req.files:", req.files);
+    console.log("Branch ID:", req.branchId);
 
     const audio = req.files?.audio;
     const language = ['en', 'hi', 'mr'].includes(req.body?.language) ? req.body.language : 'en';
-
-    console.log("audio exists:", !!audio);
-
-    if (audio) {
-      console.log("audio.name:", audio.name);
-      console.log("audio.mimetype:", audio.mimetype);
-      console.log("audio.size:", audio.size);
-      console.log("audio.data length:", audio.data?.length);
-    }
 
     if (!audio || Array.isArray(audio) || !audio.data?.length) {
       console.log("❌ No valid audio uploaded.");
@@ -129,21 +121,21 @@ router.post('/voice', auth, async (req, res) => {
 
     const question = transcription.text?.trim();
 
-    console.log("Question:", question);
-
     if (!question) {
       return res.status(422).json({
         error: "I could not understand that recording. Please try again.",
       });
     }
 
-    console.log("🤖 Asking advisor...");
+    // ✅ Use filterId (branch or business)
+    const filterId = req.branchId || req.businessId;
+    const parentBusinessId = req.parentBusinessId || req.businessId;
 
-    const result = await askAdvisor(req.businessId, question, language);
+    console.log("🤖 Asking advisor for:", filterId);
 
-    console.log("✅ Advisor response generated.");
+    const result = await askAdvisor(filterId, question, language);
 
-    const id = await saveConversation(req.businessId, question, result);
+    const id = await saveConversation(parentBusinessId, filterId, question, result);
 
     console.log("🔊 Generating speech...");
 
@@ -157,16 +149,9 @@ router.post('/voice', auth, async (req, res) => {
       }.`,
     });
 
-    console.log("✅ Speech generated.");
-
     const audioBase64 = Buffer.from(
       await speech.arrayBuffer()
     ).toString("base64");
-
-    console.log("✅ Returning response.");
-
-    console.log("Base64 length:", audioBase64.length);
-console.log("Sending response to client...");
 
     res.json({
       success: true,
@@ -212,38 +197,47 @@ console.log("Sending response to client...");
   }
 });
 
-// ─── GET INSIGHTS (Proactive) ──────────────────────────────────────
+// ─── GET INSIGHTS (Branch-Specific) ────────────────────────────────
 router.get('/insights', auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
+    // ✅ Use filterId (branch or business)
+    const filterId = req.branchId || req.businessId;
 
-    // To ensure insights are live, we clear older generated insights 
-    // for this business before saving and serving the fresh ones.
+    // Clear old insights for this branch
     await pool.query(
-      `DELETE FROM advisor_insights WHERE business_id = $1`,
-      [businessId]
+      `DELETE FROM advisor_insights WHERE branch_id = $1`,
+      [filterId]
     );
 
-    // Generate fresh, positive insights based on live stats
-    const insights = await generateInsights(businessId);
+    // Generate fresh insights for this branch
+    const insights = await generateInsights(filterId);
 
-    // Save fresh insights
+    // Save fresh insights with branch_id
     for (const insight of insights) {
       await pool.query(
         `INSERT INTO advisor_insights 
-         (business_id, insight_type, title, description, priority, is_actionable, action_text)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [businessId, 'general', insight.title, insight.description, insight.priority, true, insight.action]
+         (business_id, branch_id, insight_type, title, description, priority, is_actionable, action_text)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          req.businessId,
+          filterId,
+          'general',
+          insight.title,
+          insight.description,
+          insight.priority,
+          true,
+          insight.action
+        ]
       );
     }
 
-    // Return saved insights
+    // Return saved insights for this branch
     const result = await pool.query(
       `SELECT * FROM advisor_insights 
-       WHERE business_id = $1 
+       WHERE branch_id = $1 
        ORDER BY priority DESC, created_at DESC
        LIMIT 5`,
-      [businessId]
+      [filterId]
     );
 
     res.json({ insights: result.rows });
@@ -253,16 +247,19 @@ router.get('/insights', auth, async (req, res) => {
   }
 });
 
-// ─── GET CONVERSATION HISTORY ──────────────────────────────────────
+// ─── GET CONVERSATION HISTORY (Branch-Specific) ────────────────────
 router.get('/conversations', auth, async (req, res) => {
   try {
+    // ✅ Use filterId (branch or business)
+    const filterId = req.branchId || req.businessId;
+
     const result = await pool.query(
       `SELECT id, question, answer, created_at
        FROM advisor_conversations
-       WHERE business_id = $1
+       WHERE branch_id = $1
        ORDER BY created_at DESC
        LIMIT 20`,
-      [req.businessId]
+      [filterId]
     );
     res.json({ conversations: result.rows });
   } catch (err) {
@@ -271,17 +268,17 @@ router.get('/conversations', auth, async (req, res) => {
   }
 });
 
-// ─── DELETE SINGLE CONVERSATION ──────────────────────────────────────
+// ─── DELETE SINGLE CONVERSATION ─────────────────────────────────────
 router.delete('/conversations/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const businessId = req.businessId;
+    const filterId = req.branchId || req.businessId;
 
     const result = await pool.query(
       `DELETE FROM advisor_conversations 
-       WHERE id = $1 AND business_id = $2
+       WHERE id = $1 AND branch_id = $2
        RETURNING id`,
-      [id, businessId]
+      [id, filterId]
     );
 
     if (result.rows.length === 0) {
@@ -295,14 +292,14 @@ router.delete('/conversations/:id', auth, async (req, res) => {
   }
 });
 
-// ─── DELETE ALL CONVERSATIONS ──────────────────────────────────────
+// ─── DELETE ALL CONVERSATIONS (Branch-Specific) ────────────────────
 router.delete('/conversations', auth, async (req, res) => {
   try {
-    const businessId = req.businessId;
+    const filterId = req.branchId || req.businessId;
 
     await pool.query(
-      `DELETE FROM advisor_conversations WHERE business_id = $1`,
-      [businessId]
+      `DELETE FROM advisor_conversations WHERE branch_id = $1`,
+      [filterId]
     );
 
     res.json({ success: true, message: 'All conversations cleared' });

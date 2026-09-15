@@ -444,7 +444,8 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
 // ─── MAIN SCREEN ──────────────────────────────────────────────────────
 export default function OrdersScreen() {
   const { language } = useLocale();
-  const { isChefMode, isPremium, loading: authLoading } = useAuth();
+  // ✅ FIX: destructure switchingBranch + currentBranch for branch-switch glitch fix
+  const { isChefMode, isPremium, loading: authLoading, switchingBranch, currentBranch } = useAuth();
 
   const [orders, setOrders] = useState([]);
   const [profile, setProfile] = useState(null);
@@ -476,6 +477,14 @@ export default function OrdersScreen() {
   if (!isWeb) {
     DateTimePicker = require("@react-native-community/datetimepicker").default;
   }
+
+  // ✅ FIX: Clear orders immediately when branch switches — prevents stale flash
+  useEffect(() => {
+    setOrders([]);
+    setProfile(null);
+    setLoading(true);
+    setRefreshing(false);
+  }, [currentBranch?.id]);
 
   useEffect(() => {
     const unsubscribe = networkMonitor.subscribe((online) => {
@@ -536,6 +545,11 @@ export default function OrdersScreen() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+
+      // ✅ FIX: Clear stale data first if switching branch
+      if (switchingBranch) {
+        setOrders([]);
+      }
 
       let localOrders = [];
       try {
@@ -600,7 +614,7 @@ export default function OrdersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filter, selectedDate]);
+  }, [filter, selectedDate, switchingBranch]);
 
   const isToday = (date) => {
     const today = new Date();
@@ -1312,6 +1326,16 @@ return `
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#111" />
+      </View>
+    );
+  }
+
+  // ✅ FIX: Show "Switching branch..." while branch is switching — prevents stale flash
+  if (switchingBranch) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FAF8F5" }}>
+        <ActivityIndicator size="large" color="#111" />
+        <NativeText style={{ marginTop: 12, color: "#666" }}>Switching branch...</NativeText>
       </View>
     );
   }
