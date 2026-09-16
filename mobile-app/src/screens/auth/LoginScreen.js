@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const isWeb = Platform.OS === "web";
 const BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://10.132.59.12:5000";
+  process.env.EXPO_PUBLIC_API_URL || "http://10.198.185.12:5000";
 
 export default function LoginScreen({ navigation, onNavigate }) {
   const { login } = useAuth();
@@ -53,8 +53,7 @@ export default function LoginScreen({ navigation, onNavigate }) {
         throw new Error(data.error || "Login failed");
       }
 
-      // ✅ Pass branches to login (if available)
-      await login(data.token, data.business, data.branches || []);
+      await login(data.token, data.business);
 
     } catch (err) {
       setError(err.message || "Login failed");

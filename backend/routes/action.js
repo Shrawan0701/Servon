@@ -8,6 +8,10 @@ const { resolveVoiceAction } = require("../services/servonActionService");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ─── UNIFIED SERVON VOICE ASSISTANT ──────────────────────────────────
+// One microphone, one AI/voice infrastructure. The same endpoint understands
+// whether the staff is talking about an ORDER or a ROOM operation, then
+// resolves the request against this business's authoritative data. Nothing
+// is written to the database here — the frontend shows a confirmation first.
 router.post("/voice", auth, async (req, res) => {
   try {
     const audio = req.files?.audio;
@@ -20,7 +24,10 @@ router.post("/voice", auth, async (req, res) => {
       });
     }
 
-    if (!audio.mimetype?.startsWith("audio/") && audio.mimetype !== "video/webm") {
+    if (
+      !audio.mimetype?.startsWith("audio/") &&
+      audio.mimetype !== "video/webm"
+    ) {
       return res.status(400).json({
         success: false,
         error: "Please upload a valid audio recording.",
@@ -28,12 +35,16 @@ router.post("/voice", auth, async (req, res) => {
       });
     }
 
+    // Transcribe with the same OpenAI model used by the Advisor. The
+    // language is intentionally left to the model so English, Hindi and
+    // Marathi (and mixed speech) are handled automatically.
     const transcription = await openai.audio.transcriptions.create({
       file: await toFile(audio.data, audio.name || "servon-voice.webm", {
         type: audio.mimetype || "audio/webm",
       }),
       model: "gpt-4o-mini-transcribe",
-      prompt: "Restaurant and hotel staff dictating food orders and room guest details. Hindi, Marathi and English are common.",
+      prompt:
+        "Restaurant and hotel staff dictating food orders and room guest details. Hindi, Marathi and English are common.",
     });
 
     const transcript = transcription.text?.trim();
@@ -46,9 +57,7 @@ router.post("/voice", auth, async (req, res) => {
       });
     }
 
-    // ✅ Use branchId for action resolution
-    const branchId = req.branchId || req.businessId;
-    const result = await resolveVoiceAction(transcript, branchId);
+    const result = await resolveVoiceAction(transcript, req.businessId);
     return res.json(result);
   } catch (err) {
     console.error("Servon unified voice action error:", err.message);
@@ -61,7 +70,14 @@ router.post("/voice", auth, async (req, res) => {
 });
 
 // ─── PUBLIC QR MENU VOICE ORDER DETECTION ─────────────────────────────
-router.post("/voice-public", async (req, res) => {
+// The customer QR menu app has no staff JWT, so it cannot hit the auth-protected
+// /voice endpoint. This thin public wrapper reuses the EXACT same transcription +
+// resolveVoiceAction infrastructure as the staff flow — nothing new is written to
+// the database here and nothing is invented: the same AI detects the actual menu items.
+// The table is ALREADY known to the QR link, so the customer sends just the audio +
+// their businessId. Order submission still goes through the existing public
+// /orders/place flow so the hotel receives a perfectly normal QR customer order.
+ router.post("/voice-public", async (req, res) => {
   try {
     const businessId = req.body?.businessId;
     const audio = req.files?.audio;
@@ -82,7 +98,10 @@ router.post("/voice-public", async (req, res) => {
       });
     }
 
-    if (!audio.mimetype?.startsWith("audio/") && audio.mimetype !== "video/webm") {
+    if (
+      !audio.mimetype?.startsWith("audio/") &&
+      audio.mimetype !== "video/webm"
+    ) {
       return res.status(400).json({
         success: false,
         error: "Please upload a valid audio recording.",
@@ -95,7 +114,8 @@ router.post("/voice-public", async (req, res) => {
         type: audio.mimetype || "audio/webm",
       }),
       model: "gpt-4o-mini-transcribe",
-      prompt: "Restaurant customers dictating food orders while scanning the QR menu. Hindi, Marathi and English are common.",
+      prompt:
+        "Restaurant customers dictating food orders while scanning the QR menu. Hindi, Marathi and English are common.",
     });
 
     const transcript = transcription.text?.trim();

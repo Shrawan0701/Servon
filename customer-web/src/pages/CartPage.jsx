@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { placeOrder, getBusinessProfile } from "../api";
 import { LanguageSelector, useLocale } from "../context/LocaleContext";
@@ -45,12 +45,7 @@ export default function CartPage() {
   const { t, language } = useLocale();
   const { businessId, tableId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();  // ✅ Added to read query params
   const { cartItems, addToCart, removeFromCart } = useCart();
-
-  // ✅ Read branchId from URL query params
-  const queryParams = new URLSearchParams(location.search);
-  const branchId = queryParams.get("branchId");
 
   const [instructions, setInstructions] = useState("");
   const [placing, setPlacing] = useState(false);
@@ -76,25 +71,26 @@ export default function CartPage() {
   }, [businessId]);
 
   // ─── COMPUTE SUBTOTAL & GST ──────────────────────────────────────
-  const subtotal = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [cartItems]
-  );
+// ─── COMPUTE SUBTOTAL & GST ──────────────────────────────────────
+const subtotal = useMemo(
+  () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
+  [cartItems]
+);
 
-  const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent } = useMemo(() => {
-    const cgstP = parseFloat(businessProfile?.cgst_percentage) || 0;
-    const sgstP = parseFloat(businessProfile?.sgst_percentage) || 0;
-    const cgst = (subtotal * cgstP) / 100;
-    const sgst = (subtotal * sgstP) / 100;
-    return {
-      cgstPercent: cgstP,
-      sgstPercent: sgstP,
-      cgstAmount: cgst,
-      sgstAmount: sgst,
-      gstTotal: cgst + sgst,
-      grandTotal: subtotal + cgst + sgst,
-    };
-  }, [subtotal, businessProfile]);
+const { cgstAmount, sgstAmount, gstTotal, grandTotal, cgstPercent, sgstPercent } = useMemo(() => {
+  const cgstP = parseFloat(businessProfile?.cgst_percentage) || 0;
+  const sgstP = parseFloat(businessProfile?.sgst_percentage) || 0;
+  const cgst = (subtotal * cgstP) / 100;
+  const sgst = (subtotal * sgstP) / 100;
+  return {
+    cgstPercent: cgstP,
+    sgstPercent: sgstP,
+    cgstAmount: cgst,
+    sgstAmount: sgst,
+    gstTotal: cgst + sgst,
+    grandTotal: subtotal + cgst + sgst,
+  };
+}, [subtotal, businessProfile]);
 
   // ─── HANDLERS ──────────────────────────────────────────────────────
   const handleConfirmOrder = async () => {
@@ -115,13 +111,12 @@ export default function CartPage() {
 
       const activeOrderId = sessionStorage.getItem("activeOrderId");
 
-      // ✅ Include branchId in the order data
+      // Send subtotal (backed will add GST & discount if any)
       const res = await placeOrder({
         businessId,
-        branchId,  // ✅ FIX: Send branchId to backend
         tableId,
         items: orderItems,
-        totalAmount: subtotal,
+        totalAmount: subtotal,   // backend will compute final total
         specialInstructions: instructions,
         orderId: activeOrderId,
       });
@@ -129,7 +124,7 @@ export default function CartPage() {
       sessionStorage.setItem("activeOrderId", res.data.id);
 
       navigate(`/order-success/${res.data.id}`, {
-        state: { businessId, tableId, branchId },
+        state: { businessId, tableId },
       });
     } catch (err) {
       setError(
@@ -198,36 +193,37 @@ export default function CartPage() {
           />
         </div>
 
-        {/* Bill Summary */}
-        <div style={styles.billSummary}>
-          <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 15 }}>{t("billSummary")}</div>
-          {cartItems.map((item) => (
-            <div key={item.id} style={styles.billRow}>
-              <span>{localizedItemName(item, language)} × {item.quantity}</span>
-              <span>₹{(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-          ))}
-          <div style={styles.billSubtotal}>
-            <span>{t("subtotal")}</span>
-            <span>₹{subtotal.toFixed(2)}</span>
-          </div>
-          {cgstAmount > 0 && (
-            <div style={styles.billRowMuted}>
-              <span>CGST ({cgstPercent}%)</span>
-              <span>₹{cgstAmount.toFixed(2)}</span>
-            </div>
-          )}
-          {sgstAmount > 0 && (
-            <div style={styles.billRowMuted}>
-              <span>SGST ({sgstPercent}%)</span>
-              <span>₹{sgstAmount.toFixed(2)}</span>
-            </div>
-          )}
-          <div style={styles.billGrandTotal}>
-            <span>{t("grandTotal")}</span>
-            <span>₹{grandTotal.toFixed(2)}</span>
-          </div>
-        </div>
+        {/* Bill Summary with GST */}
+       {/* Bill Summary */}
+<div style={styles.billSummary}>
+  <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 15 }}>{t("billSummary")}</div>
+  {cartItems.map((item) => (
+    <div key={item.id} style={styles.billRow}>
+      <span>{localizedItemName(item, language)} × {item.quantity}</span>
+      <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+    </div>
+  ))}
+  <div style={styles.billSubtotal}>
+    <span>{t("subtotal")}</span>
+    <span>₹{subtotal.toFixed(2)}</span>
+  </div>
+  {cgstAmount > 0 && (
+    <div style={styles.billRowMuted}>
+      <span>CGST ({cgstPercent}%)</span>
+      <span>₹{cgstAmount.toFixed(2)}</span>
+    </div>
+  )}
+  {sgstAmount > 0 && (
+    <div style={styles.billRowMuted}>
+      <span>SGST ({sgstPercent}%)</span>
+      <span>₹{sgstAmount.toFixed(2)}</span>
+    </div>
+  )}
+  <div style={styles.billGrandTotal}>
+    <span>{t("grandTotal")}</span>
+    <span>₹{grandTotal.toFixed(2)}</span>
+  </div>
+</div>
 
         {error && <div className="alert alert-danger mt-3" style={{ fontSize: 14 }}>{error}</div>}
 

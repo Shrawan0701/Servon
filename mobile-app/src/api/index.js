@@ -4,26 +4,12 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
-// ─── SYNCHRONOUS BRANCH CACHE ────────────────────────────────────────────────
-// AsyncStorage is async, so reading currentBranchId inside the interceptor
-// leaves a ~50ms window where an API call fired right after switchBranch()
-// picks up the OLD branch id. This module-level cache is updated SYNCHRONOUSLY
-// by AuthContext the instant the user taps a branch, so no request can ever
-// slip through with a stale id.
-let _currentBranchId = null;
-
-export const setCurrentBranchIdSync = (id) => {
-  _currentBranchId = id || null;
-};
-
-export const getCurrentBranchIdSync = () => _currentBranchId;
-
 // ─── CONFIGURATION ───────────────────────────────────────────────────────────
 
 // Use environment variable with fallback for production
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
-  "http://10.132.59.12:5000";
+  "http://10.198.185.12:5000";
 
 // Local backend ONLY for AI Advisor (can be configured separately)
 export const ADVISOR_API_BASE_URL = 
@@ -67,40 +53,14 @@ const getBusinessId = async () => {
   }
 };
 
-// ✅ Helper reads the synchronous cache first, falls back to AsyncStorage
-const getCurrentBranchId = async () => {
-  if (_currentBranchId) return _currentBranchId;
-  try {
-    const branchId = await AsyncStorage.getItem("currentBranchId");
-    if (branchId) _currentBranchId = branchId;
-    return branchId || null;
-  } catch (error) {
-    console.error("Error getting branch ID:", error);
-    return null;
-  }
-};
-
 // ─── REQUEST INTERCEPTORS ──────────────────────────────────────────────────
 
-// Main API Interceptor (with branch support)
+// Main API Interceptor
 const attachToken = async (config) => {
   const token = await AsyncStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
-  // ✅ Prefer the SYNCHRONOUS cache — eliminates the stale-branch race.
-  // Fall back to AsyncStorage only if the cache hasn't been primed yet
-  // (e.g. first launch before AuthContext hydrates).
-  let branchId = _currentBranchId;
-  if (!branchId) {
-    branchId = await AsyncStorage.getItem("currentBranchId");
-    if (branchId) _currentBranchId = branchId; // prime the cache
-  }
-  if (branchId) {
-    config.headers['x-branch-id'] = branchId;
-  }
-
   return config;
 };
 
@@ -133,8 +93,7 @@ AdvisorAPI.interceptors.request.use(
 
 const handle401 = async (error) => {
   if (error.response?.status === 401) {
-    _currentBranchId = null; // ✅ clear sync cache
-    await AsyncStorage.multiRemove(["token", "business", "currentBranchId", "branches"]);
+    await AsyncStorage.multiRemove(["token", "business"]);
     return Promise.reject(error);
   }
   return Promise.reject(error);
@@ -175,16 +134,6 @@ export const sendOTP = (email) => API.post("/auth/forgot-password/send-otp", { e
 export const verifyOTP = (email, otp) => API.post("/auth/forgot-password/verify-otp", { email, otp });
 export const resetPassword = (resetToken, newPassword) =>
   API.post("/auth/forgot-password/reset", { resetToken, newPassword });
-
-// ==========================================================
-// ✅ BRANCH MANAGEMENT (NEW)
-// ==========================================================
-
-export const getBranches = () => API.get("/branches");
-export const getBranch = (id) => API.get(`/branches/${id}`);
-export const createBranch = (data) => API.post("/branches", data);
-export const updateBranch = (id, data) => API.put(`/branches/${id}`, data);
-export const deleteBranch = (id) => API.delete(`/branches/${id}`);
 
 // ==========================================================
 // INVENTORY
@@ -300,12 +249,12 @@ export const getOrders = () => API.get("/orders");
 export const updateOrderStatus = (id, status) => API.patch(`/orders/${id}/status`, { status });
 
 // Staff order creation — reuses the EXISTING customer order pipeline
+// (/orders/place), so staff orders become real, analytics-participating orders.
 export const placeOrder = (data) => API.post("/orders/place", data);
 
 // ==========================================================
 // ROOM MANAGEMENT (staff-side)
 // ==========================================================
-
 export const getRooms = () => API.get("/rooms");
 export const addRoom = (roomNumber) => API.post("/rooms", { roomNumber });
 export const checkInRoom = (id, data) => API.post(`/rooms/${id}/check-in`, data);
@@ -313,7 +262,7 @@ export const updateRoom = (id, data) => API.patch(`/rooms/${id}`, data);
 export const checkOutRoom = (id) => API.post(`/rooms/${id}/check-out`);
 export const deleteRoom = (id) => API.delete(`/rooms/${id}`);
 
-// Unified Servon voice assistant
+// Unified Servon voice assistant — detects ORDER vs ROOM intent server-side.
 export const servonVoice = (formData) =>
   API.post("/action/voice", formData, {
     headers: {
@@ -321,7 +270,7 @@ export const servonVoice = (formData) =>
     },
   });
 
-// Order announcement TTS
+// Order announcement TTS — reuses the existing OpenAI voice stack (advisor /speak).
 export const announceOrder = (text, language) =>
   API.post("/advisor/speak", { text, language });
 
@@ -492,25 +441,31 @@ export const verifyAdminPin = (pin) => API.post("/profile/verify-pin", { pin });
 // EXPENSES - ENHANCED VERSION
 // ==========================================================
 
+// Get expenses with period filter (returns enhanced data with supplier, payment_status, etc.)
 export const getExpenses = (period = "monthly") => 
   API.get(`/expenses?period=${period}`);
 
+// Get outstanding/payables summary
 export const getOutstandingSummary = (period = "monthly") => 
   API.get(`/expenses/outstanding?period=${period}`);
 
+// Get unique supplier suggestions for autocomplete
 export const getSupplierSuggestions = () => 
   API.get("/expenses/suppliers");
 
+// Add expense with form data (supports receipt upload)
 export const addExpense = (formData) =>
   API.post("/expenses", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 
+// Update expense with form data (supports receipt upload)
 export const updateExpense = (id, formData) =>
   API.put(`/expenses/${id}`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 
+// Delete expense
 export const deleteExpense = (id) => API.delete(`/expenses/${id}`);
 
 // ==========================================================
@@ -519,6 +474,7 @@ export const deleteExpense = (id) => API.delete(`/expenses/${id}`);
 
 export const askAdvisor = (question) => AdvisorAPI.post("/advisor/ask", { question });
 
+// Voice support
 export const askAdvisorByVoice = (formData) =>
   API.post("/advisor/voice", formData, {
     headers: {
@@ -612,43 +568,25 @@ export const startFreeTrial = async () => {
 // ✅ ADMIN API FUNCTIONS
 // ==========================================================
 
+// Admin login
 export const adminLogin = (email, password) =>
   AdminAPI.post('/admin/login', { email, password });
 
+// Get all businesses (admin only)
 export const adminGetBusinesses = () =>
   AdminAPI.get('/admin/businesses');
 
+// Create business (admin only)
 export const adminCreateBusiness = (data) =>
   AdminAPI.post('/admin/businesses', data);
 
+// Update business (admin only)
 export const adminUpdateBusiness = (id, data) =>
   AdminAPI.put(`/admin/businesses/${id}`, data);
 
+// Delete business (admin only)
 export const adminDeleteBusiness = (id) =>
   AdminAPI.delete(`/admin/businesses/${id}`);
-
-// ✅ Admin Branch Functions
-// NOTE: Backend expects the business ID in the URL path
-export const adminCreateBranch = (data) =>
-  AdminAPI.post(`/admin/businesses/${data.parentBusinessId}/branches`, {
-    branchName: data.branchName,
-    address: data.address,
-    phone: data.phone,
-    email: data.email,
-  });
-
-export const adminGetBranches = (businessId) =>
-  AdminAPI.get(`/admin/businesses/${businessId}/branches`);
-
-// ✅ Admin Branch Management
-export const adminUpdateBranch = (id, data) =>
-    AdminAPI.put(`/admin/branches/${id}`, data);
-
-export const adminToggleBranchStatus = (id, status) =>
-    AdminAPI.patch(`/admin/branches/${id}/status`, { subscription_status: status });
-
-export const adminDeleteBranch = (id) =>
-    AdminAPI.delete(`/admin/branches/${id}`);
 
 // ==========================================================
 // ✅ STAFF MANAGEMENT

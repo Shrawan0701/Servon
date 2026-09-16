@@ -1,12 +1,22 @@
 // utils/businessMetrics.js — collects raw business metrics for the AI summary & alert engine
 const pool = require("../db");
 
+// Today's start (Asia/Kolkata) as a timestamptz for consistent "today" filtering
 const getTodayStart = () => {
   const todayIST = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
   }).format(new Date());
 
   return new Date(`${todayIST}T00:00:00+05:30`);
+};
+
+// Yesterday's full-day interval for the day-over-day comparison
+const getYesterdayRange = () => {
+  const todayStartUTC = getTodayStart();
+  const yesterdayStart = new Date(todayStartUTC);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const yesterdayEnd = new Date(todayStartUTC);
+  return { yesterdayStart, yesterdayEnd };
 };
 
 const getISTHour = () => {
@@ -20,8 +30,6 @@ const collectBusinessMetrics = async (businessId) => {
   yesterdayStart.setDate(yesterdayStart.getDate() - 1);
   const yesterdayEnd = new Date(todayStart);
 
-  // ✅ Use branch_id instead of business_id
-
   // ─── 1. Orders / revenue / AOV / cancellations (today) ───────────────────
   const todayOrdersPromise = pool.query(
     `SELECT
@@ -31,7 +39,7 @@ const collectBusinessMetrics = async (businessId) => {
        COUNT(*) FILTER (WHERE status = 'REJECTED')::int AS cancelled_orders,
        COUNT(*)::int AS orders_plus_cancelled
      FROM orders
-     WHERE branch_id = $1 AND created_at >= $2`,
+     WHERE business_id = $1 AND created_at >= $2`,
     [businessId, todayStart]
   );
 
@@ -39,7 +47,7 @@ const collectBusinessMetrics = async (businessId) => {
   const todayExpensesPromise = pool.query(
     `SELECT COALESCE(SUM(amount), 0) AS total_expenses
      FROM expenses
-     WHERE branch_id = $1 AND created_at >= $2`,
+     WHERE business_id = $1 AND created_at >= $2`,
     [businessId, todayStart]
   );
 
@@ -49,7 +57,7 @@ const collectBusinessMetrics = async (businessId) => {
             SUM((item->>'quantity')::int) AS total_qty
      FROM orders,
           jsonb_array_elements(items) AS item
-     WHERE branch_id = $1
+     WHERE business_id = $1
        AND created_at >= $2
        AND status != 'REJECTED'
      GROUP BY item->>'name'
@@ -57,12 +65,12 @@ const collectBusinessMetrics = async (businessId) => {
     [businessId, todayStart]
   );
 
-  // ─── 4. Peak hours (today) — IST ─────────────────────────────────────────
+  // ─── 4. Peak hours (today) — IST (Asia/Kolkata) ──────────────────────────
   const peakHoursPromise = pool.query(
     `SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Kolkata')::int AS hour,
             COUNT(*)::int AS orders
      FROM orders
-     WHERE branch_id = $1
+     WHERE business_id = $1
        AND created_at >= $2
        AND status != 'REJECTED'
      GROUP BY hour
@@ -77,7 +85,7 @@ const collectBusinessMetrics = async (businessId) => {
             COUNT(*) FILTER (WHERE rating >= 4)::int AS positive_count,
             COUNT(*) FILTER (WHERE rating < 3)::int AS negative_count
      FROM reviews
-     WHERE branch_id = $1 AND created_at >= $2`,
+     WHERE business_id = $1 AND created_at >= $2`,
     [businessId, todayStart]
   );
 
@@ -85,19 +93,19 @@ const collectBusinessMetrics = async (businessId) => {
   const lowStockPromise = pool.query(
     `SELECT id, name, unit, current_stock, low_stock_threshold
      FROM inventory_items
-     WHERE branch_id = $1 AND current_stock <= low_stock_threshold
+     WHERE business_id = $1 AND current_stock <= low_stock_threshold
      ORDER BY (current_stock - low_stock_threshold) ASC
      LIMIT 10`,
     [businessId]
   );
 
-  // ─── 7. Yesterday same-time comparison ───────────────────────────────────
+  // ─── 7. Yesterday same-time comparison (up to current IST hour) ──────────
   const yesterdayPromise = pool.query(
     `SELECT
        COUNT(*) FILTER (WHERE status != 'REJECTED')::int AS total_orders,
        COALESCE(SUM(total_amount) FILTER (WHERE status != 'REJECTED'), 0) AS total_revenue
      FROM orders
-     WHERE branch_id = $1
+     WHERE business_id = $1
        AND created_at >= $2
        AND created_at < $3
        AND EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Kolkata') <= EXTRACT(HOUR FROM NOW() AT TIME ZONE 'Asia/Kolkata')`,
@@ -110,7 +118,7 @@ const collectBusinessMetrics = async (businessId) => {
             COUNT(*) FILTER (WHERE status != 'REJECTED')::int AS orders,
             COALESCE(SUM(total_amount) FILTER (WHERE status != 'REJECTED'), 0) AS revenue
      FROM orders
-     WHERE branch_id = $1
+     WHERE business_id = $1
        AND created_at >= (NOW() - INTERVAL '6 days')
        AND status != 'REJECTED'
      GROUP BY DATE(created_at AT TIME ZONE 'Asia/Kolkata')
@@ -148,6 +156,7 @@ const collectBusinessMetrics = async (businessId) => {
   }));
 
   const y = yesterday.rows[0];
+  // Current hour in IST (Asia/Kolkata) — server may run in UTC
   const currentHour = getISTHour();
 
   return {
@@ -176,6 +185,7 @@ const collectBusinessMetrics = async (businessId) => {
     yesterday: {
       totalOrders: parseInt(y?.total_orders || 0, 10),
       totalRevenue: parseFloat(y?.total_revenue || 0),
+      // Same time-of-day window: we fetched up to `currentHour` (IST)
       sameTimeWindowHour: currentHour,
     },
     trend: (trend.rows || []).map(d => ({

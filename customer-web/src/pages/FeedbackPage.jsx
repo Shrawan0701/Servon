@@ -10,7 +10,6 @@ export default function FeedbackPage() {
   const [searchParams] = useSearchParams();
   const tableNumber = searchParams.get("table") || "Unknown";
   const orderId = searchParams.get("orderId");
-  const branchId = searchParams.get("branchId");  // ✅ NEW: read branchId
 
   const [orderedItems, setOrderedItems] = useState([]);
   const [rating, setRating] = useState(0);
@@ -30,11 +29,8 @@ export default function FeedbackPage() {
           const items = Array.isArray(rawItems) ? rawItems : JSON.parse(rawItems || "[]");
           setOrderedItems(items);
         } else if (tableNumber !== "Unknown") {
-          // Fallback: search today's active table orders
-          const url = branchId
-            ? `${API_BASE}/orders?businessId=${businessId}&table=${tableNumber}&branchId=${branchId}`
-            : `${API_BASE}/orders?businessId=${businessId}&table=${tableNumber}`;
-          const res = await axios.get(url);
+          // Fallback: search today's active table orders if no orderId passed
+          const res = await axios.get(`${API_BASE}/orders?businessId=${businessId}&table=${tableNumber}`);
           const rawItems = res.data?.[0]?.items;
           const items = Array.isArray(rawItems) ? rawItems : JSON.parse(rawItems || "[]");
           setOrderedItems(items);
@@ -45,7 +41,7 @@ export default function FeedbackPage() {
     };
 
     fetchOrderDetails();
-  }, [businessId, tableNumber, orderId, branchId, API_BASE]);
+  }, [businessId, tableNumber, orderId, API_BASE]);
 
   // ─── SUBMIT FEEDBACK ──────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -55,10 +51,9 @@ export default function FeedbackPage() {
     try {
       await axios.post(`${API_BASE}/reviews`, {
         businessId,
-        branchId,        // ✅ NEW: include branchId
         tableNumber,
         orderId,
-        items: orderedItems,
+        items: orderedItems, // Sends only the items belonging to this order
         rating,
         comment,
       });
@@ -86,6 +81,7 @@ export default function FeedbackPage() {
       <h2 style={{ fontWeight: "800", fontSize: 24, textAlign: "center", marginBottom: 5 }}>{t("mealQuestion")}</h2>
       <p style={{ textAlign: "center", color: "#6B7280", marginBottom: 20 }}>{t("table")} {tableNumber}</p>
 
+      {/* DISPLAY SPECIFIC ORDERED ITEMS */}
       {orderedItems.length > 0 && (
         <div style={{ backgroundColor: "#F9FAFB", borderRadius: 12, padding: 12, marginBottom: 25, border: "1px solid #F3F4F6" }}>
           <span style={{ fontSize: 12, fontWeight: "700", color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 8 }}>
@@ -111,6 +107,7 @@ export default function FeedbackPage() {
         </div>
       )}
 
+      {/* STAR RATING */}
       <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 30 }}>
         {[1, 2, 3, 4, 5].map((star) => (
           <span

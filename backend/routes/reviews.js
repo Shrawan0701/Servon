@@ -4,17 +4,15 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 
 // 1. Customer: Submit a Review (Public Route)
+// 1. Customer: Submit a Review (Public Route)
 router.post("/", async (req, res) => {
-  const { businessId, branchId, tableNumber, orderId, items, rating, comment } = req.body;
+  const { businessId, tableNumber, orderId, items, rating, comment } = req.body;
 
   if (!businessId || !rating) {
     return res.status(400).json({ error: "Business ID and Rating are required" });
   }
 
   try {
-    // ✅ Determine branch_id for this review
-    const reviewBranchId = branchId || businessId;
-
     let orderedItems = [];
 
     // Option A: If the feedback page sent the exact items in req.body, use them directly
@@ -24,8 +22,8 @@ router.post("/", async (req, res) => {
     // Option B: If orderId was passed, fetch ONLY that specific order's items
     else if (orderId) {
       const orderResult = await pool.query(
-        `SELECT items FROM orders WHERE id = $1 AND (branch_id = $2 OR business_id = $2)`,
-        [orderId, reviewBranchId]
+        `SELECT items FROM orders WHERE id = $1 AND business_id = $2`,
+        [orderId, businessId]
       );
 
       if (orderResult.rows.length > 0) {
@@ -39,12 +37,12 @@ router.post("/", async (req, res) => {
         `SELECT o.items 
          FROM orders o
          JOIN tables t ON o.table_id = t.id
-         WHERE (o.branch_id = $1 OR o.business_id = $1)
+         WHERE o.business_id = $1 
            AND t.table_number = $2 
            AND o.status = 'PAID'
          ORDER BY o.updated_at DESC 
          LIMIT 1`,
-        [reviewBranchId, tableNumber]
+        [businessId, tableNumber]
       );
 
       if (recentOrder.rows.length > 0) {
@@ -53,13 +51,12 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // ✅ Save the review with branch_id
+    // Save the review with ONLY the items from that single receipt
     const result = await pool.query(
-      `INSERT INTO reviews (business_id, branch_id, table_number, rating, comment, ordered_items) 
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      `INSERT INTO reviews (business_id, table_number, rating, comment, ordered_items) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [
         businessId,
-        reviewBranchId,  // ✅ Added branch_id
         tableNumber || 'Unknown',
         rating,
         comment || null,
@@ -74,17 +71,12 @@ router.post("/", async (req, res) => {
   }
 });
 
-// 2. Hotel Owner: Get all their reviews - UPDATED with branch support
+// 2. Hotel Owner: Get all their reviews
 router.get("/", auth, async (req, res) => {
   try {
-    // ✅ Use branchId if available
-    const filterId = req.branchId || req.businessId;
-
     const result = await pool.query(
-      `SELECT * FROM reviews 
-       WHERE (branch_id = $1)
-       ORDER BY created_at DESC`,
-      [filterId]
+      `SELECT * FROM reviews WHERE business_id = $1 ORDER BY created_at DESC`,
+      [req.businessId]
     );
     res.json(result.rows);
   } catch (err) {
