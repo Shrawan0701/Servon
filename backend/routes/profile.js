@@ -4,20 +4,12 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 const { uploadImage } = require("../utils/cloudinary");
 
-// Get profile - UPDATED with branch support
+// Get profile
 router.get("/", auth, async (req, res) => {
   try {
-    // ✅ Use branchId if available, fall back to businessId
-    const filterId = req.branchId || req.businessId;
-
     const result = await pool.query(
       `SELECT id,
               business_name,
-              branch_name,
-              branch_code,
-              is_branch,
-              is_main_branch,
-              parent_id,
               owner_name,
               email,
               phone,
@@ -34,46 +26,24 @@ router.get("/", auth, async (req, res) => {
               subscription_status,
               subscription_start_date,
               subscription_end_date,
-              plan_type,
-              subscription_plan,
               upi_id
        FROM businesses
        WHERE id = $1`,
-      [filterId]
+      [req.businessId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Not found" });
     }
 
-    const business = result.rows[0];
-
-    // ✅ Get branches list (for Profile page)
-    const parentId = business.is_branch && business.parent_id 
-      ? business.parent_id 
-      : business.id;
-
-    const branches = await pool.query(
-      `SELECT id, business_name, branch_name, branch_code, is_main_branch
-       FROM businesses 
-       WHERE (id = $1 OR parent_id = $1) AND is_active != false
-       ORDER BY is_main_branch DESC, created_at ASC`,
-      [parentId]
-    );
-
-    res.json({
-      ...business,
-      branches: branches.rows,
-      parentBusinessId: parentId,
-    });
+    res.json(result.rows[0]);
 
   } catch (err) {
-    console.error("Get profile error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// Update profile - UPDATED with branch support
+// Update profile
 router.put("/", auth, async (req, res) => {
   const {
     businessName,
@@ -87,13 +57,10 @@ router.put("/", auth, async (req, res) => {
     gstNumber,
     cgstPercentage,
     sgstPercentage,
-    upiId,
+    upiId, // <-- ADDED UPI ID
   } = req.body;
 
   try {
-    // ✅ Use branchId if available
-    const filterId = req.branchId || req.businessId;
-
     let logoUrl;
 
     if (req.files && req.files.logo) {
@@ -105,7 +72,7 @@ router.put("/", auth, async (req, res) => {
 
     const existing = await pool.query(
       "SELECT * FROM businesses WHERE id = $1",
-      [filterId]
+      [req.businessId]
     );
 
     const biz = existing.rows[0];
@@ -129,7 +96,6 @@ router.put("/", auth, async (req, res) => {
        WHERE id = $14
        RETURNING id,
                  business_name,
-                 branch_name,
                  owner_name,
                  email,
                  phone,
@@ -158,7 +124,7 @@ router.put("/", auth, async (req, res) => {
         cgstPercentage !== undefined ? cgstPercentage : biz.cgst_percentage,
         sgstPercentage !== undefined ? sgstPercentage : biz.sgst_percentage,
         upiId !== undefined ? upiId : biz.upi_id,
-        filterId,
+        req.businessId,
       ]
     );
 
@@ -178,8 +144,7 @@ router.patch("/pin", auth, async (req, res) => {
   }
 
   try {
-    const filterId = req.branchId || req.businessId;
-    await pool.query("UPDATE businesses SET admin_pin = $1 WHERE id = $2", [pin, filterId]);
+    await pool.query("UPDATE businesses SET admin_pin = $1 WHERE id = $2", [pin, req.businessId]);
     res.json({ message: "Admin PIN set successfully" });
   } catch (err) {
     console.error("Set PIN error:", err);
@@ -192,8 +157,7 @@ router.post("/verify-pin", auth, async (req, res) => {
   const { pin } = req.body;
   
   try {
-    const filterId = req.branchId || req.businessId;
-    const result = await pool.query("SELECT admin_pin FROM businesses WHERE id = $1", [filterId]);
+    const result = await pool.query("SELECT admin_pin FROM businesses WHERE id = $1", [req.businessId]);
     const actualPin = result.rows[0]?.admin_pin;
 
     if (!actualPin) {
@@ -211,20 +175,21 @@ router.post("/verify-pin", auth, async (req, res) => {
   }
 });
 
-// Upload Business Logo - UPDATED with branch support
+// Upload Business Logo
 router.post("/upload-logo", auth, async (req, res) => {
   try {
     if (!req.files || Object.keys(req.files).length === 0) {
+      console.log("No files found in request");
       return res.status(400).json({ error: "No files were uploaded." });
     }
 
     const logoFile = req.files.logo;
     if (!logoFile) {
+      console.log("File found, but key is not 'logo'");
       return res.status(400).json({ error: "Please upload file with field name 'logo'" });
     }
 
-    // ✅ Use branchId if available
-    const filterId = req.branchId || req.businessId;
+    console.log(`Uploading logo for business ${req.businessId}...`);
 
     const logoUrl = await uploadImage(logoFile.data, "servon/logos");
 
@@ -233,7 +198,7 @@ router.post("/upload-logo", auth, async (req, res) => {
        SET logo_url = $1, updated_at = NOW() 
        WHERE id = $2 
        RETURNING id, logo_url`,
-      [logoUrl, filterId]
+      [logoUrl, req.businessId]
     );
 
     res.json(result.rows[0]);

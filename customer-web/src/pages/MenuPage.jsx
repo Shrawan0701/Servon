@@ -1,16 +1,18 @@
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom"; // ✅ Added useLocation
 import { fetchPublicMenu, fetchTableInfo } from "../api";
 import { useCart } from "../context/CartContext";
 import { LanguageSelector, useLocale } from "../context/LocaleContext";
 import VoiceOrderModal from "../components/VoiceOrderModal";
 import { localizedItemName } from "../utils/itemName";
 
-// --- Helper Functions ---
+// --- Helper Functions from Friend's Push ---
 
+// Builds the full list of items in a thali from allItems + thali_custom string
 function getThaliContents(item, allItems, language) {
   let includes = item.thali_includes;
 
+  // ✅ FIX: Convert string → array
   if (typeof includes === "string") {
     try {
       includes = JSON.parse(includes);
@@ -33,6 +35,7 @@ function getThaliContents(item, allItems, language) {
   return [...pickedNames, ...custom];
 }
 
+// Inline chip list with +N more toggle
 function ThaliContents({ contents }) {
   const { t, language } = useLocale();
   const [expanded, setExpanded] = useState(false);
@@ -69,15 +72,14 @@ function ThaliContents({ contents }) {
 export default function MenuPage() {
   const { t, language } = useLocale();
   const navigate = useNavigate();
-  const location = useLocation();
-
+  const location = useLocation(); // ✅ Added to read query string (?restaurantId=...)
+  
+  // ✅ FIX: Support both URL styles (localhost:3000/menu/id/id AND vercel.app/menu?restaurantId=id)
   const params = useParams();
   const queryParams = new URLSearchParams(location.search);
 
-  // ✅ Read branchId from URL (in addition to businessId and tableId)
   const businessId = params.businessId || queryParams.get("restaurantId");
   const tableId = params.tableId || queryParams.get("tableId");
-  const branchId = params.branchId || queryParams.get("branchId");  // ✅ Added
 
   const { addToCart, removeFromCart, getQuantity, totalItems, totalAmount } = useCart();
 
@@ -86,10 +88,15 @@ export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // State for image lightbox preview
   const [selectedImage, setSelectedImage] = useState(null);
+
+  // Voice ordering (mini-cart modal — never navigates to the Cart page)
   const [voiceOpen, setVoiceOpen] = useState(false);
 
   useEffect(() => {
+    // ✅ Safety: Only load if we have both IDs
     if (!businessId || !tableId) {
       setLoading(false);
       setError("invalidQrHelp");
@@ -98,9 +105,8 @@ export default function MenuPage() {
 
     const load = async () => {
       try {
-        // ✅ Pass branchId to fetchPublicMenu
         const [menuRes, tableRes] = await Promise.all([
-          fetchPublicMenu(businessId, branchId),
+          fetchPublicMenu(businessId),
           fetchTableInfo(tableId),
         ]);
         setMenuItems(menuRes.data);
@@ -112,7 +118,7 @@ export default function MenuPage() {
       }
     };
     load();
-  }, [businessId, tableId, branchId]);  // ✅ Added branchId to deps
+  }, [businessId, tableId]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(menuItems.map((i) => i.category))].filter(Boolean);
@@ -154,11 +160,7 @@ export default function MenuPage() {
           )}
           <div>
             <h5 className="mb-0 fw-700">{businessInfo?.business_name}</h5>
-            <small className="text-muted">
-              {t("table")} {businessInfo?.table_number}
-              {/* ✅ Show branch name if available */}
-              {businessInfo?.branch_name && ` • ${businessInfo.branch_name}`}
-            </small>
+            <small className="text-muted">{t("table")} {businessInfo?.table_number}</small>
           </div>
           <div style={{ marginLeft: "auto" }}><LanguageSelector /></div>
         </div>
@@ -186,6 +188,7 @@ export default function MenuPage() {
             return (
               <div key={item.id} className="col-6">
                 <div className="menu-card h-100" style={{ display: "flex", flexDirection: "column" }}>
+                  {/* Image Section with Thali Badge */}
                   <div style={{ position: "relative" }}>
                     {item.image_url ? (
                       <img
@@ -194,7 +197,7 @@ export default function MenuPage() {
                         onClick={() => setSelectedImage(item.image_url)}
                         style={{
                           width: "100%",
-                          height: 140,
+                          height: 140, // Kept your preferred height
                           objectFit: "cover",
                           borderTopLeftRadius: 12,
                           borderTopRightRadius: 12,
@@ -205,7 +208,7 @@ export default function MenuPage() {
                     ) : (
                       <div
                         style={{
-                          height: 140,
+                          height: 140, // Kept your preferred height
                           background: "#f0f0f0",
                           display: "flex",
                           alignItems: "center",
@@ -218,6 +221,7 @@ export default function MenuPage() {
                       </div>
                     )}
 
+                    {/* Thali badge on image */}
                     {item.is_thali && <span style={styles.thaliBadge}>{t("thali")}</span>}
                   </div>
 
@@ -226,6 +230,7 @@ export default function MenuPage() {
                       {localizedItemName(item, language)}
                     </div>
 
+                    {/* Logical Combination: Show Thali Contents or Description */}
                     {item.is_thali && thaliContents.length > 0 ? (
                       <ThaliContents contents={thaliContents} />
                     ) : (
@@ -275,6 +280,7 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Voice order mic button */}
       {businessId && tableId && (
         <button
           onClick={() => setVoiceOpen(true)}
@@ -300,11 +306,9 @@ export default function MenuPage() {
         </button>
       )}
 
+      {/* Sticky Cart Bar */}
       {totalItems > 0 && (
-        <div
-          className="sticky-cart-bar"
-          onClick={() => navigate(`/cart/${businessId}/${tableId}${branchId ? `?branchId=${branchId}` : ''}`)}
-        >
+        <div className="sticky-cart-bar" onClick={() => navigate(`/cart/${businessId}/${tableId}`)}>
           <span>
             {totalItems > 1 ? t("itemsPlural", { count: totalItems }) : t("items", { count: totalItems })}
           </span>
@@ -312,15 +316,16 @@ export default function MenuPage() {
         </div>
       )}
 
+      {/* Voice Order Modal (self-contained review + confirm) */}
       <VoiceOrderModal
         open={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         businessId={businessId}
         tableId={tableId}
-        branchId={branchId}  // ✅ Pass branchId to modal
         menuItems={menuItems}
       />
 
+      {/* Fullscreen Image Preview Overlay Modal */}
       {selectedImage && (
         <div
           onClick={() => setSelectedImage(null)}

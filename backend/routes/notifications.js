@@ -10,11 +10,7 @@ router.post("/push-token", auth, async (req, res) => {
     if (!token) {
       return res.status(400).json({ error: "Push token is required" });
     }
-    
-    // ✅ Use branchId if available (token is per-branch)
-    const businessId = req.branchId || req.businessId;
-    
-    const row = await NotificationService.savePushToken(businessId, token, platform || "unknown");
+    const row = await NotificationService.savePushToken(req.businessId, token, platform || "unknown");
     res.json({ success: true, data: row });
   } catch (err) {
     console.error("Save push token error:", err);
@@ -29,11 +25,7 @@ router.post("/push-token/remove", auth, async (req, res) => {
     if (!token) {
       return res.status(400).json({ error: "Push token is required" });
     }
-    
-    // ✅ Use branchId if available
-    const businessId = req.branchId || req.businessId;
-    
-    await NotificationService.removePushToken(businessId, token);
+    await NotificationService.removePushToken(req.businessId, token);
     res.json({ success: true });
   } catch (err) {
     console.error("Remove push token error:", err);

@@ -6,10 +6,15 @@ const { getIO } = require('../socket');
 
 class NotificationProcessor {
     
+    /**
+     * Process all pending notifications
+     * This should be called by a cron job every hour
+     */
     static async processPendingNotifications() {
         console.log('🔄 Processing pending notifications...');
         
         try {
+            // Get all pending notifications
             const notifications = await NotificationService.getPendingNotifications();
             
             if (notifications.length === 0) {
@@ -24,23 +29,17 @@ class NotificationProcessor {
             
             for (const notification of notifications) {
                 try {
-                    // ✅ Emit to BOTH business room AND branch room
+                    // 1) Emit socket event to business room for real-time in-app notification
                     try {
                         const io = getIO();
                         io.to(`business_${notification.business_id}`).emit('new_notification', notification);
-                        
-                        // ✅ Also emit to branch-specific room
-                        if (notification.branch_id && notification.branch_id !== notification.business_id) {
-                            io.to(`branch_${notification.branch_id}`).emit('new_notification', notification);
-                        }
                     } catch (socketErr) {
                         console.warn('Socket emit failed:', socketErr.message);
                     }
 
-                    // ✅ Send push to branch-specific tokens
+                    // 2) Send push notification to the business owner's device(s)
                     try {
-                        const pushTarget = notification.branch_id || notification.business_id;
-                        const tokens = await NotificationService.getPushTokens(pushTarget);
+                        const tokens = await NotificationService.getPushTokens(notification.business_id);
                         if (tokens.length > 0) {
                             await sendPush(tokens, notification.title || 'Servon', notification.message);
                         }
@@ -50,7 +49,7 @@ class NotificationProcessor {
 
                     await NotificationService.markAsSent(notification.id);
                     processed++;
-                    console.log(`✅ Sent notification: ${notification.id} (${notification.type}) for branch ${notification.branch_id}`);
+                    console.log(`✅ Sent notification: ${notification.id} (${notification.type})`);
                 } catch (error) {
                     console.error(`❌ Failed to send notification ${notification.id}:`, error);
                     await NotificationService.markAsFailed(notification.id, error.message);
