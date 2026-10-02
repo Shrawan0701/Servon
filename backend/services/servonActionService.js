@@ -10,7 +10,8 @@ const normalize = (s = "") =>
   String(s)
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9\s]/gi, " ")
+    .normalize("NFKD")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ");
 
 const similarity = (a, b) => {
@@ -30,7 +31,11 @@ const similarity = (a, b) => {
 function resolveMenuItem(menu, spokenName) {
   const target = normalize(spokenName);
   const scored = menu
-    .map((m) => ({ item: m, score: similarity(target, normalize(m.name)) }))
+    .map((m) => {
+      const aliases = [m.name, m.name_hi, m.name_mr].filter(Boolean);
+      const score = Math.max(...aliases.map((alias) => similarity(target, normalize(alias))));
+      return { item: m, score };
+    })
     .filter((s) => s.score >= 0.5)
     .sort((x, y) => y.score - x.score);
 
@@ -75,7 +80,7 @@ async function resolveVoiceAction(transcript, businessId) {
   // ── Load authoritative data scoped to this business ──────────────────
   const [menuRes, tableRes, roomRes, bizRes] = await Promise.all([
     pool.query(
-      `SELECT id, name, price, category, is_available FROM menu_items
+      `SELECT id, name, name_hi, name_mr, price, category, is_available FROM menu_items
        WHERE business_id = $1 ORDER BY category, name`,
       [businessId]
     ),

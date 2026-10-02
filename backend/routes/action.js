@@ -7,6 +7,31 @@ const { resolveVoiceAction } = require("../services/servonActionService");
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const normalizeAudioUpload = (audio, fallbackName) => {
+  const rawType = String(audio.mimetype || "audio/webm").toLowerCase();
+  const mimeType = rawType.split(";")[0].trim();
+  const extension =
+    mimeType === "audio/mpeg" || mimeType === "audio/mp3" ? "mp3" :
+    mimeType === "audio/mp4" || mimeType === "audio/x-m4a" ? "mp4" :
+    mimeType === "audio/wav" || mimeType === "audio/wave" ? "wav" :
+    mimeType === "audio/ogg" ? "ogg" :
+    "webm";
+
+  return {
+    mimeType,
+    filename: `${fallbackName}.${extension}`,
+  };
+};
+
+const transcribeAudio = async (audio, fallbackName, prompt) => {
+  const { mimeType, filename } = normalizeAudioUpload(audio, fallbackName);
+  return openai.audio.transcriptions.create({
+    file: await toFile(audio.data, filename, { type: mimeType }),
+    model: "gpt-4o-mini-transcribe",
+    prompt,
+  });
+};
+
 // ─── UNIFIED SERVON VOICE ASSISTANT ──────────────────────────────────
 // One microphone, one AI/voice infrastructure. The same endpoint understands
 // whether the staff is talking about an ORDER or a ROOM operation, then
@@ -38,14 +63,11 @@ router.post("/voice", auth, async (req, res) => {
     // Transcribe with the same OpenAI model used by the Advisor. The
     // language is intentionally left to the model so English, Hindi and
     // Marathi (and mixed speech) are handled automatically.
-    const transcription = await openai.audio.transcriptions.create({
-      file: await toFile(audio.data, audio.name || "servon-voice.webm", {
-        type: audio.mimetype || "audio/webm",
-      }),
-      model: "gpt-4o-mini-transcribe",
-      prompt:
-        "Restaurant and hotel staff dictating food orders and room guest details. Hindi, Marathi and English are common.",
-    });
+    const transcription = await transcribeAudio(
+      audio,
+      "servon-voice",
+      "Restaurant and hotel staff dictating food orders and room guest details. Hindi, Marathi and English are common."
+    );
 
     const transcript = transcription.text?.trim();
     if (!transcript) {
@@ -109,14 +131,18 @@ router.post("/voice", auth, async (req, res) => {
       });
     }
 
-    const transcription = await openai.audio.transcriptions.create({
-      file: await toFile(audio.data, audio.name || "servon-customer-voice.webm", {
-        type: audio.mimetype || "audio/webm",
-      }),
-      model: "gpt-4o-mini-transcribe",
-      prompt:
-        "Restaurant customers dictating food orders while scanning the QR menu. Hindi, Marathi and English are common.",
+    console.log("Public voice upload:", {
+      name: audio.name,
+      mimetype: audio.mimetype,
+      size: audio.size,
+      bytes: audio.data?.length,
     });
+
+    const transcription = await transcribeAudio(
+      audio,
+      "servon-customer-voice",
+      "Restaurant customers dictating food orders while scanning the QR menu. Hindi, Marathi and English are common."
+    );
 
     const transcript = transcription.text?.trim();
     if (!transcript) {
