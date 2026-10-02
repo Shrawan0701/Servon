@@ -15,6 +15,32 @@ const auth = require("./middleware/auth");
 const { collectDailyData } = require("./utils/dailySummary");
 const { generateSummary, generateInsights } = require("./services/aiSummaryService");
 
+const subscriptionReminderCopy = {
+  en: {
+    title: "Subscription reminder",
+    expiring: (days) => `Your Servon subscription expires in ${days} day${days === 1 ? "" : "s"}. Renew now to continue services.`,
+    today: "Your Servon subscription expires today. Renew now to continue services.",
+  },
+  hi: {
+    title: "सब्सक्रिप्शन रिमाइंडर",
+    expiring: (days) => `आपका Servon सब्सक्रिप्शन ${days} दिन में खत्म होगा। सेवाएं जारी रखने के लिए अभी रिन्यू करें।`,
+    today: "आपका Servon सब्सक्रिप्शन आज खत्म हो रहा है। सेवाएं जारी रखने के लिए अभी रिन्यू करें।",
+  },
+  mr: {
+    title: "सबस्क्रिप्शन रिमाइंडर",
+    expiring: (days) => `तुमचे Servon सबस्क्रिप्शन ${days} दिवसांत संपेल. सेवा सुरू ठेवण्यासाठी आत्ताच रिन्यू करा.`,
+    today: "तुमचे Servon सबस्क्रिप्शन आज संपत आहे. सेवा सुरू ठेवण्यासाठी आत्ताच रिन्यू करा.",
+  },
+};
+
+function getSubscriptionReminderMessage(language, daysLeft) {
+  const copy = subscriptionReminderCopy[language] || subscriptionReminderCopy.en;
+  return {
+    title: copy.title,
+    body: daysLeft === 0 ? copy.today : copy.expiring(daysLeft),
+  };
+}
+
 // AI Business Summary + Alerts scheduler
 const { initScheduler, startCronJobs } = require("./jobs/scheduler");
 
@@ -207,23 +233,75 @@ cron.schedule("0 6 * * *", async () => {
 // ─── SUBSCRIPTION EXPIRY CHECK (10:00 AM) ──────────────────────────
 cron.schedule("0 10 * * *", async () => {
   try {
+    await pool.query("ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'en'");
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subscription_notification_logs (
+        id SERIAL PRIMARY KEY,
+        business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+        token TEXT NOT NULL,
+        reminder_type VARCHAR(20) NOT NULL,
+        sent_on DATE NOT NULL,
+        sent_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(business_id, token, reminder_type, sent_on)
+      )
+    `);
+
     const result = await pool.query(
-      `SELECT push_token FROM businesses 
-       WHERE subscription_end_date::date = (CURRENT_DATE + INTERVAL '3 days')::date`
+      `WITH candidates AS (
+         SELECT
+           b.id AS business_id,
+           b.push_token AS token,
+           'en' AS language,
+           ((b.subscription_end_date AT TIME ZONE 'Asia/Kolkata')::date - (NOW() AT TIME ZONE 'Asia/Kolkata')::date) AS days_left
+         FROM businesses b
+         WHERE b.push_token IS NOT NULL
+           AND b.subscription_end_date IS NOT NULL
+           AND b.subscription_status IN ('ACTIVE', 'EXPIRED')
+
+         UNION ALL
+
+         SELECT
+           b.id AS business_id,
+           pt.token,
+           COALESCE(pt.language, 'en') AS language,
+           ((b.subscription_end_date AT TIME ZONE 'Asia/Kolkata')::date - (NOW() AT TIME ZONE 'Asia/Kolkata')::date) AS days_left
+         FROM businesses b
+         JOIN push_tokens pt ON pt.business_id = b.id
+         WHERE pt.token IS NOT NULL
+           AND b.subscription_end_date IS NOT NULL
+           AND b.subscription_status IN ('ACTIVE', 'EXPIRED')
+       )
+       SELECT DISTINCT ON (business_id, token)
+         business_id, token, language, days_left
+       FROM candidates
+       WHERE days_left IN (2, 1, 0)
+       ORDER BY business_id, token, language DESC`
     );
-    
-    result.rows.forEach((row) => {
-      if (row.push_token) {
-        sendPush(
-          row.push_token,
-          "Plan Expiring",
-          "Your Servon plan expires in 3 days. Renew now to avoid interruption!"
-        );
-      }
-    });
+
+    for (const row of result.rows) {
+      const daysLeft = Number(row.days_left);
+      const reminderType = daysLeft === 0 ? "expires_today" : `${daysLeft}_days_before`;
+      const sentOn = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+      const inserted = await pool.query(
+        `INSERT INTO subscription_notification_logs (business_id, token, reminder_type, sent_on)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (business_id, token, reminder_type, sent_on) DO NOTHING
+         RETURNING id`,
+        [row.business_id, row.token, reminderType, sentOn]
+      );
+
+      if (inserted.rows.length === 0) continue;
+
+      const { title, body } = getSubscriptionReminderMessage(row.language, daysLeft);
+      await sendPush(row.token, title, body);
+    }
   } catch (err) {
-    console.error("Cron Job Error:", err);
+    console.error("Subscription reminder cron error:", err);
   }
+}, {
+  timezone: "Asia/Kolkata",
 });
 
 // ─── TEST ENDPOINT (manual trigger for debugging) ──────────────────

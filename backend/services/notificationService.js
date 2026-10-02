@@ -154,16 +154,31 @@ class NotificationService {
     /**
      * Save/register an Expo push token for a business
      */
-    static async savePushToken(businessId, token, platform = 'unknown') {
-        const result = await query(
-            `INSERT INTO push_tokens (business_id, token, platform)
-             VALUES ($1, $2, $3)
+    static async savePushToken(businessId, token, platform = 'unknown', language = 'en') {
+        const safeLanguage = ['en', 'hi', 'mr'].includes(language) ? language : 'en';
+        try {
+            const result = await query(
+                `INSERT INTO push_tokens (business_id, token, platform, language)
+             VALUES ($1, $2, $3, $4)
              ON CONFLICT (business_id, token)
-             DO UPDATE SET platform = EXCLUDED.platform, created_at = NOW()
+             DO UPDATE SET platform = EXCLUDED.platform, language = EXCLUDED.language, created_at = NOW()
              RETURNING *`,
-            [businessId, token, platform]
-        );
-        return result.rows[0];
+                [businessId, token, platform, safeLanguage]
+            );
+            return result.rows[0];
+        } catch (err) {
+            if (err.code !== '42703') throw err;
+
+            const fallback = await query(
+                `INSERT INTO push_tokens (business_id, token, platform)
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT (business_id, token)
+                 DO UPDATE SET platform = EXCLUDED.platform, created_at = NOW()
+                 RETURNING *`,
+                [businessId, token, platform]
+            );
+            return fallback.rows[0];
+        }
     }
 
     /**
@@ -175,6 +190,28 @@ class NotificationService {
             [businessId]
         );
         return result.rows.map(r => r.token);
+    }
+
+    static async getPushTokenRows(businessId) {
+        try {
+            const result = await query(
+                `SELECT token, COALESCE(language, 'en') AS language
+                 FROM push_tokens
+                 WHERE business_id = $1`,
+                [businessId]
+            );
+            return result.rows;
+        } catch (err) {
+            if (err.code !== '42703') throw err;
+
+            const fallback = await query(
+                `SELECT token, 'en' AS language
+                 FROM push_tokens
+                 WHERE business_id = $1`,
+                [businessId]
+            );
+            return fallback.rows;
+        }
     }
 
     /**

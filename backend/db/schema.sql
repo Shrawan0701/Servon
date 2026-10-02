@@ -122,12 +122,28 @@ CREATE TABLE IF NOT EXISTS push_tokens (
   business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   token TEXT NOT NULL,
   platform VARCHAR(20),
+  language VARCHAR(5) DEFAULT 'en',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(business_id, token)
 );
 
 CREATE INDEX IF NOT EXISTS idx_push_tokens_business
   ON push_tokens(business_id);
+
+ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'en';
+
+CREATE TABLE IF NOT EXISTS subscription_notification_logs (
+  id SERIAL PRIMARY KEY,
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  reminder_type VARCHAR(20) NOT NULL,
+  sent_on DATE NOT NULL,
+  sent_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(business_id, token, reminder_type, sent_on)
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscription_notification_logs_lookup
+  ON subscription_notification_logs(business_id, sent_on);
 -- ─── hotel_rooms: staff-side room occupancy management ─────────────────────
 CREATE TABLE IF NOT EXISTS hotel_rooms (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

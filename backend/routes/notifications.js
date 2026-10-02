@@ -6,11 +6,11 @@ const NotificationService = require("../services/notificationService");
 // ─── REGISTER PUSH TOKEN ──────────────────────────────────────────────
 router.post("/push-token", auth, async (req, res) => {
   try {
-    const { token, platform } = req.body;
+    const { token, platform, language } = req.body;
     if (!token) {
       return res.status(400).json({ error: "Push token is required" });
     }
-    const row = await NotificationService.savePushToken(req.businessId, token, platform || "unknown");
+    const row = await NotificationService.savePushToken(req.businessId, token, platform || "unknown", language || "en");
     res.json({ success: true, data: row });
   } catch (err) {
     console.error("Save push token error:", err);
