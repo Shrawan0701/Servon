@@ -60,7 +60,10 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
     clearTimeout(timerRef.current);
     try {
       const rec = recRef.current;
-      if (rec && rec.state !== "inactive") rec.stop();
+      if (rec && rec.state !== "inactive") {
+        try { rec.requestData(); } catch {}
+        rec.stop();
+      }
     } catch {}
   }, []);
 
@@ -139,7 +142,14 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       chunksRef.current = [];
-      const rec = new MediaRecorder(stream);
+      const preferredMimeTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/mpeg",
+      ];
+      const mimeType = preferredMimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recRef.current = rec;
       rec.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
@@ -150,10 +160,21 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
         recRef.current = null;
         setStage("thinking");
         try {
-          const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
+          const recordedType = rec.mimeType || mimeType || "audio/webm";
+          const blob = new Blob(chunksRef.current, { type: recordedType });
+          if (!blob.size) {
+            setError(t("micUnsupported"));
+            setStage("review");
+            return;
+          }
+          const ext = recordedType.includes("mp4")
+            ? "mp4"
+            : recordedType.includes("mpeg") || recordedType.includes("mp3")
+              ? "mp3"
+              : "webm";
           const fd = new FormData();
           fd.append("businessId", businessId);
-          fd.append("audio", blob, "servon-customer-voice.webm");
+          fd.append("audio", blob, `servon-customer-voice.${ext}`);
           const res = await servonVoicePublic(fd);
           const payload = res.data || {};
           setTranscript(payload.transcript || "");
@@ -168,7 +189,7 @@ export default function VoiceOrderModal({ open, onClose, businessId, tableId, me
           setStage("review");
         }
       };
-      rec.start();
+      rec.start(250);
       setStage("listening");
       timerRef.current = setTimeout(() => stopRecording(), 8000);
     } catch {
