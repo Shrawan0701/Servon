@@ -86,6 +86,7 @@ export default function MenuPage() {
   const [menuItems, setMenuItems] = useState([]);
   const [businessInfo, setBusinessInfo] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -126,9 +127,27 @@ export default function MenuPage() {
   }, [menuItems]);
 
   const filteredItems = useMemo(() => {
-    if (selectedCategory === "All") return menuItems;
-    return menuItems.filter((i) => i.category === selectedCategory);
-  }, [menuItems, selectedCategory]);
+    const categoryItems = selectedCategory === "All"
+      ? menuItems
+      : menuItems.filter((i) => i.category === selectedCategory);
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return categoryItems;
+
+    return categoryItems.filter((item) => {
+      const searchableText = [
+        item.name,
+        item.name_mr,
+        item.name_hi,
+        item.category,
+        item.description,
+        localizedItemName(item, language),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return searchableText.includes(query);
+    });
+  }, [menuItems, selectedCategory, searchQuery, language]);
 
   if (loading) {
     return (
@@ -166,20 +185,40 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* Categories */}
-      <div className="d-flex gap-2 overflow-auto px-3 py-3" style={{ scrollbarWidth: "none" }}>
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            className={`category-tab ${selectedCategory === cat ? "active" : ""}`}
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat === "All" ? t("all") : cat}
-          </button>
-        ))}
+      <div className="menu-controls">
+        <div className="menu-search-wrap">
+          <label className="visually-hidden" htmlFor="menu-search">
+            {t("searchMenu")}
+          </label>
+          <input
+            id="menu-search"
+            className="menu-search-input"
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            autoComplete="off"
+          />
+        </div>
+
+        {/* Categories */}
+        <div className="d-flex gap-2 overflow-auto px-3 py-3" style={{ scrollbarWidth: "none" }}>
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              className={`category-tab ${selectedCategory === cat ? "active" : ""}`}
+              onClick={() => setSelectedCategory(cat)}
+            >
+              {cat === "All" ? t("all") : cat}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="px-3">
+        {filteredItems.length === 0 ? (
+          <div className="menu-empty-state">{t("noItemsFound")}</div>
+        ) : (
         <div className="row g-3">
           {filteredItems.map((item) => {
             const qty = getQuantity(item.id);
@@ -278,6 +317,7 @@ export default function MenuPage() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Voice order mic button */}
