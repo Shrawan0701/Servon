@@ -166,3 +166,5 @@ CREATE INDEX IF NOT EXISTS idx_hotel_rooms_business_id ON hotel_rooms(business_i
 -- ─── Localized menu item names (name_mr / name_hi) — idempotent for existing DBs ──
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS name_mr VARCHAR(255);
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS name_hi VARCHAR(255);
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS food_type VARCHAR(20) DEFAULT 'veg';
+UPDATE menu_items SET food_type = 'veg' WHERE food_type IS NULL OR TRIM(food_type) = '';

@@ -5,6 +5,8 @@ const auth = require("../middleware/auth");
 const subscription = require("../middleware/subscription");
 const { translateMenuItemName } = require("../services/menuTranslationService");
 
+const normalizeFoodType = (value) => (value === "non_veg" ? "non_veg" : "veg");
+
 // Get all menu items for a business (public)
 router.get("/public/:businessId", async (req, res) => {
   try {
@@ -44,6 +46,7 @@ router.post("/", auth, subscription, async (req, res) => {
     price,
     category,
     image_url,
+    food_type,
     is_thali,
     thali_includes,
     thali_custom
@@ -56,10 +59,11 @@ router.post("/", auth, subscription, async (req, res) => {
   }
 
   try {
+    const finalFoodType = normalizeFoodType(food_type);
     const translations = await translateMenuItemName(name);
 
     const result = await pool.query(
-      'INSERT INTO menu_items (business_id,name,name_mr,name_hi,description,price,image_url,category,is_thali,thali_includes,thali_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
+      'INSERT INTO menu_items (business_id,name,name_mr,name_hi,description,price,image_url,category,food_type,is_thali,thali_includes,thali_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
       [
         req.businessId,
         name,
@@ -69,6 +73,7 @@ router.post("/", auth, subscription, async (req, res) => {
         price,
         image_url || null,
         category,
+        finalFoodType,
         is_thali || false,
         JSON.stringify(thali_includes || []),
         thali_custom || "",
@@ -90,6 +95,7 @@ router.put("/:id", auth, subscription, async (req, res) => {
     price,
     category,
     image_url,
+    food_type,
     is_thali,
     thali_includes,
     thali_custom
@@ -112,9 +118,12 @@ router.put("/:id", auth, subscription, async (req, res) => {
     const translations = nameChanged || missingTranslation
       ? await translateMenuItemName(finalName)
       : { name_mr: null, name_hi: null };
+    const finalFoodType = food_type !== undefined
+      ? normalizeFoodType(food_type)
+      : normalizeFoodType(existing.rows[0].food_type);
 
     const result = await pool.query(
-      'UPDATE menu_items SET name = $1,name_mr = $2,name_hi = $3,description = $4,price = $5,image_url = $6,category = $7,is_thali = $8,thali_includes = $9,thali_custom = $10,updated_at = NOW() WHERE id = $11 AND business_id = $12 RETURNING *',
+      'UPDATE menu_items SET name = $1,name_mr = $2,name_hi = $3,description = $4,price = $5,image_url = $6,category = $7,food_type = $8,is_thali = $9,thali_includes = $10,thali_custom = $11,updated_at = NOW() WHERE id = $12 AND business_id = $13 RETURNING *',
       [
         finalName,
         nameChanged
@@ -127,6 +136,7 @@ router.put("/:id", auth, subscription, async (req, res) => {
         price || existing.rows[0].price,
         finalImageUrl,
         category || existing.rows[0].category,
+        finalFoodType,
         is_thali !== undefined ? is_thali : existing.rows[0].is_thali,
         JSON.stringify(thali_includes !== undefined ? thali_includes : (existing.rows[0].thali_includes || [])),
         thali_custom !== undefined ? thali_custom : (existing.rows[0].thali_custom || ""),
