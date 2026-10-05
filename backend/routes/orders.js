@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const jwt = require("jsonwebtoken");
 const pool = require("../db");
 const auth = require("../middleware/auth");
 const sendPush = require('../utils/pushNotify');
@@ -21,6 +22,18 @@ function calculateDiscount(subtotal, discountType = 'none', discountValue = 0) {
   };
 }
 
+function getOptionalBusinessId(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+
+  try {
+    const decoded = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+    return decoded.businessId || decoded.id || null;
+  } catch (err) {
+    return null;
+  }
+}
+
 // ─── CUSTOMER: PLACE ORDER (New or Edit) ─────────────────────────────
 router.post("/place", async (req, res) => {
   const {
@@ -29,6 +42,8 @@ router.post("/place", async (req, res) => {
     items,
     specialInstructions,
     orderId,
+    orderSource,
+    initialStatus,
     discount_type = 'none',
     discount_value = 0
   } = req.body;
@@ -107,6 +122,9 @@ router.post("/place", async (req, res) => {
     const discountType = discount_type;
     const discountValue = parseFloat(discount_value) || 0;
     const subtotalBeforeDiscount = subtotal;
+    const authenticatedBusinessId = getOptionalBusinessId(req);
+    const isStaffOrder = orderSource === "staff" && authenticatedBusinessId === businessId;
+    const newOrderStatus = isStaffOrder && initialStatus === "CONFIRMED" ? "CONFIRMED" : "EDITABLE";
 
     const triggerAutoConfirm = (targetOrderId) => {
       setTimeout(async () => {
@@ -192,7 +210,7 @@ router.post("/place", async (req, res) => {
          special_instructions, status, updated_at,
          discount_type, discount_value, discount_amount, subtotal_before_discount, gst_amount
        )
-       VALUES ($1, $2, $3, $4, $5, 'EDITABLE', NOW(), $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         businessId,
@@ -200,6 +218,7 @@ router.post("/place", async (req, res) => {
         JSON.stringify(items),
         finalTotal,
         specialInstructions || null,
+        newOrderStatus,
         discountType,
         discountValue,
         discountAmount,
@@ -249,7 +268,9 @@ router.post("/place", async (req, res) => {
       console.warn("Socket emit failed:", e.message);
     }
 
-    triggerAutoConfirm(order.id);
+    if (newOrderStatus === "EDITABLE") {
+      triggerAutoConfirm(order.id);
+    }
     return res.status(201).json(order);
 
   } catch (err) {
