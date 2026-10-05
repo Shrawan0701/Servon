@@ -13,14 +13,20 @@ import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 
 const CATEGORIES = ["All", "Starters", "Main Course", "Breads", "Rice & Biryani", "Desserts", "Beverages", "Soups", "Salads", "Snacks", "Specials"];
+const FOOD_TYPES = [
+  { key: "veg", label: "Veg" },
+  { key: "non_veg", label: "Non Veg" },
+];
 const CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/da9ej0tre/image/upload";
 const UPLOAD_PRESET = "servon_menu";
 const isWeb = Platform.OS === "web";
 
 const EMPTY_FORM = {
-  name: "", description: "", price: "", category: "Starters",
+  name: "", description: "", price: "", category: "Starters", food_type: "veg",
   image_url: null, is_thali: false, thali_includes: [], thali_custom: []
 };
+
+const itemFoodType = (item) => (item?.food_type === "non_veg" ? "non_veg" : "veg");
 
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
@@ -33,6 +39,7 @@ export default function MenuScreen() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [customInput, setCustomInput] = useState("");
+  const [selectedFoodType, setSelectedFoodType] = useState("veg");
   const [selectedFilter, setSelectedFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [showItemPicker, setShowItemPicker] = useState(false);
@@ -67,6 +74,7 @@ export default function MenuScreen() {
     // ✅ FIX: Normalize thali_includes + thali_custom
     const normalized = res.data.map(item => ({
       ...item,
+      food_type: itemFoodType(item),
     thali_includes: (() => {
   if (Array.isArray(item.thali_includes)) {
     return item.thali_includes.map(String);
@@ -100,6 +108,8 @@ export default function MenuScreen() {
 
 
   const filteredItems = items.filter((item) => {
+    if (itemFoodType(item) !== selectedFoodType) return false;
+
     const matchesCategory = selectedFilter === "All" || item.category === selectedFilter;
     if (!matchesCategory) return false;
 
@@ -123,7 +133,7 @@ export default function MenuScreen() {
 
   const openAdd = () => {
     setEditItem(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, food_type: selectedFoodType });
     setCustomInput("");
     setShowModal(true);
   };
@@ -135,6 +145,7 @@ export default function MenuScreen() {
     description: item.description || "",
     price: String(item.price),
     category: item.category,
+    food_type: itemFoodType(item),
     image_url: item.image_url || null,
     is_thali: item.is_thali || false,
     thali_includes: (item.thali_includes || []).map(String),
@@ -224,6 +235,7 @@ export default function MenuScreen() {
       description: form.description,
       price: parseFloat(form.price),
       category: form.category,
+      food_type: form.food_type || selectedFoodType,
       image_url: finalImageUrl,
       is_thali: form.is_thali,
 
@@ -312,6 +324,26 @@ export default function MenuScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
       <View style={styles.header}>
         <View style={styles.headerInner}>
+          <View style={styles.parentToggleRow}>
+            {FOOD_TYPES.map((type) => {
+              const active = selectedFoodType === type.key;
+              return (
+                <TouchableOpacity
+                  key={type.key}
+                  style={[styles.parentToggleBtn, active && styles.parentToggleBtnActive]}
+                  onPress={() => {
+                    setSelectedFoodType(type.key);
+                    setSelectedFilter("All");
+                  }}
+                >
+                  <LocalizedText translate style={[styles.parentToggleText, active && styles.parentToggleTextActive]}>
+                    {type.label}
+                  </LocalizedText>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <View style={styles.headerTopRow}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
               {CATEGORIES.map(cat => (
@@ -543,6 +575,23 @@ const found = items.find(i => String(i.id) === String(id));
    
             <LocalizedText translate style={styles.fieldLabel}>Price (₹) *</LocalizedText>
             <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} keyboardType="decimal-pad" placeholder="0.00" />
+            <LocalizedText translate style={styles.fieldLabel}>Food Type *</LocalizedText>
+            <View style={styles.modalFoodTypeRow}>
+              {FOOD_TYPES.map((type) => {
+                const active = form.food_type === type.key;
+                return (
+                  <TouchableOpacity
+                    key={type.key}
+                    style={[styles.modalFoodTypeBtn, active && styles.modalFoodTypeBtnActive]}
+                    onPress={() => setForm((p) => ({ ...p, food_type: type.key }))}
+                  >
+                    <LocalizedText translate style={[styles.modalFoodTypeText, active && styles.modalFoodTypeTextActive]}>
+                      {type.label}
+                    </LocalizedText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
             <LocalizedText translate style={styles.fieldLabel}>Category *</LocalizedText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {CATEGORIES.filter(c => c !== "All").map((cat) => (
@@ -630,6 +679,11 @@ function EmptyStep({ icon, label, color }) {
 const styles = StyleSheet.create({
   header: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E8E2D9", paddingVertical: 12 },
   headerInner: { paddingHorizontal: 20, maxWidth: 1200, alignSelf: 'center', width: '100%' },
+  parentToggleRow: { flexDirection: "row", alignSelf: "center", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" },
+  parentToggleBtn: { minWidth: 110, alignItems: "center", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#CFC7BD" },
+  parentToggleBtnActive: { backgroundColor: "#111827", borderColor: "#111827" },
+  parentToggleText: { fontSize: 14, fontWeight: "800", color: "#6B7280" },
+  parentToggleTextActive: { color: "#fff" },
   headerTopRow: { flexDirection: "row", alignItems: "center", width: "100%" },
   filterScroll: { flex: 1, marginRight: 10 },
   filterBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: "#F3F4F6", marginRight: 8, borderWidth: 1, borderColor: "#E8E2D9" },
@@ -723,6 +777,11 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: "800" },
   fieldLabel: { fontSize: 13, fontWeight: "800", color: "#10B981", marginBottom: 8, marginTop: 20, letterSpacing: 1 },
   input: { borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, padding: 14, fontSize: 15, color: "#111", backgroundColor: "#F9FAFB" },
+  modalFoodTypeRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  modalFoodTypeBtn: { flex: 1, minWidth: 120, alignItems: "center", borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, paddingVertical: 12, backgroundColor: "#fff" },
+  modalFoodTypeBtnActive: { backgroundColor: "#111827", borderColor: "#111827" },
+  modalFoodTypeText: { fontSize: 14, fontWeight: "800", color: "#6B7280" },
+  modalFoodTypeTextActive: { color: "#fff" },
   catTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E8E2D9", backgroundColor: "#fff", marginRight: 8, marginBottom: 10 },
   catTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
   imagePickerBox: { height: 180, backgroundColor: "#F9FAFB", borderWidth: 2, borderColor: "#E8E2D9", borderStyle: "dashed", borderRadius: 16, alignItems: "center", justifyContent: "center", overflow: "hidden" },
