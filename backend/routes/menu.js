@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require("../db");
 const auth = require("../middleware/auth");
 const subscription = require("../middleware/subscription");
+const { translateMenuItemName } = require("../services/menuTranslationService");
 
 // Get all menu items for a business (public)
 router.get("/public/:businessId", async (req, res) => {
@@ -39,8 +40,6 @@ router.get("/", auth, async (req, res) => {
 router.post("/", auth, subscription, async (req, res) => {
   const {
     name,
-    name_mr,
-    name_hi,
     description,
     price,
     category,
@@ -57,13 +56,15 @@ router.post("/", auth, subscription, async (req, res) => {
   }
 
   try {
+    const translations = await translateMenuItemName(name);
+
     const result = await pool.query(
       'INSERT INTO menu_items (business_id,name,name_mr,name_hi,description,price,image_url,category,is_thali,thali_includes,thali_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
       [
         req.businessId,
         name,
-        name_mr || null,
-        name_hi || null,
+        translations.name_mr,
+        translations.name_hi,
         description,
         price,
         image_url || null,
@@ -85,8 +86,6 @@ router.post("/", auth, subscription, async (req, res) => {
 router.put("/:id", auth, subscription, async (req, res) => {
   const {
     name,
-    name_mr,
-    name_hi,
     description,
     price,
     category,
@@ -107,13 +106,23 @@ router.put("/:id", auth, subscription, async (req, res) => {
     }
 
     const finalImageUrl = image_url !== undefined ? image_url : existing.rows[0].image_url;
+    const finalName = typeof name === "string" && name.trim() ? name.trim() : existing.rows[0].name;
+    const nameChanged = finalName !== existing.rows[0].name;
+    const missingTranslation = !existing.rows[0].name_mr || !existing.rows[0].name_hi;
+    const translations = nameChanged || missingTranslation
+      ? await translateMenuItemName(finalName)
+      : { name_mr: null, name_hi: null };
 
     const result = await pool.query(
       'UPDATE menu_items SET name = $1,name_mr = $2,name_hi = $3,description = $4,price = $5,image_url = $6,category = $7,is_thali = $8,thali_includes = $9,thali_custom = $10,updated_at = NOW() WHERE id = $11 AND business_id = $12 RETURNING *',
       [
-        name || existing.rows[0].name,
-        name_mr !== undefined ? name_mr : existing.rows[0].name_mr,
-        name_hi !== undefined ? name_hi : existing.rows[0].name_hi,
+        finalName,
+        nameChanged
+          ? translations.name_mr
+          : (existing.rows[0].name_mr || translations.name_mr),
+        nameChanged
+          ? translations.name_hi
+          : (existing.rows[0].name_hi || translations.name_hi),
         description !== undefined ? description : existing.rows[0].description,
         price || existing.rows[0].price,
         finalImageUrl,
