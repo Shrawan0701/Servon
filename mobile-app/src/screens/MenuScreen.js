@@ -18,7 +18,7 @@ const UPLOAD_PRESET = "servon_menu";
 const isWeb = Platform.OS === "web";
 
 const EMPTY_FORM = {
-  name: "", name_mr: "", name_hi: "", description: "", price: "", category: "Starters",
+  name: "", description: "", price: "", category: "Starters",
   image_url: null, is_thali: false, thali_includes: [], thali_custom: []
 };
 
@@ -34,6 +34,7 @@ export default function MenuScreen() {
   const [saving, setSaving] = useState(false);
   const [customInput, setCustomInput] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [numColumns, setNumColumns] = useState(isWeb ? 3 : 1);
 
@@ -98,9 +99,27 @@ export default function MenuScreen() {
 };
 
 
-  const filteredItems = selectedFilter === "All" 
-    ? items 
-    : items.filter(i => i.category === selectedFilter);
+  const filteredItems = items.filter((item) => {
+    const matchesCategory = selectedFilter === "All" || item.category === selectedFilter;
+    if (!matchesCategory) return false;
+
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+
+    const searchableText = [
+      item.name,
+      item.name_mr,
+      item.name_hi,
+      item.category,
+      item.description,
+      localizedItemName(item, language),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(query);
+  });
 
   const openAdd = () => {
     setEditItem(null);
@@ -113,8 +132,6 @@ export default function MenuScreen() {
   setEditItem(item);
   setForm({
     name: item.name,
-    name_mr: item.name_mr || "",
-    name_hi: item.name_hi || "",
     description: item.description || "",
     price: String(item.price),
     category: item.category,
@@ -204,8 +221,6 @@ export default function MenuScreen() {
 
     const data = {
       name: form.name,
-      name_mr: form.name_mr,
-      name_hi: form.name_hi,
       description: form.description,
       price: parseFloat(form.price),
       category: form.category,
@@ -297,20 +312,42 @@ export default function MenuScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
       <View style={styles.header}>
         <View style={styles.headerInner}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-            {CATEGORIES.map(cat => (
-              <TouchableOpacity 
-                key={cat} 
-                onPress={() => setSelectedFilter(cat)}
-                style={[styles.filterBtn, selectedFilter === cat && styles.filterBtnActive]}
-              >
-                <LocalizedText style={[styles.filterBtnText, selectedFilter === cat && { color: "#fff" }]}>{cat}</LocalizedText>
+          <View style={styles.headerTopRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+              {CATEGORIES.map(cat => (
+                <TouchableOpacity 
+                  key={cat} 
+                  onPress={() => setSelectedFilter(cat)}
+                  style={[styles.filterBtn, selectedFilter === cat && styles.filterBtnActive]}
+                >
+                  <LocalizedText style={[styles.filterBtnText, selectedFilter === cat && { color: "#fff" }]}>{cat}</LocalizedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
+              <LocalizedText translate style={{ color: "#fff", fontWeight: "700" }}>+ Add Item</LocalizedText>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.searchWrap}>
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder={localizeText("Search menu items...", language)}
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searchQuery ? (
+              <TouchableOpacity style={styles.searchClearBtn} onPress={() => setSearchQuery("")}>
+                <Ionicons name="close" size={18} color="#6B7280" />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-            <LocalizedText translate style={{ color: "#fff", fontWeight: "700" }}>+ Add Item</LocalizedText>
-          </TouchableOpacity>
+            ) : (
+              <Ionicons name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
+            )}
+          </View>
         </View>
       </View>
 
@@ -503,10 +540,7 @@ const found = items.find(i => String(i.id) === String(id));
             </TouchableOpacity>
             <LocalizedText translate style={styles.fieldLabel}>Item Name *</LocalizedText>
             <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder="Name" />
-            <LocalizedText translate style={styles.fieldLabel}>Marathi Name (optional)</LocalizedText>
-            <TextInput style={styles.input} value={form.name_mr} onChangeText={(v) => setForm((p) => ({ ...p, name_mr: v }))} placeholder="मराठी नाव" />
-            <LocalizedText translate style={styles.fieldLabel}>Hindi Name (optional)</LocalizedText>
-            <TextInput style={styles.input} value={form.name_hi} onChangeText={(v) => setForm((p) => ({ ...p, name_hi: v }))} placeholder="हिन्दी नाम" />
+   
             <LocalizedText translate style={styles.fieldLabel}>Price (₹) *</LocalizedText>
             <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} keyboardType="decimal-pad" placeholder="0.00" />
             <LocalizedText translate style={styles.fieldLabel}>Category *</LocalizedText>
@@ -595,12 +629,52 @@ function EmptyStep({ icon, label, color }) {
 
 const styles = StyleSheet.create({
   header: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E8E2D9", paddingVertical: 12 },
-  headerInner: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, maxWidth: 1200, alignSelf: 'center', width: '100%' },
+  headerInner: { paddingHorizontal: 20, maxWidth: 1200, alignSelf: 'center', width: '100%' },
+  headerTopRow: { flexDirection: "row", alignItems: "center", width: "100%" },
   filterScroll: { flex: 1, marginRight: 10 },
   filterBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: "#F3F4F6", marginRight: 8, borderWidth: 1, borderColor: "#E8E2D9" },
   filterBtnActive: { backgroundColor: "#111827", borderColor: "#111827" },
   filterBtnText: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
   addBtn: { backgroundColor: "#111827", borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  searchWrap: {
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+    marginTop: 12,
+    position: "relative",
+    justifyContent: "center",
+  },
+  searchInput: {
+    height: 46,
+    borderWidth: 1.5,
+    borderColor: "#CFC7BD",
+    borderRadius: 23,
+    backgroundColor: "#fff",
+    color: "#111827",
+    fontSize: 15,
+    fontWeight: "600",
+    paddingLeft: 18,
+    paddingRight: 44,
+    ...Platform.select({
+      web: {
+        outlineStyle: "none",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+      },
+    }),
+  },
+  searchClearBtn: {
+    position: "absolute",
+    right: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchIcon: {
+    position: "absolute",
+    right: 18,
+  },
   
   listContent: { padding: 12, flexGrow: 1 },
   menuCard: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: "#E8E2D9" },
