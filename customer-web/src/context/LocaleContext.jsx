@@ -28,7 +28,7 @@ voiceOrder:"वॉइस ऑर्डर", tapMic:"माइक थपें औ
 const dictionaries = { en, mr, hi };
 const LocaleContext = createContext(null);
 export function LocaleProvider({ children }) {
-  const [language, setLanguageState] = useState(() => localStorage.getItem(STORAGE_KEY) || "en");
+  const [language, setLanguageState] = useState(() => localStorage.getItem(STORAGE_KEY) || "mr");
   const setLanguage = useCallback((next) => { if (dictionaries[next]) { localStorage.setItem(STORAGE_KEY, next); setLanguageState(next); } }, []);
   const t = useCallback((key, values = {}) => (dictionaries[language]?.[key] ?? en[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => values[name] ?? `{${name}}`), [language]);
   return <LocaleContext.Provider value={useMemo(() => ({ language, setLanguage, t }), [language, setLanguage, t])}>{children}</LocaleContext.Provider>;
@@ -38,6 +38,6 @@ export const useLocale = () => useContext(LocaleContext);
 export function LanguageSelector() {
   const { language, setLanguage, t } = useLocale();
   return <div aria-label={t("language")} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12 }}>
-    {[['en', t('english')], ['mr', t('marathi')], ['hi', t('hindi')]].map(([code, label]) => <button key={code} onClick={() => setLanguage(code)} style={{ border: "1px solid #ddd", borderRadius: 6, padding: "4px 7px", background: language === code ? "#111" : "#fff", color: language === code ? "#fff" : "#111", cursor: "pointer" }}>{label}</button>)}
+    {[['mr', t('marathi')], ['en', t('english')], ['hi', t('hindi')]].map(([code, label]) => <button key={code} onClick={() => setLanguage(code)} style={{ border: "1px solid #ddd", borderRadius: 6, padding: "4px 7px", background: language === code ? "#111" : "#fff", color: language === code ? "#fff" : "#111", cursor: "pointer" }}>{label}</button>)}
   </div>;
 }
