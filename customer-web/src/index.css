@@ -99,6 +99,34 @@ z-index: 50;
   background: #f8f9fa;
 }
 
+.menu-parent-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 16px 0;
+  flex-wrap: wrap;
+}
+
+.menu-parent-tab {
+  min-width: 112px;
+  border: 1.5px solid #cfc7bd;
+  background: #fff;
+  color: #333;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.menu-parent-tab.active {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
 .menu-search-wrap {
   width: min(560px, calc(100% - 32px));
   margin: 0 auto;

@@ -6,6 +6,13 @@ import { LanguageSelector, useLocale } from "../context/LocaleContext";
 import VoiceOrderModal from "../components/VoiceOrderModal";
 import { localizedItemName } from "../utils/itemName";
 
+const FOOD_TYPES = [
+  { key: "veg", labelKey: "veg" },
+  { key: "non_veg", labelKey: "nonVeg" },
+];
+
+const itemFoodType = (item) => (item?.food_type === "non_veg" ? "non_veg" : "veg");
+
 // --- Helper Functions from Friend's Push ---
 
 // Builds the full list of items in a thali from allItems + thali_custom string
@@ -85,6 +92,7 @@ export default function MenuPage() {
 
   const [menuItems, setMenuItems] = useState([]);
   const [businessInfo, setBusinessInfo] = useState(null);
+  const [selectedFoodType, setSelectedFoodType] = useState("veg");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -118,15 +126,20 @@ export default function MenuPage() {
     load();
   }, [businessId, tableId]);
 
+  const parentItems = useMemo(
+    () => menuItems.filter((item) => itemFoodType(item) === selectedFoodType),
+    [menuItems, selectedFoodType]
+  );
+
   const categories = useMemo(() => {
-    const cats = [...new Set(menuItems.map((i) => i.category))].filter(Boolean);
+    const cats = [...new Set(parentItems.map((i) => i.category))].filter(Boolean);
     return ["All", ...cats];
-  }, [menuItems]);
+  }, [parentItems]);
 
   const filteredItems = useMemo(() => {
     const categoryItems = selectedCategory === "All"
-      ? menuItems
-      : menuItems.filter((i) => i.category === selectedCategory);
+      ? parentItems
+      : parentItems.filter((i) => i.category === selectedCategory);
     const query = searchQuery.trim().toLowerCase();
     if (!query) return categoryItems;
 
@@ -144,7 +157,7 @@ export default function MenuPage() {
         .toLowerCase();
       return searchableText.includes(query);
     });
-  }, [menuItems, selectedCategory, searchQuery, language]);
+  }, [parentItems, selectedCategory, searchQuery, language]);
 
   if (loading) {
     return (
@@ -183,6 +196,21 @@ export default function MenuPage() {
       </div>
 
       <div className="menu-controls">
+        <div className="menu-parent-tabs">
+          {FOOD_TYPES.map((type) => (
+            <button
+              key={type.key}
+              className={`menu-parent-tab ${selectedFoodType === type.key ? "active" : ""}`}
+              onClick={() => {
+                setSelectedFoodType(type.key);
+                setSelectedCategory("All");
+              }}
+            >
+              {t(type.labelKey)}
+            </button>
+          ))}
+        </div>
+
         <div className="menu-search-wrap">
           <label className="visually-hidden" htmlFor="menu-search">
             {t("searchMenu")}
@@ -357,7 +385,7 @@ export default function MenuPage() {
         onClose={() => setVoiceOpen(false)}
         businessId={businessId}
         tableId={tableId}
-        menuItems={menuItems}
+        menuItems={parentItems}
       />
 
     </div>
