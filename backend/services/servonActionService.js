@@ -49,7 +49,7 @@ function resolveMenuItem(menu, spokenName) {
     return { kind: "EXACT", requestedName: spokenName, item: exact.item };
   }
   if (exact && scored.length > 1) {
-    return { kind: "EXACT", requestedName: spokenName, item: exact.item, options: scored.slice(0, 5).map((s) => s.item) };
+    return { kind: "EXACT", requestedName: spokenName, item: exact.item };
   }
   return { kind: "AMBIGUOUS", requestedName: spokenName, options: scored.slice(0, 5).map((s) => s.item) };
 }
@@ -217,12 +217,12 @@ function resolveIntent({ intent, transcript, menu, tables, rooms, cgstPercent, s
       const qty = Math.max(1, parseInt(it.quantity, 10) || 1);
       const resolved = resolveMenuItem(menu, it.name);
       if (resolved.kind === "NOT_FOUND") {
-        payload.intent.ambiguities.push({ requestedName: it.name, options: [] });
+        payload.intent.ambiguities.push({ requestedName: it.name, quantity: qty, options: [] });
         payload.intent.warnings.push(`"${it.name}" was not found on your menu.`);
         continue;
       }
       if (resolved.kind === "AMBIGUOUS") {
-        payload.intent.ambiguities.push({ requestedName: it.name, options: resolved.options });
+        payload.intent.ambiguities.push({ requestedName: it.name, quantity: qty, options: resolved.options });
         payload.intent.warnings.push(`"${it.name}" could match multiple items — please pick one.`);
         continue;
       }
@@ -240,9 +240,6 @@ function resolveIntent({ intent, transcript, menu, tables, rooms, cgstPercent, s
         lineTotal: +(price * qty).toFixed(2),
         available: !!resolved.item.is_available,
       });
-      if (resolved.options && resolved.options.length) {
-        payload.intent.ambiguities.push({ requestedName: it.name, options: resolved.options });
-      }
     }
 
     const cgst = subtotal * cgstPercent / 100;
