@@ -407,9 +407,11 @@ export default function ProfileScreen({ onNavigate }) {
 
   const statusColorMap = { ACTIVE: "#059669", INACTIVE: "#DC2626", EXPIRED: "#DC2626" };
   const statusBgMap    = { ACTIVE: "#ECFDF5", INACTIVE: "#FEF2F2", EXPIRED: "#FEF2F2" };
-  const subStatus = subDetails?.subscription_status || business?.subscription_status;
+  const rawSubStatus = subDetails?.subscription_status || business?.subscription_status;
   const endDate   = subDetails?.subscription_end_date;
-  const daysLeft  = endDate ? Math.ceil((new Date(endDate) - new Date()) / (1000 * 60 * 60 * 24)) : null;
+  const hasSubscriptionExpired = endDate ? new Date(endDate) < new Date() : false;
+  const subStatus = rawSubStatus === "ACTIVE" && hasSubscriptionExpired ? "EXPIRED" : rawSubStatus;
+  const daysLeft  = endDate ? Math.max(0, Math.ceil((new Date(endDate) - new Date()) / (1000 * 60 * 60 * 24))) : null;
 
   // ─── UPDATED BILLING FIELDS WITH UPI ID ───────────────────────────────────
   const billingFields = [
@@ -639,10 +641,7 @@ export default function ProfileScreen({ onNavigate }) {
                     <LocalizedText translate style={styles.sidebarFooterBtnText}> Support</LocalizedText>
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.sidebarFooterBtn} onPress={() => navigation.navigate("Reviews")} activeOpacity={0.7}>
-                    <Ionicons name="star-outline" size={15} color="#F59E0B" />
-                    <LocalizedText translate style={styles.sidebarFooterBtnText}>Ratings & Reviews</LocalizedText>
-                  </TouchableOpacity>
+                 
 
                   <TouchableOpacity style={styles.sidebarLogoutBtn} onPress={handleLogout} activeOpacity={0.7}>
                     <Ionicons name="log-out-outline" size={15} color="#DC2626" />

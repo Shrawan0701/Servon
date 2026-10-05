@@ -2,7 +2,7 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
-import { LocaleProvider } from "./src/context/LocaleContext";
+import { LocaleProvider, useLocale } from "./src/context/LocaleContext";
 
 import localDB from "./src/services/LocalDB";
 import syncManager from "./src/services/SyncManager";
@@ -42,6 +42,7 @@ import Careers from "./src/screens/web/Careers";
 
 function Root() {
   const { token, loading } = useAuth();
+  const { language } = useLocale();
   const [webScreen, setWebScreen] = React.useState("landing");
   const [openDemoOnLanding, setOpenDemoOnLanding] = React.useState(false);
 
@@ -59,11 +60,11 @@ function Root() {
 
       // ✅ Everything else remains exactly the same
       syncManager.init();
-      registerPushToken();
+      registerPushToken(language);
     } else {
       syncManager.stopPeriodicSync();
     }
-  }, [token, isAdminRoute]);
+  }, [token, isAdminRoute, language]);
 
   // ✅ Web route detection with admin
   React.useEffect(() => {
@@ -213,7 +214,7 @@ function Root() {
   return <AuthNavigator />;
 }
 
-const registerPushToken = async () => {
+const registerPushToken = async (language = "en") => {
   try {
     const { status: existingStatus } =
       await Notifications.getPermissionsAsync();
@@ -238,7 +239,7 @@ const registerPushToken = async () => {
     const pushToken = tokenData.data;
 
     if (pushToken) {
-      await savePushToken(pushToken, Platform.OS);
+      await savePushToken(pushToken, Platform.OS, language);
       console.log("Push token registered:", pushToken);
     }
   } catch (err) {

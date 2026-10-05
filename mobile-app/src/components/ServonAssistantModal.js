@@ -248,6 +248,8 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         tableId: selectedTable.id,
         items,
         totalAmount: manualSubtotal,
+        orderSource: "staff",
+        initialStatus: "CONFIRMED",
       });
       Alert.alert("Order Created", `Order placed for ${selectedTable.table_number}.`);
       onClose?.();
@@ -265,20 +267,43 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const isOrderKind = voiceIntent?.type === "CREATE_ORDER";
   const isRoomKind = ["ROOM_CHECK_IN", "ROOM_EDIT", "ROOM_CHECK_OUT"].includes(voiceIntent?.type);
 
-  // Merge ambiguity choices chosen by the staff into the resolved items.
-  const buildVoiceOrderItems = () => {
-    const items = [...(voiceIntent?.items || [])].map((it) => it.menuItem);
-    Object.values(resolvedAmbiguities).forEach((menuItem) => {
-      items.push(menuItem);
+  const buildVoiceOrderLines = () => {
+    const lines = (voiceIntent?.items || []).map((it) => ({
+      menuItem: it.menuItem,
+      requestedName: it.requestedName,
+      quantity: it.quantity || 1,
+    }));
+    const resolvedNames = new Set(lines.map((line) => line.requestedName));
+
+    (voiceIntent?.ambiguities || []).forEach((ambiguity) => {
+      if (resolvedNames.has(ambiguity.requestedName)) return;
+      const menuItem = resolvedAmbiguities[ambiguity.requestedName];
+      if (menuItem) {
+        lines.push({
+          menuItem,
+          requestedName: ambiguity.requestedName,
+          quantity: ambiguity.quantity || 1,
+        });
+      }
     });
-    return items;
+
+    return lines;
   };
 
-  // Remove an item row from the voice confirmation (staff editing).
-  const voiceItems = buildVoiceOrderItems();
-  const voiceOrderQty = (menuItemId) =>
-    (voiceIntent?.items || []).filter((it) => it.menuItem?.id === menuItemId).reduce((s, it) => s + it.quantity, 0);
-  const voiceAmbiguities = (voiceIntent?.ambiguities || []);
+  const voiceOrderLines = buildVoiceOrderLines();
+  const voiceSubtotal = voiceOrderLines.reduce(
+    (sum, line) => sum + (parseFloat(line.menuItem?.price) || 0) * (line.quantity || 1),
+    0
+  );
+  const voiceCgstP = parseFloat(profile?.cgst_percentage || voiceIntent?.summary?.cgstPercent || 0);
+  const voiceSgstP = parseFloat(profile?.sgst_percentage || voiceIntent?.summary?.sgstPercent || 0);
+  const voiceCgst = (voiceSubtotal * voiceCgstP) / 100;
+  const voiceSgst = (voiceSubtotal * voiceSgstP) / 100;
+  const voiceGrand = voiceSubtotal + voiceCgst + voiceSgst;
+  const resolvedVoiceNames = new Set((voiceIntent?.items || []).map((it) => it.requestedName));
+  const voiceAmbiguities = (voiceIntent?.ambiguities || []).filter(
+    (ambiguity) => !resolvedVoiceNames.has(ambiguity.requestedName)
+  );
   // An ambiguity must be resolved before confirming, so we never silently
   // drop a spoken dish or create the wrong order.
   const hasUnresolvedAmbiguity = voiceAmbiguities.some(
@@ -290,23 +315,25 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
     if (!voiceIntent?.table) { Alert.alert("Cannot Confirm", "Please choose a valid table first."); return; }
     if (hasUnresolvedAmbiguity) { Alert.alert("Choose Items", "Please pick the correct item for the dishes I couldn't recognise."); return; }
     if (hasNotFoundAmbiguity) { Alert.alert("Item Not On Menu", "One of the dishes wasn't found on your menu. Please edit and add it manually."); return; }
-    if (voiceItems.length === 0) { Alert.alert("Cannot Confirm", "No items were recognised. Please edit and try again."); return; }
+    if (voiceOrderLines.length === 0) { Alert.alert("Cannot Confirm", "No items were recognised. Please edit and try again."); return; }
     setPlacing(true);
     try {
-      const items = voiceItems.map((m) => ({
-        id: m.id,
-        name: m.name,
-        price: m.price,
-        quantity: voiceOrderQty(m.id) || 1,
-        imageUrl: m.image_url,
-        is_thali: m.is_thali || false,
-        thali_includes: m.thali_includes || [],
-        thali_custom: m.thali_custom || "",
+      const items = voiceOrderLines.map((line) => ({
+        id: line.menuItem.id,
+        name: line.menuItem.name,
+        price: line.menuItem.price,
+        quantity: line.quantity || 1,
+        imageUrl: line.menuItem.image_url,
+        is_thali: line.menuItem.is_thali || false,
+        thali_includes: line.menuItem.thali_includes || [],
+        thali_custom: line.menuItem.thali_custom || "",
       }));
       await placeOrder({
         businessId: business?.id,
         tableId: voiceIntent.table.id,
         items,
+        orderSource: "staff",
+        initialStatus: "CONFIRMED",
       });
       Alert.alert("Order Created", `Order placed for Table ${voiceIntent.table.table_number}.`);
       onClose?.();
@@ -505,10 +532,10 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           {voiceIntent?.table?.table_number || voiceIntent?.tableRaw || "—"}
         </LocalizedText>
 
-        {voiceItems.map((m, idx) => (
-          <View key={`${m.id}-${idx}`} style={styles.ciRow}>
-            <LocalizedText style={styles.ciName}>{m.name} × {voiceOrderQty(m.id) || 1}</LocalizedText>
-            <LocalizedText style={styles.ciPrice}>{money((parseFloat(m.price) || 0) * (voiceOrderQty(m.id) || 1))}</LocalizedText>
+        {voiceOrderLines.map((line, idx) => (
+          <View key={`${line.menuItem.id}-${idx}`} style={styles.ciRow}>
+            <LocalizedText style={styles.ciName}>{line.menuItem.name} × {line.quantity || 1}</LocalizedText>
+            <LocalizedText style={styles.ciPrice}>{money((parseFloat(line.menuItem.price) || 0) * (line.quantity || 1))}</LocalizedText>
           </View>
         ))}
 
@@ -543,17 +570,17 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           </View>
         )}
 
-        {!!voiceIntent?.summary && (
+        {voiceOrderLines.length > 0 && (
           <View style={styles.bill}>
-            <BillRow label="Subtotal" value={money(voiceIntent.summary.subtotal)} />
-            {voiceIntent.summary.cgstPercent > 0 && (
-              <BillRow label={`CGST (${voiceIntent.summary.cgstPercent}%)`} value={money(voiceIntent.summary.cgst)} />
+            <BillRow label="Subtotal" value={money(voiceSubtotal)} />
+            {voiceCgstP > 0 && (
+              <BillRow label={`CGST (${voiceCgstP}%)`} value={money(voiceCgst)} />
             )}
-            {voiceIntent.summary.sgstPercent > 0 && (
-              <BillRow label={`SGST (${voiceIntent.summary.sgstPercent}%)`} value={money(voiceIntent.summary.sgst)} />
+            {voiceSgstP > 0 && (
+              <BillRow label={`SGST (${voiceSgstP}%)`} value={money(voiceSgst)} />
             )}
             <View style={styles.billDivider} />
-            <BillRow label="Grand Total" value={money(voiceIntent.summary.grandTotal)} strong />
+            <BillRow label="Grand Total" value={money(voiceGrand)} strong />
           </View>
         )}
       </View>

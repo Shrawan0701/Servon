@@ -51,6 +51,66 @@ import ReactDOM from "react-dom";
 
 const isWeb = Platform.OS === "web";
 
+const localizeBusinessSummaryValue = (value, language) => {
+  if (typeof value !== "string" || language === "en") return value;
+
+  const exact = localizeText(value, language);
+  if (exact !== value) return exact;
+
+  const rupee = "₹";
+  const dictionaries = {
+    mr: [
+      [/^Today generated ₹([\d,.]+) in revenue\.$/i, (_, amount) => `आज ${rupee}${amount} कमाई झाली.`],
+      [/^Profit stands at ₹([\d,.]+) today\.$/i, (_, amount) => `आज नफा ${rupee}${amount} आहे.`],
+      [/^Only (\d+) order processed today\.$/i, (_, count) => `आज फक्त ${count} ऑर्डर झाली.`],
+      [/^(\d+) orders processed today\.$/i, (_, count) => `आज ${count} ऑर्डर झाल्या.`],
+      [/^Average order value is ₹([\d,.]+)\.$/i, (_, amount) => `सरासरी ऑर्डर मूल्य ${rupee}${amount} आहे.`],
+      [/^(.+) is the top-selling item\.$/i, (_, item) => `${item} हा सर्वाधिक विकला जाणारा पदार्थ आहे.`],
+      [/^(.+) is slow-moving; consider promotions\.$/i, (_, item) => `${item} कमी विकला जात आहे; प्रमोशनचा विचार करा.`],
+      [/^(.+) is slow-moving, needs review\.$/i, (_, item) => `${item} कमी विकला जात आहे; लक्ष देणे आवश्यक आहे.`],
+      [/^Peak hour was ([\d:]+) with (\d+) order\.$/i, (_, hour, count) => `गर्दीची वेळ ${hour} होती, ${count} ऑर्डर झाली.`],
+      [/^Peak hour is at ([\d:]+) with (\d+) order\.$/i, (_, hour, count) => `गर्दीची वेळ ${hour} आहे, ${count} ऑर्डर झाली.`],
+      [/^No customer reviews received today\.$/i, () => "आज ग्राहक पुनरावलोकने मिळाली नाहीत."],
+      [/^No customer feedback received yet\.$/i, () => "अजून ग्राहक अभिप्राय मिळालेला नाही."],
+      [/^Promote (.+) to boost sales\.$/i, (_, item) => `विक्री वाढवण्यासाठी ${item} प्रमोट करा.`],
+      [/^Encourage customer reviews for feedback\.$/i, () => "ग्राहक अभिप्रायासाठी पुनरावलोकने मागा."],
+      [/^Encourage customer reviews for better insights\.$/i, () => "चांगल्या माहितीसाठी ग्राहक पुनरावलोकने वाढवा."],
+      [/^Monitor inventory for popular items\.$/i, () => "लोकप्रिय पदार्थांसाठी स्टॉक तपासा."],
+      [/^Monitor order trends for adjustments\.$/i, () => "बदलांसाठी ऑर्डर ट्रेंड तपासा."],
+      [/^Increase order volume and customer engagement\.$/i, () => "ऑर्डर आणि ग्राहक सहभाग वाढवा."],
+      [/^Increase orders by promoting best-selling items\.$/i, () => "सर्वाधिक विकल्या जाणाऱ्या पदार्थांचे प्रमोशन करून ऑर्डर वाढवा."],
+    ],
+    hi: [
+      [/^Today generated ₹([\d,.]+) in revenue\.$/i, (_, amount) => `आज ${rupee}${amount} कमाई हुई।`],
+      [/^Profit stands at ₹([\d,.]+) today\.$/i, (_, amount) => `आज मुनाफ़ा ${rupee}${amount} है।`],
+      [/^Only (\d+) order processed today\.$/i, (_, count) => `आज सिर्फ ${count} ऑर्डर हुई।`],
+      [/^(\d+) orders processed today\.$/i, (_, count) => `आज ${count} ऑर्डर हुईं।`],
+      [/^Average order value is ₹([\d,.]+)\.$/i, (_, amount) => `औसत ऑर्डर मूल्य ${rupee}${amount} है।`],
+      [/^(.+) is the top-selling item\.$/i, (_, item) => `${item} सबसे अधिक बिकने वाला आइटम है।`],
+      [/^(.+) is slow-moving; consider promotions\.$/i, (_, item) => `${item} धीमे बिक रहा है; प्रमोशन पर विचार करें।`],
+      [/^(.+) is slow-moving, needs review\.$/i, (_, item) => `${item} धीमे बिक रहा है; ध्यान देने की जरूरत है।`],
+      [/^Peak hour was ([\d:]+) with (\d+) order\.$/i, (_, hour, count) => `व्यस्त समय ${hour} था, ${count} ऑर्डर हुई।`],
+      [/^Peak hour is at ([\d:]+) with (\d+) order\.$/i, (_, hour, count) => `व्यस्त समय ${hour} है, ${count} ऑर्डर हुई।`],
+      [/^No customer reviews received today\.$/i, () => "आज कोई ग्राहक रिव्यू नहीं मिला।"],
+      [/^No customer feedback received yet\.$/i, () => "अभी तक कोई ग्राहक प्रतिक्रिया नहीं मिली।"],
+      [/^Promote (.+) to boost sales\.$/i, (_, item) => `बिक्री बढ़ाने के लिए ${item} प्रमोट करें।`],
+      [/^Encourage customer reviews for feedback\.$/i, () => "ग्राहक प्रतिक्रिया के लिए रिव्यू बढ़ाएं।"],
+      [/^Encourage customer reviews for better insights\.$/i, () => "बेहतर जानकारी के लिए ग्राहक रिव्यू बढ़ाएं।"],
+      [/^Monitor inventory for popular items\.$/i, () => "लोकप्रिय आइटम का स्टॉक देखते रहें।"],
+      [/^Monitor order trends for adjustments\.$/i, () => "बदलाव के लिए ऑर्डर ट्रेंड देखें।"],
+      [/^Increase order volume and customer engagement\.$/i, () => "ऑर्डर और ग्राहक सहभागिता बढ़ाएं।"],
+      [/^Increase orders by promoting best-selling items\.$/i, () => "सबसे ज्यादा बिकने वाले आइटम प्रमोट करके ऑर्डर बढ़ाएं।"],
+    ],
+  };
+
+  for (const [pattern, translate] of dictionaries[language] || []) {
+    const match = value.match(pattern);
+    if (match) return translate(...match);
+  }
+
+  return value;
+};
+
 // ─── Web-only CSS ──────────────────────────────────────────────────────────────
 if (isWeb && typeof document !== "undefined") {
   if (!document.getElementById("servon-font")) {
@@ -531,6 +591,49 @@ const _QUANTITY_WORDS_EN = { 1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five
 
 const _announcementItemName = (it) => it?.name || it?.item_name || it?.title || "";
 const _announcementItemQty = (it) => Number(it?.quantity || it?.qty || 1) || 1;
+const _HI_NUM_WORDS = [
+  "शून्य", "एक", "दो", "तीन", "चार", "पांच", "छह", "सात", "आठ", "नौ", "दस",
+  "ग्यारह", "बारह", "तेरह", "चौदह", "पंद्रह", "सोलह", "सत्रह", "अठारह", "उन्नीस",
+  "बीस", "इक्कीस", "बाईस", "तेईस", "चौबीस", "पच्चीस", "छब्बीस", "सत्ताईस", "अट्ठाईस", "उनतीस",
+  "तीस", "इकतीस", "बत्तीस", "तैंतीस", "चौंतीस", "पैंतीस", "छत्तीस", "सैंतीस", "अड़तीस", "उनतालीस",
+  "चालीस", "इकतालीस", "बयालीस", "तैंतालीस", "चवालीस", "पैंतालीस", "छियालीस", "सैंतालीस", "अड़तालीस", "उनचास",
+  "पचास", "इक्यावन", "बावन", "तिरेपन", "चौवन", "पचपन", "छप्पन", "सत्तावन", "अट्ठावन", "उनसठ",
+  "साठ", "इकसठ", "बासठ", "तिरेसठ", "चौंसठ", "पैंसठ", "छियासठ", "सड़सठ", "अड़सठ", "उनहत्तर",
+  "सत्तर", "इकहत्तर", "बहत्तर", "तिहत्तर", "चौहत्तर", "पचहत्तर", "छिहत्तर", "सतहत्तर", "अठहत्तर", "उन्यासी",
+  "अस्सी", "इक्यासी", "बयासी", "तिरासी", "चौरासी", "पचासी", "छियासी", "सत्तासी", "अट्ठासी", "नवासी",
+  "नब्बे", "इक्यानवे", "बानवे", "तिरानवे", "चौरानवे", "पंचानवे", "छियानवे", "सत्तानवे", "अट्ठानवे", "निन्यानवे"
+];
+const _MR_NUM_WORDS = [
+  "शून्य", "एक", "दोन", "तीन", "चार", "पाच", "सहा", "सात", "आठ", "नऊ", "दहा",
+  "अकरा", "बारा", "तेरा", "चौदा", "पंधरा", "सोळा", "सतरा", "अठरा", "एकोणीस",
+  "वीस", "एकवीस", "बावीस", "तेवीस", "चोवीस", "पंचवीस", "सव्वीस", "सत्तावीस", "अठ्ठावीस", "एकोणतीस",
+  "तीस", "एकतीस", "बत्तीस", "तेहतीस", "चौतीस", "पस्तीस", "छत्तीस", "सदतीस", "अडतीस", "एकोणचाळीस",
+  "चाळीस", "एकेचाळीस", "बेचाळीस", "त्रेचाळीस", "चव्वेचाळीस", "पंचेचाळीस", "सेहेचाळीस", "सत्तेचाळीस", "अठ्ठेचाळीस", "एकोणपन्नास",
+  "पन्नास", "एकावन्न", "बावन्न", "त्रेपन्न", "चोपन्न", "पंचावन्न", "छप्पन्न", "सत्तावन्न", "अठ्ठावन्न", "एकोणसाठ",
+  "साठ", "एकसष्ट", "बासष्ट", "त्रेसष्ट", "चौसष्ट", "पासष्ट", "सहासष्ट", "सदुसष्ट", "अडुसष्ट", "एकोणसत्तर",
+  "सत्तर", "एकाहत्तर", "बहात्तर", "त्र्याहत्तर", "चौऱ्याहत्तर", "पंच्याहत्तर", "शहात्तर", "सत्त्याहत्तर", "अठ्ठ्याहत्तर", "एकोणऐंशी",
+  "ऐंशी", "एक्याऐंशी", "ब्याऐंशी", "त्र्याऐंशी", "चौऱ्याऐंशी", "पंच्याऐंशी", "शहाऐंशी", "सत्त्याऐंशी", "अठ्ठ्याऐंशी", "एकोणनव्वद",
+  "नव्वद", "एक्याण्णव", "ब्याण्णव", "त्र्याण्णव", "चौऱ्याण्णव", "पंच्याण्णव", "शहाण्णव", "सत्त्याण्णव", "अठ्ठ्याण्णव", "नव्याण्णव"
+];
+
+const _localizedAmountWords = (value, language) => {
+  const amount = Math.round(parseFloat(value) || 0);
+  const words = language === "mr" ? _MR_NUM_WORDS : _HI_NUM_WORDS;
+  if (amount < 100) return words[amount] || String(amount);
+  if (amount < 1000) {
+    const hundreds = Math.floor(amount / 100);
+    const rest = amount % 100;
+    const hundredPart = language === "mr" ? `${words[hundreds]}शे` : `${words[hundreds]} सौ`;
+    return `${hundredPart}${rest ? ` ${words[rest]}` : ""}`;
+  }
+  if (amount < 100000) {
+    const thousands = Math.floor(amount / 1000);
+    const rest = amount % 1000;
+    const thousandPart = `${_localizedAmountWords(thousands, language)} हजार`;
+    return `${thousandPart}${rest ? ` ${_localizedAmountWords(rest, language)}` : ""}`;
+  }
+  return String(amount);
+};
 
 const buildOrderAnnouncement = (order, tableNumber, language) => {
   const lang = ["en", "hi", "mr"].includes(language) ? language : "en";
@@ -556,14 +659,14 @@ const buildOrderAnnouncement = (order, tableNumber, language) => {
     items.forEach((it) => {
       parts.push(`${_announcementItemName(it)}, ${_announcementItemQty(it)}.`);
     });
-    parts.push(`एकूण रक्कम ${total} रुपये.`);
+    parts.push(`एकूण रक्कम ${_localizedAmountWords(total, "mr")} रुपये.`);
   } else {
     parts.push("नया ऑर्डर आया है।");
     parts.push(`टेबल ${table}.`);
     items.forEach((it) => {
       parts.push(`${_announcementItemName(it)}, ${_announcementItemQty(it)}.`);
     });
-    parts.push(`कुल राशि ${total} रुपये.`);
+    parts.push(`कुल राशि ${_localizedAmountWords(total, "hi")} रुपये.`);
   }
 
   return parts.filter(Boolean).join(" ");
@@ -1012,7 +1115,7 @@ export default function DashboardScreen() {
     { key: "Inventory", label: "Inventory", icon: "cube-outline", iconColor: "#F59E0B", badge: lowStockCount },
     { key: "Staff", label: "Staff", icon: "people-outline", iconColor: "#10B981" },
     { key: "Rooms", label: "Rooms", icon: "bed-outline", iconColor: "#6366F1" },
-    { key: "Reviews", label: "Reviews", icon: "star-outline", iconColor: "#EAB308" },
+
     { key: "Referrals", label: "Referrals", icon: "share-outline", iconColor: "#EAB308" },
     { key: "Support", label: "Support", icon: "help-buoy-outline", iconColor: "#10B981" },
   ];
@@ -1366,14 +1469,13 @@ export default function DashboardScreen() {
                   { label: "Best Seller", value: j.bestSeller },
                   { label: "Needs Attention", value: j.needsAttention },
                   { label: "Peak Hours", value: j.peakHours },
-                  { label: "Customer Feedback", value: j.customerFeedback },
                 ].filter(r => r.value);
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
                     {rows.map((r) => (
                       <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 12px", background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>{localizeText(r.label, language)}</span>
-                        <span style={{ fontSize: 13, color: "#111827", fontWeight: 500, textAlign: "right" }}>{localizeText(r.value, language)}</span>
+                        <span style={{ fontSize: 13, color: "#111827", fontWeight: 500, textAlign: "right" }}>{localizeBusinessSummaryValue(r.value, language)}</span>
                       </div>
                     ))}
                     {Array.isArray(j.recommendations) && j.recommendations.length > 0 && (
@@ -1382,7 +1484,7 @@ export default function DashboardScreen() {
                         {j.recommendations.map((rec, i) => (
                           <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                             <Ionicons name="bulb-outline" size={14} color="#F59E0B" style={{ marginTop: 2 }} />
-                            <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>{localizeText(rec, language)}</span>
+                            <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>{localizeBusinessSummaryValue(rec, language)}</span>
                           </div>
                         ))}
                       </div>
@@ -1390,7 +1492,7 @@ export default function DashboardScreen() {
                     {j.todaysFocus && (
                       <div style={{ marginTop: 8, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "12px 14px" }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{localizeText("Today's Focus", language)}</div>
-                        <div style={{ fontSize: 14, color: "#166534", fontWeight: 600, lineHeight: 1.5 }}>{localizeText(j.todaysFocus, language)}</div>
+                        <div style={{ fontSize: 14, color: "#166534", fontWeight: 600, lineHeight: 1.5 }}>{localizeBusinessSummaryValue(j.todaysFocus, language)}</div>
                       </div>
                     )}
                   </div>
@@ -1775,14 +1877,13 @@ export default function DashboardScreen() {
                     { label: "Best Seller", value: j.bestSeller },
                     { label: "Needs Attention", value: j.needsAttention },
                     { label: "Peak Hours", value: j.peakHours },
-                    { label: "Customer Feedback", value: j.customerFeedback },
                   ].filter(r => r.value);
                   return (
                     <ScrollView style={{ maxHeight: 320 }}>
                       {rows.map((r) => (
                         <View key={r.label} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, padding: 10, backgroundColor: "#F9FAFB", borderRadius: 10, borderWidth: 1, borderColor: "#F3F4F6", marginBottom: 8 }}>
                           <LocalizedText style={{ fontSize: 11, fontWeight: "600", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0 }}>{r.label}</LocalizedText>
-                          <LocalizedText style={{ fontSize: 13, color: "#111827", fontWeight: "500", textAlign: "right", flexShrink: 1 }}>{r.value}</LocalizedText>
+                          <LocalizedText style={{ fontSize: 13, color: "#111827", fontWeight: "500", textAlign: "right", flexShrink: 1 }}>{localizeBusinessSummaryValue(r.value, language)}</LocalizedText>
                         </View>
                       ))}
                       {Array.isArray(j.recommendations) && j.recommendations.length > 0 && (
@@ -1791,7 +1892,7 @@ export default function DashboardScreen() {
                           {j.recommendations.map((rec, i) => (
                             <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                               <Ionicons name="bulb-outline" size={14} color="#F59E0B" style={{ marginTop: 2 }} />
-                              <LocalizedText style={{ fontSize: 13, color: "#374151", lineHeight: 18, flex: 1 }}>{rec}</LocalizedText>
+                              <LocalizedText style={{ fontSize: 13, color: "#374151", lineHeight: 18, flex: 1 }}>{localizeBusinessSummaryValue(rec, language)}</LocalizedText>
                             </View>
                           ))}
                         </View>
@@ -1799,7 +1900,7 @@ export default function DashboardScreen() {
                       {j.todaysFocus && (
                         <View style={{ marginTop: 8, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 12, padding: 12 }}>
                           <LocalizedText translate style={{ fontSize: 11, fontWeight: "700", color: "#16A34A", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Today's Focus</LocalizedText>
-                          <LocalizedText style={{ fontSize: 14, color: "#166534", fontWeight: "600", lineHeight: 20 }}>{j.todaysFocus}</LocalizedText>
+                          <LocalizedText style={{ fontSize: 14, color: "#166534", fontWeight: "600", lineHeight: 20 }}>{localizeBusinessSummaryValue(j.todaysFocus, language)}</LocalizedText>
                         </View>
                       )}
                     </ScrollView>

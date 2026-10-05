@@ -415,10 +415,7 @@ export const getSalesPDFUrl = (startDate, endDate) =>
 // ==========================================================
 
 export const getProfile = () => API.get("/profile");
-export const updateProfile = (formData) =>
-  API.put("/profile", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+export const updateProfile = (data) => API.put("/profile", data);
 export const uploadLogo = (formData) =>
   API.post("/profile/upload-logo", formData, {
     headers: { "Content-Type": "multipart/form-data" },
@@ -491,8 +488,8 @@ export const clearAllConversations = () => AdvisorAPI.delete("/advisor/conversat
 // PUSH NOTIFICATIONS
 // ==========================================================
 
-export const savePushToken = (token, platform = "unknown") =>
-  API.post("/notifications/push-token", { token, platform });
+export const savePushToken = (token, platform = "unknown", language = "en") =>
+  API.post("/notifications/push-token", { token, platform, language });
 
 export const removePushToken = (token) =>
   API.post("/notifications/push-token/remove", { token });

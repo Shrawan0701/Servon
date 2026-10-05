@@ -21,7 +21,7 @@ import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { getOrders, updateOrderStatus, getProfile } from "../api";
+import { getOrders, updateOrderStatus, getProfile, getTables } from "../api";
 import { localizedItemName } from "../utils/localizedItemName";
 import * as Print from "expo-print";
 import { useAuth } from "../context/AuthContext";
@@ -447,6 +447,7 @@ export default function OrdersScreen() {
   const { isChefMode, isPremium, loading: authLoading } = useAuth();
 
   const [orders, setOrders] = useState([]);
+  const [tables, setTables] = useState([]);
   const [profile, setProfile] = useState(null);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -454,7 +455,9 @@ export default function OrdersScreen() {
   const [processingTable, setProcessingTable] = useState(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [numColumns, setNumColumns] = useState(Platform.OS === "web" ? 3 : 1);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get("window").width);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedTableKey, setSelectedTableKey] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
 
   // ─── PRINT LOCK STATE ──────────────────────────────────────────────
@@ -512,6 +515,7 @@ export default function OrdersScreen() {
     if (isWeb) {
       const updateLayout = () => {
         const width = Dimensions.get("window").width;
+        setScreenWidth(width);
         if (width > 1200) setNumColumns(3);
         else if (width > 768) setNumColumns(2);
         else setNumColumns(1);
@@ -554,9 +558,10 @@ export default function OrdersScreen() {
       const isOnline = await networkMonitor.checkConnectivity();
 
       if (isOnline) {
-        const [ordersRes, profileRes] = await Promise.all([
+        const [ordersRes, profileRes, tablesRes] = await Promise.all([
           getOrders(),
-          getProfile()
+          getProfile(),
+          getTables()
         ]);
 
         const freshOrders = ordersRes.data || [];
@@ -576,6 +581,7 @@ export default function OrdersScreen() {
 
         await localDB.saveOrders(freshOrders);
         setProfile(profileRes.data);
+        setTables(Array.isArray(tablesRes.data) ? tablesRes.data : []);
         setIsOffline(false);
       } else {
         setIsOffline(true);
@@ -607,6 +613,16 @@ export default function OrdersScreen() {
     const d = new Date(date);
     return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   };
+
+  const getOrderTableKey = useCallback((order) => {
+    if (order?.table_id) return `id:${order.table_id}`;
+    return `number:${order?.table_number || "Unknown"}`;
+  }, []);
+
+  const getTableKey = useCallback((table) => {
+    if (table?.id) return `id:${table.id}`;
+    return `number:${table?.table_number || "Unknown"}`;
+  }, []);
 
   const handleStatusUpdate = useCallback(async (orderId, status) => {
     try {
@@ -1272,7 +1288,59 @@ return `
     [currentTime, handleStatusUpdate, processingTable, isChefMode, openDiscountModal, handleReprint]
   );
 
-  const getFilteredData = useCallback(() => {
+  const tableTabs = useMemo(() => {
+    const tableMap = new Map();
+
+    tables.forEach((table) => {
+      const key = getTableKey(table);
+      tableMap.set(key, {
+        key,
+        table_number: table.table_number,
+        label: `Table ${table.table_number}`,
+        totalToday: 0,
+        filteredToday: 0,
+      });
+    });
+
+    orders.filter((o) => isToday(o.created_at)).forEach((order) => {
+      const key = getOrderTableKey(order);
+      if (!tableMap.has(key)) {
+        tableMap.set(key, {
+          key,
+          table_number: order.table_number || "Unknown",
+          label: `Table ${order.table_number || "Unknown"}`,
+          totalToday: 0,
+          filteredToday: 0,
+        });
+      }
+
+      const entry = tableMap.get(key);
+      entry.totalToday += 1;
+      if (filter === "all" || order.status === filter) {
+        entry.filteredToday += 1;
+      }
+    });
+
+    return Array.from(tableMap.values()).sort((a, b) => {
+      const aNum = Number(a.table_number);
+      const bNum = Number(b.table_number);
+      if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum;
+      return String(a.table_number).localeCompare(String(b.table_number));
+    });
+  }, [tables, orders, filter, getTableKey, getOrderTableKey]);
+
+  useEffect(() => {
+    if (filter === "PREVIOUS") return;
+    if (!tableTabs.length) {
+      if (selectedTableKey) setSelectedTableKey(null);
+      return;
+    }
+    if (!selectedTableKey || !tableTabs.some((table) => table.key === selectedTableKey)) {
+      setSelectedTableKey(tableTabs[0].key);
+    }
+  }, [tableTabs, selectedTableKey, filter]);
+
+  const getStatusFilteredData = useCallback(() => {
     let result;
     if (filter === "all") {
       result = orders.filter((o) => isToday(o.created_at));
@@ -1293,6 +1361,16 @@ return `
     }
     return result;
   }, [orders, filter, isChefMode]);
+
+  const getFilteredData = useCallback(() => {
+    const statusFiltered = getStatusFilteredData();
+    if (!selectedTableKey) return statusFiltered;
+    return statusFiltered.filter((order) => getOrderTableKey(order) === selectedTableKey);
+  }, [getStatusFilteredData, selectedTableKey, getOrderTableKey]);
+
+  const selectedTable = tableTabs.find((table) => table.key === selectedTableKey);
+  const isCompactTableLayout = screenWidth < 720;
+  const tableOrderColumns = isCompactTableLayout ? 1 : Math.min(numColumns, 2);
 
   const getGroupedPreviousOrders = () => {
     const filtered = orders.filter((o) => {
@@ -1411,13 +1489,55 @@ return `
             />
           </>
         ) : (
-          <FlatList
-            key={numColumns}
-            numColumns={numColumns}
+          <View style={[styles.tableOrderShell, isCompactTableLayout && styles.tableOrderShellMobile]}>
+            <View style={[styles.tableSidebar, isCompactTableLayout && styles.tableSidebarMobile]}>
+              <View style={styles.tableSidebarHeader}>
+                <LocalizedText translate style={styles.tableSidebarTitle}>Tables</LocalizedText>
+                <View style={styles.tableSidebarCount}>
+                  <NativeText style={styles.tableSidebarCountText}>{tableTabs.length}</NativeText>
+                </View>
+              </View>
+              <ScrollView horizontal={isCompactTableLayout} showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} contentContainerStyle={isCompactTableLayout ? styles.tableRailMobile : null}>
+                {tableTabs.map((table) => {
+                  const active = table.key === selectedTableKey;
+                  return (
+                    <TouchableOpacity key={table.key} activeOpacity={0.78} style={[styles.tableTab, active && styles.tableTabActive, isCompactTableLayout && styles.tableTabMobile]} onPress={() => setSelectedTableKey(table.key)}>
+                      <View style={styles.tableTabTop}>
+                        <LocalizedText style={[styles.tableTabLabel, active && styles.tableTabLabelActive]}>{table.label}</LocalizedText>
+                        <View style={[styles.tableTabBadge, active && styles.tableTabBadgeActive]}>
+                          <NativeText style={[styles.tableTabBadgeText, active && styles.tableTabBadgeTextActive]}>{table.filteredToday}</NativeText>
+                        </View>
+                      </View>
+                      <LocalizedText translate style={[styles.tableTabMeta, active && styles.tableTabMetaActive]}>
+                        {table.totalToday === 1 ? "1 order today" : `${table.totalToday} orders today`}
+                      </LocalizedText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            <View style={[styles.tableOrdersPane, isCompactTableLayout && styles.tableOrdersPaneMobile]}>
+              <View style={[styles.tablePaneHeader, isCompactTableLayout && styles.tablePaneHeaderMobile]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <LocalizedText style={styles.tablePaneTitle}>{selectedTable?.label || "No tables"}</LocalizedText>
+                  <LocalizedText translate style={styles.tablePaneSub}>
+                    {selectedTable ? "Showing orders for selected table only" : "Create a table to view orders here"}
+                  </LocalizedText>
+                </View>
+                <View style={styles.tablePaneMetric}>
+                  <NativeText style={styles.tablePaneMetricValue}>{getFilteredData().length}</NativeText>
+                  <LocalizedText translate style={styles.tablePaneMetricLabel}>Orders</LocalizedText>
+                </View>
+              </View>
+
+              <FlatList
+            key={`table-${tableOrderColumns}`}
+            numColumns={tableOrderColumns}
             data={getFilteredData()}
             keyExtractor={(item) => item.id}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
-            contentContainerStyle={{ padding: 12, alignSelf: isWeb ? "center" : "stretch", width: isWeb ? "100%" : "auto" }}
+            contentContainerStyle={[styles.tableOrdersList, isCompactTableLayout && styles.tableOrdersListMobile]}
             ListEmptyComponent={
               <View style={{ alignItems: "center", marginTop: 60 }}>
                 <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
@@ -1431,8 +1551,10 @@ return `
                 )}
               </View>
             }
-            renderItem={isChefMode ? renderOrderItemChef : renderOrderItemOld}
-          />
+                renderItem={isChefMode ? renderOrderItemChef : renderOrderItemOld}
+              />
+            </View>
+          </View>
         )}
       </View>
 
@@ -1548,6 +1670,60 @@ const styles = StyleSheet.create({
   filterTab: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1, borderColor: "#E8E2D9", backgroundColor: "#fff" },
   filterTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
   filterTabText: { fontSize: 13, fontWeight: "700", color: "#4B5563" },
+
+  tableOrderShell: { flex: 1, flexDirection: "row", gap: 14, paddingHorizontal: 12, paddingBottom: 12, minWidth: 0 },
+  tableOrderShellMobile: { flexDirection: "column", gap: 10, paddingHorizontal: 10 },
+  tableSidebar: {
+    width: 230,
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E8E2D9",
+    padding: 12,
+    ...Platform.select({ web: { boxShadow: "0 6px 18px rgba(17,24,39,0.05)" }, default: { elevation: 1 } }),
+  },
+  tableSidebarMobile: { width: "100%", maxHeight: 118, padding: 10, flexShrink: 0 },
+  tableSidebarHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  tableSidebarTitle: { fontSize: 14, fontWeight: "900", color: "#111827", textTransform: "uppercase", letterSpacing: 0.6 },
+  tableSidebarCount: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  tableSidebarCountText: { fontSize: 12, fontWeight: "900", color: "#111827" },
+  tableRailMobile: { gap: 8, paddingRight: 4 },
+  tableTab: { borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FAFAFA", padding: 12, marginBottom: 8 },
+  tableTabMobile: { width: 142, marginBottom: 0, padding: 10 },
+  tableTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
+  tableTabTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  tableTabLabel: { color: "#111827", fontSize: 15, fontWeight: "900" },
+  tableTabLabelActive: { color: "#fff" },
+  tableTabBadge: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" },
+  tableTabBadgeActive: { backgroundColor: "#fff" },
+  tableTabBadgeText: { color: "#4F46E5", fontSize: 12, fontWeight: "900" },
+  tableTabBadgeTextActive: { color: "#111827" },
+  tableTabMeta: { marginTop: 6, color: "#6B7280", fontSize: 12, fontWeight: "700" },
+  tableTabMetaActive: { color: "#D1D5DB" },
+  tableOrdersPane: { flex: 1, minWidth: 0 },
+  tableOrdersPaneMobile: { width: "100%" },
+  tablePaneHeader: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E8E2D9",
+    padding: 16,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  tablePaneHeaderMobile: { padding: 12, marginBottom: 8 },
+  tablePaneTitle: { color: "#111827", fontSize: 22, fontWeight: "900" },
+  tablePaneSub: { color: "#6B7280", fontSize: 13, fontWeight: "600", marginTop: 3 },
+  tablePaneMetric: { minWidth: 72, borderRadius: 14, backgroundColor: "#ECFDF5", paddingVertical: 8, paddingHorizontal: 12, alignItems: "center" },
+  tablePaneMetricValue: { color: "#047857", fontSize: 20, fontWeight: "900" },
+  tablePaneMetricLabel: { color: "#047857", fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  tableOrdersList: { paddingBottom: 24 },
+  tableOrdersListMobile: { paddingBottom: 24, paddingHorizontal: 0 },
+  tableEmptyState: { alignItems: "center", marginTop: 60, backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#E8E2D9", padding: 28 },
+  tableEmptyTitle: { color: "#6B7280", marginTop: 12, fontSize: 16, fontWeight: "800", textAlign: "center" },
+  tableEmptySub: { color: "#6B7280", fontSize: 12, marginTop: 4, textAlign: "center" },
 
   sectionHeader: { fontSize: 14, fontWeight: "800", color: "#6B7280", paddingVertical: 8, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 },
 
