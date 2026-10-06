@@ -78,6 +78,7 @@ router.get('/businesses', adminAuth, async (req, res) => {
                 is_trial_used,
                 referral_code,
                 referred_by,
+                liquor_available,
                 created_at
              FROM businesses
              ORDER BY created_at DESC`
@@ -104,7 +105,8 @@ router.post('/businesses', adminAuth, async (req, res) => {
         email,
         phone,
         password,
-        referralCode
+        referralCode,
+        liquorAvailable = false
     } = req.body;
 
     if (!businessName || !ownerName || !email || !phone || !password) {
@@ -208,6 +210,7 @@ router.post('/businesses', adminAuth, async (req, res) => {
                 subscription_status,
                 referral_code,
                 referred_by,
+                liquor_available,
                 is_trial_used,
                 trial_start_date,
                 trial_end_date
@@ -222,6 +225,7 @@ router.post('/businesses', adminAuth, async (req, res) => {
                 'TRIAL',
                 $6,
                 $7,
+                $8,
                 true,
                 NOW(),
                 NOW() + INTERVAL '3 days'
@@ -235,6 +239,7 @@ router.post('/businesses', adminAuth, async (req, res) => {
                 subscription_status,
                 referral_code,
                 referred_by,
+                liquor_available,
                 is_trial_used,
                 trial_start_date,
                 trial_end_date`,
@@ -245,7 +250,8 @@ router.post('/businesses', adminAuth, async (req, res) => {
                 phone,
                 passwordHash,
                 newReferralCode,
-                referrerId
+                referrerId,
+                Boolean(liquorAvailable)
             ]
         );
 
@@ -321,7 +327,8 @@ router.put('/businesses/:id', adminAuth, async (req, res) => {
         owner_name,
         email,
         phone,
-        subscription_status
+        subscription_status,
+        liquor_available
     } = req.body;
 
     try {
@@ -334,21 +341,24 @@ router.put('/businesses/:id', adminAuth, async (req, res) => {
                 email = $3,
                 phone = $4,
                 subscription_status = $5,
+                liquor_available = $6,
                 updated_at = NOW()
-             WHERE id = $6
+             WHERE id = $7
              RETURNING
                 id,
                 business_name,
                 owner_name,
                 email,
                 phone,
-                subscription_status`,
+                subscription_status,
+                liquor_available`,
             [
                 business_name,
                 owner_name,
                 email,
                 phone,
                 subscription_status,
+                Boolean(liquor_available),
                 id
             ]
         );

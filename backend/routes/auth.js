@@ -260,7 +260,7 @@ router.get("/me", authMiddleware, async (req, res) => {
       `SELECT id, business_name, owner_name, email, phone, logo_url, description,
       address, city, state, pincode, gst_number, referral_code,
       subscription_status, subscription_start_date,
-      subscription_end_date, created_at
+      subscription_end_date, liquor_available, created_at
       FROM businesses WHERE id = $1`,
       [req.businessId]
     );

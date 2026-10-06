@@ -14,31 +14,52 @@ function parseItems(items) {
 // and logs each deduction against the order so it can be reversed later.
 async function deductInventoryForOrder(businessId, orderId, items) {
   const itemsArr = parseItems(items);
+  const client = await pool.connect();
 
-  for (const orderItem of itemsArr) {
-    const menuItemId = orderItem.id || orderItem.menu_item_id || orderItem.menuItemId;
-    const qty = parseInt(orderItem.quantity, 10) || 0;
-    if (!menuItemId || qty <= 0) continue;
+  try {
+    await client.query("BEGIN");
 
-    const recipeRes = await pool.query(
-      "SELECT inventory_item_id, quantity_required FROM menu_item_ingredients WHERE menu_item_id = $1 AND business_id = $2",
-      [menuItemId, businessId]
-    );
+    for (const orderItem of itemsArr) {
+      const menuItemId = orderItem.id || orderItem.menu_item_id || orderItem.menuItemId;
+      const qty = parseInt(orderItem.quantity, 10) || 0;
+      if (!menuItemId || qty <= 0) continue;
 
-    for (const row of recipeRes.rows) {
-      const deductAmount = parseFloat(row.quantity_required) * qty;
-      if (deductAmount <= 0) continue;
-
-      await pool.query(
-        "UPDATE inventory_items SET current_stock = current_stock - $1, updated_at = NOW() WHERE id = $2 AND business_id = $3",
-        [deductAmount, row.inventory_item_id, businessId]
+      const recipeRes = await client.query(
+        `SELECT mi.inventory_item_id, mi.quantity_required, ii.name, ii.current_stock
+         FROM menu_item_ingredients mi
+         JOIN inventory_items ii ON ii.id = mi.inventory_item_id AND ii.business_id = mi.business_id
+         WHERE mi.menu_item_id = $1 AND mi.business_id = $2
+         FOR UPDATE OF ii`,
+        [menuItemId, businessId]
       );
-      await pool.query(
-        `INSERT INTO inventory_stock_logs (business_id, inventory_item_id, change_amount, reason, order_id)
-         VALUES ($1, $2, $3, 'order_deduction', $4)`,
-        [businessId, row.inventory_item_id, -deductAmount, orderId]
-      );
+
+      for (const row of recipeRes.rows) {
+        const deductAmount = parseFloat(row.quantity_required) * qty;
+        if (deductAmount <= 0) continue;
+
+        const currentStock = parseFloat(row.current_stock) || 0;
+        if (currentStock < deductAmount) {
+          throw new Error(`Insufficient stock for ${row.name}. Required ${deductAmount}, available ${currentStock}.`);
+        }
+
+        await client.query(
+          "UPDATE inventory_items SET current_stock = current_stock - $1, updated_at = NOW() WHERE id = $2 AND business_id = $3",
+          [deductAmount, row.inventory_item_id, businessId]
+        );
+        await client.query(
+          `INSERT INTO inventory_stock_logs (business_id, inventory_item_id, change_amount, reason, order_id)
+           VALUES ($1, $2, $3, 'order_deduction', $4)`,
+          [businessId, row.inventory_item_id, -deductAmount, orderId]
+        );
+      }
     }
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
 }
 

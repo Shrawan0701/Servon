@@ -6,16 +6,21 @@ const subscription = require("../middleware/subscription");
 const { translateMenuItemName } = require("../services/menuTranslationService");
 
 const normalizeFoodType = (value) => (value === "non_veg" ? "non_veg" : "veg");
+const normalizeMenuType = (value) => (value === "liquor" ? "liquor" : "food");
+const LIQUOR_CATEGORIES = new Set(["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other"]);
 
 // Get all menu items for a business (public)
 router.get("/public/:businessId", async (req, res) => {
   try {
+    const business = await pool.query("SELECT liquor_available FROM businesses WHERE id = $1", [req.params.businessId]);
+    const liquorAvailable = business.rows[0]?.liquor_available === true;
     const result = await pool.query(
       `SELECT * FROM menu_items 
        WHERE business_id = $1 
-       AND is_available = true 
-       ORDER BY category, name`,
-      [req.params.businessId]
+       AND is_available = true
+       AND ($2::boolean = true OR COALESCE(menu_type, 'food') <> 'liquor')
+       ORDER BY menu_type, category, name, size_ml`,
+      [req.params.businessId, liquorAvailable]
     );
 
     res.json(result.rows);
@@ -24,12 +29,30 @@ router.get("/public/:businessId", async (req, res) => {
   }
 });
 
+router.get("/settings/public/:businessId", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, liquor_available FROM businesses WHERE id = $1",
+      [req.params.businessId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Business not found" });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Get all menu items (business owner)
 router.get("/", auth, async (req, res) => {
   try {
+    const business = await pool.query("SELECT liquor_available FROM businesses WHERE id = $1", [req.businessId]);
+    const liquorAvailable = business.rows[0]?.liquor_available === true;
     const result = await pool.query(
-      "SELECT * FROM menu_items WHERE business_id = $1 ORDER BY category, name",
-      [req.businessId]
+      `SELECT * FROM menu_items 
+       WHERE business_id = $1
+       AND ($2::boolean = true OR COALESCE(menu_type, 'food') <> 'liquor')
+       ORDER BY menu_type, category, name, size_ml`,
+      [req.businessId, liquorAvailable]
     );
 
     res.json(result.rows);
@@ -47,11 +70,16 @@ router.post("/", auth, subscription, async (req, res) => {
     category,
     image_url,
     food_type,
+    menu_type,
+    liquor_code,
+    size_ml,
+    is_available,
     is_thali,
     thali_includes,
     thali_custom
   } = req.body;
 
+  const finalMenuType = normalizeMenuType(menu_type);
   if (!name || !price || !category) {
     return res
       .status(400)
@@ -59,11 +87,18 @@ router.post("/", auth, subscription, async (req, res) => {
   }
 
   try {
+    const business = await pool.query("SELECT liquor_available FROM businesses WHERE id = $1", [req.businessId]);
+    if (finalMenuType === "liquor" && business.rows[0]?.liquor_available !== true) {
+      return res.status(403).json({ error: "Liquor is not enabled for this restaurant" });
+    }
+    if (finalMenuType === "liquor" && !LIQUOR_CATEGORIES.has(category)) {
+      return res.status(400).json({ error: "Invalid liquor category" });
+    }
     const finalFoodType = normalizeFoodType(food_type);
     const translations = await translateMenuItemName(name);
 
     const result = await pool.query(
-      'INSERT INTO menu_items (business_id,name,name_mr,name_hi,description,price,image_url,category,food_type,is_thali,thali_includes,thali_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
+      'INSERT INTO menu_items (business_id,name,name_mr,name_hi,description,price,image_url,category,food_type,menu_type,liquor_code,size_ml,is_available,is_thali,thali_includes,thali_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *',
       [
         req.businessId,
         name,
@@ -71,12 +106,16 @@ router.post("/", auth, subscription, async (req, res) => {
         translations.name_hi,
         description,
         price,
-        image_url || null,
+        finalMenuType === "liquor" ? null : (image_url || null),
         category,
         finalFoodType,
-        is_thali || false,
-        JSON.stringify(thali_includes || []),
-        thali_custom || "",
+        finalMenuType,
+        finalMenuType === "liquor" ? (liquor_code || null) : null,
+        finalMenuType === "liquor" ? (parseFloat(size_ml) || null) : null,
+        is_available !== undefined ? Boolean(is_available) : true,
+        finalMenuType === "liquor" ? false : (is_thali || false),
+        finalMenuType === "liquor" ? "[]" : JSON.stringify(thali_includes || []),
+        finalMenuType === "liquor" ? "" : (thali_custom || ""),
       ]
     );
 
@@ -96,6 +135,10 @@ router.put("/:id", auth, subscription, async (req, res) => {
     category,
     image_url,
     food_type,
+    menu_type,
+    liquor_code,
+    size_ml,
+    is_available,
     is_thali,
     thali_includes,
     thali_custom
@@ -112,6 +155,16 @@ router.put("/:id", auth, subscription, async (req, res) => {
     }
 
     const finalImageUrl = image_url !== undefined ? image_url : existing.rows[0].image_url;
+    const finalMenuType = menu_type !== undefined
+      ? normalizeMenuType(menu_type)
+      : normalizeMenuType(existing.rows[0].menu_type);
+    const business = await pool.query("SELECT liquor_available FROM businesses WHERE id = $1", [req.businessId]);
+    if (finalMenuType === "liquor" && business.rows[0]?.liquor_available !== true) {
+      return res.status(403).json({ error: "Liquor is not enabled for this restaurant" });
+    }
+    if (finalMenuType === "liquor" && !LIQUOR_CATEGORIES.has(category || existing.rows[0].category)) {
+      return res.status(400).json({ error: "Invalid liquor category" });
+    }
     const finalName = typeof name === "string" && name.trim() ? name.trim() : existing.rows[0].name;
     const nameChanged = finalName !== existing.rows[0].name;
     const missingTranslation = !existing.rows[0].name_mr || !existing.rows[0].name_hi;
@@ -123,7 +176,7 @@ router.put("/:id", auth, subscription, async (req, res) => {
       : normalizeFoodType(existing.rows[0].food_type);
 
     const result = await pool.query(
-      'UPDATE menu_items SET name = $1,name_mr = $2,name_hi = $3,description = $4,price = $5,image_url = $6,category = $7,food_type = $8,is_thali = $9,thali_includes = $10,thali_custom = $11,updated_at = NOW() WHERE id = $12 AND business_id = $13 RETURNING *',
+      'UPDATE menu_items SET name = $1,name_mr = $2,name_hi = $3,description = $4,price = $5,image_url = $6,category = $7,food_type = $8,menu_type = $9,liquor_code = $10,size_ml = $11,is_available = $12,is_thali = $13,thali_includes = $14,thali_custom = $15,updated_at = NOW() WHERE id = $16 AND business_id = $17 RETURNING *',
       [
         finalName,
         nameChanged
@@ -134,12 +187,16 @@ router.put("/:id", auth, subscription, async (req, res) => {
           : (existing.rows[0].name_hi || translations.name_hi),
         description !== undefined ? description : existing.rows[0].description,
         price || existing.rows[0].price,
-        finalImageUrl,
+        finalMenuType === "liquor" ? null : finalImageUrl,
         category || existing.rows[0].category,
         finalFoodType,
-        is_thali !== undefined ? is_thali : existing.rows[0].is_thali,
-        JSON.stringify(thali_includes !== undefined ? thali_includes : (existing.rows[0].thali_includes || [])),
-        thali_custom !== undefined ? thali_custom : (existing.rows[0].thali_custom || ""),
+        finalMenuType,
+        finalMenuType === "liquor" ? (liquor_code !== undefined ? liquor_code : existing.rows[0].liquor_code) : null,
+        finalMenuType === "liquor" ? (size_ml !== undefined ? (parseFloat(size_ml) || null) : existing.rows[0].size_ml) : null,
+        is_available !== undefined ? Boolean(is_available) : existing.rows[0].is_available,
+        finalMenuType === "liquor" ? false : (is_thali !== undefined ? is_thali : existing.rows[0].is_thali),
+        finalMenuType === "liquor" ? "[]" : JSON.stringify(thali_includes !== undefined ? thali_includes : (existing.rows[0].thali_includes || [])),
+        finalMenuType === "liquor" ? "" : (thali_custom !== undefined ? thali_custom : (existing.rows[0].thali_custom || "")),
         req.params.id,
         req.businessId,
       ]

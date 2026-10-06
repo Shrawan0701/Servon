@@ -138,6 +138,16 @@ router.post("/place", async (req, res) => {
                 [targetOrderId]
               );
               try {
+                await deductInventoryForOrder(businessId, targetOrderId, updated.rows[0].items);
+              } catch (invErr) {
+                console.error("Auto-confirm inventory deduction failed:", invErr.message);
+                await pool.query(
+                  `UPDATE orders SET status = 'REJECTED', updated_at = NOW() WHERE id = $1`,
+                  [targetOrderId]
+                );
+                return;
+              }
+              try {
                 const io = getIO();
                 io.to(`business_${businessId}`).emit("order_updated", updated.rows[0]);
               } catch (e) {
@@ -185,13 +195,6 @@ router.post("/place", async (req, res) => {
         // Reverse the stock deducted for the old item list, then deduct
         // for the new one, so an edited order never double-counts stock.
         try {
-          await reverseDeductionsForOrder(businessId, orderId, "order_edit_refund");
-          await deductInventoryForOrder(businessId, orderId, items);
-        } catch (invErr) {
-          console.error("Inventory adjustment on edit failed:", invErr.message);
-        }
-
-        try {
           const io = getIO();
           io.to(`business_${businessId}`).emit("order_updated", updatedOrder.rows[0]);
         } catch (e) {
@@ -232,10 +235,13 @@ router.post("/place", async (req, res) => {
 
     // Deduct stock for the new order's items. Non-blocking on failure —
     // an inventory hiccup should never stop an order from being placed.
-    try {
-      await deductInventoryForOrder(businessId, order.id, items);
-    } catch (invErr) {
-      console.error("Inventory deduction failed:", invErr.message);
+    if (newOrderStatus === "CONFIRMED") {
+      try {
+        await deductInventoryForOrder(businessId, order.id, items);
+      } catch (invErr) {
+        await pool.query("DELETE FROM orders WHERE id = $1", [order.id]);
+        return res.status(400).json({ error: invErr.message || "Insufficient stock" });
+      }
     }
 
     try {
@@ -347,13 +353,6 @@ router.put("/edit/:id", async (req, res) => {
       ]
     );
 
-    try {
-      await reverseDeductionsForOrder(businessId, req.params.id, "order_edit_refund");
-      await deductInventoryForOrder(businessId, req.params.id, items);
-    } catch (invErr) {
-      console.error("Inventory adjustment on edit failed:", invErr.message);
-    }
-
     res.json(updated.rows[0]);
   } catch (err) {
     console.error("Edit order error:", err);
@@ -423,6 +422,22 @@ router.patch("/:id/status", auth, async (req, res) => {
 
     const tableId = targetOrder.rows[0].table_id;
     const previousStatus = targetOrder.rows[0].status;
+
+    if (status === "CONFIRMED" && previousStatus === "EDITABLE") {
+      try {
+        const orderForDeduction = await pool.query(
+          "SELECT items FROM orders WHERE id = $1 AND business_id = $2",
+          [req.params.id, req.businessId]
+        );
+        await deductInventoryForOrder(
+          req.businessId,
+          req.params.id,
+          orderForDeduction.rows[0]?.items || []
+        );
+      } catch (invErr) {
+        return res.status(400).json({ error: invErr.message || "Insufficient stock" });
+      }
+    }
 
     if (status === "PAID" && tableId) {
       await pool.query(

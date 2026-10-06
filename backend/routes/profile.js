@@ -23,6 +23,7 @@ router.get("/", auth, async (req, res) => {
               gst_number,
               cgst_percentage,
               sgst_percentage,
+              liquor_available,
               subscription_status,
               subscription_start_date,
               subscription_end_date,
@@ -107,9 +108,10 @@ router.put("/", auth, async (req, res) => {
                  pincode,
                  gst_number,
                  cgst_percentage,
-                 sgst_percentage,
-                 admin_pin,
-                 upi_id`,
+                sgst_percentage,
+                admin_pin,
+                upi_id,
+                liquor_available`,
       [
         businessName || biz.business_name,
         ownerName || biz.owner_name,
@@ -213,7 +215,7 @@ router.get("/public/:businessId", async (req, res) => {
   try {
     const { businessId } = req.params;
     const result = await pool.query(
-      `SELECT id, business_name, cgst_percentage, sgst_percentage, gst_number, upi_id 
+      `SELECT id, business_name, cgst_percentage, sgst_percentage, gst_number, upi_id, liquor_available
        FROM businesses WHERE id = $1`,
       [businessId]
     );

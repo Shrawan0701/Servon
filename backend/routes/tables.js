@@ -12,7 +12,7 @@ const { generateQRPDF } = require("../utils/pdf");
 router.get("/public/:tableId", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT t.*, b.business_name, b.logo_url, b.description
+      `SELECT t.*, b.business_name, b.logo_url, b.description, b.liquor_available
        FROM tables t
        JOIN businesses b ON t.business_id = b.id
        WHERE t.id = $1`,
