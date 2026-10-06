@@ -702,6 +702,16 @@ export default function OrdersScreen() {
 
   const confirmDeleteOrder = useCallback(
     (order) => {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const shouldDelete = window.confirm(
+          `${localizeText("Delete order?", language)}\n${localizeText("This confirmed order will be cancelled.", language)}`
+        );
+        if (shouldDelete) {
+          handleStatusUpdate(order.id, "REJECTED");
+        }
+        return;
+      }
+
       Alert.alert(
         localizeText("Delete order?", language),
         localizeText("This confirmed order will be cancelled.", language),
