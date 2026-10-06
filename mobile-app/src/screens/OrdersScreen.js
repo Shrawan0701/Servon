@@ -147,6 +147,7 @@ const ChefOrderCard = React.memo((props) => {
     onSetTableActive,
     onPrint,
     onReprint,
+    onDeleteConfirmed,
     isProcessing,
     timeLeft,
     isChefMode,
@@ -158,6 +159,7 @@ const ChefOrderCard = React.memo((props) => {
   const isServed = order.status === "SERVED";
   const isTableActive = order.status === "TABLE_ACTIVE";
   const isStaffOrder = order.order_source === "staff";
+  const canDeleteConfirmed = order.status === "CONFIRMED";
   const showDirectBillingActions =
     order.status === "CONFIRMED" || (isStaffOrder && !["EDITABLE", "REJECTED", "PAID"].includes(order.status));
 
@@ -179,6 +181,16 @@ const ChefOrderCard = React.memo((props) => {
           <LocalizedText style={styles.chefTableNumber}>Table {order.table_number}</LocalizedText>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {canDeleteConfirmed && (
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={[styles.chefReprintBtn, { backgroundColor: "#FEF2F2" }]}
+              onPress={() => onDeleteConfirmed(order)}
+              disabled={isProcessing}
+            >
+              <Ionicons name="trash-outline" size={15} color="#EF4444" />
+            </TouchableOpacity>
+          )}
           {canReprint && (
             <TouchableOpacity
               activeOpacity={0.75}
@@ -687,6 +699,24 @@ export default function OrdersScreen() {
       Alert.alert('Error', 'Failed to update order status. Will retry when online.');
     }
   }, []);
+
+  const confirmDeleteOrder = useCallback(
+    (order) => {
+      Alert.alert(
+        localizeText("Delete order?", language),
+        localizeText("This confirmed order will be cancelled.", language),
+        [
+          { text: localizeText("Cancel", language), style: "cancel" },
+          {
+            text: localizeText("Delete", language),
+            style: "destructive",
+            onPress: () => handleStatusUpdate(order.id, "REJECTED"),
+          },
+        ]
+      );
+    },
+    [handleStatusUpdate, language]
+  );
 
   // ─── BUILD BILL HTML WITH UPI QR ──────────────────────────────────
   // Redesigned as a clean, monochrome thermal-receipt style layout —
@@ -1216,6 +1246,16 @@ return `
                 <LocalizedText translate style={styles.reprintBtnTextOld}>Reprint</LocalizedText>
               </TouchableOpacity>
             )}
+            {item.status === "CONFIRMED" && (
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={[styles.reprintBtnOld, { backgroundColor: "#FEF2F2" }]}
+                onPress={() => confirmDeleteOrder(item)}
+                disabled={isProcessing}
+              >
+                <Ionicons name="trash-outline" size={13} color="#EF4444" />
+              </TouchableOpacity>
+            )}
             <View style={[styles.badgeOld, { backgroundColor: statusColor(item.status) }]}>
               <LocalizedText style={{ color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.4 }}>{item.status.replace("_", " ")}</LocalizedText>
             </View>
@@ -1354,13 +1394,14 @@ return `
           onSetTableActive={(id) => handleStatusUpdate(id, "TABLE_ACTIVE")}
           onPrint={openDiscountModal}
           onReprint={handleReprint}
+          onDeleteConfirmed={confirmDeleteOrder}
           isProcessing={processingTable === item.table_number}
           timeLeft={timeLeft}
           isChefMode={isChefMode}
         />
       );
     },
-    [currentTime, handleStatusUpdate, processingTable, isChefMode, openDiscountModal, handleReprint]
+    [currentTime, handleStatusUpdate, processingTable, isChefMode, openDiscountModal, handleReprint, confirmDeleteOrder]
   );
 
   const tableTabs = useMemo(() => {
