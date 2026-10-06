@@ -28,12 +28,21 @@ class LocalDB {
                 items TEXT,
                 total_amount REAL,
                 status TEXT,
+                order_source TEXT DEFAULT 'customer',
                 special_instructions TEXT,
                 created_at DATETIME,
                 updated_at DATETIME,
                 is_synced INTEGER DEFAULT 0
             )
         `);
+
+        try {
+            await this.db.execAsync(`ALTER TABLE orders ADD COLUMN order_source TEXT DEFAULT 'customer';`);
+        } catch (error) {
+            if (!String(error?.message || '').toLowerCase().includes('duplicate column')) {
+                console.warn('Order source migration skipped:', error.message);
+            }
+        }
 
         await this.db.execAsync(`
             CREATE TABLE IF NOT EXISTS offline_actions (
@@ -81,8 +90,8 @@ class LocalDB {
         try {
             const insertQuery = `
                 INSERT OR REPLACE INTO orders 
-                (id, table_number, items, total_amount, status, special_instructions, created_at, updated_at, is_synced)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, table_number, items, total_amount, status, order_source, special_instructions, created_at, updated_at, is_synced)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
             for (const order of orders) {
@@ -92,6 +101,7 @@ class LocalDB {
                     JSON.stringify(order.items || []),
                     order.total_amount || 0,
                     order.status || 'EDITABLE',
+                    order.order_source || 'customer',
                     order.special_instructions || '',
                     order.created_at || new Date().toISOString(),
                     new Date().toISOString(),

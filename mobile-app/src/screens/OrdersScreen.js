@@ -144,6 +144,7 @@ const ChefOrderCard = React.memo((props) => {
     onAccept,
     onReject,
     onComplete,
+    onSetTableActive,
     onPrint,
     onReprint,
     isProcessing,
@@ -156,6 +157,9 @@ const ChefOrderCard = React.memo((props) => {
   const isPreparing = order.status === "PREPARING";
   const isServed = order.status === "SERVED";
   const isTableActive = order.status === "TABLE_ACTIVE";
+  const isStaffOrder = order.order_source === "staff";
+  const showDirectBillingActions =
+    order.status === "CONFIRMED" || (isStaffOrder && !["EDITABLE", "REJECTED", "PAID"].includes(order.status));
 
   const isToday = (date) => {
     const today = new Date();
@@ -225,68 +229,102 @@ const ChefOrderCard = React.memo((props) => {
 
       {isToday(order.created_at) && (
         <View style={styles.chefActions}>
-          {isEditable &&
-            (timeLeft > 0 ? (
-              <View style={styles.chefWaitingBadge}>
-                <ActivityIndicator size="small" color="#9CA3AF" />
-                <LocalizedText style={styles.chefWaitingText}>Editing ({timeLeft}s)</LocalizedText>
-              </View>
-            ) : (
-              <>
+          {showDirectBillingActions ? (
+            <>
+              {!isTableActive && (
                 <TouchableOpacity
                   activeOpacity={0.75}
-                  style={[styles.chefActionBtn, styles.chefAcceptBtn]}
-                  onPress={() => onAccept(order.id)}
+                  style={[styles.chefActionBtn, styles.chefActiveBtn, { flex: 1 }]}
+                  onPress={() => onSetTableActive(order.id)}
                 >
-                  <Ionicons name="checkmark" size={18} color="#fff" />
-                  <LocalizedText translate style={styles.chefActionText}>Accept</LocalizedText>
+                  <Ionicons name="people" size={18} color="#fff" />
+                  <LocalizedText translate style={styles.chefActionText}>Active Table</LocalizedText>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.75}
-                  style={[styles.chefActionBtn, styles.chefRejectBtn]}
-                  onPress={() => onReject(order.id)}
-                >
-                  <Ionicons name="close" size={18} color="#fff" />
-                  <LocalizedText translate style={styles.chefActionText}>Reject</LocalizedText>
-                </TouchableOpacity>
-              </>
-            ))}
-          {isPreparing && (
-            <TouchableOpacity
-              activeOpacity={0.75}
-              style={[styles.chefActionBtn, styles.chefCompleteBtn, { flex: 1 }]}
-              onPress={() => onComplete(order.id)}
-            >
-              <Ionicons name="checkmark-done" size={18} color="#fff" />
-              <LocalizedText translate style={styles.chefActionText}>Serve</LocalizedText>
-            </TouchableOpacity>
-          )}
-          {isServed && (
-            <TouchableOpacity
-              activeOpacity={0.75}
-              style={[styles.chefActionBtn, styles.chefActiveBtn, { flex: 1 }]}
-              onPress={() => onComplete(order.id)}
-            >
-              <Ionicons name="people" size={18} color="#fff" />
-              <LocalizedText translate style={styles.chefActionText}>Active Table</LocalizedText>
-            </TouchableOpacity>
-          )}
-          {isTableActive && !isChefMode && (
-            <TouchableOpacity
-              activeOpacity={0.75}
-              style={[styles.chefActionBtn, styles.chefPrintBtn, { flex: 1 }]}
-              onPress={() => onPrint(order)}
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Ionicons name="print-outline" size={18} color="#fff" />
-                  <LocalizedText translate style={styles.chefActionText}>Bill</LocalizedText>
-                </>
               )}
-            </TouchableOpacity>
+              {!isChefMode && (
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={[styles.chefActionBtn, styles.chefPrintBtn, { flex: 1 }]}
+                  onPress={() => onPrint(order)}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="print-outline" size={18} color="#fff" />
+                      <LocalizedText translate style={styles.chefActionText}>{isTableActive ? "Bill" : "Print"}</LocalizedText>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            <>
+              {isEditable &&
+                (timeLeft > 0 ? (
+                  <View style={styles.chefWaitingBadge}>
+                    <ActivityIndicator size="small" color="#9CA3AF" />
+                    <LocalizedText style={styles.chefWaitingText}>Editing ({timeLeft}s)</LocalizedText>
+                  </View>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      activeOpacity={0.75}
+                      style={[styles.chefActionBtn, styles.chefAcceptBtn]}
+                      onPress={() => onAccept(order.id)}
+                    >
+                      <Ionicons name="checkmark" size={18} color="#fff" />
+                      <LocalizedText translate style={styles.chefActionText}>Accept</LocalizedText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.75}
+                      style={[styles.chefActionBtn, styles.chefRejectBtn]}
+                      onPress={() => onReject(order.id)}
+                    >
+                      <Ionicons name="close" size={18} color="#fff" />
+                      <LocalizedText translate style={styles.chefActionText}>Reject</LocalizedText>
+                    </TouchableOpacity>
+                  </>
+                ))}
+              {isPreparing && (
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={[styles.chefActionBtn, styles.chefCompleteBtn, { flex: 1 }]}
+                  onPress={() => onComplete(order.id)}
+                >
+                  <Ionicons name="checkmark-done" size={18} color="#fff" />
+                  <LocalizedText translate style={styles.chefActionText}>Serve</LocalizedText>
+                </TouchableOpacity>
+              )}
+              {isServed && (
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={[styles.chefActionBtn, styles.chefActiveBtn, { flex: 1 }]}
+                  onPress={() => onComplete(order.id)}
+                >
+                  <Ionicons name="people" size={18} color="#fff" />
+                  <LocalizedText translate style={styles.chefActionText}>Active Table</LocalizedText>
+                </TouchableOpacity>
+              )}
+              {isTableActive && !isChefMode && (
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={[styles.chefActionBtn, styles.chefPrintBtn, { flex: 1 }]}
+                  onPress={() => onPrint(order)}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="print-outline" size={18} color="#fff" />
+                      <LocalizedText translate style={styles.chefActionText}>Bill</LocalizedText>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       )}
@@ -1158,6 +1196,9 @@ return `
     const secondsPassed = Math.floor((currentTime - orderTime) / 1000);
     const timeLeft = Math.max(0, 60 - secondsPassed);
     const canReprint = !isChefMode && isToday(item.created_at) && ["SERVED", "TABLE_ACTIVE", "PAID"].includes(item.status);
+    const isStaffOrder = item.order_source === "staff";
+    const showDirectBillingActions =
+      item.status === "CONFIRMED" || (isStaffOrder && !["EDITABLE", "REJECTED", "PAID"].includes(item.status));
 
     return (
       <View style={styles.orderCardOld}>
@@ -1205,7 +1246,38 @@ return `
         </View>
         {isToday(item.created_at) && (
           <>
-            {(item.status === "EDITABLE" || item.status === "CONFIRMED") && (
+            {showDirectBillingActions ? (
+              item.status === "TABLE_ACTIVE" ? (
+                !isChefMode && (
+                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
+                    {isProcessing ? (
+                      <>
+                        <ActivityIndicator color="#fff" size="small" />
+                        <LocalizedText translate style={styles.actionBtnTextOld}>Generating Bill...</LocalizedText>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons name="print-outline" size={20} color="#fff" />
+                        <LocalizedText translate style={styles.actionBtnTextOld}>Print Final Bill</LocalizedText>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )
+              ) : (
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#8B5CF6" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
+                    <LocalizedText translate style={styles.actionBtnTextOld}>Active Table</LocalizedText>
+                  </TouchableOpacity>
+                  {!isChefMode && (
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
+                      {isProcessing ? <ActivityIndicator color="#fff" size="small" /> : <LocalizedText translate style={styles.actionBtnTextOld}>Print</LocalizedText>}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )
+            ) : (
+              <>
+                {(item.status === "EDITABLE" || item.status === "CONFIRMED") && (
               <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
                 {item.status === "EDITABLE" && timeLeft > 0 ? (
                   <View style={[styles.actionBtnOld, { backgroundColor: "#F3F4F6", flexDirection: "row", justifyContent: "center", gap: 8 }]}>
@@ -1223,13 +1295,13 @@ return `
                   </>
                 )}
               </View>
-            )}
-            {item.status === "PREPARING" && (
+                )}
+                {item.status === "PREPARING" && (
               <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#F59E0B", marginTop: 16 }]} onPress={() => handleStatusUpdate(item.id, "SERVED")}>
                 <LocalizedText translate style={[styles.actionBtnTextOld, { color: "#fff" }]}>Mark Served</LocalizedText>
               </TouchableOpacity>
-            )}
-            {item.status === "SERVED" && (
+                )}
+                {item.status === "SERVED" && (
               <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
                 <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#8B5CF6" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
                   <LocalizedText translate style={styles.actionBtnTextOld}>Active Table</LocalizedText>
@@ -1240,8 +1312,8 @@ return `
                   </TouchableOpacity>
                 )}
               </View>
-            )}
-            {item.status === "TABLE_ACTIVE" && !isChefMode && (
+                )}
+                {item.status === "TABLE_ACTIVE" && !isChefMode && (
               <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
                 {isProcessing ? (
                   <>
@@ -1255,6 +1327,8 @@ return `
                   </>
                 )}
               </TouchableOpacity>
+                )}
+              </>
             )}
           </>
         )}
@@ -1277,6 +1351,7 @@ return `
             if (item.status === "PREPARING") handleStatusUpdate(id, "SERVED");
             else if (item.status === "SERVED") handleStatusUpdate(id, "TABLE_ACTIVE");
           }}
+          onSetTableActive={(id) => handleStatusUpdate(id, "TABLE_ACTIVE")}
           onPrint={openDiscountModal}
           onReprint={handleReprint}
           isProcessing={processingTable === item.table_number}

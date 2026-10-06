@@ -26,7 +26,9 @@ import {
   useAudioRecorder,
 } from "expo-audio";
 import { useAuth } from "../context/AuthContext";
+import { useLocale } from "../context/LocaleContext";
 import { useNavigation } from "@react-navigation/native";
+import { localizedItemName } from "../utils/localizedItemName";
 import {
   getMenu,
   getTables,
@@ -61,6 +63,7 @@ const money = (n) => `₹${(parseFloat(n) || 0).toFixed(2)}`;
 export default function ServonAssistantModal({ visible, onClose, initialMode = "manual" }) {
   const navigation = useNavigation();
   const { business } = useAuth();
+  const { language } = useLocale();
 
   // Data loaded for MANUAL order mode (also the authoritative price source).
   const [menu, setMenu] = useState([]);

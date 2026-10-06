@@ -609,20 +609,20 @@ const found = items.find(i => String(i.id) === String(id));
             {form.menu_type !== "liquor" && <TouchableOpacity style={styles.imagePickerBox} onPress={pickImage}>
               {form.image_url ? <Image source={{ uri: form.image_url }} style={styles.previewImage} resizeMode="cover" /> : <View style={{ alignItems: "center" }}><Ionicons name="camera-outline" size={32} color="#888" /><LocalizedText translate style={{ color: "#888" }}>Tap to upload</LocalizedText></View>}
             </TouchableOpacity>}
-            <LocalizedText translate style={styles.fieldLabel}>Item Name *</LocalizedText>
-            <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder="Name" />
+            <LocalizedText translate style={styles.fieldLabel}>{form.menu_type === "liquor" ? "Item / Brand Name *" : "Item Name *"}</LocalizedText>
+            <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder={form.menu_type === "liquor" ? "e.g. Royal Stag" : "e.g. Paneer Masala"} placeholderTextColor="#A8A29E" />
             {form.menu_type === "liquor" && <>
               <LocalizedText translate style={styles.fieldLabel}>Liquor Code</LocalizedText>
-              <TextInput style={styles.input} value={form.liquor_code} onChangeText={(v) => setForm((p) => ({ ...p, liquor_code: v }))} placeholder="76" />
+              <TextInput style={styles.input} value={form.liquor_code} onChangeText={(v) => setForm((p) => ({ ...p, liquor_code: v }))} placeholder="e.g. 76" placeholderTextColor="#A8A29E" />
               <LocalizedText translate style={styles.fieldLabel}>Size *</LocalizedText>
               <View style={{ flexDirection: "row", gap: 10 }}>
-                <TextInput style={[styles.input, { flex: 1 }]} value={form.size_ml} onChangeText={(v) => setForm((p) => ({ ...p, size_ml: v }))} keyboardType="decimal-pad" placeholder="90" />
+                <TextInput style={[styles.input, { flex: 1 }]} value={form.size_ml} onChangeText={(v) => setForm((p) => ({ ...p, size_ml: v }))} keyboardType="decimal-pad" placeholder="e.g. 90" placeholderTextColor="#A8A29E" />
                 <View style={[styles.input, { width: 90, justifyContent: "center" }]}><NativeText style={{ fontWeight: "700" }}>ML</NativeText></View>
               </View>
             </>}
    
             <LocalizedText translate style={styles.fieldLabel}>Price (₹) *</LocalizedText>
-            <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} keyboardType="decimal-pad" placeholder="0.00" />
+            <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} keyboardType="decimal-pad" placeholder={form.menu_type === "liquor" ? "e.g. 160" : "0.00"} placeholderTextColor="#A8A29E" />
             {form.menu_type !== "liquor" && <LocalizedText translate style={styles.fieldLabel}>Food Type *</LocalizedText>}
             {form.menu_type !== "liquor" && <View style={styles.modalFoodTypeRow}>
               {FOOD_TYPES.map((type) => {
