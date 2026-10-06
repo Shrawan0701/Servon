@@ -448,6 +448,7 @@ function AdminDashboard() {
         password: '',
         referralCode: '',
         subscription_status: 'TRIAL',
+        liquorAvailable: false,
     });
     const [submitting, setSubmitting] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
@@ -490,6 +491,7 @@ function AdminDashboard() {
                     email: formData.email,
                     phone: formData.phone,
                     subscription_status: formData.subscription_status || 'TRIAL',
+                    liquor_available: Boolean(formData.liquorAvailable),
                 });
             } else {
                 if (!formData.password) {
@@ -504,6 +506,7 @@ function AdminDashboard() {
                     phone: formData.phone,
                     password: formData.password,
                     referralCode: formData.referralCode || undefined,
+                    liquorAvailable: Boolean(formData.liquorAvailable),
                 });
             }
 
@@ -574,6 +577,7 @@ function AdminDashboard() {
                 password: '',
                 referralCode: '',
                 subscription_status: business.subscription_status || 'TRIAL',
+                liquorAvailable: business.liquor_available === true,
             });
         } else {
             setEditingBusiness(null);
@@ -585,6 +589,7 @@ function AdminDashboard() {
                 password: '',
                 referralCode: '',
                 subscription_status: 'TRIAL',
+                liquorAvailable: false,
             });
         }
         setShowCreateModal(true);
@@ -601,6 +606,7 @@ function AdminDashboard() {
             password: '',
             referralCode: '',
             subscription_status: 'TRIAL',
+            liquorAvailable: false,
         });
     };
 
@@ -1090,6 +1096,40 @@ function AdminDashboard() {
                                     </View>
                                 </View>
                             )}
+
+                            <View style={styles.fieldGroup}>
+                                <Text style={styles.fieldLabel}>Liquor Available</Text>
+                                <View style={styles.statusPickerRow}>
+                                    {[
+                                        { label: 'No', value: false },
+                                        { label: 'Yes', value: true },
+                                    ].map((option) => {
+                                        const isActive = formData.liquorAvailable === option.value;
+                                        return (
+                                            <TouchableOpacity
+                                                key={option.label}
+                                                style={[
+                                                    styles.statusPickerChip,
+                                                    {
+                                                        borderColor: isActive ? '#0A2E23' : '#E7E2D6',
+                                                        backgroundColor: isActive ? '#E9F8F1' : '#fff',
+                                                    },
+                                                ]}
+                                                onPress={() => setFormData({ ...formData, liquorAvailable: option.value })}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Text style={{
+                                                    color: isActive ? '#0A2E23' : '#6B6759',
+                                                    fontWeight: isActive ? '700' : '500',
+                                                    fontSize: 13,
+                                                }}>
+                                                    {option.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </View>
 
                             {/* Status (only for editing) */}
                             {editingBusiness && (

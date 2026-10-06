@@ -217,9 +217,20 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
     );
   };
 
-  const filteredMenu = menu.filter((m) =>
-    m.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const menuLabel = (item) => localizedItemName(item, language);
+  const filteredMenu = menu.filter((m) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return [
+      m.name,
+      m.name_mr,
+      m.name_hi,
+      m.category,
+      m.liquor_code,
+      m.size_ml,
+      menuLabel(m),
+    ].filter(Boolean).join(" ").toLowerCase().includes(q);
+  });
 
   const manualSubtotal = selectedItems.reduce((s, i) => s + parseFloat(i.price || 0) * i.quantity, 0);
   const mCgstP = parseFloat(profile?.cgst_percentage || 0);
@@ -238,6 +249,11 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         name: i.name,
         price: i.price,
         quantity: i.quantity,
+        name_mr: i.name_mr || null,
+        name_hi: i.name_hi || null,
+        menu_type: i.menu_type || "food",
+        liquor_code: i.liquor_code || null,
+        size_ml: i.size_ml || null,
         imageUrl: i.image_url,
         is_thali: i.is_thali || false,
         thali_includes: i.thali_includes || [],
@@ -323,6 +339,11 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         name: line.menuItem.name,
         price: line.menuItem.price,
         quantity: line.quantity || 1,
+        name_mr: line.menuItem.name_mr || null,
+        name_hi: line.menuItem.name_hi || null,
+        menu_type: line.menuItem.menu_type || "food",
+        liquor_code: line.menuItem.liquor_code || null,
+        size_ml: line.menuItem.size_ml || null,
         imageUrl: line.menuItem.image_url,
         is_thali: line.menuItem.is_thali || false,
         thali_includes: line.menuItem.thali_includes || [],
@@ -416,7 +437,10 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       {filteredMenu.slice(0, 12).map((item) => (
         <View key={item.id} style={styles.menuRow}>
           <View style={{ flex: 1 }}>
-            <LocalizedText style={styles.menuName}>{item.name}</LocalizedText>
+            <LocalizedText style={styles.menuName}>{menuLabel(item)}</LocalizedText>
+            {item.menu_type === "liquor" && (
+              <LocalizedText style={styles.menuPrice}>{item.liquor_code ? `Code ${item.liquor_code}` : "Liquor item"}</LocalizedText>
+            )}
             <LocalizedText style={styles.menuPrice}>{money(item.price)}</LocalizedText>
           </View>
           <TouchableOpacity
@@ -437,7 +461,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           <LocalizedText translate style={styles.sectionLabel}>SELECTED ITEMS</LocalizedText>
           {selectedItems.map((i) => (
             <View key={i.id} style={styles.selRow}>
-              <LocalizedText style={styles.selName}>{i.name} × {i.quantity}</LocalizedText>
+              <LocalizedText style={styles.selName}>{menuLabel(i)} × {i.quantity}</LocalizedText>
               <LocalizedText style={styles.selPrice}>{money(i.price * i.quantity)}</LocalizedText>
               <View style={styles.qtyBtns}>
                 <TouchableOpacity style={styles.qtyBtn} onPress={() => changeQty(i.id, -1)}>

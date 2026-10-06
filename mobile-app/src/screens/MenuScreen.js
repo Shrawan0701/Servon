@@ -6,8 +6,9 @@ import {
 import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect } from "@react-navigation/native";
-import { getMenu, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../api";
+import { getMenu, getProfile, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../api";
 import { localizedItemName } from "../utils/localizedItemName";
+import { useAuth } from "../context/AuthContext";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,20 +18,28 @@ const FOOD_TYPES = [
   { key: "veg", label: "Veg" },
   { key: "non_veg", label: "Non Veg" },
 ];
+const LIQUOR_TYPE = { key: "liquor", label: "Liquor" };
+const LIQUOR_CATEGORIES = ["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other"];
 const CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/da9ej0tre/image/upload";
 const UPLOAD_PRESET = "servon_menu";
 const isWeb = Platform.OS === "web";
 
 const EMPTY_FORM = {
-  name: "", description: "", price: "", category: "Starters", food_type: "veg",
+  name: "", description: "", price: "", category: "Starters", food_type: "veg", menu_type: "food",
+  liquor_code: "", size_ml: "", is_available: true,
   image_url: null, is_thali: false, thali_includes: [], thali_custom: []
 };
 
 const itemFoodType = (item) => (item?.food_type === "non_veg" ? "non_veg" : "veg");
+const itemParentType = (item) => item?.menu_type === "liquor" ? "liquor" : itemFoodType(item);
+const itemDisplayName = (item, language) => {
+  return localizedItemName(item, language);
+};
 
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
   const { language } = useLocale();
+  const { business } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,6 +53,10 @@ export default function MenuScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [numColumns, setNumColumns] = useState(isWeb ? 3 : 1);
+  const [profileLiquorEnabled, setProfileLiquorEnabled] = useState(business?.liquor_available === true);
+  const liquorEnabled = profileLiquorEnabled === true;
+  const parentTypes = liquorEnabled ? [...FOOD_TYPES, LIQUOR_TYPE] : FOOD_TYPES;
+  const activeCategories = selectedFoodType === "liquor" ? ["All", ...LIQUOR_CATEGORIES] : CATEGORIES;
 
   // ─── Delete confirmation state ───────────────────────────────────────────
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -69,12 +82,19 @@ export default function MenuScreen() {
 
   const loadMenu = async () => {
   try {
-    const res = await getMenu();
+    const [res, profileRes] = await Promise.all([
+      getMenu(),
+      getProfile().catch(() => null),
+    ]);
+    if (profileRes?.data) {
+      setProfileLiquorEnabled(profileRes.data.liquor_available === true);
+    }
 
     // ✅ FIX: Normalize thali_includes + thali_custom
     const normalized = res.data.map(item => ({
       ...item,
       food_type: itemFoodType(item),
+      menu_type: item.menu_type === "liquor" ? "liquor" : "food",
     thali_includes: (() => {
   if (Array.isArray(item.thali_includes)) {
     return item.thali_includes.map(String);
@@ -108,7 +128,7 @@ export default function MenuScreen() {
 
 
   const filteredItems = items.filter((item) => {
-    if (itemFoodType(item) !== selectedFoodType) return false;
+    if (itemParentType(item) !== selectedFoodType) return false;
 
     const matchesCategory = selectedFilter === "All" || item.category === selectedFilter;
     if (!matchesCategory) return false;
@@ -120,6 +140,8 @@ export default function MenuScreen() {
       item.name,
       item.name_mr,
       item.name_hi,
+      item.liquor_code,
+      item.size_ml,
       item.category,
       item.description,
       localizedItemName(item, language),
@@ -133,7 +155,12 @@ export default function MenuScreen() {
 
   const openAdd = () => {
     setEditItem(null);
-    setForm({ ...EMPTY_FORM, food_type: selectedFoodType });
+    setForm({
+      ...EMPTY_FORM,
+      food_type: selectedFoodType === "liquor" ? "veg" : selectedFoodType,
+      menu_type: selectedFoodType === "liquor" ? "liquor" : "food",
+      category: selectedFoodType === "liquor" ? "Whisky" : "Starters",
+    });
     setCustomInput("");
     setShowModal(true);
   };
@@ -146,6 +173,10 @@ export default function MenuScreen() {
     price: String(item.price),
     category: item.category,
     food_type: itemFoodType(item),
+    menu_type: item.menu_type === "liquor" ? "liquor" : "food",
+    liquor_code: item.liquor_code || "",
+    size_ml: item.size_ml ? String(item.size_ml) : "",
+    is_available: item.is_available !== false,
     image_url: item.image_url || null,
     is_thali: item.is_thali || false,
     thali_includes: (item.thali_includes || []).map(String),
@@ -220,13 +251,17 @@ export default function MenuScreen() {
     Alert.alert(localizeText("Required", language), localizeText("Name, price, and category are required", language));
     return;
   }
+  if (form.menu_type === "liquor" && !form.size_ml) {
+    Alert.alert(localizeText("Required", language), localizeText("Size is required", language));
+    return;
+  }
 
   setSaving(true);
 
   try {
     let finalImageUrl = form.image_url;
 
-    if (form.image_url && !form.image_url.startsWith("http")) {
+    if (form.menu_type !== "liquor" && form.image_url && !form.image_url.startsWith("http")) {
       finalImageUrl = await uploadImageToCloudinary(form.image_url);
     }
 
@@ -236,13 +271,17 @@ export default function MenuScreen() {
       price: parseFloat(form.price),
       category: form.category,
       food_type: form.food_type || selectedFoodType,
-      image_url: finalImageUrl,
-      is_thali: form.is_thali,
+      menu_type: form.menu_type,
+      liquor_code: form.menu_type === "liquor" ? form.liquor_code : null,
+      size_ml: form.menu_type === "liquor" ? parseFloat(form.size_ml) : null,
+      is_available: form.is_available,
+      image_url: form.menu_type === "liquor" ? null : finalImageUrl,
+      is_thali: form.menu_type === "liquor" ? false : form.is_thali,
 
       // 🔥 CRITICAL FIX
-      thali_includes: form.is_thali ? JSON.stringify(finalIncludes) : "[]",
+      thali_includes: form.menu_type !== "liquor" && form.is_thali ? JSON.stringify(finalIncludes) : "[]",
 
-      thali_custom: form.is_thali ? form.thali_custom.join(",") : "",
+      thali_custom: form.menu_type !== "liquor" && form.is_thali ? form.thali_custom.join(",") : "",
     };
 
     console.log("SENDING DATA:", data);
@@ -325,7 +364,7 @@ export default function MenuScreen() {
       <View style={styles.header}>
         <View style={styles.headerInner}>
           <View style={styles.parentToggleRow}>
-            {FOOD_TYPES.map((type) => {
+            {parentTypes.map((type) => {
               const active = selectedFoodType === type.key;
               return (
                 <TouchableOpacity
@@ -346,7 +385,7 @@ export default function MenuScreen() {
 
           <View style={styles.headerTopRow}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-              {CATEGORIES.map(cat => (
+              {activeCategories.map(cat => (
                 <TouchableOpacity 
                   key={cat} 
                   onPress={() => setSelectedFilter(cat)}
@@ -415,23 +454,23 @@ export default function MenuScreen() {
         renderItem={({ item }) => (
           <View style={[styles.menuCard, isWeb && { width: `${96/numColumns}%`, marginHorizontal: '1%' }]}>
             <View style={{ flexDirection: "row", gap: 12 }}>
-              {item.image_url ? (
+              {item.menu_type !== "liquor" && item.image_url ? (
                 <Image source={{ uri: item.image_url }} style={styles.menuImg} resizeMode="cover" />
-              ) : (
+              ) : item.menu_type !== "liquor" ? (
                 <View style={[styles.menuImg, { backgroundColor: "#f0f0f0", alignItems: "center", justifyContent: "center" }]}>
                   <LocalizedText style={{ fontSize: 24 }}>{item.is_thali ? "🍱" : "🍽"}</LocalizedText>
                 </View>
-              )}
+              ) : null}
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: 'flex-start' }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, flexWrap: 'wrap' }}>
-                    <NativeText style={styles.itemName}>{localizedItemName(item, language)}</NativeText>
-                    {item.is_thali && (
+                    <NativeText style={styles.itemName}>{itemDisplayName(item, language)}</NativeText>
+                    {item.menu_type !== "liquor" && item.is_thali && (
                       <View style={styles.thaliBadge}><LocalizedText translate style={styles.thaliBadgeText}>Thali</LocalizedText></View>
                     )}
                   </View>
                 </View>
-                <LocalizedText style={styles.catTag}>{item.category}</LocalizedText>
+                <LocalizedText style={styles.catTag}>{item.menu_type === "liquor" && item.liquor_code ? `${item.category} · Code ${item.liquor_code}` : item.category}</LocalizedText>
 
                 {/* --- Availability Tick Buttons --- */}
                 <View style={styles.availabilityRow}>
@@ -460,7 +499,7 @@ export default function MenuScreen() {
                 </View>
                 
                 {/* --- Display Thali Items on Card --- */}
-{item.is_thali && (
+{item.menu_type !== "liquor" && item.is_thali && (
   <View style={styles.thaliIncludes}>
 
     {/* INCLUDED ITEMS */}
@@ -513,16 +552,16 @@ const found = items.find(i => String(i.id) === String(id));
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20, maxWidth: isWeb ? 600 : '100%', alignSelf: 'center', width: '100%' }}>
-            <TouchableOpacity style={[styles.thaliToggle, form.is_thali && styles.thaliToggleActive]} onPress={() => setForm((p) => ({ ...p, is_thali: !p.is_thali }))}>
+            {form.menu_type !== "liquor" && <TouchableOpacity style={[styles.thaliToggle, form.is_thali && styles.thaliToggleActive]} onPress={() => setForm((p) => ({ ...p, is_thali: !p.is_thali }))}>
               <LocalizedText translate style={{ fontSize: 20 }}>🍱</LocalizedText>
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <LocalizedText translate style={[styles.thaliToggleTitle, form.is_thali && { color: "#fff" }]}>This is a Thali / Combo</LocalizedText>
                 <LocalizedText translate style={[styles.thaliToggleSub, form.is_thali && { color: "#ddd" }]}>Bundle multiple items under one price</LocalizedText>
               </View>
               <Ionicons name={form.is_thali ? "checkmark-circle" : "ellipse-outline"} size={22} color={form.is_thali ? "#fff" : "#bbb"} />
-            </TouchableOpacity>
+            </TouchableOpacity>}
 
-            {form.is_thali && (
+            {form.menu_type !== "liquor" && form.is_thali && (
               <View style={styles.thaliBuilder}>
                 <LocalizedText translate style={styles.fieldLabel}>Included Items</LocalizedText>
                 <TouchableOpacity style={styles.pickItemsBtn} onPress={() => setShowItemPicker(true)}>
@@ -566,17 +605,26 @@ const found = items.find(i => String(i.id) === String(id));
               </View>
             )}
 
-            <LocalizedText translate style={styles.fieldLabel}>Item Image</LocalizedText>
-            <TouchableOpacity style={styles.imagePickerBox} onPress={pickImage}>
+            {form.menu_type !== "liquor" && <LocalizedText translate style={styles.fieldLabel}>Item Image</LocalizedText>}
+            {form.menu_type !== "liquor" && <TouchableOpacity style={styles.imagePickerBox} onPress={pickImage}>
               {form.image_url ? <Image source={{ uri: form.image_url }} style={styles.previewImage} resizeMode="cover" /> : <View style={{ alignItems: "center" }}><Ionicons name="camera-outline" size={32} color="#888" /><LocalizedText translate style={{ color: "#888" }}>Tap to upload</LocalizedText></View>}
-            </TouchableOpacity>
+            </TouchableOpacity>}
             <LocalizedText translate style={styles.fieldLabel}>Item Name *</LocalizedText>
             <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder="Name" />
+            {form.menu_type === "liquor" && <>
+              <LocalizedText translate style={styles.fieldLabel}>Liquor Code</LocalizedText>
+              <TextInput style={styles.input} value={form.liquor_code} onChangeText={(v) => setForm((p) => ({ ...p, liquor_code: v }))} placeholder="76" />
+              <LocalizedText translate style={styles.fieldLabel}>Size *</LocalizedText>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TextInput style={[styles.input, { flex: 1 }]} value={form.size_ml} onChangeText={(v) => setForm((p) => ({ ...p, size_ml: v }))} keyboardType="decimal-pad" placeholder="90" />
+                <View style={[styles.input, { width: 90, justifyContent: "center" }]}><NativeText style={{ fontWeight: "700" }}>ML</NativeText></View>
+              </View>
+            </>}
    
             <LocalizedText translate style={styles.fieldLabel}>Price (₹) *</LocalizedText>
             <TextInput style={styles.input} value={form.price} onChangeText={(v) => setForm((p) => ({ ...p, price: v }))} keyboardType="decimal-pad" placeholder="0.00" />
-            <LocalizedText translate style={styles.fieldLabel}>Food Type *</LocalizedText>
-            <View style={styles.modalFoodTypeRow}>
+            {form.menu_type !== "liquor" && <LocalizedText translate style={styles.fieldLabel}>Food Type *</LocalizedText>}
+            {form.menu_type !== "liquor" && <View style={styles.modalFoodTypeRow}>
               {FOOD_TYPES.map((type) => {
                 const active = form.food_type === type.key;
                 return (
@@ -591,10 +639,10 @@ const found = items.find(i => String(i.id) === String(id));
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </View>}
             <LocalizedText translate style={styles.fieldLabel}>Category *</LocalizedText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {CATEGORIES.filter(c => c !== "All").map((cat) => (
+              {(form.menu_type === "liquor" ? LIQUOR_CATEGORIES : CATEGORIES.filter(c => c !== "All")).map((cat) => (
                 <TouchableOpacity key={cat} style={[styles.catTab, form.category === cat && styles.catTabActive]} onPress={() => setForm((p) => ({ ...p, category: cat }))}>
                   <LocalizedText style={[{ fontSize: 13 }, form.category === cat && { color: "#fff" }]}>{cat}</LocalizedText>
                 </TouchableOpacity>
