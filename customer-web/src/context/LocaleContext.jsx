@@ -26,6 +26,9 @@ const hi = {
 voiceOrder:"वॉइस ऑर्डर", tapMic:"माइक थपें और अपना ऑर्डर बोलें", listening:"सुन रहा है…", understanding:"समझ रहा है…", speakAgain:"फिर बोलें", pickOne:"आपका मतलब कौन सा था?", notFound:"मेनू में नहीं मिला", unavailableNote:"कुछ आइटम अभी उपलब्ध नहीं हैं और आपके ऑर्डर से हटा दिए गए हैं", removeItem:"हटाएँ", micUnsupported:"इस ब्राउज़र में वॉइस ऑर्डर समर्थित नहीं है",
 };
 const dictionaries = { en, mr, hi };
+Object.assign(en, { liquor: "Liquor", liquorCode: "Code" });
+Object.assign(mr, { liquor: "दारू", liquorCode: "कोड" });
+Object.assign(hi, { liquor: "शराब", liquorCode: "कोड" });
 const LocaleContext = createContext(null);
 export function LocaleProvider({ children }) {
   const [language, setLanguageState] = useState(() => localStorage.getItem(STORAGE_KEY) || "mr");

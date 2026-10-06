@@ -10,8 +10,14 @@ const FOOD_TYPES = [
   { key: "veg", labelKey: "veg" },
   { key: "non_veg", labelKey: "nonVeg" },
 ];
+const LIQUOR_TYPE = { key: "liquor", labelKey: "liquor" };
+const LIQUOR_CATEGORIES = ["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other"];
 
 const itemFoodType = (item) => (item?.food_type === "non_veg" ? "non_veg" : "veg");
+const itemParentType = (item) => item?.menu_type === "liquor" ? "liquor" : itemFoodType(item);
+const itemDisplayName = (item, language) => {
+  return localizedItemName(item, language);
+};
 
 // --- Helper Functions from Friend's Push ---
 
@@ -100,6 +106,15 @@ export default function MenuPage() {
 
   // Voice ordering (mini-cart modal — never navigates to the Cart page)
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const liquorEnabled = businessInfo?.liquor_available === true;
+  const parentTypes = useMemo(
+    () => liquorEnabled ? [...FOOD_TYPES, LIQUOR_TYPE] : FOOD_TYPES,
+    [liquorEnabled]
+  );
+  const enabledMenuItems = useMemo(
+    () => menuItems.filter((item) => liquorEnabled || item.menu_type !== "liquor"),
+    [menuItems, liquorEnabled]
+  );
 
   useEffect(() => {
     // ✅ Safety: Only load if we have both IDs
@@ -127,20 +142,22 @@ export default function MenuPage() {
   }, [businessId, tableId]);
 
   const parentItems = useMemo(
-    () => menuItems.filter((item) => itemFoodType(item) === selectedFoodType),
-    [menuItems, selectedFoodType]
+    () => enabledMenuItems.filter((item) => itemParentType(item) === selectedFoodType),
+    [enabledMenuItems, selectedFoodType]
   );
 
   const categories = useMemo(() => {
+    if (selectedFoodType === "liquor") return ["All", ...LIQUOR_CATEGORIES];
     const cats = [...new Set(parentItems.map((i) => i.category))].filter(Boolean);
     return ["All", ...cats];
-  }, [parentItems]);
+  }, [parentItems, selectedFoodType]);
 
   const filteredItems = useMemo(() => {
-    const categoryItems = selectedCategory === "All"
-      ? parentItems
-      : parentItems.filter((i) => i.category === selectedCategory);
     const query = searchQuery.trim().toLowerCase();
+    const searchBase = query ? enabledMenuItems : parentItems;
+    const categoryItems = selectedCategory === "All"
+      ? searchBase
+      : searchBase.filter((i) => i.category === selectedCategory || query);
     if (!query) return categoryItems;
 
     return categoryItems.filter((item) => {
@@ -148,6 +165,8 @@ export default function MenuPage() {
         item.name,
         item.name_mr,
         item.name_hi,
+        item.liquor_code,
+        item.size_ml,
         item.category,
         item.description,
         localizedItemName(item, language),
@@ -157,7 +176,7 @@ export default function MenuPage() {
         .toLowerCase();
       return searchableText.includes(query);
     });
-  }, [parentItems, selectedCategory, searchQuery, language]);
+  }, [enabledMenuItems, parentItems, selectedCategory, searchQuery, language]);
 
   if (loading) {
     return (
@@ -197,7 +216,7 @@ export default function MenuPage() {
 
       <div className="menu-controls">
         <div className="menu-parent-tabs">
-          {FOOD_TYPES.map((type) => (
+          {parentTypes.map((type) => (
             <button
               key={type.key}
               className={`menu-parent-tab ${selectedFoodType === type.key ? "active" : ""}`}
@@ -252,8 +271,7 @@ export default function MenuPage() {
             return (
               <div key={item.id} className="col-6">
                 <div className="menu-card h-100" style={{ display: "flex", flexDirection: "column" }}>
-                  {/* Image Section with Thali Badge */}
-                  <div style={{ position: "relative" }}>
+                  {item.menu_type !== "liquor" && <div style={{ position: "relative" }}>
                     {item.image_url ? (
                       <img
                         src={item.image_url}
@@ -285,18 +303,23 @@ export default function MenuPage() {
 
                     {/* Thali badge on image */}
                     {item.is_thali && <span style={styles.thaliBadge}>{t("thali")}</span>}
-                  </div>
+                  </div>}
 
                   <div className="p-2 d-flex flex-column" style={{ flex: 1 }}>
                     <div className="fw-600" style={{ fontSize: 14 }}>
-                      {localizedItemName(item, language)}
+                      {itemDisplayName(item, language)}
                     </div>
+                    {item.menu_type === "liquor" && (
+                      <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
+                        {item.category}{item.liquor_code ? ` · ${t("liquorCode")} ${item.liquor_code}` : ""}
+                      </div>
+                    )}
 
                     {/* Logical Combination: Show Thali Contents or Description */}
-                    {item.is_thali && thaliContents.length > 0 ? (
+                    {item.menu_type !== "liquor" && item.is_thali && thaliContents.length > 0 ? (
                       <ThaliContents contents={thaliContents} />
                     ) : (
-                      item.description && (
+                      item.menu_type !== "liquor" && item.description && (
                         <div
                           className="text-muted"
                           style={{
@@ -385,7 +408,7 @@ export default function MenuPage() {
         onClose={() => setVoiceOpen(false)}
         businessId={businessId}
         tableId={tableId}
-        menuItems={parentItems}
+        menuItems={enabledMenuItems}
       />
 
     </div>

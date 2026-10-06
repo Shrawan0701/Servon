@@ -5,7 +5,10 @@
 export function localizedItemName(item, language) {
   if (!item) return "";
   const lang = language === "mr" ? "mr" : language === "hi" ? "hi" : "en";
-  if (lang === "mr" && item.name_mr) return item.name_mr;
-  if (lang === "hi" && item.name_hi) return item.name_hi;
-  return item.name || item.name_mr || item.name_hi || "";
+  const name = lang === "mr" && item.name_mr
+    ? item.name_mr
+    : lang === "hi" && item.name_hi
+      ? item.name_hi
+      : item.name || item.name_mr || item.name_hi || "";
+  return item.menu_type === "liquor" && item.size_ml ? `${name} ${Number(item.size_ml)} ML` : name;
 }
