@@ -210,10 +210,10 @@ router.post("/place", async (req, res) => {
       `INSERT INTO orders 
        (
          business_id, table_id, items, total_amount, 
-         special_instructions, status, updated_at,
+         special_instructions, status, order_source, updated_at,
          discount_type, discount_value, discount_amount, subtotal_before_discount, gst_amount
        )
-       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, $9, $10, $11)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         businessId,
@@ -222,6 +222,7 @@ router.post("/place", async (req, res) => {
         finalTotal,
         specialInstructions || null,
         newOrderStatus,
+        isStaffOrder ? "staff" : "customer",
         discountType,
         discountValue,
         discountAmount,

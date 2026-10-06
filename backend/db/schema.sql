@@ -80,6 +80,11 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_menu_items_business_id ON menu_items(business_id); 
 CREATE INDEX IF NOT EXISTS idx_notifications_business_id ON notifications(business_id);
 
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_source VARCHAR(20) DEFAULT 'customer';
+UPDATE orders
+SET order_source = 'customer'
+WHERE order_source IS NULL OR TRIM(order_source) = '';
+
 -- ─── business_summaries: hourly AI business brief ─────────────────────────────
 CREATE TABLE IF NOT EXISTS business_summaries (
   id SERIAL PRIMARY KEY,
