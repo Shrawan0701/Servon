@@ -737,23 +737,30 @@ export default function OrdersScreen() {
     (tableOrders, discount) => {
       let combinedSubtotal = 0;
       const combinedItems = {};
+      const isLiquorItem = (item) => item?.menu_type === "liquor" || !!item?.size_ml || !!item?.liquor_code || !!item?.liquor_brand_code;
 
       tableOrders.forEach((o) => {
         const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || "[]");
         items.forEach((item) => {
           const itemPrice = parseFloat(item.price || 0);
           const itemQty = parseInt(item.quantity || 1, 10);
+          const displayName = localizedItemName(item, language);
+          const itemKey = `${isLiquorItem(item) ? "liquor" : "food"}-${displayName}-${itemPrice}`;
           combinedSubtotal += itemPrice * itemQty;
 
-          if (combinedItems[item.name]) {
-            combinedItems[item.name].quantity += itemQty;
+          if (combinedItems[itemKey]) {
+            combinedItems[itemKey].quantity += itemQty;
           } else {
-            combinedItems[item.name] = { ...item, price: itemPrice, quantity: itemQty };
+            combinedItems[itemKey] = { ...item, displayName, isLiquor: isLiquorItem(item), price: itemPrice, quantity: itemQty };
           }
         });
       });
 
       const finalItemsList = Object.values(combinedItems);
+      const foodItemsList = finalItemsList.filter((item) => !item.isLiquor);
+      const liquorItemsList = finalItemsList.filter((item) => item.isLiquor);
+      const foodSubtotal = foodItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const liquorSubtotal = liquorItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
       let discountAmount = 0;
       if (discount && discount.type !== "none" && discount.value > 0) {
@@ -782,6 +789,36 @@ finalItemsList.forEach((i) => {
     </tr>
   `;
 });
+
+const buildItemsRows = (list) => list.map((i) => `
+    <tr>
+      <td style="padding: 4px 0;">${i.displayName || localizedItemName(i, language)}</td>
+      <td class="center-col">${i.quantity}</td>
+      <td class="right">&#8377;${(i.price * i.quantity).toFixed(2)}</td>
+    </tr>
+  `).join("");
+
+const buildBillSection = (title, list, subtotal) => list.length ? `
+      <table>
+        <tr class="bold" style="border-bottom: 1px solid #000;">
+          <td style="padding-bottom: 5px;">Product Name</td>
+          <td class="center-col" style="padding-bottom: 5px;">Qty</td>
+          <td class="right" style="padding-bottom: 5px;">Amt</td>
+        </tr>
+
+        ${buildItemsRows(list)}
+
+        <tr class="bold section-total">
+          <td colspan="2">${title} :</td>
+          <td class="right">&#8377;${subtotal.toFixed(2)}</td>
+        </tr>
+      </table>
+  ` : "";
+
+const billSectionsHtml = [
+  buildBillSection("Food Bill", foodItemsList, foodSubtotal),
+  buildBillSection("Liquor Bill", liquorItemsList, liquorSubtotal),
+].filter(Boolean).join(`<div class="divider tight"></div>`);
 
 const discountHtml =
   discountAmount > 0
@@ -836,6 +873,10 @@ return `
           margin: 10px 0;
         }
 
+        .divider.tight {
+          margin: 6px 0;
+        }
+
         table {
           width: 100%;
           border-collapse: collapse;
@@ -848,6 +889,16 @@ return `
 
         .bold {
           font-weight: bold;
+        }
+
+        .center-col {
+          text-align: center;
+        }
+
+        .section-total td {
+          border-top: 1px solid #000;
+          padding-top: 6px;
+          font-size: 15px;
         }
 
         .upi-section {
@@ -935,15 +986,7 @@ return `
 
       <div class="divider"></div>
 
-      <table>
-        <tr class="bold" style="border-bottom: 1px solid #000;">
-          <td style="padding-bottom: 5px;">Item</td>
-          <td class="center" style="padding-bottom: 5px;">Qty</td>
-          <td class="right" style="padding-bottom: 5px;">Price</td>
-        </tr>
-
-        ${itemsHtml}
-      </table>
+      ${billSectionsHtml}
 
       <div class="divider"></div>
 
