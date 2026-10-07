@@ -45,6 +45,7 @@ import {
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import ServonAssistantModal from "../components/ServonAssistantModal";
+import { localizedItemName } from "../utils/localizedItemName";
 import io from "socket.io-client";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ReactDOM from "react-dom";
@@ -1976,6 +1977,7 @@ function WebStatCard({ label, value, icon, color, bg, accent, isText, language }
 }
 
 function WebOrderCard({ order, onStatusUpdate }) {
+  const { language } = useLocale();
   const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
   const color = statusColor(order.status);
   const elapsed = Math.floor((Date.now() - new Date(order.created_at)) / 60000);
@@ -2004,7 +2006,7 @@ function WebOrderCard({ order, onStatusUpdate }) {
               <span style={{ background: "#F3F4F6", borderRadius: 6, padding: "2px 7px", fontSize: 11, fontWeight: 700, color: "#374151" }}>
                 {item.quantity}×
               </span>
-              <span style={{ fontSize: 13, color: "#1F2937", fontWeight: 500 }}>{item.name}</span>
+              <span style={{ fontSize: 13, color: "#1F2937", fontWeight: 500 }}>{localizedItemName(item, language)}</span>
             </div>
           ))}
         </div>
@@ -2042,6 +2044,7 @@ function StatCard({ label, value, icon, color, bg, isText, extraStyle }) {
 }
 
 function OrderCard({ order, onStatusUpdate }) {
+  const { language } = useLocale();
   const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
 
   return (
@@ -2059,7 +2062,7 @@ function OrderCard({ order, onStatusUpdate }) {
       {items.map((item, i) => (
         <View key={i} style={styles.orderItemRow}>
           <View style={styles.qtyBadge}><LocalizedText style={styles.qtyText}>{item.quantity}x</LocalizedText></View>
-          <LocalizedText style={styles.orderItemName}>{item.name}</LocalizedText>
+          <LocalizedText style={styles.orderItemName}>{localizedItemName(item, language)}</LocalizedText>
         </View>
       ))}
       {order.special_instructions && (
