@@ -139,8 +139,29 @@ const renderHighlightedInsight = (text) => {
   );
 };
 
-const DEFAULT_INSIGHT =
-  "Your sales are 18% higher on weekends. Consider increasing staffing between 7 PM and 10 PM to keep pace with peak demand.";
+const buildLocalAnalyticsInsight = (data) => {
+  const today = data?.today || {};
+  const topItem = data?.topItems?.[0];
+  const peakHour = data?.peakHour;
+  const totalOrders = parseInt(today.totalOrders || 0);
+  const totalRevenue = parseFloat(today.totalRevenue || 0);
+
+  if (!totalOrders && !(data?.last30Days || []).some((day) => parseInt(day.orders || 0) > 0)) {
+    return "No sales data yet. Once orders start coming in, I will show a live recommendation from your actual analytics.";
+  }
+
+  if (totalOrders > 0) {
+    const topText = topItem ? ` ${topItem.name} is leading with ${topItem.total_qty} sold.` : "";
+    const peakText = peakHour?.hour !== undefined ? ` Peak hour is around ${Math.floor(Number(peakHour.hour))}:00.` : "";
+    return `Today has ${totalOrders} orders worth ₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}.${topText}${peakText}`;
+  }
+
+  const last30 = data?.last30Days || [];
+  const total30Orders = last30.reduce((sum, day) => sum + (parseInt(day.orders || 0) || 0), 0);
+  const total30Revenue = last30.reduce((sum, day) => sum + (parseFloat(day.revenue || 0) || 0), 0);
+  return `Last 30 days show ${total30Orders} orders worth ₹${total30Revenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}. Push your strongest top item today.`;
+};
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANIMATED NUMBER
@@ -355,6 +376,7 @@ export default function AnalyticsScreen() {
 
   const topItems = data?.topItems?.slice(0, 5) || [];
   const maxQty = topItems.length ? Math.max(...topItems.map(i => parseInt(i.total_qty) || 0)) : 1;
+  const advisorInsight = data?.aiInsight || buildLocalAnalyticsInsight(data);
 
   const goToAdvisor = () => {
     try { navigation.navigate("Advisor"); }
@@ -533,7 +555,7 @@ export default function AnalyticsScreen() {
           {/* AI BUSINESS ADVISOR + ASK BAR */}
           <View style={[styles.advisorRow, { paddingHorizontal: H_PAD }, isMobileView && { flexDirection: "column" }]}>
             <View style={isMobileView ? { width: "100%" } : { flex: 1.2 }}>
-              <AdvisorCard insight={data?.aiInsight || DEFAULT_INSIGHT} onViewMore={goToAdvisor} />
+              <AdvisorCard insight={advisorInsight} onViewMore={goToAdvisor} />
             </View>
             <View style={isMobileView ? { width: "100%", marginTop: 16 } : { flex: 1 }}>
               <AskAdvisorBox />
