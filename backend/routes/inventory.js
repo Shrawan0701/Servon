@@ -35,14 +35,21 @@ router.get("/alerts/count", auth, async (req, res) => {
 
 // ─── ADD ITEM ──────────────────────────────────────────────────────────
 router.post("/", auth, async (req, res) => {
-  const { name, unit, current_stock, low_stock_threshold } = req.body;
+  const { name, unit, current_stock, low_stock_threshold, bottle_size } = req.body;
   if (!name || !unit) return res.status(400).json({ error: "Name and unit are required" });
 
   try {
     const result = await pool.query(
-      `INSERT INTO inventory_items (business_id, name, unit, current_stock, low_stock_threshold)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.businessId, name, unit, parseFloat(current_stock) || 0, parseFloat(low_stock_threshold) || 0]
+      `INSERT INTO inventory_items (business_id, name, unit, current_stock, low_stock_threshold, bottle_size)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [
+        req.businessId,
+        name,
+        unit,
+        parseFloat(current_stock) || 0,
+        parseFloat(low_stock_threshold) || 0,
+        ["ml", "litre"].includes(unit) && parseFloat(bottle_size) > 0 ? parseFloat(bottle_size) : null,
+      ]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -53,7 +60,7 @@ router.post("/", auth, async (req, res) => {
 
 // ─── UPDATE ITEM DETAILS (name/unit/threshold) ────────────────────────
 router.put("/:id", auth, async (req, res) => {
-  const { name, unit, low_stock_threshold } = req.body;
+  const { name, unit, low_stock_threshold, bottle_size } = req.body;
   try {
     const existing = await pool.query(
       "SELECT * FROM inventory_items WHERE id = $1 AND business_id = $2",
@@ -63,12 +70,13 @@ router.put("/:id", auth, async (req, res) => {
 
     const result = await pool.query(
       `UPDATE inventory_items
-       SET name = $1, unit = $2, low_stock_threshold = $3, updated_at = NOW()
-       WHERE id = $4 AND business_id = $5 RETURNING *`,
+       SET name = $1, unit = $2, low_stock_threshold = $3, bottle_size = $4, updated_at = NOW()
+       WHERE id = $5 AND business_id = $6 RETURNING *`,
       [
         name || existing.rows[0].name,
         unit || existing.rows[0].unit,
         low_stock_threshold !== undefined ? parseFloat(low_stock_threshold) : existing.rows[0].low_stock_threshold,
+        ["ml", "litre"].includes(unit || existing.rows[0].unit) && parseFloat(bottle_size) > 0 ? parseFloat(bottle_size) : null,
         req.params.id,
         req.businessId,
       ]
@@ -82,15 +90,21 @@ router.put("/:id", auth, async (req, res) => {
 
 // ─── RESTOCK (add stock) ───────────────────────────────────────────────
 router.patch("/:id/restock", auth, async (req, res) => {
-  const { amount } = req.body;
+  const { amount, bottle_size } = req.body;
   const value = parseFloat(amount);
   if (!value || value <= 0) return res.status(400).json({ error: "Enter a valid amount" });
 
   try {
     const result = await pool.query(
-      `UPDATE inventory_items SET current_stock = current_stock + $1, updated_at = NOW()
+      `UPDATE inventory_items
+       SET current_stock = current_stock + $1,
+           bottle_size = CASE
+             WHEN unit IN ('ml', 'litre') AND $4::numeric > 0 THEN $4::numeric
+             ELSE bottle_size
+           END,
+           updated_at = NOW()
        WHERE id = $2 AND business_id = $3 RETURNING *`,
-      [value, req.params.id, req.businessId]
+      [value, req.params.id, req.businessId, parseFloat(bottle_size) || 0]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Item not found" });
 

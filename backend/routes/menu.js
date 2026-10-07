@@ -8,6 +8,36 @@ const { translateMenuItemName } = require("../services/menuTranslationService");
 const normalizeFoodType = (value) => (value === "non_veg" ? "non_veg" : "veg");
 const normalizeMenuType = (value) => (value === "liquor" ? "liquor" : "food");
 const LIQUOR_CATEGORIES = new Set(["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other"]);
+const FOOD_CATEGORY_CODES = new Set([1, 2, 3, 4, 5, 6, 7]);
+const LIQUOR_BRAND_CODES = new Map([
+  [10, "Tuborg Strong"], [11, "Tuborg"], [12, "Tuborg Classic"], [13, "Kingfisher"], [14, "Kingfisher Ultra"], [15, "Carlsberg Beer"], [16, "Heineken Beer"], [17, "Budweiser"], [18, "Godfather Beer"], [19, "London Beer"], [20, "Breezer"],
+  [21, "Royal Stag"], [22, "Royal Stag Double"], [23, "Royal Green"], [24, "Signature"], [25, "Imperial Blue"], [26, "McDowell's Rum"], [27, "McDowell's"], [28, "McDowell's Platinum"], [29, "B7"], [30, "DSP Black"], [31, "Goa"], [32, "Grand Masters"], [33, "Iconiq White"], [34, "Royal Challenge"], [35, "Oaksmith Silver"], [36, "Oaksmith Gold"], [37, "Oaken"], [38, "Antiquity"], [39, "Green Label"], [40, "Officer's Choice"], [41, "Jameson"], [42, "Black Dog"], [43, "Teachers"], [44, "Black & White"], [45, "VAT 69"], [46, "Ballantine's"], [47, "Haywards 2000"], [48, "Haywards"], [49, "Masters Delight"], [50, "Classic Gold"], [51, "Brown Man"], [52, "Premium Whisky"], [53, "Barrel Whisky"], [54, "X-Treme Whisky"], [55, "Empire"], [56, "Blenders Reserve"], [57, "After Dark"], [58, "Amber Whisky"], [59, "Vulcan Blue"], [60, "Alpha Bull"], [61, "Kalani White"],
+  [62, "Bullet Rum"], [63, "Old Monk"], [64, "Dark Old Rum"], [65, "Gold Medal Rum"], [66, "Mad Rum"], [67, "Blak Bacardi"],
+  [68, "Smirnoff"], [69, "Vodka"], [70, "Xclamation"], [71, "Xclamation Vodka"], [72, "Silver Kastle Vodka"], [73, "Gold Medal Vodka"], [74, "Shaky Vodka Jamun"], [75, "Smirnoff Jamun"],
+  [76, "Bombay"], [77, "Bombay Quarter"], [78, "Lemon Duet Gin"], [79, "Knight Fox Gin"],
+  [80, "Doctor Brandy"],
+  [81, "Let's Go Cranberry"], [82, "Bacardi Limon"], [83, "Magic Moments"], [84, "Magik Moments"], [85, "Magic Moment"],
+]);
+const foodMenuGroup = (foodType) => (normalizeFoodType(foodType) === "non_veg" ? "non_veg" : "veg");
+const normalizeCategoryCode = (value, menuType, foodType) => {
+  if (normalizeMenuType(menuType) === "liquor") return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!FOOD_CATEGORY_CODES.has(parsed)) return null;
+  const group = foodMenuGroup(foodType);
+  if (group === "non_veg") return parsed === 7 ? 7 : null;
+  return parsed >= 1 && parsed <= 6 ? parsed : null;
+};
+const normalizeLiquorBrandCode = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return LIQUOR_BRAND_CODES.has(parsed) ? parsed : null;
+};
+const inferLiquorBrandCode = (name) => {
+  const normalized = String(name || "").trim().toLowerCase();
+  const match = [...LIQUOR_BRAND_CODES.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .find(([, label]) => normalized === label.toLowerCase() || normalized.startsWith(`${label.toLowerCase()} `));
+  return match?.[0] || null;
+};
 
 // Get all menu items for a business (public)
 router.get("/public/:businessId", async (req, res) => {
@@ -45,8 +75,42 @@ router.get("/settings/public/:businessId", async (req, res) => {
 // Get all menu items (business owner)
 router.get("/", auth, async (req, res) => {
   try {
+    const requestedCode = req.query.category_code !== undefined ? Number.parseInt(req.query.category_code, 10) : null;
+    const requestedLiquorBrandCode = req.query.liquor_brand_code !== undefined ? normalizeLiquorBrandCode(req.query.liquor_brand_code) : null;
+    if (req.query.category_code !== undefined && requestedCode !== 8 && !FOOD_CATEGORY_CODES.has(requestedCode)) {
+      return res.json([]);
+    }
+    if (req.query.liquor_brand_code !== undefined && !requestedLiquorBrandCode) {
+      return res.json([]);
+    }
     const business = await pool.query("SELECT liquor_available FROM businesses WHERE id = $1", [req.businessId]);
     const liquorAvailable = business.rows[0]?.liquor_available === true;
+    if (requestedLiquorBrandCode) {
+      if (!liquorAvailable) return res.json([]);
+      const result = await pool.query(
+        `SELECT * FROM menu_items
+         WHERE business_id = $1
+         AND is_available = true
+         AND COALESCE(menu_type, 'food') = 'liquor'
+         AND liquor_brand_code = $2
+         ORDER BY name, size_ml`,
+        [req.businessId, requestedLiquorBrandCode]
+      );
+      return res.json(result.rows);
+    }
+    if (requestedCode === 8) return res.json([]);
+    if (requestedCode) {
+      const result = await pool.query(
+        `SELECT * FROM menu_items
+         WHERE business_id = $1
+         AND is_available = true
+         AND COALESCE(menu_type, 'food') <> 'liquor'
+         AND category_code = $2
+         ORDER BY category, name`,
+        [req.businessId, requestedCode]
+      );
+      return res.json(result.rows);
+    }
     const result = await pool.query(
       `SELECT * FROM menu_items 
        WHERE business_id = $1
@@ -76,7 +140,9 @@ router.post("/", auth, subscription, async (req, res) => {
     is_available,
     is_thali,
     thali_includes,
-    thali_custom
+    thali_custom,
+    category_code,
+    liquor_brand_code
   } = req.body;
 
   const finalMenuType = normalizeMenuType(menu_type);
@@ -95,10 +161,21 @@ router.post("/", auth, subscription, async (req, res) => {
       return res.status(400).json({ error: "Invalid liquor category" });
     }
     const finalFoodType = normalizeFoodType(food_type);
+    const finalMenuGroup = finalMenuType === "liquor" ? "liquor" : foodMenuGroup(finalFoodType);
+    const finalCategoryCode = normalizeCategoryCode(category_code, finalMenuType, finalFoodType);
+    const finalLiquorBrandCode = finalMenuType === "liquor"
+      ? (normalizeLiquorBrandCode(liquor_brand_code) || inferLiquorBrandCode(name))
+      : null;
+    if (finalMenuType !== "liquor" && !finalCategoryCode) {
+      return res.status(400).json({ error: "Valid category code is required" });
+    }
+    if (finalMenuType === "liquor" && !finalLiquorBrandCode) {
+      return res.status(400).json({ error: "Valid liquor brand code is required" });
+    }
     const translations = await translateMenuItemName(name);
 
     const result = await pool.query(
-      'INSERT INTO menu_items (business_id,name,name_mr,name_hi,description,price,image_url,category,food_type,menu_type,liquor_code,size_ml,is_available,is_thali,thali_includes,thali_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *',
+      'INSERT INTO menu_items (business_id,name,name_mr,name_hi,description,price,image_url,category,food_type,menu_type,menu_group,category_code,liquor_brand_code,liquor_code,size_ml,is_available,is_thali,thali_includes,thali_custom) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *',
       [
         req.businessId,
         name,
@@ -110,6 +187,9 @@ router.post("/", auth, subscription, async (req, res) => {
         category,
         finalFoodType,
         finalMenuType,
+        finalMenuGroup,
+        finalCategoryCode,
+        finalLiquorBrandCode,
         finalMenuType === "liquor" ? (liquor_code || null) : null,
         finalMenuType === "liquor" ? (parseFloat(size_ml) || null) : null,
         is_available !== undefined ? Boolean(is_available) : true,
@@ -141,7 +221,9 @@ router.put("/:id", auth, subscription, async (req, res) => {
     is_available,
     is_thali,
     thali_includes,
-    thali_custom
+    thali_custom,
+    category_code,
+    liquor_brand_code
   } = req.body;
 
   try {
@@ -174,9 +256,26 @@ router.put("/:id", auth, subscription, async (req, res) => {
     const finalFoodType = food_type !== undefined
       ? normalizeFoodType(food_type)
       : normalizeFoodType(existing.rows[0].food_type);
+    const finalMenuGroup = finalMenuType === "liquor" ? "liquor" : foodMenuGroup(finalFoodType);
+    const finalCategoryCode = finalMenuType === "liquor"
+      ? null
+      : normalizeCategoryCode(
+          category_code !== undefined ? category_code : existing.rows[0].category_code,
+          finalMenuType,
+          finalFoodType
+        );
+    const finalLiquorBrandCode = finalMenuType === "liquor"
+      ? (normalizeLiquorBrandCode(liquor_brand_code !== undefined ? liquor_brand_code : existing.rows[0].liquor_brand_code) || inferLiquorBrandCode(finalName))
+      : null;
+    if (finalMenuType !== "liquor" && !finalCategoryCode) {
+      return res.status(400).json({ error: "Valid category code is required" });
+    }
+    if (finalMenuType === "liquor" && !finalLiquorBrandCode) {
+      return res.status(400).json({ error: "Valid liquor brand code is required" });
+    }
 
     const result = await pool.query(
-      'UPDATE menu_items SET name = $1,name_mr = $2,name_hi = $3,description = $4,price = $5,image_url = $6,category = $7,food_type = $8,menu_type = $9,liquor_code = $10,size_ml = $11,is_available = $12,is_thali = $13,thali_includes = $14,thali_custom = $15,updated_at = NOW() WHERE id = $16 AND business_id = $17 RETURNING *',
+      'UPDATE menu_items SET name = $1,name_mr = $2,name_hi = $3,description = $4,price = $5,image_url = $6,category = $7,food_type = $8,menu_type = $9,menu_group = $10,category_code = $11,liquor_brand_code = $12,liquor_code = $13,size_ml = $14,is_available = $15,is_thali = $16,thali_includes = $17,thali_custom = $18,updated_at = NOW() WHERE id = $19 AND business_id = $20 RETURNING *',
       [
         finalName,
         nameChanged
@@ -191,6 +290,9 @@ router.put("/:id", auth, subscription, async (req, res) => {
         category || existing.rows[0].category,
         finalFoodType,
         finalMenuType,
+        finalMenuGroup,
+        finalCategoryCode,
+        finalLiquorBrandCode,
         finalMenuType === "liquor" ? (liquor_code !== undefined ? liquor_code : existing.rows[0].liquor_code) : null,
         finalMenuType === "liquor" ? (size_ml !== undefined ? (parseFloat(size_ml) || null) : existing.rows[0].size_ml) : null,
         is_available !== undefined ? Boolean(is_available) : existing.rows[0].is_available,

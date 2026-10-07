@@ -179,3 +179,104 @@ ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS menu_type VARCHAR(20) DEFAULT 'f
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS liquor_code VARCHAR(50);
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS size_ml NUMERIC(10,2);
 UPDATE menu_items SET menu_type = 'food' WHERE menu_type IS NULL OR TRIM(menu_type) = '';
+
+-- POS category-code support for fast staff-side order entry.
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS menu_group VARCHAR(20);
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS category_code INTEGER;
+
+UPDATE menu_items
+SET menu_group = CASE
+  WHEN COALESCE(menu_type, 'food') = 'liquor' THEN 'liquor'
+  WHEN LOWER(REPLACE(COALESCE(food_type, 'veg'), '-', '_')) IN ('non_veg', 'nonveg', 'non veg') THEN 'non_veg'
+  ELSE 'veg'
+END
+WHERE menu_group IS NULL OR TRIM(menu_group) = '';
+
+UPDATE menu_items
+SET category_code = CASE
+  WHEN COALESCE(menu_type, 'food') = 'liquor' THEN NULL
+  WHEN LOWER(REPLACE(COALESCE(food_type, 'veg'), '-', '_')) IN ('non_veg', 'nonveg', 'non veg') THEN 7
+  WHEN LOWER(COALESCE(category, '')) IN ('bread', 'breads', 'roti', 'rotis', 'chapati', 'chapatis') THEN 3
+  WHEN LOWER(COALESCE(category, '')) = 'snacks' THEN 2
+  WHEN LOWER(COALESCE(category, '')) LIKE '%cigarette%'
+    OR LOWER(COALESCE(category, '')) LIKE '%tobacco%'
+    OR LOWER(COALESCE(name, '')) LIKE '%cigarette%'
+    OR LOWER(COALESCE(name, '')) LIKE '%tobacco%'
+    OR LOWER(COALESCE(name, '')) LIKE '%advance%'
+    OR LOWER(COALESCE(name, '')) LIKE '%classic%'
+    OR LOWER(COALESCE(name, '')) LIKE '%gold flake%'
+    OR LOWER(COALESCE(name, '')) LIKE '%lights%'
+    OR LOWER(COALESCE(name, '')) LIKE '%eyesburst%' THEN 4
+  WHEN LOWER(COALESCE(name, '')) LIKE '%bisleri%'
+    OR LOWER(COALESCE(name, '')) LIKE '%water%'
+    OR LOWER(COALESCE(name, '')) LIKE '%packaged drinking%' THEN 1
+  WHEN LOWER(COALESCE(name, '')) LIKE '%coke%'
+    OR LOWER(COALESCE(name, '')) LIKE '%coca cola%'
+    OR LOWER(COALESCE(name, '')) LIKE '%pepsi%'
+    OR LOWER(COALESCE(name, '')) LIKE '%sprite%'
+    OR LOWER(COALESCE(name, '')) LIKE '%thums%'
+    OR LOWER(COALESCE(name, '')) LIKE '%thumbs%'
+    OR LOWER(COALESCE(name, '')) LIKE '%fanta%'
+    OR LOWER(COALESCE(name, '')) LIKE '%sting%'
+    OR LOWER(COALESCE(name, '')) LIKE '%charger%'
+    OR LOWER(COALESCE(name, '')) LIKE '%energy drink%'
+    OR LOWER(COALESCE(name, '')) LIKE '%soft drink%'
+    OR LOWER(COALESCE(category, '')) LIKE '%cold drink%' THEN 5
+  WHEN LOWER(COALESCE(category, '')) = 'beverages' THEN 1
+  ELSE 6
+END
+WHERE COALESCE(menu_type, 'food') <> 'liquor'
+  AND category_code IS NULL;
+
+UPDATE menu_items
+SET category_code = NULL
+WHERE COALESCE(menu_type, 'food') = 'liquor';
+
+CREATE INDEX IF NOT EXISTS idx_menu_items_business_category_available
+  ON menu_items(business_id, category_code, is_available);
+
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS liquor_brand_code INTEGER;
+
+WITH liquor_brand_map(code, label) AS (
+  VALUES
+    (10, 'Tuborg Strong'), (11, 'Tuborg'), (12, 'Tuborg Classic'), (13, 'Kingfisher'), (14, 'Kingfisher Ultra'), (15, 'Carlsberg Beer'), (16, 'Heineken Beer'), (17, 'Budweiser'), (18, 'Godfather Beer'), (19, 'London Beer'), (20, 'Breezer'),
+    (21, 'Royal Stag'), (22, 'Royal Stag Double'), (23, 'Royal Green'), (24, 'Signature'), (25, 'Imperial Blue'), (26, 'McDowell''s Rum'), (27, 'McDowell''s'), (28, 'McDowell''s Platinum'), (29, 'B7'), (30, 'DSP Black'), (31, 'Goa'), (32, 'Grand Masters'), (33, 'Iconiq White'), (34, 'Royal Challenge'), (35, 'Oaksmith Silver'), (36, 'Oaksmith Gold'), (37, 'Oaken'), (38, 'Antiquity'), (39, 'Green Label'), (40, 'Officer''s Choice'), (41, 'Jameson'), (42, 'Black Dog'), (43, 'Teachers'), (44, 'Black & White'), (45, 'VAT 69'), (46, 'Ballantine''s'), (47, 'Haywards 2000'), (48, 'Haywards'), (49, 'Masters Delight'), (50, 'Classic Gold'), (51, 'Brown Man'), (52, 'Premium Whisky'), (53, 'Barrel Whisky'), (54, 'X-Treme Whisky'), (55, 'Empire'), (56, 'Blenders Reserve'), (57, 'After Dark'), (58, 'Amber Whisky'), (59, 'Vulcan Blue'), (60, 'Alpha Bull'), (61, 'Kalani White'),
+    (62, 'Bullet Rum'), (63, 'Old Monk'), (64, 'Dark Old Rum'), (65, 'Gold Medal Rum'), (66, 'Mad Rum'), (67, 'Blak Bacardi'),
+    (68, 'Smirnoff'), (69, 'Vodka'), (70, 'Xclamation'), (71, 'Xclamation Vodka'), (72, 'Silver Kastle Vodka'), (73, 'Gold Medal Vodka'), (74, 'Shaky Vodka Jamun'), (75, 'Smirnoff Jamun'),
+    (76, 'Bombay'), (77, 'Bombay Quarter'), (78, 'Lemon Duet Gin'), (79, 'Knight Fox Gin'),
+    (80, 'Doctor Brandy'),
+    (81, 'Let''s Go Cranberry'), (82, 'Bacardi Limon'), (83, 'Magic Moments'), (84, 'Magik Moments'), (85, 'Magic Moment')
+),
+matched_liquor AS (
+  SELECT DISTINCT ON (m.id) m.id, lbm.code
+  FROM menu_items m
+  JOIN liquor_brand_map lbm
+    ON LOWER(TRIM(COALESCE(m.name, ''))) = LOWER(lbm.label)
+    OR LOWER(TRIM(COALESCE(m.name, ''))) LIKE LOWER(lbm.label) || ' %'
+  WHERE COALESCE(m.menu_type, 'food') = 'liquor'
+  ORDER BY m.id, LENGTH(lbm.label) DESC
+)
+UPDATE menu_items m
+SET liquor_brand_code = matched_liquor.code
+FROM matched_liquor
+WHERE m.id = matched_liquor.id
+  AND m.liquor_brand_code IS NULL;
+
+UPDATE menu_items
+SET liquor_brand_code = NULL
+WHERE COALESCE(menu_type, 'food') <> 'liquor';
+
+CREATE INDEX IF NOT EXISTS idx_menu_items_business_liquor_brand_available
+  ON menu_items(business_id, liquor_brand_code, is_available);
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'inventory_items'
+  ) THEN
+    ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS bottle_size NUMERIC(10,2);
+  END IF;
+END $$;
