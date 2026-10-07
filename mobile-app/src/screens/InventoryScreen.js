@@ -65,6 +65,7 @@ const EMPTY_ITEM_FORM = {
   bottle_size: "",
 };
 const isVolumeUnit = (unit) => unit === "ml" || unit === "litre";
+const liquorLinkKey = (item) => `liquor-${item.liquor_brand_code || String(item.name || "").trim().toLowerCase()}`;
 
 export default function InventoryScreen() {
   const navigation = useNavigation();
@@ -246,10 +247,10 @@ export default function InventoryScreen() {
     setShowRecipeModal(true);
     setRecipeSelections({});
     try {
-      const res = await getRecipeForItem(menuItem.id);
+      const res = await getRecipeForItem(menuItem.variants?.[0]?.id || menuItem.id);
       const selections = {};
       (res.data || []).forEach((row) => {
-        selections[row.inventory_item_id] = String(row.quantity_required);
+        selections[row.inventory_item_id] = menuItem.is_liquor_group ? "auto" : String(row.quantity_required);
       });
       setRecipeSelections(selections);
     } catch (err) {
@@ -274,16 +275,33 @@ export default function InventoryScreen() {
   };
 
   const handleSaveRecipe = async () => {
-    const ingredients = Object.entries(recipeSelections)
-      .filter(([, qty]) => parseFloat(qty) > 0)
-      .map(([inventory_item_id, qty]) => ({
-        inventory_item_id: parseInt(inventory_item_id, 10),
-        quantity_required: parseFloat(qty),
-      }));
-
     setSavingRecipe(true);
     try {
-      await setRecipeForItem(recipeMenuItem.id, ingredients);
+      if (recipeMenuItem?.is_liquor_group) {
+        const selectedInventoryIds = Object.keys(recipeSelections).map((id) => parseInt(id, 10)).filter(Boolean);
+        await Promise.all((recipeMenuItem.variants || []).map((variant) => {
+          const variantSizeMl = parseFloat(variant.size_ml) || 0;
+          const ingredients = selectedInventoryIds
+            .map((inventory_item_id) => {
+              const invItem = items.find((item) => Number(item.id) === Number(inventory_item_id));
+              if (!invItem || !variantSizeMl) return null;
+              return {
+                inventory_item_id,
+                quantity_required: invItem.unit === "litre" ? variantSizeMl / 1000 : variantSizeMl,
+              };
+            })
+            .filter(Boolean);
+          return setRecipeForItem(variant.id, ingredients);
+        }));
+      } else {
+        const ingredients = Object.entries(recipeSelections)
+          .filter(([, qty]) => parseFloat(qty) > 0)
+          .map(([inventory_item_id, qty]) => ({
+            inventory_item_id: parseInt(inventory_item_id, 10),
+            quantity_required: parseFloat(qty),
+          }));
+        await setRecipeForItem(recipeMenuItem.id, ingredients);
+      }
       setShowRecipeModal(false);
       await loadData();
     } catch (err) {
@@ -294,6 +312,34 @@ export default function InventoryScreen() {
   };
 
   const lowStockCount = useMemo(() => items.filter((i) => i.is_low).length, [items]);
+  const recipeMenuForDisplay = useMemo(() => {
+    const grouped = [];
+    const liquorGroups = new Map();
+
+    recipeMenu.forEach((item) => {
+      if (item.menu_type === "liquor") {
+        const key = liquorLinkKey(item);
+        const existing = liquorGroups.get(key);
+        if (existing) {
+          existing.variants.push(item);
+          existing.ingredient_count = Math.max(existing.ingredient_count || 0, item.ingredient_count || 0);
+        } else {
+          const group = {
+            ...item,
+            id: key,
+            is_liquor_group: true,
+            variants: [item],
+          };
+          liquorGroups.set(key, group);
+          grouped.push(group);
+        }
+      } else {
+        grouped.push(item);
+      }
+    });
+
+    return grouped;
+  }, [recipeMenu]);
 
   if (loading) {
     return (
@@ -397,11 +443,11 @@ export default function InventoryScreen() {
         <ScrollView
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
         >
-          {recipeMenu.length === 0 ? (
+          {recipeMenuForDisplay.length === 0 ? (
             <EmptyRecipeState />
           ) : (
             <div className="inv-recipe-grid">
-              {recipeMenu.map((item) => (
+              {recipeMenuForDisplay.map((item) => (
                 <RecipeCardWeb key={item.id} item={item} onPress={() => openRecipeModal(item)} />
               ))}
             </div>
@@ -409,7 +455,7 @@ export default function InventoryScreen() {
         </ScrollView>
       ) : (
         <FlatList
-          data={recipeMenu}
+          data={recipeMenuForDisplay}
           keyExtractor={(i) => String(i.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
           contentContainerStyle={styles.listContent}
@@ -655,7 +701,9 @@ export default function InventoryScreen() {
             <View style={{ flex: 1 }}>
               <LocalizedText style={styles.formModalTitle}>{recipeMenuItem?.name}</LocalizedText>
               <LocalizedText translate style={styles.recipeModalSub}>
-                Tick each ingredient this dish uses, and how much per order
+                {recipeMenuItem?.is_liquor_group
+                  ? "Select the stock item for this liquor brand. Each size will use its own ML."
+                  : "Tick each ingredient this dish uses, and how much per order"}
               </LocalizedText>
             </View>
             <TouchableOpacity style={styles.closeIconBtn} onPress={() => setShowRecipeModal(false)}>
@@ -672,7 +720,7 @@ export default function InventoryScreen() {
                 </LocalizedText>
               </View>
             ) : (
-              items.map((invItem) => {
+              items.filter((invItem) => !recipeMenuItem?.is_liquor_group || isVolumeUnit(invItem.unit)).map((invItem) => {
                 const isSelected = recipeSelections[invItem.id] !== undefined;
                 return (
                   <TouchableOpacity
@@ -690,11 +738,11 @@ export default function InventoryScreen() {
                       <View style={{ marginLeft: 12, flex: 1 }}>
                         <LocalizedText style={styles.ingredientName}>{invItem.name}</LocalizedText>
                         <LocalizedText style={styles.ingredientStock}>
-                          {formatQty(invItem.current_stock)} {invItem.unit} available now
+                          {formatStockDisplay(invItem)} available now
                         </LocalizedText>
                       </View>
                     </View>
-                    {isSelected && (
+                    {isSelected && !recipeMenuItem?.is_liquor_group && (
                       <View style={styles.ingredientQtyWrap} onStartShouldSetResponder={() => true}>
                         <LocalizedText translate style={styles.ingredientQtyLabel}>Used per order:</LocalizedText>
                         <TextInput
@@ -706,6 +754,16 @@ export default function InventoryScreen() {
                           placeholderTextColor="#A8A29E"
                         />
                         <LocalizedText style={styles.ingredientQtyUnit}>{invItem.unit}</LocalizedText>
+                      </View>
+                    )}
+                    {isSelected && recipeMenuItem?.is_liquor_group && (
+                      <View style={styles.ingredientQtyWrap}>
+                        <LocalizedText style={styles.ingredientQtyLabel}>
+                          {(recipeMenuItem.variants || [])
+                            .filter((variant) => parseFloat(variant.size_ml) > 0)
+                            .map((variant) => `${formatQty(variant.size_ml)} ML`)
+                            .join(", ")} will be deducted by selected order size.
+                        </LocalizedText>
                       </View>
                     )}
                   </TouchableOpacity>
