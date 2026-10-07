@@ -1122,10 +1122,7 @@ useEffect(() => {
             </View>
 
             <View style={s.heroTrustRow}>
-              <View style={s.heroTrustItem}>
-                <Ionicons name="checkmark-circle" size={14} color={C.green} />
-                <Text style={s.heroTrustText}>3-day free trial</Text>
-              </View>
+             
               
               <View style={s.heroTrustItem}>
                 <Ionicons name="checkmark-circle" size={14} color={C.green} />
