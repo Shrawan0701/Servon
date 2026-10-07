@@ -56,7 +56,15 @@ const UNITS = [
   { key: "ml", label: "Millilitres", short: "ml" },
   { key: "pcs", label: "Pieces", short: "pcs" },
 ];
-const EMPTY_ITEM_FORM = { name: "", unit: "kg", current_stock: "", low_stock_threshold: "" };
+const EMPTY_ITEM_FORM = {
+  name: "",
+  unit: "kg",
+  current_stock: "",
+  low_stock_threshold: "",
+  bottle_count: "",
+  bottle_size: "",
+};
+const isVolumeUnit = (unit) => unit === "ml" || unit === "litre";
 
 export default function InventoryScreen() {
   const navigation = useNavigation();
@@ -76,6 +84,8 @@ export default function InventoryScreen() {
   const [showRestockModal, setShowRestockModal] = useState(false);
   const [restockTarget, setRestockTarget] = useState(null);
   const [restockAmount, setRestockAmount] = useState("");
+  const [restockBottleCount, setRestockBottleCount] = useState("");
+  const [restockBottleSize, setRestockBottleSize] = useState("");
   const [restocking, setRestocking] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -134,6 +144,8 @@ export default function InventoryScreen() {
       unit: item.unit,
       current_stock: String(item.current_stock),
       low_stock_threshold: String(item.low_stock_threshold),
+      bottle_count: "",
+      bottle_size: item.bottle_size ? String(item.bottle_size) : "",
     });
     setShowItemModal(true);
   };
@@ -150,13 +162,20 @@ export default function InventoryScreen() {
           name: itemForm.name,
           unit: itemForm.unit,
           low_stock_threshold: parseFloat(itemForm.low_stock_threshold) || 0,
+          bottle_size: isVolumeUnit(itemForm.unit) ? parseFloat(itemForm.bottle_size) || null : null,
         });
       } else {
+        const bottleCount = parseFloat(itemForm.bottle_count) || 0;
+        const bottleSize = parseFloat(itemForm.bottle_size) || 0;
+        const computedStock = isVolumeUnit(itemForm.unit) && bottleCount > 0 && bottleSize > 0
+          ? bottleCount * bottleSize
+          : parseFloat(itemForm.current_stock) || 0;
         await addInventoryItem({
           name: itemForm.name,
           unit: itemForm.unit,
-          current_stock: parseFloat(itemForm.current_stock) || 0,
+          current_stock: computedStock,
           low_stock_threshold: parseFloat(itemForm.low_stock_threshold) || 0,
+          bottle_size: isVolumeUnit(itemForm.unit) && bottleSize > 0 ? bottleSize : null,
         });
       }
       setShowItemModal(false);
@@ -171,18 +190,28 @@ export default function InventoryScreen() {
   const openRestock = (item) => {
     setRestockTarget(item);
     setRestockAmount("");
+    setRestockBottleCount("");
+    setRestockBottleSize(item.bottle_size ? String(item.bottle_size) : "");
     setShowRestockModal(true);
   };
 
   const handleRestock = async (presetAmount) => {
-    const amount = presetAmount ?? parseFloat(restockAmount);
+    const bottleCount = parseFloat(restockBottleCount) || 0;
+    const bottleSize = parseFloat(restockBottleSize) || 0;
+    const amount = presetAmount ?? (
+      isVolumeUnit(restockTarget?.unit) && bottleCount > 0 && bottleSize > 0
+        ? bottleCount * bottleSize
+        : parseFloat(restockAmount)
+    );
     if (!amount || amount <= 0) {
       Alert.alert(localizeText("Enter an amount", language), localizeText("Please enter how much stock you're adding.", language));
       return;
     }
     setRestocking(true);
     try {
-      await restockInventoryItem(restockTarget.id, amount);
+      await restockInventoryItem(restockTarget.id, amount, {
+        bottle_size: isVolumeUnit(restockTarget?.unit) && bottleSize > 0 ? bottleSize : undefined,
+      });
       setShowRestockModal(false);
       await loadData();
     } catch (err) {
@@ -419,7 +448,12 @@ export default function InventoryScreen() {
                   <TouchableOpacity
                     key={u.key}
                     style={[styles.unitChip, itemForm.unit === u.key && styles.unitChipActive]}
-                    onPress={() => setItemForm((p) => ({ ...p, unit: u.key }))}
+                    onPress={() => setItemForm((p) => ({
+                      ...p,
+                      unit: u.key,
+                      bottle_count: isVolumeUnit(u.key) ? p.bottle_count : "",
+                      bottle_size: isVolumeUnit(u.key) ? p.bottle_size : "",
+                    }))}
                     activeOpacity={0.8}
                   >
                     <LocalizedText style={[styles.unitChipText, itemForm.unit === u.key && styles.unitChipTextActive]}>
@@ -431,7 +465,37 @@ export default function InventoryScreen() {
 
               {!editingItem && (
                 <>
-                  <LocalizedText translate style={styles.fieldLabel}>How much do you have right now?</LocalizedText>
+                  {isVolumeUnit(itemForm.unit) && (
+                    <>
+                      <LocalizedText translate style={styles.fieldLabel}>How many bottles do you have?</LocalizedText>
+                      <TextInput
+                        style={styles.input}
+                        value={itemForm.bottle_count}
+                        onChangeText={(v) => setItemForm((p) => ({ ...p, bottle_count: v }))}
+                        keyboardType="decimal-pad"
+                        placeholder={localizeText("For example: 50", language)}
+                        placeholderTextColor="#A8A29E"
+                      />
+                      <LocalizedText translate style={styles.fieldLabel}>How much is one bottle?</LocalizedText>
+                      <View style={styles.restockInputWrap}>
+                        <TextInput
+                          style={styles.restockInput}
+                          value={itemForm.bottle_size}
+                          onChangeText={(v) => setItemForm((p) => ({ ...p, bottle_size: v }))}
+                          keyboardType="decimal-pad"
+                          placeholder={itemForm.unit === "ml" ? "180" : "0.18"}
+                          placeholderTextColor="#A8A29E"
+                        />
+                        <LocalizedText style={styles.restockInputUnit}>{itemForm.unit}</LocalizedText>
+                      </View>
+                      <LocalizedText translate style={styles.fieldSubLabel}>
+                        Leave bottle fields empty if you want to enter total stock directly.
+                      </LocalizedText>
+                    </>
+                  )}
+                  <LocalizedText translate style={styles.fieldLabel}>
+                    {isVolumeUnit(itemForm.unit) ? "Total stock directly" : "How much do you have right now?"}
+                  </LocalizedText>
                   <TextInput
                     style={styles.input}
                     value={itemForm.current_stock}
@@ -440,6 +504,23 @@ export default function InventoryScreen() {
                     placeholder="0"
                     placeholderTextColor="#A8A29E"
                   />
+                </>
+              )}
+
+              {editingItem && isVolumeUnit(itemForm.unit) && (
+                <>
+                  <LocalizedText translate style={styles.fieldLabel}>How much is one bottle?</LocalizedText>
+                  <View style={styles.restockInputWrap}>
+                    <TextInput
+                      style={styles.restockInput}
+                      value={itemForm.bottle_size}
+                      onChangeText={(v) => setItemForm((p) => ({ ...p, bottle_size: v }))}
+                      keyboardType="decimal-pad"
+                      placeholder={itemForm.unit === "ml" ? "180" : "0.18"}
+                      placeholderTextColor="#A8A29E"
+                    />
+                    <LocalizedText style={styles.restockInputUnit}>{itemForm.unit}</LocalizedText>
+                  </View>
                 </>
               )}
 
@@ -480,10 +561,39 @@ export default function InventoryScreen() {
               <View>
                 <LocalizedText style={styles.restockItemName}>{restockTarget?.name}</LocalizedText>
                 <LocalizedText style={styles.restockItemCurrent}>
-                  You currently have {restockTarget ? formatQty(restockTarget.current_stock) : 0} {restockTarget?.unit}
+                  You currently have {restockTarget ? formatStockDisplay(restockTarget) : 0}
                 </LocalizedText>
               </View>
             </View>
+
+            {isVolumeUnit(restockTarget?.unit) && (
+              <>
+                <LocalizedText translate style={styles.fieldLabel}>How many bottles are you adding?</LocalizedText>
+                <TextInput
+                  style={styles.input}
+                  value={restockBottleCount}
+                  onChangeText={setRestockBottleCount}
+                  keyboardType="decimal-pad"
+                  placeholder={localizeText("For example: 50", language)}
+                  placeholderTextColor="#A8A29E"
+                />
+                <LocalizedText translate style={styles.fieldLabel}>How much is one bottle?</LocalizedText>
+                <View style={styles.restockInputWrap}>
+                  <TextInput
+                    style={styles.restockInput}
+                    value={restockBottleSize}
+                    onChangeText={setRestockBottleSize}
+                    keyboardType="decimal-pad"
+                    placeholder={restockTarget?.unit === "ml" ? "180" : "0.18"}
+                    placeholderTextColor="#A8A29E"
+                  />
+                  <LocalizedText style={styles.restockInputUnit}>{restockTarget?.unit}</LocalizedText>
+                </View>
+                <LocalizedText translate style={styles.fieldSubLabel}>
+                  Or enter a direct stock amount below.
+                </LocalizedText>
+              </>
+            )}
 
             <LocalizedText translate style={styles.fieldLabel}>How much are you adding?</LocalizedText>
             <View style={styles.restockInputWrap}>
@@ -669,8 +779,7 @@ function StockCardWeb({ item, onRestock, onEdit, onDelete }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 10 }}>
-        <span style={{ fontSize: 24, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{formatQty(item.current_stock)}</span>
-        <span style={{ fontSize: 13, color: "#6B7280", fontWeight: 700, marginBottom: 3 }}>{item.unit}</span>
+        <span style={{ fontSize: 24, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{formatStockDisplay(item)}</span>
       </div>
       <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
         Alert below {formatQty(item.low_stock_threshold)} {item.unit}
@@ -765,8 +874,7 @@ function StockCardNative({ item, onRestock, onEdit, onDelete }) {
       </View>
 
       <View style={styles.stockValueRow}>
-        <LocalizedText style={styles.stockValue}>{formatQty(item.current_stock)}</LocalizedText>
-        <LocalizedText style={styles.stockValueUnit}>{item.unit}</LocalizedText>
+        <LocalizedText style={styles.stockValue}>{formatStockDisplay(item)}</LocalizedText>
       </View>
       <LocalizedText style={styles.thresholdText}>Alert when below {formatQty(item.low_stock_threshold)} {item.unit}</LocalizedText>
 
@@ -818,6 +926,20 @@ function unitLabel(unit) {
 function formatQty(value) {
   const num = parseFloat(value) || 0;
   return Number.isInteger(num) ? String(num) : num.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function formatStockDisplay(item) {
+  const stock = parseFloat(item?.current_stock) || 0;
+  const bottleSize = parseFloat(item?.bottle_size) || 0;
+  if (isVolumeUnit(item?.unit) && bottleSize > 0) {
+    const bottles = Math.floor(stock / bottleSize);
+    const remainder = stock - bottles * bottleSize;
+    const parts = [];
+    if (bottles > 0) parts.push(`${bottles} bottle${bottles === 1 ? "" : "s"}`);
+    if (remainder > 0 || bottles === 0) parts.push(`${formatQty(remainder)} ${item.unit}`);
+    return parts.join(" + ");
+  }
+  return `${formatQty(stock)} ${item?.unit || ""}`.trim();
 }
 
 const styles = StyleSheet.create({

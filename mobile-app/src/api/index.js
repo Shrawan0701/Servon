@@ -143,7 +143,7 @@ export const getInventory = () => API.get("/inventory");
 export const getInventoryAlertsCount = () => API.get("/inventory/alerts/count");
 export const addInventoryItem = (data) => API.post("/inventory", data);
 export const updateInventoryItem = (id, data) => API.put(`/inventory/${id}`, data);
-export const restockInventoryItem = (id, amount) => API.patch(`/inventory/${id}/restock`, { amount });
+export const restockInventoryItem = (id, amount, extra = {}) => API.patch(`/inventory/${id}/restock`, { amount, ...extra });
 export const adjustInventoryItem = (id, new_stock) => API.patch(`/inventory/${id}/adjust`, { new_stock });
 export const deleteInventoryItem = (id) => API.delete(`/inventory/${id}`);
 
@@ -220,7 +220,7 @@ export const getReferralCode = async () => {
 // MENU
 // ==========================================================
 
-export const getMenu = () => API.get("/menu");
+export const getMenu = (params) => API.get("/menu", { params });
 export const addMenuItem = (formData) =>
   API.post("/menu", formData, {
     headers: { "Content-Type": "multipart/form-data" },

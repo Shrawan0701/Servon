@@ -17,7 +17,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import LocalizedText from "./LocalizedText";
+import LocalizedText, { localizeText } from "./LocalizedText";
 import { Ionicons } from "@expo/vector-icons";
 import {
   RecordingPresets,
@@ -59,6 +59,26 @@ const COLORS = {
 };
 
 const money = (n) => `₹${(parseFloat(n) || 0).toFixed(2)}`;
+const CATEGORY_CODE_OPTIONS = [
+  { code: 1, label: "Beverages / Water" },
+  { code: 2, label: "Snacks" },
+  { code: 3, label: "Breads / Roti" },
+  { code: 4, label: "Cigarettes" },
+  { code: 5, label: "Cold Drinks / Energy Drinks" },
+  { code: 6, label: "Veg Food" },
+  { code: 7, label: "Non Veg Food" },
+  { code: 8, label: "Liquor" },
+];
+const LIQUOR_BRAND_OPTIONS = [
+  [10, "Tuborg Strong"], [11, "Tuborg"], [12, "Tuborg Classic"], [13, "Kingfisher"], [14, "Kingfisher Ultra"], [15, "Carlsberg Beer"], [16, "Heineken Beer"], [17, "Budweiser"], [18, "Godfather Beer"], [19, "London Beer"], [20, "Breezer"],
+  [21, "Royal Stag"], [22, "Royal Stag Double"], [23, "Royal Green"], [24, "Signature"], [25, "Imperial Blue"], [26, "McDowell's Rum"], [27, "McDowell's"], [28, "McDowell's Platinum"], [29, "B7"], [30, "DSP Black"], [31, "Goa"], [32, "Grand Masters"], [33, "Iconiq White"], [34, "Royal Challenge"], [35, "Oaksmith Silver"], [36, "Oaksmith Gold"], [37, "Oaken"], [38, "Antiquity"], [39, "Green Label"], [40, "Officer's Choice"], [41, "Jameson"], [42, "Black Dog"], [43, "Teachers"], [44, "Black & White"], [45, "VAT 69"], [46, "Ballantine's"], [47, "Haywards 2000"], [48, "Haywards"], [49, "Masters Delight"], [50, "Classic Gold"], [51, "Brown Man"], [52, "Premium Whisky"], [53, "Barrel Whisky"], [54, "X-Treme Whisky"], [55, "Empire"], [56, "Blenders Reserve"], [57, "After Dark"], [58, "Amber Whisky"], [59, "Vulcan Blue"], [60, "Alpha Bull"], [61, "Kalani White"],
+  [62, "Bullet Rum"], [63, "Old Monk"], [64, "Dark Old Rum"], [65, "Gold Medal Rum"], [66, "Mad Rum"], [67, "Blak Bacardi"],
+  [68, "Smirnoff"], [69, "Vodka"], [70, "Xclamation"], [71, "Xclamation Vodka"], [72, "Silver Kastle Vodka"], [73, "Gold Medal Vodka"], [74, "Shaky Vodka Jamun"], [75, "Smirnoff Jamun"],
+  [76, "Bombay"], [77, "Bombay Quarter"], [78, "Lemon Duet Gin"], [79, "Knight Fox Gin"], [80, "Doctor Brandy"],
+  [81, "Let's Go Cranberry"], [82, "Bacardi Limon"], [83, "Magic Moments"], [84, "Magik Moments"], [85, "Magic Moment"],
+].map(([code, label]) => ({ code, label }));
+const codeLabel = (code) => CATEGORY_CODE_OPTIONS.find((option) => option.code === Number(code))?.label || "";
+const liquorBrandLabel = (code) => LIQUOR_BRAND_OPTIONS.find((option) => option.code === Number(code))?.label || "";
 
 export default function ServonAssistantModal({ visible, onClose, initialMode = "manual" }) {
   const navigation = useNavigation();
@@ -72,7 +92,10 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
 
   // Manual order state
   const [mode, setMode] = useState(initialMode);
-  const [search, setSearch] = useState("");
+  const [categoryCode, setCategoryCode] = useState("");
+  const [liquorBrandCode, setLiquorBrandCode] = useState("");
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeTouched, setCodeTouched] = useState(false);
   const [selectedTable, setSelectedTable] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
   const [placing, setPlacing] = useState(false);
@@ -89,8 +112,8 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
 
   const loadData = useCallback(async () => {
     try {
-      const [menuRes, tableRes, profileRes] = await Promise.all([getMenu(), getTables(), getProfile()]);
-      setMenu(menuRes.data || []);
+      const [tableRes, profileRes] = await Promise.all([getTables(), getProfile()]);
+      setMenu([]);
       setTables(tableRes.data || []);
       setProfile(profileRes.data || null);
     } catch (err) {
@@ -101,7 +124,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   useEffect(() => {
     if (visible) {
       setMode(initialMode);
-      setSearch("");
+      setCategoryCode("");
+      setLiquorBrandCode("");
+      setCodeTouched(false);
       setSelectedTable(null);
       setSelectedItems([]);
       setResult(null);
@@ -221,19 +246,43 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   };
 
   const menuLabel = (item) => localizedItemName(item, language);
-  const filteredMenu = menu.filter((m) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return [
-      m.name,
-      m.name_mr,
-      m.name_hi,
-      m.category,
-      m.liquor_code,
-      m.size_ml,
-      menuLabel(m),
-    ].filter(Boolean).join(" ").toLowerCase().includes(q);
-  });
+  const loadCategoryCode = async (nextCode) => {
+    const clean = String(nextCode || "").replace(/\D/g, "").slice(0, 1);
+    setCategoryCode(clean);
+    setLiquorBrandCode("");
+    setCodeTouched(Boolean(clean));
+    setMenu([]);
+    if (!clean) return;
+    if (!CATEGORY_CODE_OPTIONS.some((option) => String(option.code) === clean)) return;
+    if (clean === "8") return;
+    setCodeLoading(true);
+    try {
+      const res = await getMenu({ category_code: clean });
+      setMenu(res.data || []);
+    } catch (err) {
+      console.error("Category code menu load error:", err);
+      setMenu([]);
+    } finally {
+      setCodeLoading(false);
+    }
+  };
+  const loadLiquorBrandCode = async (brandCode) => {
+    const clean = String(brandCode || "").replace(/\D/g, "").slice(0, 2);
+    setLiquorBrandCode(clean);
+    setCodeTouched(Boolean(clean));
+    setMenu([]);
+    if (!liquorBrandLabel(clean)) return;
+    setCodeLoading(true);
+    try {
+      const res = await getMenu({ liquor_brand_code: clean });
+      setMenu(res.data || []);
+    } catch (err) {
+      console.error("Liquor brand menu load error:", err);
+      setMenu([]);
+    } finally {
+      setCodeLoading(false);
+    }
+  };
 
   const manualSubtotal = selectedItems.reduce((s, i) => s + parseFloat(i.price || 0) * i.quantity, 0);
   const mCgstP = parseFloat(profile?.cgst_percentage || 0);
@@ -256,6 +305,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         name_hi: i.name_hi || null,
         menu_type: i.menu_type || "food",
         liquor_code: i.liquor_code || null,
+        liquor_brand_code: i.liquor_brand_code || null,
         size_ml: i.size_ml || null,
         imageUrl: i.image_url,
         is_thali: i.is_thali || false,
@@ -422,28 +472,76 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       </View>
 
       <LocalizedText translate style={styles.sectionLabel}>ADD ITEMS</LocalizedText>
+      <View style={styles.codeButtons}>
+        {CATEGORY_CODE_OPTIONS.map((option) => {
+          const active = String(option.code) === String(categoryCode);
+          return (
+            <TouchableOpacity
+              key={option.code}
+              style={[styles.codeBtn, active && styles.codeBtnActive]}
+              onPress={() => loadCategoryCode(option.code)}
+            >
+              <LocalizedText style={[styles.codeBtnText, active && styles.codeBtnTextActive]}>{option.code}</LocalizedText>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search" size={16} color={COLORS.muted} />
+        <Ionicons name="keypad-outline" size={16} color={COLORS.muted} />
         <TextInput
           style={styles.searchInput}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search menu items..."
+          value={categoryCode}
+          onChangeText={loadCategoryCode}
+          placeholder={localizeText("Enter category code...", language)}
           placeholderTextColor={COLORS.muted}
+          keyboardType="number-pad"
+          returnKeyType="done"
         />
       </View>
 
-      {search.length === 0 && menu.length > 0 && (
-        <LocalizedText translate style={styles.hint}>Type a dish name to search your menu.</LocalizedText>
+      {!categoryCode && (
+        <LocalizedText translate style={styles.hint}>Enter a category code to view items.</LocalizedText>
       )}
+      {!!categoryCode && categoryCode !== "8" && codeLabel(categoryCode) && (
+        <LocalizedText translate style={styles.codeHeading}>{codeLabel(categoryCode)}</LocalizedText>
+      )}
+      {categoryCode === "8" && !liquorBrandCode && (
+        <>
+          <LocalizedText translate style={styles.codeHeading}>Liquor Brands</LocalizedText>
+          <View style={styles.brandGrid}>
+            {LIQUOR_BRAND_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.code}
+                style={styles.brandBtn}
+                onPress={() => loadLiquorBrandCode(option.code)}
+              >
+                <LocalizedText style={styles.brandCode}>{option.code}</LocalizedText>
+                <LocalizedText style={styles.brandLabel} numberOfLines={2}>{option.label}</LocalizedText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
+      {categoryCode === "8" && !!liquorBrandCode && (
+        <View style={styles.brandHeaderRow}>
+          <TouchableOpacity style={styles.backBrandBtn} onPress={() => { setLiquorBrandCode(""); setMenu([]); }}>
+            <Ionicons name="arrow-back" size={14} color={COLORS.text} />
+            <LocalizedText translate style={styles.backBrandText}>Liquor Brands</LocalizedText>
+          </TouchableOpacity>
+          <LocalizedText style={styles.codeHeading}>{`${liquorBrandCode} - ${liquorBrandLabel(liquorBrandCode)}`}</LocalizedText>
+        </View>
+      )}
+      {codeLoading && <ActivityIndicator color={COLORS.text} style={{ marginVertical: 12 }} />}
 
-      {filteredMenu.slice(0, 12).map((item) => (
+      {!codeLoading && (categoryCode !== "8" || liquorBrandCode) && menu.map((item) => (
         <View key={item.id} style={styles.menuRow}>
           <View style={{ flex: 1 }}>
             <LocalizedText style={styles.menuName}>{menuLabel(item)}</LocalizedText>
-            {item.menu_type === "liquor" && (
-              <LocalizedText style={styles.menuPrice}>{item.liquor_code ? `Code ${item.liquor_code}` : "Liquor item"}</LocalizedText>
-            )}
+            <LocalizedText style={styles.menuPrice}>
+              {item.menu_type === "liquor"
+                ? `${item.size_ml ? `${Number(item.size_ml)} ML · ` : ""}${localizeText("Brand Code", language)} ${item.liquor_brand_code}`
+                : item.category ? `${item.category} · ${localizeText("Code", language)} ${item.category_code}` : `${localizeText("Code", language)} ${item.category_code}`}
+            </LocalizedText>
             <LocalizedText style={styles.menuPrice}>{money(item.price)}</LocalizedText>
           </View>
           <TouchableOpacity
@@ -455,8 +553,11 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           </TouchableOpacity>
         </View>
       ))}
-      {filteredMenu.length === 0 && (
-        <LocalizedText style={styles.emptyText}>No menu items match "{search}".</LocalizedText>
+      {!codeLoading && codeTouched && categoryCode !== "8" && menu.length === 0 && (
+        <LocalizedText translate style={styles.emptyText}>Category code not found</LocalizedText>
+      )}
+      {!codeLoading && categoryCode === "8" && liquorBrandCode && menu.length === 0 && (
+        <LocalizedText translate style={styles.emptyText}>Category code not found</LocalizedText>
       )}
 
       {selectedItems.length > 0 && (
@@ -775,6 +876,19 @@ const styles = StyleSheet.create({
   tableChipActive: { borderColor: COLORS.green, backgroundColor: COLORS.greenBg },
   tableChipText: { fontSize: 15, fontWeight: "700", color: COLORS.text },
   tableChipTextActive: { color: COLORS.green },
+  codeButtons: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  codeBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg, alignItems: "center", justifyContent: "center" },
+  codeBtnActive: { backgroundColor: COLORS.text, borderColor: COLORS.text },
+  codeBtnText: { fontSize: 15, fontWeight: "800", color: COLORS.text },
+  codeBtnTextActive: { color: "#fff" },
+  codeHeading: { fontSize: 13, fontWeight: "800", color: COLORS.text, marginBottom: 6, textTransform: "uppercase" },
+  brandGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  brandBtn: { width: "31%", minWidth: 120, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, backgroundColor: COLORS.bg, padding: 10 },
+  brandCode: { fontSize: 16, fontWeight: "900", color: COLORS.text },
+  brandLabel: { fontSize: 11, fontWeight: "700", color: COLORS.subtext, marginTop: 2 },
+  brandHeaderRow: { marginBottom: 8 },
+  backBrandBtn: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, backgroundColor: COLORS.bg, marginBottom: 6 },
+  backBrandText: { fontSize: 12, fontWeight: "800", color: COLORS.text },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, backgroundColor: COLORS.bg, paddingHorizontal: 12, marginBottom: 10 },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.text },
   hint: { fontSize: 12, color: COLORS.muted, marginBottom: 10 },

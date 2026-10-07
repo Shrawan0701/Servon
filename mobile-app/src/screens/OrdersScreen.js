@@ -48,12 +48,12 @@ const statusColor = (s) =>
 
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
-  { key: "EDITABLE", label: "EDITABLE" },
   { key: "CONFIRMED", label: "CONFIRMED" },
   { key: "PREPARING", label: "PREPARING" },
   { key: "SERVED", label: "SERVED" },
   { key: "TABLE_ACTIVE", label: "TABLE ACTIVE" },
   { key: "PAID", label: "PAID" },
+  { key: "REJECTED", label: "REJECTED" },
   { key: "PREVIOUS", label: "PREVIOUS" },
 ];
 
@@ -111,14 +111,16 @@ const CHEF_STATUSES = {
 
 const getChefStatusConfig = (status) => CHEF_STATUSES[status] || CHEF_STATUSES.EDITABLE;
 const CHEF_PRIORITY_ORDER = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"];
+const isLiveOrderStatus = (status) => ["CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"].includes(status);
 
 const CHEF_FILTERS = [
   { key: "all", label: "All" },
-  { key: "EDITABLE", label: "EDITABLE" },
   { key: "CONFIRMED", label: "CONFIRMED" },
   { key: "PREPARING", label: "PREPARING" },
   { key: "SERVED", label: "SERVED" },
   { key: "TABLE_ACTIVE", label: "TABLE ACTIVE" },
+  { key: "PAID", label: "PAID" },
+  { key: "REJECTED", label: "REJECTED" },
 ];
 
 // ─── CHEF‑MODE SUB‑COMPONENTS ─────────────────────────────────────────
@@ -1441,9 +1443,13 @@ return `
       }
 
       const entry = tableMap.get(key);
-      entry.totalToday += 1;
-      if (filter === "all" || order.status === filter) {
+      if (filter === "all") {
+        if (!isLiveOrderStatus(order.status)) return;
+        entry.totalToday += 1;
         entry.filteredToday += 1;
+      } else {
+        if (isLiveOrderStatus(order.status)) entry.totalToday += 1;
+        if (order.status === filter) entry.filteredToday += 1;
       }
     });
 
@@ -1469,7 +1475,7 @@ return `
   const getStatusFilteredData = useCallback(() => {
     let result;
     if (filter === "all") {
-      result = orders.filter((o) => isToday(o.created_at));
+      result = orders.filter((o) => isToday(o.created_at) && isLiveOrderStatus(o.status));
     } else if (filter === "PREVIOUS") {
       return [];
     } else {

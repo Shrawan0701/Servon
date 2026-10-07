@@ -20,13 +20,30 @@ const FOOD_TYPES = [
 ];
 const LIQUOR_TYPE = { key: "liquor", label: "Liquor" };
 const LIQUOR_CATEGORIES = ["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other"];
+const LIQUOR_BRAND_OPTIONS = [
+  [10, "Tuborg Strong"], [11, "Tuborg"], [12, "Tuborg Classic"], [13, "Kingfisher"], [14, "Kingfisher Ultra"], [15, "Carlsberg Beer"], [16, "Heineken Beer"], [17, "Budweiser"], [18, "Godfather Beer"], [19, "London Beer"], [20, "Breezer"],
+  [21, "Royal Stag"], [22, "Royal Stag Double"], [23, "Royal Green"], [24, "Signature"], [25, "Imperial Blue"], [26, "McDowell's Rum"], [27, "McDowell's"], [28, "McDowell's Platinum"], [29, "B7"], [30, "DSP Black"], [31, "Goa"], [32, "Grand Masters"], [33, "Iconiq White"], [34, "Royal Challenge"], [35, "Oaksmith Silver"], [36, "Oaksmith Gold"], [37, "Oaken"], [38, "Antiquity"], [39, "Green Label"], [40, "Officer's Choice"], [41, "Jameson"], [42, "Black Dog"], [43, "Teachers"], [44, "Black & White"], [45, "VAT 69"], [46, "Ballantine's"], [47, "Haywards 2000"], [48, "Haywards"], [49, "Masters Delight"], [50, "Classic Gold"], [51, "Brown Man"], [52, "Premium Whisky"], [53, "Barrel Whisky"], [54, "X-Treme Whisky"], [55, "Empire"], [56, "Blenders Reserve"], [57, "After Dark"], [58, "Amber Whisky"], [59, "Vulcan Blue"], [60, "Alpha Bull"], [61, "Kalani White"],
+  [62, "Bullet Rum"], [63, "Old Monk"], [64, "Dark Old Rum"], [65, "Gold Medal Rum"], [66, "Mad Rum"], [67, "Blak Bacardi"],
+  [68, "Smirnoff"], [69, "Vodka"], [70, "Xclamation"], [71, "Xclamation Vodka"], [72, "Silver Kastle Vodka"], [73, "Gold Medal Vodka"], [74, "Shaky Vodka Jamun"], [75, "Smirnoff Jamun"],
+  [76, "Bombay"], [77, "Bombay Quarter"], [78, "Lemon Duet Gin"], [79, "Knight Fox Gin"], [80, "Doctor Brandy"],
+  [81, "Let's Go Cranberry"], [82, "Bacardi Limon"], [83, "Magic Moments"], [84, "Magik Moments"], [85, "Magic Moment"],
+].map(([code, label]) => ({ code, label }));
+const CATEGORY_CODE_OPTIONS = [
+  { code: 1, label: "Beverages / Water" },
+  { code: 2, label: "Snacks" },
+  { code: 3, label: "Breads / Roti" },
+  { code: 4, label: "Cigarettes" },
+  { code: 5, label: "Cold Drinks / Energy Drinks" },
+  { code: 6, label: "Veg Food" },
+  { code: 7, label: "Non Veg Food" },
+];
 const CLOUDINARY_URL = "https://api.cloudinary.com/v1_1/da9ej0tre/image/upload";
 const UPLOAD_PRESET = "servon_menu";
 const isWeb = Platform.OS === "web";
 
 const EMPTY_FORM = {
   name: "", description: "", price: "", category: "Starters", food_type: "veg", menu_type: "food",
-  liquor_code: "", size_ml: "", is_available: true,
+  category_code: 6, liquor_brand_code: 21, liquor_code: "", size_ml: "", is_available: true,
   image_url: null, is_thali: false, thali_includes: [], thali_custom: []
 };
 
@@ -34,6 +51,17 @@ const itemFoodType = (item) => (item?.food_type === "non_veg" ? "non_veg" : "veg
 const itemParentType = (item) => item?.menu_type === "liquor" ? "liquor" : itemFoodType(item);
 const itemDisplayName = (item, language) => {
   return localizedItemName(item, language);
+};
+const localizedCategory = (category, language) => localizeText(category || "", language);
+const codeLabel = (code) => CATEGORY_CODE_OPTIONS.find((option) => option.code === Number(code))?.label || "";
+const liquorBrandLabel = (code) => LIQUOR_BRAND_OPTIONS.find((option) => option.code === Number(code))?.label || "";
+const allowedCodeOptions = (foodType) => CATEGORY_CODE_OPTIONS.filter((option) => foodType === "non_veg" ? option.code === 7 : option.code <= 6);
+const defaultCategoryCode = (foodType, category) => {
+  if (foodType === "non_veg") return 7;
+  if (category === "Breads") return 3;
+  if (category === "Snacks") return 2;
+  if (category === "Beverages") return 1;
+  return 6;
 };
 
 export default function MenuScreen() {
@@ -95,6 +123,8 @@ export default function MenuScreen() {
       ...item,
       food_type: itemFoodType(item),
       menu_type: item.menu_type === "liquor" ? "liquor" : "food",
+      category_code: item.category_code ? Number(item.category_code) : null,
+      liquor_brand_code: item.liquor_brand_code ? Number(item.liquor_brand_code) : null,
     thali_includes: (() => {
   if (Array.isArray(item.thali_includes)) {
     return item.thali_includes.map(String);
@@ -160,6 +190,8 @@ export default function MenuScreen() {
       food_type: selectedFoodType === "liquor" ? "veg" : selectedFoodType,
       menu_type: selectedFoodType === "liquor" ? "liquor" : "food",
       category: selectedFoodType === "liquor" ? "Whisky" : "Starters",
+      category_code: selectedFoodType === "non_veg" ? 7 : 6,
+      liquor_brand_code: selectedFoodType === "liquor" ? 21 : null,
     });
     setCustomInput("");
     setShowModal(true);
@@ -174,6 +206,8 @@ export default function MenuScreen() {
     category: item.category,
     food_type: itemFoodType(item),
     menu_type: item.menu_type === "liquor" ? "liquor" : "food",
+    category_code: item.category_code ? Number(item.category_code) : defaultCategoryCode(itemFoodType(item), item.category),
+    liquor_brand_code: item.liquor_brand_code ? Number(item.liquor_brand_code) : 21,
     liquor_code: item.liquor_code || "",
     size_ml: item.size_ml ? String(item.size_ml) : "",
     is_available: item.is_available !== false,
@@ -255,6 +289,14 @@ export default function MenuScreen() {
     Alert.alert(localizeText("Required", language), localizeText("Size is required", language));
     return;
   }
+  if (form.menu_type === "liquor" && !form.liquor_brand_code) {
+    Alert.alert(localizeText("Required", language), localizeText("Select Brand", language));
+    return;
+  }
+  if (form.menu_type !== "liquor" && !form.category_code) {
+    Alert.alert(localizeText("Required", language), localizeText("Select category code", language));
+    return;
+  }
 
   setSaving(true);
 
@@ -272,6 +314,8 @@ export default function MenuScreen() {
       category: form.category,
       food_type: form.food_type || selectedFoodType,
       menu_type: form.menu_type,
+      category_code: form.menu_type === "liquor" ? null : Number(form.category_code),
+      liquor_brand_code: form.menu_type === "liquor" ? Number(form.liquor_brand_code) : null,
       liquor_code: form.menu_type === "liquor" ? form.liquor_code : null,
       size_ml: form.menu_type === "liquor" ? parseFloat(form.size_ml) : null,
       is_available: form.is_available,
@@ -391,7 +435,7 @@ export default function MenuScreen() {
                   onPress={() => setSelectedFilter(cat)}
                   style={[styles.filterBtn, selectedFilter === cat && styles.filterBtnActive]}
                 >
-                  <LocalizedText style={[styles.filterBtnText, selectedFilter === cat && { color: "#fff" }]}>{cat}</LocalizedText>
+                  <LocalizedText translate style={[styles.filterBtnText, selectedFilter === cat && { color: "#fff" }]}>{cat}</LocalizedText>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -470,7 +514,11 @@ export default function MenuScreen() {
                     )}
                   </View>
                 </View>
-                <LocalizedText style={styles.catTag}>{item.menu_type === "liquor" && item.liquor_code ? `${item.category} · Code ${item.liquor_code}` : item.category}</LocalizedText>
+                <LocalizedText style={styles.catTag}>
+                  {item.menu_type === "liquor" && item.liquor_code
+                    ? `${localizedCategory(item.category, language)} · ${localizeText("Brand Code", language)} ${item.liquor_brand_code || ""} · ${localizeText("Code", language)} ${item.liquor_code}`
+                    : `${localizedCategory(item.category, language)} · ${localizeText("Code", language)} ${item.category_code || ""}`}
+                </LocalizedText>
 
                 {/* --- Availability Tick Buttons --- */}
                 <View style={styles.availabilityRow}>
@@ -612,6 +660,23 @@ const found = items.find(i => String(i.id) === String(id));
             <LocalizedText translate style={styles.fieldLabel}>{form.menu_type === "liquor" ? "Item / Brand Name *" : "Item Name *"}</LocalizedText>
             <TextInput style={styles.input} value={form.name} onChangeText={(v) => setForm((p) => ({ ...p, name: v }))} placeholder={form.menu_type === "liquor" ? "e.g. Royal Stag" : "e.g. Paneer Masala"} placeholderTextColor="#A8A29E" />
             {form.menu_type === "liquor" && <>
+              <LocalizedText translate style={styles.fieldLabel}>Brand Code *</LocalizedText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {LIQUOR_BRAND_OPTIONS.map((option) => {
+                  const active = Number(form.liquor_brand_code) === option.code;
+                  return (
+                    <TouchableOpacity
+                      key={option.code}
+                      style={[styles.catTab, active && styles.catTabActive]}
+                      onPress={() => setForm((p) => ({ ...p, liquor_brand_code: option.code }))}
+                    >
+                      <LocalizedText style={[{ fontSize: 13, fontWeight: "700" }, active && { color: "#fff" }]}>
+                        {`${option.code} - ${option.label}`}
+                      </LocalizedText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
               <LocalizedText translate style={styles.fieldLabel}>Liquor Code</LocalizedText>
               <TextInput style={styles.input} value={form.liquor_code} onChangeText={(v) => setForm((p) => ({ ...p, liquor_code: v }))} placeholder="e.g. 76" placeholderTextColor="#A8A29E" />
               <LocalizedText translate style={styles.fieldLabel}>Size *</LocalizedText>
@@ -631,7 +696,11 @@ const found = items.find(i => String(i.id) === String(id));
                   <TouchableOpacity
                     key={type.key}
                     style={[styles.modalFoodTypeBtn, active && styles.modalFoodTypeBtnActive]}
-                    onPress={() => setForm((p) => ({ ...p, food_type: type.key }))}
+                    onPress={() => setForm((p) => ({
+                      ...p,
+                      food_type: type.key,
+                      category_code: defaultCategoryCode(type.key, p.category),
+                    }))}
                   >
                     <LocalizedText translate style={[styles.modalFoodTypeText, active && styles.modalFoodTypeTextActive]}>
                       {type.label}
@@ -640,11 +709,36 @@ const found = items.find(i => String(i.id) === String(id));
                 );
               })}
             </View>}
+            {form.menu_type !== "liquor" && <LocalizedText translate style={styles.fieldLabel}>Category Code *</LocalizedText>}
+            {form.menu_type !== "liquor" && <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {allowedCodeOptions(form.food_type).map((option) => {
+                const active = Number(form.category_code) === option.code;
+                return (
+                  <TouchableOpacity
+                    key={option.code}
+                    style={[styles.catTab, active && styles.catTabActive]}
+                    onPress={() => setForm((p) => ({ ...p, category_code: option.code }))}
+                  >
+                    <LocalizedText translate style={[{ fontSize: 13, fontWeight: "700" }, active && { color: "#fff" }]}>
+                      {`${option.code} - ${localizeText(option.label, language)}`}
+                    </LocalizedText>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>}
             <LocalizedText translate style={styles.fieldLabel}>Category *</LocalizedText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {(form.menu_type === "liquor" ? LIQUOR_CATEGORIES : CATEGORIES.filter(c => c !== "All")).map((cat) => (
-                <TouchableOpacity key={cat} style={[styles.catTab, form.category === cat && styles.catTabActive]} onPress={() => setForm((p) => ({ ...p, category: cat }))}>
-                  <LocalizedText style={[{ fontSize: 13 }, form.category === cat && { color: "#fff" }]}>{cat}</LocalizedText>
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.catTab, form.category === cat && styles.catTabActive]}
+                  onPress={() => setForm((p) => ({
+                    ...p,
+                    category: cat,
+                    category_code: p.menu_type === "liquor" ? p.category_code : defaultCategoryCode(p.food_type, cat),
+                  }))}
+                >
+                  <LocalizedText translate style={[{ fontSize: 13 }, form.category === cat && { color: "#fff" }]}>{cat}</LocalizedText>
                 </TouchableOpacity>
               ))}
             </ScrollView>
