@@ -333,7 +333,7 @@ export default function MenuPage() {
                     </div>
                     {item.menu_type === "liquor" && (
                       <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                        {categoryLabel(item.category, t)}{item.liquor_code ? ` · ${t("liquorCode")} ${item.liquor_code}` : ""}
+                        {categoryLabel(item.category, t)}
                       </div>
                     )}
 
