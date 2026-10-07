@@ -124,7 +124,7 @@ router.post("/place", async (req, res) => {
     const subtotalBeforeDiscount = subtotal;
     const authenticatedBusinessId = getOptionalBusinessId(req);
     const isStaffOrder = orderSource === "staff" && authenticatedBusinessId === businessId;
-    const newOrderStatus = isStaffOrder && initialStatus === "CONFIRMED" ? "CONFIRMED" : "EDITABLE";
+    const newOrderStatus = "CONFIRMED";
 
     const triggerAutoConfirm = (targetOrderId) => {
       setTimeout(async () => {
