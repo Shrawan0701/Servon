@@ -171,7 +171,7 @@ router.delete("/:id", auth, async (req, res) => {
 router.get("/recipes", auth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT m.id, m.name, m.category,
+      `SELECT m.id, m.name, m.category, m.menu_type, m.liquor_brand_code, m.size_ml,
               COUNT(mi.id)::int AS ingredient_count
        FROM menu_items m
        LEFT JOIN menu_item_ingredients mi
