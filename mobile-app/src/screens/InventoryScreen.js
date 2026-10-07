@@ -73,6 +73,7 @@ export default function InventoryScreen() {
   const [activeTab, setActiveTab] = useState("stock"); // 'stock' | 'recipes'
   const [items, setItems] = useState([]);
   const [recipeMenu, setRecipeMenu] = useState([]);
+  const [recipeSearch, setRecipeSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [numColumns, setNumColumns] = useState(isWeb ? 3 : 1);
@@ -340,6 +341,37 @@ export default function InventoryScreen() {
 
     return grouped;
   }, [recipeMenu]);
+  const filteredRecipeMenu = useMemo(() => {
+    const query = recipeSearch.trim().toLowerCase();
+    if (!query) return recipeMenuForDisplay;
+
+    return recipeMenuForDisplay.filter((item) => {
+      const variantText = (item.variants || [])
+        .map((variant) => `${variant.name || ""} ${variant.category || ""} ${variant.size_ml || ""}`)
+        .join(" ");
+      return `${item.name || ""} ${item.category || ""} ${item.menu_type || ""} ${item.liquor_brand_code || ""} ${variantText}`
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [recipeMenuForDisplay, recipeSearch]);
+
+  const renderRecipeSearch = () => (
+    <View style={styles.recipeSearchWrap}>
+      <Ionicons name="search" size={18} color="#9CA3AF" />
+      <TextInput
+        style={styles.recipeSearchInput}
+        value={recipeSearch}
+        onChangeText={setRecipeSearch}
+        placeholder={localizeText("Search menu items...", language)}
+        placeholderTextColor="#A8A29E"
+      />
+      {recipeSearch ? (
+        <TouchableOpacity style={styles.recipeSearchClear} onPress={() => setRecipeSearch("")} activeOpacity={0.75}>
+          <Ionicons name="close" size={16} color="#6B7280" />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
 
   if (loading) {
     return (
@@ -443,11 +475,19 @@ export default function InventoryScreen() {
         <ScrollView
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
         >
+          {renderRecipeSearch()}
           {recipeMenuForDisplay.length === 0 ? (
             <EmptyRecipeState />
+          ) : filteredRecipeMenu.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="search-outline" size={40} color="#111" />
+              </View>
+              <LocalizedText translate style={styles.emptyTitle}>No menu items found</LocalizedText>
+            </View>
           ) : (
             <div className="inv-recipe-grid">
-              {recipeMenuForDisplay.map((item) => (
+              {filteredRecipeMenu.map((item) => (
                 <RecipeCardWeb key={item.id} item={item} onPress={() => openRecipeModal(item)} />
               ))}
             </div>
@@ -455,11 +495,19 @@ export default function InventoryScreen() {
         </ScrollView>
       ) : (
         <FlatList
-          data={recipeMenuForDisplay}
+          data={filteredRecipeMenu}
           keyExtractor={(i) => String(i.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<EmptyRecipeState />}
+          ListHeaderComponent={renderRecipeSearch}
+          ListEmptyComponent={recipeMenuForDisplay.length === 0 ? <EmptyRecipeState /> : (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="search-outline" size={40} color="#111" />
+              </View>
+              <LocalizedText translate style={styles.emptyTitle}>No menu items found</LocalizedText>
+            </View>
+          )}
           renderItem={({ item }) => (
             <RecipeCardNative item={item} onPress={() => openRecipeModal(item)} />
           )}
@@ -723,13 +771,15 @@ export default function InventoryScreen() {
               items.filter((invItem) => !recipeMenuItem?.is_liquor_group || isVolumeUnit(invItem.unit)).map((invItem) => {
                 const isSelected = recipeSelections[invItem.id] !== undefined;
                 return (
-                  <TouchableOpacity
+                  <View
                     key={invItem.id}
                     style={[styles.ingredientRow, isSelected && styles.ingredientRowActive]}
-                    onPress={() => toggleIngredient(invItem.id)}
-                    activeOpacity={0.85}
                   >
-                    <View style={styles.ingredientToggle}>
+                    <TouchableOpacity
+                      style={styles.ingredientToggle}
+                      onPress={() => toggleIngredient(invItem.id)}
+                      activeOpacity={0.85}
+                    >
                       <Ionicons
                         name={isSelected ? "checkmark-circle" : "ellipse-outline"}
                         size={26}
@@ -741,7 +791,7 @@ export default function InventoryScreen() {
                           {formatStockDisplay(invItem)} available now
                         </LocalizedText>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                     {isSelected && !recipeMenuItem?.is_liquor_group && (
                       <View style={styles.ingredientQtyWrap} onStartShouldSetResponder={() => true}>
                         <LocalizedText translate style={styles.ingredientQtyLabel}>Used per order:</LocalizedText>
@@ -766,7 +816,7 @@ export default function InventoryScreen() {
                         </LocalizedText>
                       </View>
                     )}
-                  </TouchableOpacity>
+                  </View>
                 );
               })
             )}
@@ -1044,6 +1094,9 @@ const styles = StyleSheet.create({
   iconActionBtnDanger: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
 
   recipeCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderRadius: 14, padding: 13, marginBottom: 9, borderWidth: 1, borderColor: "#E8E2D9" },
+  recipeSearchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 14, paddingHorizontal: 14, marginHorizontal: 20, marginTop: 14, maxWidth: 1160, alignSelf: "center", width: "92%" },
+  recipeSearchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: "#111827", fontWeight: "600" },
+  recipeSearchClear: { width: 28, height: 28, borderRadius: 9, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
   recipeIconWrap: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   recipeName: { fontSize: 14, fontWeight: "700", color: "#111827" },
   recipeCategory: { fontSize: 11, color: "#9CA3AF", fontWeight: "600", marginTop: 2 },
