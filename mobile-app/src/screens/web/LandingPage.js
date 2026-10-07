@@ -1124,7 +1124,7 @@ useEffect(() => {
             <View style={s.heroTrustRow}>
               <View style={s.heroTrustItem}>
                 <Ionicons name="checkmark-circle" size={14} color={C.green} />
-                <Text style={s.heroTrustText}>10-day free trial</Text>
+                <Text style={s.heroTrustText}>3-day free trial</Text>
               </View>
               
               <View style={s.heroTrustItem}>
@@ -1379,7 +1379,7 @@ useEffect(() => {
 
           <View style={s.trialSubBadge}>
             <Ionicons name="shield-checkmark-outline" size={13} color="#10B981" />
-            <Text style={s.trialSubText}>10-day free trial · No credit card required</Text>
+            <Text style={s.trialSubText}>3-day free trial · No credit card required</Text>
           </View>
 
           {/* Bottom tear line */}

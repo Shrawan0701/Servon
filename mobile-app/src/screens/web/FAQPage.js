@@ -57,7 +57,7 @@ export default function FAQPage({ onNavigate }) {
     {
       category: "Pricing & Billing",
       q: "Is there a free trial available?",
-      a: "Yes, we offer a 10-day unlimited free trial with complete access to every feature. No credit card is required to get started."
+      a: "Yes, we offer a 3-day unlimited free trial with complete access to every feature. No credit card is required to get started."
     },
     {
       category: "Operations",

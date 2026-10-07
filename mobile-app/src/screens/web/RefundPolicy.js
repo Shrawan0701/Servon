@@ -21,9 +21,9 @@ export default function RefundPolicy({ onNavigate }) {
 
   const sections = [
     {
-      title: "1. Overview & 10-Day Free Trial",
+      title: "1. Overview & 3-Day Free Trial",
       content:
-        "Servon Labs Private Limited ('Servon', 'we', 'us', or 'our') provides a 10-day full-access free trial for all new restaurant subscriptions. During this trial period, restaurant operators have complete access to all platform features, including QR ordering, KOT sync, and analytics. No credit card or payment information is required to start the trial. We strongly encourage users to evaluate the platform thoroughly before initiating any paid subscription cycle.",
+        "Servon Labs Private Limited ('Servon', 'we', 'us', or 'our') provides a 3-day full-access free trial for all new restaurant subscriptions. During this trial period, restaurant operators have complete access to all platform features, including QR ordering, KOT sync, and analytics. No credit card or payment information is required to start the trial. We strongly encourage users to evaluate the platform thoroughly before initiating any paid subscription cycle.",
     },
     {
       title: "2. Subscription Billing & Non-Refundable Nature",

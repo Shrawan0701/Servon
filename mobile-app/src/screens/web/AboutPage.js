@@ -110,7 +110,7 @@ export default function AboutPage({ onNavigate }) {
           <View style={{ flex: 1 }}>
             <Text style={s.ctaTitle}>Ready to streamline your operations?</Text>
             <Text style={s.ctaSub}>
-              Start a 10-day free trial or get in touch for an interactive product walkthrough.
+              Start a 3-day free trial or get in touch for an interactive product walkthrough.
             </Text>
           </View>
           <TouchableOpacity 

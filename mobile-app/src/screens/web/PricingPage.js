@@ -57,7 +57,7 @@ export default function PricingPage({ onNavigate }) {
   ];
 
   const featuresList = [
-    "10-Day Full Access Free Trial",
+    "3-Day Full Access Free Trial",
     "Offline Mode (Works Without Internet)",
     "Voice AI Assistance & Smart Commands",
     "Real-time AI Alerts & Daily Summaries",
@@ -72,7 +72,7 @@ export default function PricingPage({ onNavigate }) {
   const faqs = [
     {
       q: "Can I try Servon before committing to a paid plan?",
-      a: "Yes! Every account starts with a 10-day unlimited free trial. No credit card or upfront deposit is required.",
+      a: "Yes! Every account starts with a 3-day unlimited free trial. No credit card or upfront deposit is required.",
     },
     {
       q: "Does Servon work if my restaurant internet goes down?",
@@ -145,7 +145,7 @@ export default function PricingPage({ onNavigate }) {
                 onPress={() => onNavigate?.("login")}
                 activeOpacity={0.88}
               >
-                <Text style={s.ctaText}>Start 10-Day Free Trial</Text>
+                <Text style={s.ctaText}>Start 3-Day Free Trial</Text>
                 <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
               </TouchableOpacity>
 
