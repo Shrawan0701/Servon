@@ -222,4 +222,80 @@ Return ONLY a valid JSON object (no markdown, no code fences) with EXACTLY these
   }
 };
 
-module.exports = { generateSummary, generateInsights, generateHourlyBrief };
+const buildAnalyticsInsightFallback = (data = {}) => {
+  const today = data.today || {};
+  const last30Days = Array.isArray(data.last30Days) ? data.last30Days : [];
+  const topItems = Array.isArray(data.topItems) ? data.topItems : [];
+  const peakHour = data.peakHour || null;
+  const totalOrders = Number(today.totalOrders || 0);
+  const totalRevenue = Number(today.totalRevenue || 0);
+  const topItem = topItems[0];
+
+  if (!totalOrders && !last30Days.some((day) => Number(day.orders || 0) > 0)) {
+    return "No sales data yet. Once orders start coming in, I will highlight your strongest item, peak hour, and next action.";
+  }
+
+  if (totalOrders > 0 && topItem) {
+    const peakText = peakHour?.hour !== undefined
+      ? ` Peak demand is around ${Math.floor(Number(peakHour.hour))}:00.`
+      : "";
+    return `Today has ${totalOrders} orders worth Rs.${totalRevenue.toFixed(0)}. ${topItem.name} is leading with ${topItem.total_qty} sold.${peakText}`;
+  }
+
+  const total30Orders = last30Days.reduce((sum, day) => sum + Number(day.orders || 0), 0);
+  const total30Revenue = last30Days.reduce((sum, day) => sum + Number(day.revenue || 0), 0);
+  return `Last 30 days show ${total30Orders} orders worth Rs.${total30Revenue.toFixed(0)}. Use the top-items list to push your strongest sellers today.`;
+};
+
+const generateAnalyticsInsight = async (data = {}) => {
+  const fallback = buildAnalyticsInsightFallback(data);
+  if (!process.env.OPENAI_API_KEY) return fallback;
+
+  const today = data.today || {};
+  const last30Days = Array.isArray(data.last30Days) ? data.last30Days : [];
+  const topItems = Array.isArray(data.topItems) ? data.topItems : [];
+  const peakHour = data.peakHour || null;
+  const last7Text = last30Days.slice(-7)
+    .map((day) => `${day.date}: ${Number(day.orders || 0)} orders, Rs.${Number(day.revenue || 0).toFixed(0)}`)
+    .join("; ");
+  const topItemsText = topItems.length
+    ? topItems.map((item) => `${item.name} (${item.total_qty} sold)`).join(", ")
+    : "No top items yet";
+
+  const prompt = `
+Create one live AI Business Advisor insight for a restaurant analytics card.
+
+Use only these real metrics:
+- Today: ${today.totalOrders || 0} orders, Rs.${Number(today.totalRevenue || 0).toFixed(0)} revenue, active tables ${today.activeTables || 0}.
+- Today's top item: ${today.mostOrderedItem?.name || "None"} (${today.mostOrderedItem?.total_qty || 0} sold).
+- Top items overall: ${topItemsText}.
+- Peak hour: ${peakHour?.hour !== undefined ? `${Math.floor(Number(peakHour.hour))}:00 with ${peakHour.count} orders` : "Not enough data"}.
+- Last 7 days: ${last7Text || "No recent trend data"}.
+
+Rules:
+- Return exactly one plain sentence, under 35 words.
+- Mention at least one actual number from the metrics.
+- Give one useful action.
+- Do not invent weekend trends or staffing advice unless the data directly supports it.
+- No markdown.
+`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are Servon's restaurant analytics advisor. Be specific, concise, and grounded only in provided metrics." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.4,
+      max_tokens: 90,
+    });
+
+    return response.choices[0].message.content.trim() || fallback;
+  } catch (error) {
+    console.error("OpenAI analytics insight error:", error);
+    return fallback;
+  }
+};
+
+module.exports = { generateSummary, generateInsights, generateHourlyBrief, generateAnalyticsInsight };

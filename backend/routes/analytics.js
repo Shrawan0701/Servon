@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require("../db");
 const auth = require("../middleware/auth");
 const { collectDailyData } = require("../utils/dailySummary");
-const { generateSummary } = require("../services/aiSummaryService");
+const { generateSummary, generateAnalyticsInsight } = require("../services/aiSummaryService");
 router.get("/", auth, async (req, res) => {
   try {
     const businessId = req.businessId;
@@ -104,7 +104,7 @@ router.get("/", auth, async (req, res) => {
       [businessId]
     );
 
-    res.json({
+    const payload = {
       today: {
         totalOrders: parseInt(todayStats.rows[0].total_orders),
         totalRevenue: parseFloat(todayStats.rows[0].total_revenue),
@@ -118,7 +118,11 @@ router.get("/", auth, async (req, res) => {
       // Top-level fields consumed directly by AnalyticsScreen's Tables card
       tablesOccupied: parseInt(activeTables.rows[0].count),
       totalTables: parseInt(totalTablesResult.rows[0].count),
-    });
+    };
+
+    payload.aiInsight = await generateAnalyticsInsight(payload);
+
+    res.json(payload);
 
   } catch (err) {
     console.error("Analytics error:", err);
