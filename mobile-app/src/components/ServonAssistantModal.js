@@ -87,6 +87,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
 
   // Data loaded for MANUAL order mode (also the authoritative price source).
   const [menu, setMenu] = useState([]);
+  const [allMenu, setAllMenu] = useState([]);
   const [tables, setTables] = useState([]);
   const [profile, setProfile] = useState(null);
 
@@ -94,6 +95,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const [mode, setMode] = useState(initialMode);
   const [categoryCode, setCategoryCode] = useState("");
   const [liquorBrandCode, setLiquorBrandCode] = useState("");
+  const [search, setSearch] = useState("");
   const [codeLoading, setCodeLoading] = useState(false);
   const [codeTouched, setCodeTouched] = useState(false);
   const [selectedTable, setSelectedTable] = useState(null);
@@ -112,8 +114,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
 
   const loadData = useCallback(async () => {
     try {
-      const [tableRes, profileRes] = await Promise.all([getTables(), getProfile()]);
+      const [menuRes, tableRes, profileRes] = await Promise.all([getMenu(), getTables(), getProfile()]);
       setMenu([]);
+      setAllMenu(menuRes.data || []);
       setTables(tableRes.data || []);
       setProfile(profileRes.data || null);
     } catch (err) {
@@ -126,6 +129,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       setMode(initialMode);
       setCategoryCode("");
       setLiquorBrandCode("");
+      setSearch("");
       setCodeTouched(false);
       setSelectedTable(null);
       setSelectedItems([]);
@@ -246,6 +250,21 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   };
 
   const menuLabel = (item) => localizedItemName(item, language);
+  const searchTerm = search.trim().toLowerCase();
+  const searchedMenu = searchTerm
+    ? allMenu.filter((item) => [
+        item.name,
+        item.name_mr,
+        item.name_hi,
+        menuLabel(item),
+        item.category,
+        item.liquor_code,
+        item.liquor_brand_code,
+        item.size_ml,
+        item.category_code,
+      ].filter(Boolean).join(" ").toLowerCase().includes(searchTerm))
+    : [];
+  const displayMenu = searchTerm ? searchedMenu : menu;
   const loadCategoryCode = async (nextCode) => {
     const clean = String(nextCode || "").replace(/\D/g, "").slice(0, 1);
     setCategoryCode(clean);
@@ -322,7 +341,6 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       });
       Alert.alert("Order Created", `Order placed for ${selectedTable.table_number}.`);
       onClose?.();
-      navigation.navigate("Orders");
       return res;
     } catch (err) {
       Alert.alert("Error", err.response?.data?.error || "Could not place order.");
@@ -411,7 +429,6 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       });
       Alert.alert("Order Created", `Order placed for Table ${voiceIntent.table.table_number}.`);
       onClose?.();
-      navigation.navigate("Orders");
     } catch (err) {
       Alert.alert("Error", err.response?.data?.error || "Could not place order.");
     } finally {
@@ -498,14 +515,30 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           returnKeyType="done"
         />
       </View>
+      <View style={styles.searchBox}>
+        <Ionicons name="search" size={16} color={COLORS.muted} />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder={localizeText("Search menu items...", language)}
+          placeholderTextColor={COLORS.muted}
+          returnKeyType="search"
+        />
+        {!!search && (
+          <TouchableOpacity onPress={() => setSearch("")}>
+            <Ionicons name="close-circle" size={18} color={COLORS.muted} />
+          </TouchableOpacity>
+        )}
+      </View>
 
-      {!categoryCode && (
+      {!searchTerm && !categoryCode && (
         <LocalizedText translate style={styles.hint}>Enter a category code to view items.</LocalizedText>
       )}
-      {!!categoryCode && categoryCode !== "8" && codeLabel(categoryCode) && (
+      {!searchTerm && !!categoryCode && categoryCode !== "8" && codeLabel(categoryCode) && (
         <LocalizedText translate style={styles.codeHeading}>{codeLabel(categoryCode)}</LocalizedText>
       )}
-      {categoryCode === "8" && !liquorBrandCode && (
+      {!searchTerm && categoryCode === "8" && !liquorBrandCode && (
         <>
           <LocalizedText translate style={styles.codeHeading}>Liquor Brands</LocalizedText>
           <View style={styles.brandGrid}>
@@ -522,7 +555,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           </View>
         </>
       )}
-      {categoryCode === "8" && !!liquorBrandCode && (
+      {!searchTerm && categoryCode === "8" && !!liquorBrandCode && (
         <View style={styles.brandHeaderRow}>
           <TouchableOpacity style={styles.backBrandBtn} onPress={() => { setLiquorBrandCode(""); setMenu([]); }}>
             <Ionicons name="arrow-back" size={14} color={COLORS.text} />
@@ -533,7 +566,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       )}
       {codeLoading && <ActivityIndicator color={COLORS.text} style={{ marginVertical: 12 }} />}
 
-      {!codeLoading && (categoryCode !== "8" || liquorBrandCode) && menu.map((item) => (
+      {!codeLoading && (searchTerm || categoryCode !== "8" || liquorBrandCode) && displayMenu.map((item) => (
         <View key={item.id} style={styles.menuRow}>
           <View style={{ flex: 1 }}>
             <LocalizedText style={styles.menuName}>{menuLabel(item)}</LocalizedText>
@@ -553,10 +586,13 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           </TouchableOpacity>
         </View>
       ))}
-      {!codeLoading && codeTouched && categoryCode !== "8" && menu.length === 0 && (
+      {!codeLoading && searchTerm && displayMenu.length === 0 && (
+        <LocalizedText style={styles.emptyText}>No menu items match "{search}".</LocalizedText>
+      )}
+      {!codeLoading && !searchTerm && codeTouched && categoryCode !== "8" && menu.length === 0 && (
         <LocalizedText translate style={styles.emptyText}>Category code not found</LocalizedText>
       )}
-      {!codeLoading && categoryCode === "8" && liquorBrandCode && menu.length === 0 && (
+      {!codeLoading && !searchTerm && categoryCode === "8" && liquorBrandCode && menu.length === 0 && (
         <LocalizedText translate style={styles.emptyText}>Category code not found</LocalizedText>
       )}
 
