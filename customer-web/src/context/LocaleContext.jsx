@@ -26,9 +26,21 @@ const hi = {
 voiceOrder:"वॉइस ऑर्डर", tapMic:"माइक थपें और अपना ऑर्डर बोलें", listening:"सुन रहा है…", understanding:"समझ रहा है…", speakAgain:"फिर बोलें", pickOne:"आपका मतलब कौन सा था?", notFound:"मेनू में नहीं मिला", unavailableNote:"कुछ आइटम अभी उपलब्ध नहीं हैं और आपके ऑर्डर से हटा दिए गए हैं", removeItem:"हटाएँ", micUnsupported:"इस ब्राउज़र में वॉइस ऑर्डर समर्थित नहीं है",
 };
 const dictionaries = { en, mr, hi };
-Object.assign(en, { liquor: "Liquor", liquorCode: "Code" });
-Object.assign(mr, { liquor: "दारू", liquorCode: "कोड" });
-Object.assign(hi, { liquor: "शराब", liquorCode: "कोड" });
+Object.assign(en, {
+  liquor: "Liquor", liquorCode: "Code",
+  mainCourse: "Main Course", starters: "Starters", breads: "Breads", riceBiryani: "Rice & Biryani", desserts: "Desserts", beverages: "Beverages", soups: "Soups", salads: "Salads", snacks: "Snacks", specials: "Specials",
+  whisky: "Whisky", beer: "Beer", rum: "Rum", vodka: "Vodka", gin: "Gin", brandy: "Brandy", wine: "Wine", other: "Other",
+});
+Object.assign(mr, {
+  liquor: "दारू", liquorCode: "कोड",
+  mainCourse: "मुख्य पदार्थ", starters: "स्टार्टर्स", breads: "पोळ्या", riceBiryani: "भात आणि बिर्याणी", desserts: "गोड पदार्थ", beverages: "पेय", soups: "सूप", salads: "सॅलड", snacks: "नाश्ता", specials: "विशेष",
+  whisky: "व्हिस्की", beer: "बिअर", rum: "रम", vodka: "वोडका", gin: "जिन", brandy: "ब्रँडी", wine: "वाईन", other: "इतर",
+});
+Object.assign(hi, {
+  liquor: "शराब", liquorCode: "कोड",
+  mainCourse: "मुख्य व्यंजन", starters: "स्टार्टर्स", breads: "रोटी", riceBiryani: "चावल और बिरयानी", desserts: "मिठाई", beverages: "पेय", soups: "सूप", salads: "सलाद", snacks: "नाश्ता", specials: "विशेष",
+  whisky: "व्हिस्की", beer: "बियर", rum: "रम", vodka: "वोडका", gin: "जिन", brandy: "ब्रांडी", wine: "वाइन", other: "अन्य",
+});
 const LocaleContext = createContext(null);
 export function LocaleProvider({ children }) {
   const [language, setLanguageState] = useState(() => localStorage.getItem(STORAGE_KEY) || "mr");

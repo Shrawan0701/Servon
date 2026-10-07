@@ -12,12 +12,34 @@ const FOOD_TYPES = [
 ];
 const LIQUOR_TYPE = { key: "liquor", labelKey: "liquor" };
 const LIQUOR_CATEGORIES = ["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other"];
+const CATEGORY_LABEL_KEYS = {
+  All: "all",
+  "Main Course": "mainCourse",
+  Starters: "starters",
+  Breads: "breads",
+  "Rice & Biryani": "riceBiryani",
+  Desserts: "desserts",
+  Beverages: "beverages",
+  Soups: "soups",
+  Salads: "salads",
+  Snacks: "snacks",
+  Specials: "specials",
+  Whisky: "whisky",
+  Beer: "beer",
+  Rum: "rum",
+  Vodka: "vodka",
+  Gin: "gin",
+  Brandy: "brandy",
+  Wine: "wine",
+  Other: "other",
+};
 
 const itemFoodType = (item) => (item?.food_type === "non_veg" ? "non_veg" : "veg");
 const itemParentType = (item) => item?.menu_type === "liquor" ? "liquor" : itemFoodType(item);
 const itemDisplayName = (item, language) => {
   return localizedItemName(item, language);
 };
+const categoryLabel = (category, t) => t(CATEGORY_LABEL_KEYS[category] || category);
 
 // --- Helper Functions from Friend's Push ---
 
@@ -253,7 +275,7 @@ export default function MenuPage() {
               className={`category-tab ${selectedCategory === cat ? "active" : ""}`}
               onClick={() => setSelectedCategory(cat)}
             >
-              {cat === "All" ? t("all") : cat}
+              {categoryLabel(cat, t)}
             </button>
           ))}
         </div>
@@ -311,7 +333,7 @@ export default function MenuPage() {
                     </div>
                     {item.menu_type === "liquor" && (
                       <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                        {item.category}{item.liquor_code ? ` · ${t("liquorCode")} ${item.liquor_code}` : ""}
+                        {categoryLabel(item.category, t)}{item.liquor_code ? ` · ${t("liquorCode")} ${item.liquor_code}` : ""}
                       </div>
                     )}
 
