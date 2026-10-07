@@ -516,7 +516,7 @@ export default function MenuScreen() {
                 </View>
                 <LocalizedText style={styles.catTag}>
                   {item.menu_type === "liquor" && item.liquor_code
-                    ? `${localizedCategory(item.category, language)} · ${localizeText("Brand Code", language)} ${item.liquor_brand_code || ""} · ${localizeText("Code", language)} ${item.liquor_code}`
+                    ? `${localizedCategory(item.category, language)} · ${localizeText("Brand Code", language)} ${item.liquor_brand_code || ""}`
                     : `${localizedCategory(item.category, language)} · ${localizeText("Code", language)} ${item.category_code || ""}`}
                 </LocalizedText>
 
