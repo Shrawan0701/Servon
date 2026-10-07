@@ -1277,7 +1277,7 @@ useEffect(() => {
     <View style={s.cycleToggleWrap}>
       {[
         { id: 'monthly', label: 'Monthly' },
-        { id: 'quarterly', label: 'Quarterly', tag: 'Save 37%' },
+        { id: 'quarterly', label: 'Quarterly', tag: 'Save 17%' },
         { id: 'yearly', label: 'Yearly', tag: 'Save 50%' },
       ].map((opt) => (
         <TouchableOpacity
@@ -1303,7 +1303,7 @@ useEffect(() => {
   {(() => {
     const PLAN_BY_CYCLE = {
       monthly:   { price: "₹999",   period: "/month",   note: "Standard monthly billing" },
-      quarterly: { price: "₹2,500", period: "/4 months", note: "Save ~₹1,500 (37% off)" },
+      quarterly: { price: "₹2,500", period: "/3 months", note: "Save ~₹500 (17% off)" },
       yearly:    { price: "₹6,000", period: "/year",    note: "Save ~₹6,000 (50% off)" },
     };
     const plan = PLAN_BY_CYCLE[billingCycle];
