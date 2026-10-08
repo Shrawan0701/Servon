@@ -79,6 +79,14 @@ const LIQUOR_BRAND_OPTIONS = [
 ].map(([code, label]) => ({ code, label }));
 const codeLabel = (code) => CATEGORY_CODE_OPTIONS.find((option) => option.code === Number(code))?.label || "";
 const liquorBrandLabel = (code) => LIQUOR_BRAND_OPTIONS.find((option) => option.code === Number(code))?.label || "";
+const uniqueById = (items) => {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item?.id || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+};
 
 export default function ServonAssistantModal({ visible, onClose, initialMode = "manual" }) {
   const navigation = useNavigation();
@@ -250,9 +258,19 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   };
 
   const menuLabel = (item) => localizedItemName(item, language);
+  const liquorBrandDisplayLabel = (code) => {
+    const label = liquorBrandLabel(code);
+    return localizedItemName({ name: label, menu_type: "liquor" }, language) || label;
+  };
   const searchTerm = search.trim().toLowerCase();
+  const searchBrandCode = liquorBrandLabel(searchTerm) ? searchTerm : "";
+  const searchableMenuSource = searchBrandCode ? uniqueById([...(allMenu || []), ...(menu || [])]) : allMenu;
   const searchedMenu = searchTerm
-    ? allMenu.filter((item) => [
+    ? searchableMenuSource.filter((item) => {
+      if (searchBrandCode) {
+        return item.menu_type === "liquor" && String(item.liquor_brand_code || "") === searchBrandCode;
+      }
+      return [
         item.name,
         item.name_mr,
         item.name_hi,
@@ -260,9 +278,12 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         item.category,
         item.liquor_code,
         item.liquor_brand_code,
+        liquorBrandLabel(item.liquor_brand_code),
+        liquorBrandDisplayLabel(item.liquor_brand_code),
         item.size_ml,
         item.category_code,
-      ].filter(Boolean).join(" ").toLowerCase().includes(searchTerm))
+      ].filter(Boolean).join(" ").toLowerCase().includes(searchTerm);
+    })
     : [];
   const displayMenu = searchTerm ? searchedMenu : menu;
   const loadCategoryCode = async (nextCode) => {
@@ -302,6 +323,27 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       setCodeLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!searchBrandCode) return;
+    setCategoryCode("8");
+    setLiquorBrandCode(searchBrandCode);
+    setCodeTouched(true);
+    let cancelled = false;
+    setCodeLoading(true);
+    getMenu({ liquor_brand_code: searchBrandCode })
+      .then((res) => {
+        if (!cancelled) setMenu(res.data || []);
+      })
+      .catch((err) => {
+        console.error("Liquor brand search load error:", err);
+        if (!cancelled) setMenu([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCodeLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [searchBrandCode]);
 
   const manualSubtotal = selectedItems.reduce((s, i) => s + parseFloat(i.price || 0) * i.quantity, 0);
   const mCgstP = parseFloat(profile?.cgst_percentage || 0);
@@ -549,7 +591,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
                 onPress={() => loadLiquorBrandCode(option.code)}
               >
                 <LocalizedText style={styles.brandCode}>{option.code}</LocalizedText>
-                <LocalizedText style={styles.brandLabel} numberOfLines={2}>{option.label}</LocalizedText>
+                <LocalizedText style={styles.brandLabel} numberOfLines={2}>{liquorBrandDisplayLabel(option.code)}</LocalizedText>
               </TouchableOpacity>
             ))}
           </View>
@@ -561,7 +603,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
             <Ionicons name="arrow-back" size={14} color={COLORS.text} />
             <LocalizedText translate style={styles.backBrandText}>Liquor Brands</LocalizedText>
           </TouchableOpacity>
-          <LocalizedText style={styles.codeHeading}>{`${liquorBrandCode} - ${liquorBrandLabel(liquorBrandCode)}`}</LocalizedText>
+          <LocalizedText style={styles.codeHeading}>{`${liquorBrandCode} - ${liquorBrandDisplayLabel(liquorBrandCode)}`}</LocalizedText>
         </View>
       )}
       {codeLoading && <ActivityIndicator color={COLORS.text} style={{ marginVertical: 12 }} />}

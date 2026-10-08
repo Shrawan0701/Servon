@@ -160,10 +160,15 @@ export default function MenuScreen() {
   const filteredItems = items.filter((item) => {
     if (itemParentType(item) !== selectedFoodType) return false;
 
+    const query = searchQuery.trim().toLowerCase();
+    const exactLiquorBrandCode = selectedFoodType === "liquor" && liquorBrandLabel(query) ? Number(query) : null;
+    if (exactLiquorBrandCode) {
+      return Number(item.liquor_brand_code) === exactLiquorBrandCode;
+    }
+
     const matchesCategory = selectedFilter === "All" || item.category === selectedFilter;
     if (!matchesCategory) return false;
 
-    const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
 
     const searchableText = [
@@ -171,6 +176,8 @@ export default function MenuScreen() {
       item.name_mr,
       item.name_hi,
       item.liquor_code,
+      item.liquor_brand_code,
+      liquorBrandLabel(item.liquor_brand_code),
       item.size_ml,
       item.category,
       item.description,
