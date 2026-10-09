@@ -76,6 +76,7 @@ const LIQUOR_BRAND_OPTIONS = [
   [68, "Smirnoff"], [69, "Vodka"], [70, "Xclamation"], [71, "Xclamation Vodka"], [72, "Silver Kastle Vodka"], [73, "Gold Medal Vodka"], [74, "Shaky Vodka Jamun"], [75, "Smirnoff Jamun"],
   [76, "Bombay"], [77, "Bombay Quarter"], [78, "Lemon Duet Gin"], [79, "Knight Fox Gin"], [80, "Doctor Brandy"],
   [81, "Let's Go Cranberry"], [82, "Bacardi Limon"], [83, "Magic Moments"], [84, "Magik Moments"], [85, "Magic Moment"],
+  [86, "OC Blue"], [87, "REO Wain"], [88, "B10 Sterling"], [89, "Red Label"], [90, "100 Pipers"], [91, "Romeno"], [92, "Danona"], [93, "Khata Khat"], [94, "Royal Barrel"], [95, "Mumbai Malti"], [96, "Cannon"], [97, "Bullet Strong"],
 ].map(([code, label]) => ({ code, label }));
 const codeLabel = (code) => CATEGORY_CODE_OPTIONS.find((option) => option.code === Number(code))?.label || "";
 const liquorBrandLabel = (code) => LIQUOR_BRAND_OPTIONS.find((option) => option.code === Number(code))?.label || "";

@@ -7,7 +7,7 @@ const { translateMenuItemName } = require("../services/menuTranslationService");
 
 const normalizeFoodType = (value) => (value === "non_veg" ? "non_veg" : "veg");
 const normalizeMenuType = (value) => (value === "liquor" ? "liquor" : "food");
-const LIQUOR_CATEGORIES = new Set(["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other"]);
+const LIQUOR_CATEGORIES = new Set(["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other", "Liquor"]);
 const FOOD_CATEGORY_CODES = new Set([1, 2, 3, 4, 5, 6, 7]);
 const LIQUOR_BRAND_CODES = new Map([
   [10, "Tuborg Strong"], [11, "Tuborg"], [12, "Tuborg Classic"], [13, "Kingfisher"], [14, "Kingfisher Ultra"], [15, "Carlsberg Beer"], [16, "Heineken Beer"], [17, "Budweiser"], [18, "Godfather Beer"], [19, "London Beer"], [20, "Breezer"],
@@ -17,6 +17,7 @@ const LIQUOR_BRAND_CODES = new Map([
   [76, "Bombay"], [77, "Bombay Quarter"], [78, "Lemon Duet Gin"], [79, "Knight Fox Gin"],
   [80, "Doctor Brandy"],
   [81, "Let's Go Cranberry"], [82, "Bacardi Limon"], [83, "Magic Moments"], [84, "Magik Moments"], [85, "Magic Moment"],
+  [86, "OC Blue"], [87, "REO Wain"], [88, "B10 Sterling"], [89, "Red Label"], [90, "100 Pipers"], [91, "Romeno"], [92, "Danona"], [93, "Khata Khat"], [94, "Royal Barrel"], [95, "Mumbai Malti"], [96, "Cannon"], [97, "Bullet Strong"],
 ]);
 const foodMenuGroup = (foodType) => (normalizeFoodType(foodType) === "non_veg" ? "non_veg" : "veg");
 const normalizeCategoryCode = (value, menuType, foodType) => {

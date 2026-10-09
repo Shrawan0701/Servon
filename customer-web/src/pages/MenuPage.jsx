@@ -11,7 +11,7 @@ const FOOD_TYPES = [
   { key: "non_veg", labelKey: "nonVeg" },
 ];
 const LIQUOR_TYPE = { key: "liquor", labelKey: "liquor" };
-const LIQUOR_CATEGORIES = ["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other"];
+const LIQUOR_CATEGORIES = ["Whisky", "Beer", "Rum", "Vodka", "Gin", "Brandy", "Wine", "Other", "Liquor"];
 const CATEGORY_LABEL_KEYS = {
   All: "all",
   "Main Course": "mainCourse",
