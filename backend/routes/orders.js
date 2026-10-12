@@ -6,6 +6,7 @@ const auth = require("../middleware/auth");
 const sendPush = require('../utils/pushNotify');
 const { getIO } = require("../socket");
 const { deductInventoryForOrder, reverseDeductionsForOrder } = require("../utils/inventoryHelper");
+const { generateCustomerOutstandingPDF } = require("../utils/pdf");
 
 // ─── DISCOUNT CALCULATION (GST removed, handled separately) ──────────
 function calculateDiscount(subtotal, discountType = 'none', discountValue = 0) {
@@ -32,6 +33,18 @@ function getOptionalBusinessId(req) {
   } catch (err) {
     return null;
   }
+}
+
+function toCents(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const normalized = String(value).trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return NaN;
+  const [rupees, paise = ""] = normalized.split(".");
+  return Number(rupees) * 100 + Number((paise + "00").slice(0, 2));
+}
+
+function centsToAmount(cents) {
+  return (Number(cents) / 100).toFixed(2);
 }
 
 // ─── CUSTOMER: PLACE ORDER (New or Edit) ─────────────────────────────
@@ -401,6 +414,128 @@ router.get("/", auth, async (req, res) => {
     res.json(orders);
   } catch (err) {
     console.error("Fetch orders error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/outstanding", auth, async (req, res) => {
+  const {
+    orderId,
+    customerName,
+    phoneNumber,
+    totalAmount,
+    paidAmount,
+    remainingAmount,
+  } = req.body;
+
+  const cleanName = String(customerName || "").trim();
+  const cleanPhone = String(phoneNumber || "").trim();
+  if (!orderId || !cleanName || !/^\d{10}$/.test(cleanPhone)) {
+    return res.status(400).json({ error: "Valid customer name, phone number and order are required" });
+  }
+
+  const totalCents = toCents(totalAmount);
+  let paidCents = toCents(paidAmount);
+  let remainingCents = toCents(remainingAmount);
+  if (!Number.isInteger(totalCents) || totalCents < 0) {
+    return res.status(400).json({ error: "Invalid total amount" });
+  }
+  if (Number.isNaN(paidCents) || Number.isNaN(remainingCents)) {
+    return res.status(400).json({ error: "Invalid payment amounts" });
+  }
+  if (paidCents === null && remainingCents === null) {
+    paidCents = 0;
+    remainingCents = totalCents;
+  } else if (paidCents !== null && remainingCents === null) {
+    remainingCents = totalCents - paidCents;
+  } else if (paidCents === null && remainingCents !== null) {
+    paidCents = totalCents - remainingCents;
+  }
+
+  if (paidCents < 0 || remainingCents < 0 || remainingCents > totalCents || paidCents + remainingCents !== totalCents) {
+    return res.status(400).json({ error: "Paid and remaining amounts must add up to the total" });
+  }
+
+  try {
+    const orderResult = await pool.query(
+      "SELECT id FROM orders WHERE id = $1 AND business_id = $2",
+      [orderId, req.businessId]
+    );
+    if (orderResult.rows.length === 0) return res.status(404).json({ error: "Order not found" });
+
+    const result = await pool.query(
+      `INSERT INTO customer_outstandings
+       (business_id, order_id, customer_name, phone_number, original_total_amount, final_total_amount, total_amount, paid_amount, remaining_amount, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $5, $5, $6, $7, NOW())
+       ON CONFLICT (order_id) DO UPDATE SET
+         customer_name = EXCLUDED.customer_name,
+         phone_number = EXCLUDED.phone_number,
+         original_total_amount = EXCLUDED.original_total_amount,
+         final_total_amount = EXCLUDED.final_total_amount,
+         total_amount = EXCLUDED.total_amount,
+         paid_amount = EXCLUDED.paid_amount,
+         remaining_amount = EXCLUDED.remaining_amount,
+         updated_at = NOW()
+       WHERE customer_outstandings.business_id = EXCLUDED.business_id
+       RETURNING *`,
+      [
+        req.businessId,
+        orderId,
+        cleanName,
+        cleanPhone,
+        centsToAmount(totalCents),
+        centsToAmount(paidCents),
+        centsToAmount(remainingCents),
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("Save outstanding error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.get("/outstanding", auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT customer_name, phone_number, total_amount, remaining_amount, created_at
+       FROM customer_outstandings
+       WHERE business_id = $1 AND remaining_amount > 0
+       ORDER BY created_at DESC`,
+      [req.businessId]
+    );
+    const totalRemaining = result.rows.reduce((sum, row) => sum + Number(row.remaining_amount || 0), 0);
+    res.json({ records: result.rows, totalRemaining: totalRemaining.toFixed(2) });
+  } catch (err) {
+    console.error("Fetch outstanding error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.get("/outstanding/pdf", auth, async (req, res) => {
+  try {
+    const [business, outstanding] = await Promise.all([
+      pool.query("SELECT business_name FROM businesses WHERE id = $1", [req.businessId]),
+      pool.query(
+        `SELECT customer_name, phone_number, total_amount, remaining_amount
+         FROM customer_outstandings
+         WHERE business_id = $1 AND remaining_amount > 0
+         ORDER BY created_at DESC`,
+        [req.businessId]
+      ),
+    ]);
+    const pdfBuffer = await generateCustomerOutstandingPDF({
+      business_name: business.rows[0]?.business_name || "Restaurant",
+      records: outstanding.rows,
+    });
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="customer-outstanding-report.pdf"`,
+    });
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Outstanding PDF error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

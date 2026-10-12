@@ -645,4 +645,87 @@ const generateQRPDF = async (tableNumber, qrCodeDataUrl, businessName = "Our Res
   });
 };
 
-module.exports = { generateSalesReportPDF, generateQRPDF };
+const generateCustomerOutstandingPDF = (data) => {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 40, size: "A4" });
+    const buffers = [];
+    doc.on("data", (chunk) => buffers.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(buffers)));
+    doc.on("error", reject);
+
+    const rows = data.records || [];
+    const hotelName = data.business_name || data.businessName || "Restaurant";
+    const generatedAt = new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    const grandTotal = rows.reduce((sum, row) => sum + Number(row.remaining_amount || 0), 0);
+
+    const cols = [
+      { label: "Customer Name", x: 40, w: 180 },
+      { label: "Phone Number", x: 220, w: 95 },
+      { label: "Total Amount", x: 315, w: 105, align: "right" },
+      { label: "Remaining Amount", x: 420, w: 135, align: "right" },
+    ];
+
+    const drawHeader = () => {
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(20).text(hotelName, 40, 36);
+      doc.fontSize(14).text("Customer Outstanding Report", 40, 64);
+      doc.fillColor("#6B7280").font("Helvetica").fontSize(9).text(`Generated: ${generatedAt} IST`, 40, 86);
+      doc.moveTo(40, 106).lineTo(555, 106).strokeColor("#D1D5DB").lineWidth(1).stroke();
+    };
+
+    const drawTableHeader = (y) => {
+      doc.rect(40, y, 515, 26).fill("#F3F4F6");
+      cols.forEach((col) => {
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(9).text(col.label, col.x + 6, y + 9, {
+          width: col.w - 12,
+          align: col.align || "left",
+        });
+      });
+      return y + 26;
+    };
+
+    drawHeader();
+    let y = drawTableHeader(124);
+
+    if (rows.length === 0) {
+      doc.fillColor("#6B7280").font("Helvetica").fontSize(11).text("No outstanding customers.", 40, y + 20, {
+        width: 515,
+        align: "center",
+      });
+      y += 60;
+    } else {
+      rows.forEach((row, index) => {
+        if (y + 28 > 770) {
+          doc.addPage();
+          drawHeader();
+          y = drawTableHeader(124);
+        }
+
+        doc.rect(40, y, 515, 28).fill(index % 2 === 0 ? "#FFFFFF" : "#FAFAFA");
+        doc.moveTo(40, y + 28).lineTo(555, y + 28).strokeColor("#E5E7EB").lineWidth(0.5).stroke();
+        doc.fillColor("#111827").font("Helvetica").fontSize(9);
+        doc.text(String(row.customer_name || ""), 46, y + 9, { width: 168 });
+        doc.text(String(row.phone_number || ""), 226, y + 9, { width: 83 });
+        doc.text(fmtRs(row.total_amount), 321, y + 9, { width: 93, align: "right" });
+        doc.font("Helvetica-Bold").text(fmtRs(row.remaining_amount), 426, y + 9, { width: 123, align: "right" });
+        y += 28;
+      });
+    }
+
+    if (y + 36 > 770) {
+      doc.addPage();
+      drawHeader();
+      y = 124;
+    }
+    doc.rect(40, y, 515, 34).fill("#F3F4F6");
+    doc.fillColor("#111827").font("Helvetica-Bold").fontSize(10).text("GRAND TOTAL", 46, y + 12);
+    doc.text(fmtRs(grandTotal), 426, y + 12, { width: 123, align: "right" });
+
+    doc.end();
+  });
+};
+
+module.exports = { generateSalesReportPDF, generateQRPDF, generateCustomerOutstandingPDF };

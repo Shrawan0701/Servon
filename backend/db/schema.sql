@@ -80,6 +80,33 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_menu_items_business_id ON menu_items(business_id); 
 CREATE INDEX IF NOT EXISTS idx_notifications_business_id ON notifications(business_id);
 
+CREATE TABLE IF NOT EXISTS customer_outstandings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  customer_name VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(10) NOT NULL CHECK (phone_number ~ '^[0-9]{10}$'),
+  original_total_amount NUMERIC(10,2) NOT NULL CHECK (original_total_amount >= 0),
+  final_total_amount NUMERIC(10,2) NOT NULL CHECK (final_total_amount >= 0),
+  total_amount NUMERIC(10,2) NOT NULL CHECK (total_amount >= 0),
+  paid_amount NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0),
+  remaining_amount NUMERIC(10,2) NOT NULL CHECK (remaining_amount >= 0),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(order_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_customer_outstandings_business_remaining
+  ON customer_outstandings(business_id, remaining_amount);
+
+ALTER TABLE customer_outstandings ADD COLUMN IF NOT EXISTS original_total_amount NUMERIC(10,2);
+ALTER TABLE customer_outstandings ADD COLUMN IF NOT EXISTS final_total_amount NUMERIC(10,2);
+UPDATE customer_outstandings
+SET original_total_amount = COALESCE(original_total_amount, total_amount),
+    final_total_amount = COALESCE(final_total_amount, total_amount);
+ALTER TABLE customer_outstandings ALTER COLUMN original_total_amount SET NOT NULL;
+ALTER TABLE customer_outstandings ALTER COLUMN final_total_amount SET NOT NULL;
+
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_source VARCHAR(20) DEFAULT 'customer';
 UPDATE orders
 SET order_source = 'customer'
