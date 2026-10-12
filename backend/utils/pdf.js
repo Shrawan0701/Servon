@@ -663,11 +663,15 @@ const generateCustomerOutstandingPDF = (data) => {
     const grandTotal = rows.reduce((sum, row) => sum + Number(row.remaining_amount || 0), 0);
 
     const cols = [
-      { label: "Customer Name", x: 40, w: 180 },
-      { label: "Phone Number", x: 220, w: 95 },
-      { label: "Total Amount", x: 315, w: 105, align: "right" },
-      { label: "Remaining Amount", x: 420, w: 135, align: "right" },
+      { label: "Date", x: 40, w: 78 },
+      { label: "Customer Name", x: 118, w: 145 },
+      { label: "Phone Number", x: 263, w: 88 },
+      { label: "Total Amount", x: 351, w: 92, align: "right" },
+      { label: "Remaining Amount", x: 443, w: 112, align: "right" },
     ];
+    const fmtDate = (value) => value
+      ? new Date(value).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" })
+      : "";
 
     const drawHeader = () => {
       doc.fillColor("#111827").font("Helvetica-Bold").fontSize(20).text(hotelName, 40, 36);
@@ -707,10 +711,11 @@ const generateCustomerOutstandingPDF = (data) => {
         doc.rect(40, y, 515, 28).fill(index % 2 === 0 ? "#FFFFFF" : "#FAFAFA");
         doc.moveTo(40, y + 28).lineTo(555, y + 28).strokeColor("#E5E7EB").lineWidth(0.5).stroke();
         doc.fillColor("#111827").font("Helvetica").fontSize(9);
-        doc.text(String(row.customer_name || ""), 46, y + 9, { width: 168 });
-        doc.text(String(row.phone_number || ""), 226, y + 9, { width: 83 });
-        doc.text(fmtRs(row.total_amount), 321, y + 9, { width: 93, align: "right" });
-        doc.font("Helvetica-Bold").text(fmtRs(row.remaining_amount), 426, y + 9, { width: 123, align: "right" });
+        doc.text(fmtDate(row.created_at), 46, y + 9, { width: 66 });
+        doc.text(String(row.customer_name || ""), 124, y + 9, { width: 133 });
+        doc.text(String(row.phone_number || ""), 269, y + 9, { width: 76 });
+        doc.text(fmtRs(row.total_amount), 357, y + 9, { width: 80, align: "right" });
+        doc.font("Helvetica-Bold").text(fmtRs(row.remaining_amount), 449, y + 9, { width: 100, align: "right" });
         y += 28;
       });
     }

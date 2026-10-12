@@ -518,7 +518,7 @@ router.get("/outstanding/pdf", auth, async (req, res) => {
     const [business, outstanding] = await Promise.all([
       pool.query("SELECT business_name FROM businesses WHERE id = $1", [req.businessId]),
       pool.query(
-        `SELECT customer_name, phone_number, total_amount, remaining_amount
+        `SELECT customer_name, phone_number, total_amount, remaining_amount, created_at
          FROM customer_outstandings
          WHERE business_id = $1 AND remaining_amount > 0
          ORDER BY created_at DESC`,
