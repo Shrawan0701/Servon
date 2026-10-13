@@ -42,6 +42,9 @@ import {
   markAlertRead,
   markAllAlertsRead,
   removeOrderItem,
+  getMenu,
+  getTables,
+  getProfile,
 } from "../api";
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
@@ -892,6 +895,19 @@ export default function DashboardScreen() {
         isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
       ));
       setNotifications(notifRes.data);
+
+      try {
+        const [menuRes, tablesRes, profileRes] = await Promise.all([
+          getMenu(),
+          getTables(),
+          getProfile().catch(() => null),
+        ]);
+        await localDB.saveMenu(menuRes.data || []);
+        await localDB.saveTables(tablesRes.data || []);
+        if (profileRes?.data) await localDB.saveProfile(profileRes.data);
+      } catch (cacheErr) {
+        console.log("POS cache preload skipped:", cacheErr?.message || cacheErr);
+      }
 
       if (subRes?.data) {
         const subData = subRes.data;

@@ -1,4 +1,4 @@
-const CACHE_NAME = "servon-pos-shell-v1";
+const CACHE_NAME = "servon-pos-shell-v2";
 const APP_SHELL = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {
@@ -32,7 +32,15 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put("/index.html", copy));
           return response;
         })
-        .catch(() => caches.match("/index.html").then((cached) => cached || caches.match("/")))
+        .catch(() =>
+          caches
+            .match("/index.html")
+            .then((cached) => cached || caches.match("/"))
+            .then((cached) => cached || new Response("Servon POS is offline. Open once with internet to cache the app.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain" },
+            }))
+        )
     );
     return;
   }
@@ -47,7 +55,7 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(() => cached);
+        .catch(() => cached || new Response("", { status: 503 }));
       return cached || network;
     })
   );
