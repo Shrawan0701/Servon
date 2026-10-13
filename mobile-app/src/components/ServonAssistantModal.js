@@ -44,6 +44,11 @@ import localDB from "../services/LocalDB";
 import networkMonitor from "../services/NetworkMonitor";
 
 const isWeb = Platform.OS === "web";
+const withOfflineFallbackTimeout = (promise, ms = 2500) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("offline_fallback_timeout")), ms)),
+  ]);
 
 const COLORS = {
   bg: "#F5F3EF",
@@ -410,23 +415,38 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       let savedOrder;
       if (appendOrder) {
         if (isOnline && !String(appendOrder.id).startsWith("local_order_")) {
-          const res = await appendOrderItems(appendOrder.id, items);
-          savedOrder = res?.data;
-          await localDB.saveOrders([savedOrder]);
+          try {
+            const res = await withOfflineFallbackTimeout(appendOrderItems(appendOrder.id, items));
+            savedOrder = res?.data;
+            await localDB.saveOrders([savedOrder]);
+          } catch (apiErr) {
+            savedOrder = await localDB.appendOrderItems(appendOrder.id, items);
+          }
         } else {
           savedOrder = await localDB.appendOrderItems(appendOrder.id, items);
         }
       } else if (isOnline) {
-        const res = await placeOrder({
+        try {
+          const res = await withOfflineFallbackTimeout(placeOrder({
             businessId: business?.id,
             tableId: selectedTable.id,
             items,
             totalAmount: manualSubtotal,
             orderSource: "staff",
             initialStatus: "CONFIRMED",
-        });
-        savedOrder = res?.data;
-        await localDB.saveOrders([savedOrder]);
+          }));
+          savedOrder = res?.data;
+          await localDB.saveOrders([savedOrder]);
+        } catch (apiErr) {
+          savedOrder = await localDB.createLocalOrder({
+            tableId: selectedTable.id,
+            tableNumber: selectedTableNumber,
+            items,
+            totalAmount: manualSubtotal,
+            orderSource: "staff",
+            initialStatus: "CONFIRMED",
+          });
+        }
       } else {
         savedOrder = await localDB.createLocalOrder({
           tableId: selectedTable.id,

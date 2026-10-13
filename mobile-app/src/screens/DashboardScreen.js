@@ -21,6 +21,7 @@ import { useFocusEffect, useNavigation, useIsFocused } from "@react-navigation/n
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import { useAudioPlayer } from "expo-audio";
+import * as Print from "expo-print";
 import { useAuth } from "../context/AuthContext";
 import {
   getAnalytics,
@@ -805,6 +806,7 @@ export default function DashboardScreen() {
   const profileMenuRef = useRef(null);
   const [assistantOpen, setAssistantOpen] = useState(null); // null | 'manual' | 'voice'
   const [appendOrder, setAppendOrder] = useState(null);
+  const [dashboardPrinting, setDashboardPrinting] = useState(false);
 
   const businessName = business?.business_name || business?.businessName || "Servon";
 
@@ -1079,6 +1081,197 @@ export default function DashboardScreen() {
     }
   };
 
+  const buildDashboardBillHtml = useCallback(async (tableOrders) => {
+    let profile = null;
+    try {
+      profile = await localDB.getProfile();
+    } catch (err) {
+      profile = null;
+    }
+
+    const combinedItems = {};
+    let combinedSubtotal = 0;
+    const isLiquorItem = (item) => item?.menu_type === "liquor" || !!item?.size_ml || !!item?.liquor_code || !!item?.liquor_brand_code;
+
+    tableOrders.forEach((o) => {
+      const items = Array.isArray(o.items) ? o.items : JSON.parse(o.items || "[]");
+      items.forEach((item) => {
+        const itemPrice = Number(item.price || 0);
+        const itemQty = Number(item.quantity || 1);
+        const displayName = localizedItemName(item, language);
+        const itemKey = `${isLiquorItem(item) ? "liquor" : "food"}-${displayName}-${itemPrice}`;
+        combinedSubtotal += itemPrice * itemQty;
+        if (combinedItems[itemKey]) {
+          combinedItems[itemKey].quantity += itemQty;
+        } else {
+          combinedItems[itemKey] = { ...item, displayName, isLiquor: isLiquorItem(item), price: itemPrice, quantity: itemQty };
+        }
+      });
+    });
+
+    const finalItemsList = Object.values(combinedItems);
+    const foodItemsList = finalItemsList.filter((item) => !item.isLiquor);
+    const liquorItemsList = finalItemsList.filter((item) => item.isLiquor);
+    const foodSubtotal = foodItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const liquorSubtotal = liquorItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const cgstPercent = Number(profile?.cgst_percentage || 0);
+    const sgstPercent = Number(profile?.sgst_percentage || 0);
+    const cgstAmount = (combinedSubtotal * cgstPercent) / 100;
+    const sgstAmount = (combinedSubtotal * sgstPercent) / 100;
+    const grandTotal = Math.round(combinedSubtotal + cgstAmount + sgstAmount);
+
+    const buildItemsRows = (list) => list.map((i) => `
+      <tr>
+        <td style="padding: 4px 0;">${i.displayName || localizedItemName(i, language)}</td>
+        <td class="center-col">${i.quantity}</td>
+        <td class="right">&#8377;${(i.price * i.quantity).toFixed(2)}</td>
+      </tr>
+    `).join("");
+
+    const buildBillSection = (title, list, subtotal) => list.length ? `
+      <table>
+        <tr class="bold" style="border-bottom: 1px solid #000;">
+          <td style="padding-bottom: 5px;">Product Name</td>
+          <td class="center-col" style="padding-bottom: 5px;">Qty</td>
+          <td class="right" style="padding-bottom: 5px;">Amt</td>
+        </tr>
+        ${buildItemsRows(list)}
+        <tr class="bold section-total">
+          <td colspan="2">${title} :</td>
+          <td class="right">&#8377;${subtotal.toFixed(2)}</td>
+        </tr>
+      </table>
+    ` : "";
+
+    const billSectionsHtml = [
+      buildBillSection("Food Bill", foodItemsList, foodSubtotal),
+      buildBillSection("Liquor Bill", liquorItemsList, liquorSubtotal),
+    ].filter(Boolean).join(`<div class="divider tight"></div>`);
+
+    const upiId = profile?.upi_id || "";
+    const merchantName = encodeURIComponent(profile?.business_name || businessName || "Restaurant");
+    const amount = grandTotal.toFixed(2);
+    const upiString = upiId ? `upi://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR&tn=Payment` : "";
+    const qrCodeUrl = upiId ? `https://quickchart.io/qr?text=${encodeURIComponent(upiString)}&size=200&margin=2` : null;
+    const qrCodeUrlFallback = upiId ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiString)}` : null;
+
+    return `
+      <html>
+        <head>
+          <style>
+            body { font-family: monospace; width: 80mm; padding: 10px; color: #000; margin: 0 auto; }
+            h2 { text-align: center; margin: 0 0 5px 0; font-size: 24px; }
+            .center { text-align: center; font-size: 14px; margin-bottom: 5px; }
+            .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
+            .divider.tight { margin: 6px 0; }
+            table { width: 100%; border-collapse: collapse; font-size: 14px; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            .center-col { text-align: center; }
+            .section-total td { border-top: 1px solid #000; padding-top: 6px; font-size: 15px; }
+            .upi-section { text-align: center; margin-top: 15px; padding: 15px; border-top: 2px dashed #000; }
+            .upi-title { font-size: 16px; font-weight: 800; color: #000; margin-bottom: 4px; }
+            .upi-amount { font-size: 20px; font-weight: 900; color: #000; margin-bottom: 10px; }
+            .upi-qr-wrapper { display: flex; justify-content: center; margin: 8px 0; }
+            .upi-qr-wrapper img { width: 150px; height: 150px; border: 2px solid #000; border-radius: 12px; }
+            .upi-id { font-size: 13px; color: #333; margin-top: 8px; font-weight: 600; }
+            .upi-instruction { font-size: 10px; color: #666; margin-top: 4px; }
+            .upi-error { font-size: 12px; color: #000; padding: 10px; background: #F8F8F8; border-radius: 8px; border: 1px solid #ccc; }
+            .thank-you { text-align: center; font-weight: bold; font-size: 16px; margin-top: 15px; color: #000; }
+          </style>
+        </head>
+        <body>
+          <h2>${profile?.business_name || businessName || "Restaurant"}</h2>
+          ${profile?.gst_number ? `<div class="center">GSTIN: ${profile.gst_number}</div>` : ""}
+          <div class="center">Table: ${tableOrders[0]?.table_number}</div>
+          <div class="center">Date: ${new Date().toLocaleString("en-IN")}</div>
+          <div class="divider"></div>
+          ${billSectionsHtml}
+          <div class="divider"></div>
+          <table>
+            <tr><td>Subtotal:</td><td class="right">&#8377;${combinedSubtotal.toFixed(2)}</td></tr>
+            ${cgstPercent > 0 ? `<tr><td>CGST (${cgstPercent}%):</td><td class="right">&#8377;${cgstAmount.toFixed(2)}</td></tr>` : ""}
+            ${sgstPercent > 0 ? `<tr><td>SGST (${sgstPercent}%):</td><td class="right">&#8377;${sgstAmount.toFixed(2)}</td></tr>` : ""}
+            <tr class="bold"><td style="font-size: 18px; padding-top: 10px;">GRAND TOTAL:</td><td class="right" style="font-size: 18px; padding-top: 10px;">&#8377;${grandTotal.toFixed(2)}</td></tr>
+          </table>
+          <div class="divider"></div>
+          <div class="upi-section">
+            <div class="upi-title">PAY BILL</div>
+            <div class="upi-amount">&#8377;${grandTotal.toFixed(2)}</div>
+            ${
+              upiId
+                ? `<div class="upi-qr-wrapper"><img src="${qrCodeUrl}" alt="UPI Payment QR" onerror="this.src='${qrCodeUrlFallback}';" /></div><div class="upi-id">UPI ID: ${upiId}</div><div class="upi-instruction">Scan using Google Pay, PhonePe, Paytm, or any UPI app</div>`
+                : `<div class="upi-error">UPI ID not configured. Please contact restaurant.</div>`
+            }
+          </div>
+          <div class="thank-you">Thank You for Visiting!</div>
+        </body>
+      </html>
+    `;
+  }, [businessName, language]);
+
+  const printDashboardHtml = useCallback(async (htmlContent) => {
+    if (Platform.OS === "web") {
+      const existingIframe = document.getElementById("servon-dashboard-print-iframe");
+      if (existingIframe) document.body.removeChild(existingIframe);
+      const iframe = document.createElement("iframe");
+      iframe.id = "servon-dashboard-print-iframe";
+      iframe.style.cssText = "position:absolute;width:0px;height:0px;border:none;";
+      document.body.appendChild(iframe);
+      iframe.contentWindow.document.open();
+      iframe.contentWindow.document.write(htmlContent);
+      iframe.contentWindow.document.close();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }, 500);
+      setTimeout(() => {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+      }, 3000);
+    } else {
+      await Print.printAsync({ html: htmlContent });
+    }
+  }, []);
+
+  const handleDashboardBill = useCallback(async (currentOrder) => {
+    if (dashboardPrinting || !currentOrder) return;
+    setDashboardPrinting(true);
+    try {
+      const tableOrders = liveOrders.filter((o) =>
+        o.table_number === currentOrder.table_number &&
+        o.status !== "PAID" &&
+        o.status !== "REJECTED" &&
+        isToday(o.created_at)
+      );
+      if (!tableOrders.length) return;
+
+      const htmlContent = await buildDashboardBillHtml(tableOrders);
+      await Promise.all(tableOrders.map((o) => localDB.updateOrderStatus(o.id, "PAID").catch(() => null)));
+      setLiveOrders((prev) => prev.filter((o) => !tableOrders.some((to) => to.id === o.id)));
+
+      const online = await networkMonitor.checkConnectivity();
+      if (online) {
+        await Promise.all(tableOrders.map(async (o) => {
+          try {
+            if (!String(o.id).startsWith("local_order_")) {
+              await updateOrderStatus(o.id, "PAID");
+              await localDB.markAsSynced(o.id);
+            }
+          } catch (err) {
+            console.log("Dashboard bill sync failed, pending local sync:", err?.message || err);
+          }
+        }));
+      }
+
+      await printDashboardHtml(htmlContent);
+    } catch (err) {
+      console.error("Dashboard bill error:", err);
+      Alert.alert(localizeText("Print Failed", language), localizeText("Could not print the bill.", language));
+    } finally {
+      setDashboardPrinting(false);
+    }
+  }, [buildDashboardBillHtml, dashboardPrinting, language, liveOrders, printDashboardHtml]);
+
   const handleOpenNotifications = async () => {
     setShowNotifications(true);
     setShowOlderNotifications(false);
@@ -1336,7 +1529,7 @@ export default function DashboardScreen() {
           </div>
 
           {!isChefMode && (
-            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
               <TouchableOpacity style={styles.advisorBtn} onPress={() => navigation.navigate("Advisor")}>
                 <Ionicons name="sparkles-outline" size={20} color="#fff" />
                 <LocalizedText translate style={styles.advisorBtnText}>AI Business Advisor</LocalizedText>
@@ -1378,7 +1571,7 @@ export default function DashboardScreen() {
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: screenWidth > 900 ? "repeat(2, 1fr)" : "1fr", gap: 14 }}>
-                {liveOrders.map(order => <WebOrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onRemoveItem={handleRemoveOrderItem} />)}
+                {liveOrders.map(order => <WebOrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onBill={handleDashboardBill} onRemoveItem={handleRemoveOrderItem} />)}
               </div>
             )}
           </div>
@@ -1749,7 +1942,7 @@ export default function DashboardScreen() {
           </View>
 
           {!isChefMode && (
-            <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <View style={styles.quickActionsRow}>
               <TouchableOpacity
                 style={styles.advisorBtn}
                 onPress={() => navigation.navigate("Advisor")}
@@ -1802,7 +1995,7 @@ export default function DashboardScreen() {
                 <LocalizedText translate style={styles.emptySubText}>Waiting for customers to scan QR</LocalizedText>
               </View>
             ) : (
-              liveOrders.map(order => <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onRemoveItem={handleRemoveOrderItem} />)
+              liveOrders.map(order => <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onBill={handleDashboardBill} onRemoveItem={handleRemoveOrderItem} />)
             )}
           </View>
         </View>
@@ -2082,7 +2275,7 @@ function WebStatCard({ label, value, icon, color, bg, accent, isText, language }
   );
 }
 
-function WebOrderCard({ order, onStatusUpdate, onAddItems, onRemoveItem }) {
+function WebOrderCard({ order, onStatusUpdate, onAddItems, onBill, onRemoveItem }) {
   const { language } = useLocale();
   const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
   const color = statusColor(order.status);
@@ -2145,25 +2338,46 @@ function WebOrderCard({ order, onStatusUpdate, onAddItems, onRemoveItem }) {
             <span style={{ fontSize: 12, color: "#9CA3AF" }}>Total </span>
             <span style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>₹{order.total_amount}</span>
           </div>
-          <button
-            onClick={() => onAddItems?.(order)}
-            style={{
-              border: "none",
-              borderRadius: 10,
-              padding: "8px 12px",
-              background: "#111827",
-              color: "#fff",
-              fontSize: 12,
-              fontWeight: 800,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              cursor: "pointer",
-            }}
-          >
-            <Ionicons name="add" size={15} color="#fff" />
-            Add Items
-          </button>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={() => onBill?.(order)}
+              style={{
+                border: "1px solid #D1D5DB",
+                borderRadius: 10,
+                padding: "8px 12px",
+                background: "#fff",
+                color: "#111827",
+                fontSize: 12,
+                fontWeight: 800,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: "pointer",
+              }}
+            >
+              <Ionicons name="receipt-outline" size={15} color="#111827" />
+              Bill
+            </button>
+            <button
+              onClick={() => onAddItems?.(order)}
+              style={{
+                border: "none",
+                borderRadius: 10,
+                padding: "8px 12px",
+                background: "#111827",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 800,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: "pointer",
+              }}
+            >
+              <Ionicons name="add" size={15} color="#fff" />
+              Add Items
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2186,7 +2400,7 @@ function StatCard({ label, value, icon, color, bg, isText, extraStyle }) {
   );
 }
 
-function OrderCard({ order, onStatusUpdate, onAddItems, onRemoveItem }) {
+function OrderCard({ order, onStatusUpdate, onAddItems, onBill, onRemoveItem }) {
   const { language } = useLocale();
   const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
 
@@ -2222,10 +2436,16 @@ function OrderCard({ order, onStatusUpdate, onAddItems, onRemoveItem }) {
         <LocalizedText translate style={styles.orderTotalLabel}>Total Amount</LocalizedText>
         <LocalizedText style={styles.orderTotalValue}>₹{order.total_amount}</LocalizedText>
       </View>
-      <TouchableOpacity style={styles.addItemsBtn} onPress={() => onAddItems?.(order)}>
-        <Ionicons name="add" size={16} color="#fff" />
-        <LocalizedText translate style={styles.addItemsBtnText}>Add Items</LocalizedText>
-      </TouchableOpacity>
+      <View style={styles.orderActionRow}>
+        <TouchableOpacity style={styles.billBtn} onPress={() => onBill?.(order)}>
+          <Ionicons name="receipt-outline" size={16} color="#111827" />
+          <LocalizedText translate style={styles.billBtnText}>Bill</LocalizedText>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.addItemsBtn} onPress={() => onAddItems?.(order)}>
+          <Ionicons name="add" size={16} color="#fff" />
+          <LocalizedText translate style={styles.addItemsBtnText}>Add Items</LocalizedText>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -2345,7 +2565,21 @@ const styles = StyleSheet.create({
   orderFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   orderTotalLabel: { fontSize: 12, color: '#9CA3AF' },
   orderTotalValue: { fontSize: 17, fontWeight: '800', color: '#111827' },
-  addItemsBtn: { marginTop: 12, height: 42, borderRadius: 12, backgroundColor: '#111827', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  orderActionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  billBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  billBtnText: { color: '#111827', fontSize: 13, fontWeight: '800' },
+  addItemsBtn: { flex: 1, height: 42, borderRadius: 12, backgroundColor: '#111827', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   addItemsBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: {
@@ -2426,8 +2660,29 @@ const styles = StyleSheet.create({
   insightModalBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   insightModalFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14 },
   insightModalFooterText: { fontSize: 13, color: '#9CA3AF' },
-  advisorBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, gap: 8, marginTop: 12, alignSelf: 'center' },
-  advisorBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 6,
+  },
+  advisorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 7,
+    marginTop: 8,
+    alignSelf: 'center',
+    minHeight: 42,
+    flexShrink: 1,
+  },
+  advisorBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   trialToastWrap: {
     position: 'absolute', left: 0, right: 0, alignItems: 'center',

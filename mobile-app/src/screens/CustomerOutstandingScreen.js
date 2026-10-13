@@ -36,6 +36,12 @@ const fmtDate = (value) =>
       })
     : "-";
 
+const withOfflineFallbackTimeout = (promise, ms = 2500) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("offline_fallback_timeout")), ms)),
+  ]);
+
 export default function CustomerOutstandingScreen() {
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
@@ -50,8 +56,10 @@ export default function CustomerOutstandingScreen() {
       setLoading(true);
       const online = await networkMonitor.checkConnectivity();
       if (online) {
-        const res = await getCustomerOutstandings();
-        setRecords(res.data?.records || []);
+        const res = await withOfflineFallbackTimeout(getCustomerOutstandings());
+        const remoteRecords = res.data?.records || [];
+        await localDB.cacheCustomerOutstandings(remoteRecords);
+        setRecords(remoteRecords);
         setTotalRemaining(res.data?.totalRemaining || "0.00");
       } else {
         const localRecords = await localDB.getCustomerOutstandings();

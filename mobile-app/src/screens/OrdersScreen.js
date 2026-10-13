@@ -112,6 +112,11 @@ const CHEF_STATUSES = {
 const getChefStatusConfig = (status) => CHEF_STATUSES[status] || CHEF_STATUSES.EDITABLE;
 const CHEF_PRIORITY_ORDER = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"];
 const isLiveOrderStatus = (status) => ["CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"].includes(status);
+const withOfflineFallbackTimeout = (promise, ms = 2500) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("offline_fallback_timeout")), ms)),
+  ]);
 
 const parseMoneyToCents = (value) => {
   if (value === null || value === undefined || String(value).trim() === "") return null;
@@ -1253,7 +1258,11 @@ return `
           };
           const isOnlineForOutstanding = await networkMonitor.checkConnectivity();
           if (isOnlineForOutstanding && !String(currentOrder.id).startsWith("local_order_")) {
-            await saveCustomerOutstanding(outstandingRecord);
+            try {
+              await withOfflineFallbackTimeout(saveCustomerOutstanding(outstandingRecord));
+            } catch (apiErr) {
+              await localDB.saveCustomerOutstanding(outstandingRecord);
+            }
           } else {
             await localDB.saveCustomerOutstanding(outstandingRecord);
           }

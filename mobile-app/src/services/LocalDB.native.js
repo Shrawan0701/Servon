@@ -531,6 +531,17 @@ class LocalDB {
         return data;
     }
 
+    async cacheCustomerOutstandings(records) {
+        await this.db.runAsync(`DELETE FROM customer_outstandings WHERE is_synced = 1`);
+        for (const record of records || []) {
+            const data = { ...record, is_synced: record.is_synced ?? 1 };
+            await this.db.runAsync(
+                `INSERT OR REPLACE INTO customer_outstandings (id, data, remaining_amount, created_at, is_synced) VALUES (?, ?, ?, ?, ?)`,
+                [String(data.id), JSON.stringify(data), Number(data.remaining_amount || 0), data.created_at || new Date().toISOString(), data.is_synced ? 1 : 0]
+            );
+        }
+    }
+
     async getCustomerOutstandings() {
         const rows = await this.db.getAllAsync(`SELECT data FROM customer_outstandings WHERE remaining_amount > 0 ORDER BY created_at DESC`);
         return rows.map((row) => JSON.parse(row.data));

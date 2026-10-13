@@ -397,6 +397,13 @@ class LocalDB {
         return data;
     }
 
+    async cacheCustomerOutstandings(records) {
+        await this.setData('customer_outstandings', (records || []).map((record) => ({
+            ...record,
+            is_synced: record.is_synced ?? 1,
+        })));
+    }
+
     async getCustomerOutstandings() {
         const records = await this.getData('customer_outstandings') || [];
         return records.filter((record) => Number(record.remaining_amount || 0) > 0);
