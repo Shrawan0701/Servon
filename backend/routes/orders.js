@@ -35,6 +35,32 @@ function getOptionalBusinessId(req) {
   }
 }
 
+async function calculateOrderTotals(businessId, items, discountType = "none", discountValue = 0) {
+  const subtotal = (Array.isArray(items) ? items : []).reduce((sum, item) => {
+    const price = parseFloat(item.price) || 0;
+    const qty = parseInt(item.quantity) || 0;
+    return sum + price * qty;
+  }, 0);
+
+  const gstResult = await pool.query(
+    "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
+    [businessId]
+  );
+  const cgstPercent = parseFloat(gstResult.rows[0]?.cgst_percentage || 0);
+  const sgstPercent = parseFloat(gstResult.rows[0]?.sgst_percentage || 0);
+  const { discountAmount, amountAfterDiscount } = calculateDiscount(subtotal, discountType, discountValue);
+  const cgst = (amountAfterDiscount * cgstPercent) / 100;
+  const sgst = (amountAfterDiscount * sgstPercent) / 100;
+  const gstTotal = cgst + sgst;
+
+  return {
+    subtotal,
+    discountAmount,
+    gstTotal,
+    finalTotal: amountAfterDiscount + gstTotal,
+  };
+}
+
 function toCents(value) {
   if (value === null || value === undefined || value === "") return null;
   const normalized = String(value).trim();
@@ -414,6 +440,88 @@ router.get("/", auth, async (req, res) => {
     res.json(orders);
   } catch (err) {
     console.error("Fetch orders error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/:id/items", auth, async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "Items required" });
+  }
+
+  try {
+    const orderResult = await pool.query(
+      `SELECT * FROM orders
+       WHERE id = $1
+         AND business_id = $2
+         AND status IN ('EDITABLE', 'CONFIRMED', 'PREPARING', 'SERVED', 'TABLE_ACTIVE')`,
+      [req.params.id, req.businessId]
+    );
+    if (orderResult.rows.length === 0) return res.status(404).json({ error: "Order not found" });
+
+    const order = orderResult.rows[0];
+    const existingItems = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
+    const merged = [...existingItems];
+
+    items.forEach((item) => {
+      const qty = parseInt(item.quantity || 1, 10);
+      const price = parseFloat(item.price || 0);
+      if (!item.id || qty <= 0 || price < 0) return;
+
+      const key = String(item.id);
+      const found = merged.find((existing) => String(existing.id) === key);
+      if (found) {
+        found.quantity = (parseInt(found.quantity || 0, 10) || 0) + qty;
+      } else {
+        merged.push({ ...item, quantity: qty });
+      }
+    });
+
+    const totals = await calculateOrderTotals(
+      req.businessId,
+      merged,
+      order.discount_type || "none",
+      parseFloat(order.discount_value || 0) || 0
+    );
+
+    try {
+      await deductInventoryForOrder(req.businessId, req.params.id, items);
+    } catch (invErr) {
+      return res.status(400).json({ error: invErr.message || "Insufficient stock" });
+    }
+
+    const updated = await pool.query(
+      `UPDATE orders
+       SET items = $1,
+           total_amount = $2,
+           discount_amount = $3,
+           subtotal_before_discount = $4,
+           gst_amount = $5,
+           updated_at = NOW()
+       WHERE id = $6 AND business_id = $7
+       RETURNING *`,
+      [
+        JSON.stringify(merged),
+        totals.finalTotal,
+        totals.discountAmount,
+        totals.subtotal,
+        totals.gstTotal,
+        req.params.id,
+        req.businessId,
+      ]
+    );
+
+    try {
+      const io = getIO();
+      io.to(`business_${req.businessId}`).emit("order_updated", updated.rows[0]);
+    } catch (e) {
+      console.warn("Socket emit failed:", e.message);
+    }
+
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error("Append order items error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
