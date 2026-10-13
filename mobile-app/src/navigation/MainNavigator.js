@@ -22,6 +22,7 @@ import InventoryScreen from "../screens/InventoryScreen";
 import StaffScreen from '../screens/StaffScreen';
 import StaffProfileScreen from '../screens/StaffProfileScreen';
 import RoomsScreen from '../screens/RoomsScreen';
+import CustomerOutstandingScreen from '../screens/CustomerOutstandingScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -133,6 +134,13 @@ export default function MainNavigator() {
       <Stack.Screen
         name="Rooms"
         component={RoomsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="CustomerOutstanding"
+        component={CustomerOutstandingScreen}
         options={{
           headerShown: false,
         }}

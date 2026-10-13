@@ -34,6 +34,7 @@ import {
   getTables,
   getProfile,
   placeOrder,
+  appendOrderItems,
   servonVoice,
   checkInRoom,
   updateRoom,
@@ -89,7 +90,7 @@ const uniqueById = (items) => {
   });
 };
 
-export default function ServonAssistantModal({ visible, onClose, initialMode = "manual" }) {
+export default function ServonAssistantModal({ visible, onClose, initialMode = "manual", appendOrder = null, onOrderSaved }) {
   const navigation = useNavigation();
   const { business } = useAuth();
   const { language } = useLocale();
@@ -147,7 +148,14 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       setResolvedAmbiguities({});
       loadData();
     }
-  }, [visible, initialMode, loadData]);
+  }, [visible, initialMode, loadData, appendOrder?.id]);
+
+  useEffect(() => {
+    if (!visible || !appendOrder || tables.length === 0) return;
+    const table = tables.find((t) => String(t.id) === String(appendOrder.table_id)) ||
+      tables.find((t) => String(t.table_number) === String(appendOrder.table_number));
+    if (table) setSelectedTable(table);
+  }, [visible, appendOrder, tables]);
 
   useEffect(() => () => clearTimeout(autoStopTimer.current), []);
   useEffect(() => {
@@ -354,8 +362,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const mGrand = manualSubtotal + mCgst + mSgst;
 
   const confirmManualOrder = async () => {
-    if (!selectedTable) { Alert.alert("Create Order", "Please select a table."); return; }
-    if (selectedItems.length === 0) { Alert.alert("Create Order", "Please add at least one item."); return; }
+    const actionTitle = appendOrder ? "Add Items" : "Create Order";
+    if (!selectedTable) { Alert.alert(actionTitle, "Please select a table."); return; }
+    if (selectedItems.length === 0) { Alert.alert(actionTitle, "Please add at least one item."); return; }
     setPlacing(true);
     try {
       const items = selectedItems.map((i) => ({
@@ -374,19 +383,22 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         thali_includes: i.thali_includes || [],
         thali_custom: i.thali_custom || "",
       }));
-      const res = await placeOrder({
-        businessId: business?.id,
-        tableId: selectedTable.id,
-        items,
-        totalAmount: manualSubtotal,
-        orderSource: "staff",
-        initialStatus: "CONFIRMED",
-      });
-      Alert.alert("Order Created", `Order placed for ${selectedTable.table_number}.`);
+      const res = appendOrder
+        ? await appendOrderItems(appendOrder.id, items)
+        : await placeOrder({
+            businessId: business?.id,
+            tableId: selectedTable.id,
+            items,
+            totalAmount: manualSubtotal,
+            orderSource: "staff",
+            initialStatus: "CONFIRMED",
+          });
+      Alert.alert(appendOrder ? "Items Added" : "Order Created", appendOrder ? `Items added to Table ${selectedTable.table_number}.` : `Order placed for ${selectedTable.table_number}.`);
+      onOrderSaved?.(res?.data);
       onClose?.();
       return res;
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.error || "Could not place order.");
+      Alert.alert("Error", err.response?.data?.error || (appendOrder ? "Could not add items." : "Could not place order."));
     } finally {
       setPlacing(false);
     }
@@ -518,8 +530,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
               return (
                 <TouchableOpacity
                   key={t.id}
-                  style={[styles.tableChip, active && styles.tableChipActive]}
-                  onPress={() => setSelectedTable(t)}
+                  style={[styles.tableChip, active && styles.tableChipActive, appendOrder && !active && { opacity: 0.45 }]}
+                  onPress={() => !appendOrder && setSelectedTable(t)}
+                  disabled={!!appendOrder}
                 >
                   <LocalizedText style={[styles.tableChipText, active && styles.tableChipTextActive]}>
                     {t.table_number}
@@ -673,7 +686,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
             {placing ? <ActivityIndicator color="#fff" /> : (
               <>
                 <Ionicons name="checkmark" size={18} color="#fff" />
-                <LocalizedText translate style={styles.primaryBtnText}>Create Order</LocalizedText>
+                <LocalizedText translate style={styles.primaryBtnText}>{appendOrder ? "Add Items" : "Create Order"}</LocalizedText>
               </>
             )}
           </TouchableOpacity>
@@ -884,13 +897,13 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>
-            <LocalizedText style={styles.title}>{mode === "voice" ? "Servon Assistant" : "Create Order"}</LocalizedText>
+            <LocalizedText style={styles.title}>{appendOrder ? "Add Items" : mode === "voice" ? "Servon Assistant" : "Create Order"}</LocalizedText>
             <TouchableOpacity style={styles.closeBtn} onPress={close}>
               <Ionicons name="close" size={20} color={COLORS.text} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.tabs}>
+          {!appendOrder && <View style={styles.tabs}>
             <TouchableOpacity
               style={[styles.tab, mode === "manual" && styles.tabActive]}
               onPress={() => switchMode("manual")}
@@ -905,7 +918,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
               <Ionicons name="mic-outline" size={16} color={mode === "voice" ? COLORS.text : COLORS.subtext} />
               <LocalizedText translate style={[styles.tabText, mode === "voice" && styles.tabTextActive]}>Voice</LocalizedText>
             </TouchableOpacity>
-          </View>
+          </View>}
 
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
             {body}

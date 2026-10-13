@@ -41,6 +41,7 @@ import {
   getBusinessAlerts,
   markAlertRead,
   markAllAlertsRead,
+  removeOrderItem,
 } from "../api";
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
@@ -798,6 +799,7 @@ export default function DashboardScreen() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef(null);
   const [assistantOpen, setAssistantOpen] = useState(null); // null | 'manual' | 'voice'
+  const [appendOrder, setAppendOrder] = useState(null);
 
   const businessName = business?.business_name || business?.businessName || "Servon";
 
@@ -994,6 +996,38 @@ export default function DashboardScreen() {
     }
   };
 
+  const openAddItems = (order) => {
+    setAppendOrder(order);
+    setAssistantOpen("manual");
+  };
+
+  const handleAssistantClose = () => {
+    setAssistantOpen(null);
+    setAppendOrder(null);
+  };
+
+  const handleOrderSaved = (updatedOrder) => {
+    if (!updatedOrder?.id) {
+      loadData();
+      return;
+    }
+    if (!["CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"].includes(updatedOrder.status)) {
+      setLiveOrders((prev) => prev.filter((o) => o.id !== updatedOrder.id));
+      return;
+    }
+    setLiveOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o)));
+  };
+
+  const handleRemoveOrderItem = async (order, item) => {
+    try {
+      const itemId = item.id || item.menu_item_id || item.menuItemId;
+      const res = await removeOrderItem(order.id, itemId);
+      handleOrderSaved(res.data);
+    } catch (err) {
+      Alert.alert("Remove Item", err.response?.data?.error || "Could not remove item.");
+    }
+  };
+
   const handleOpenNotifications = async () => {
     setShowNotifications(true);
     setShowOlderNotifications(false);
@@ -1116,6 +1150,7 @@ export default function DashboardScreen() {
     { key: "Inventory", label: "Inventory", icon: "cube-outline", iconColor: "#F59E0B", badge: lowStockCount },
     { key: "Staff", label: "Staff", icon: "people-outline", iconColor: "#10B981" },
     { key: "Rooms", label: "Rooms", icon: "bed-outline", iconColor: "#6366F1" },
+    { key: "CustomerOutstanding", label: "Customer Outstanding", icon: "wallet-outline", iconColor: "#EF4444" },
 
     { key: "Referrals", label: "Referrals", icon: "share-outline", iconColor: "#EAB308" },
     { key: "Support", label: "Support", icon: "help-buoy-outline", iconColor: "#10B981" },
@@ -1267,6 +1302,13 @@ export default function DashboardScreen() {
                 )}
                 <LocalizedText translate style={styles.advisorBtnText}>Generate Summary</LocalizedText>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.advisorBtn, { backgroundColor: "#B91C1C" }]}
+                onPress={() => navigation.navigate("CustomerOutstanding")}
+              >
+                <Ionicons name="wallet-outline" size={20} color="#fff" />
+                <LocalizedText translate style={styles.advisorBtnText}>Customer Outstanding</LocalizedText>
+              </TouchableOpacity>
             </div>
           )}
 
@@ -1285,7 +1327,7 @@ export default function DashboardScreen() {
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: screenWidth > 900 ? "repeat(2, 1fr)" : "1fr", gap: 14 }}>
-                {liveOrders.map(order => <WebOrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} />)}
+                {liveOrders.map(order => <WebOrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onRemoveItem={handleRemoveOrderItem} />)}
               </div>
             )}
           </div>
@@ -1528,7 +1570,7 @@ export default function DashboardScreen() {
       {/* SERVON FLOATING ACTIONS (web) */}
       <div className="servon-fab-area" style={{ position: "fixed", right: 22, bottom: 90, display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-end", zIndex: 1200 }}>
           <button
-            onClick={() => setAssistantOpen("voice")}
+            onClick={() => { setAppendOrder(null); setAssistantOpen("voice"); }}
             title="Servon Assistant"
             style={{
               width: 46, height: 46, borderRadius: 23, border: "none", cursor: "pointer",
@@ -1539,7 +1581,7 @@ export default function DashboardScreen() {
             <Ionicons name="mic" size={22} color="#fff" />
           </button>
           <button
-            onClick={() => setAssistantOpen("manual")}
+            onClick={() => { setAppendOrder(null); setAssistantOpen("manual"); }}
             title="Create Order"
             style={{
               height: 48, padding: "0 18px", borderRadius: 24, border: "none", cursor: "pointer",
@@ -1555,7 +1597,9 @@ export default function DashboardScreen() {
         <ServonAssistantModal
           visible={assistantOpen !== null}
           initialMode={assistantOpen || "manual"}
-          onClose={() => setAssistantOpen(null)}
+          appendOrder={appendOrder}
+          onOrderSaved={handleOrderSaved}
+          onClose={handleAssistantClose}
         />
       </div>
     );
@@ -1682,6 +1726,15 @@ export default function DashboardScreen() {
                   Generate Summary
                 </LocalizedText>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.advisorBtn, { backgroundColor: "#B91C1C" }]}
+                onPress={() => navigation.navigate("CustomerOutstanding")}
+              >
+                <Ionicons name="wallet-outline" size={20} color="#fff" />
+                <LocalizedText translate style={styles.advisorBtnText}>
+                  Customer Outstanding
+                </LocalizedText>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -1698,7 +1751,7 @@ export default function DashboardScreen() {
                 <LocalizedText translate style={styles.emptySubText}>Waiting for customers to scan QR</LocalizedText>
               </View>
             ) : (
-              liveOrders.map(order => <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} />)
+              liveOrders.map(order => <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onRemoveItem={handleRemoveOrderItem} />)
             )}
           </View>
         </View>
@@ -1936,10 +1989,10 @@ export default function DashboardScreen() {
 
       {/* SERVON FLOATING ACTIONS (native) */}
       <View style={styles.servonFabWrap} pointerEvents="box-none">
-        <TouchableOpacity style={styles.servonMicFab} onPress={() => setAssistantOpen("voice")}>
+        <TouchableOpacity style={styles.servonMicFab} onPress={() => { setAppendOrder(null); setAssistantOpen("voice"); }}>
           <Ionicons name="mic" size={22} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.servonCreateFab} onPress={() => setAssistantOpen("manual")}>
+        <TouchableOpacity style={styles.servonCreateFab} onPress={() => { setAppendOrder(null); setAssistantOpen("manual"); }}>
           <Ionicons name="add" size={26} color="#fff" />
           <LocalizedText translate style={styles.servonCreateLabel}>Create Order</LocalizedText>
         </TouchableOpacity>
@@ -1948,7 +2001,9 @@ export default function DashboardScreen() {
       <ServonAssistantModal
         visible={assistantOpen !== null}
         initialMode={assistantOpen || "manual"}
-        onClose={() => setAssistantOpen(null)}
+        appendOrder={appendOrder}
+        onOrderSaved={handleOrderSaved}
+        onClose={handleAssistantClose}
       />
     </View>
   );
@@ -1976,7 +2031,7 @@ function WebStatCard({ label, value, icon, color, bg, accent, isText, language }
   );
 }
 
-function WebOrderCard({ order, onStatusUpdate }) {
+function WebOrderCard({ order, onStatusUpdate, onAddItems, onRemoveItem }) {
   const { language } = useLocale();
   const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
   const color = statusColor(order.status);
@@ -2003,6 +2058,24 @@ function WebOrderCard({ order, onStatusUpdate }) {
         <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 10, marginBottom: 10 }}>
           {items.map((item, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <button
+                onClick={() => onRemoveItem?.(order, item)}
+                title="Remove item"
+                style={{
+                  border: "none",
+                  width: 24,
+                  height: 24,
+                  borderRadius: 7,
+                  background: "#FEF2F2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                <Ionicons name="trash-outline" size={13} color="#EF4444" />
+              </button>
               <span style={{ background: "#F3F4F6", borderRadius: 6, padding: "2px 7px", fontSize: 11, fontWeight: 700, color: "#374151" }}>
                 {item.quantity}×
               </span>
@@ -2021,6 +2094,25 @@ function WebOrderCard({ order, onStatusUpdate }) {
             <span style={{ fontSize: 12, color: "#9CA3AF" }}>Total </span>
             <span style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>₹{order.total_amount}</span>
           </div>
+          <button
+            onClick={() => onAddItems?.(order)}
+            style={{
+              border: "none",
+              borderRadius: 10,
+              padding: "8px 12px",
+              background: "#111827",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "pointer",
+            }}
+          >
+            <Ionicons name="add" size={15} color="#fff" />
+            Add Items
+          </button>
         </div>
       </div>
     </div>
@@ -2043,7 +2135,7 @@ function StatCard({ label, value, icon, color, bg, isText, extraStyle }) {
   );
 }
 
-function OrderCard({ order, onStatusUpdate }) {
+function OrderCard({ order, onStatusUpdate, onAddItems, onRemoveItem }) {
   const { language } = useLocale();
   const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
 
@@ -2061,6 +2153,9 @@ function OrderCard({ order, onStatusUpdate }) {
       <View style={styles.divider} />
       {items.map((item, i) => (
         <View key={i} style={styles.orderItemRow}>
+          <TouchableOpacity style={styles.itemTrashBtn} onPress={() => onRemoveItem?.(order, item)} activeOpacity={0.75}>
+            <Ionicons name="trash-outline" size={13} color="#EF4444" />
+          </TouchableOpacity>
           <View style={styles.qtyBadge}><LocalizedText style={styles.qtyText}>{item.quantity}x</LocalizedText></View>
           <LocalizedText style={styles.orderItemName}>{localizedItemName(item, language)}</LocalizedText>
         </View>
@@ -2076,6 +2171,10 @@ function OrderCard({ order, onStatusUpdate }) {
         <LocalizedText translate style={styles.orderTotalLabel}>Total Amount</LocalizedText>
         <LocalizedText style={styles.orderTotalValue}>₹{order.total_amount}</LocalizedText>
       </View>
+      <TouchableOpacity style={styles.addItemsBtn} onPress={() => onAddItems?.(order)}>
+        <Ionicons name="add" size={16} color="#fff" />
+        <LocalizedText translate style={styles.addItemsBtnText}>Add Items</LocalizedText>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -2186,6 +2285,7 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: '600' },
   divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 10 },
   orderItemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  itemTrashBtn: { width: 24, height: 24, borderRadius: 7, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center' },
   qtyBadge: { backgroundColor: '#F3F4F6', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   qtyText: { fontSize: 11, fontWeight: '700', color: '#374151' },
   orderItemName: { fontSize: 13, fontWeight: '500', color: '#1F2937' },
@@ -2194,6 +2294,8 @@ const styles = StyleSheet.create({
   orderFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   orderTotalLabel: { fontSize: 12, color: '#9CA3AF' },
   orderTotalValue: { fontSize: 17, fontWeight: '800', color: '#111827' },
+  addItemsBtn: { marginTop: 12, height: 42, borderRadius: 12, backgroundColor: '#111827', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  addItemsBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,

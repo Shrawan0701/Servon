@@ -21,7 +21,7 @@ import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { getOrders, updateOrderStatus, getProfile, getTables } from "../api";
+import { getOrders, updateOrderStatus, getProfile, getTables, saveCustomerOutstanding, removeOrderItem } from "../api";
 import { localizedItemName } from "../utils/localizedItemName";
 import * as Print from "expo-print";
 import { useAuth } from "../context/AuthContext";
@@ -113,6 +113,17 @@ const getChefStatusConfig = (status) => CHEF_STATUSES[status] || CHEF_STATUSES.E
 const CHEF_PRIORITY_ORDER = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"];
 const isLiveOrderStatus = (status) => ["CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"].includes(status);
 
+const parseMoneyToCents = (value) => {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const normalized = String(value).trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return NaN;
+  const [rupees, paise = ""] = normalized.split(".");
+  return Number(rupees) * 100 + Number((paise + "00").slice(0, 2));
+};
+
+const numberToCents = (value) => Math.round(Number(value || 0) * 100);
+const formatCents = (cents) => (Number(cents || 0) / 100).toFixed(2);
+
 const CHEF_FILTERS = [
   { key: "all", label: "All" },
   { key: "CONFIRMED", label: "CONFIRMED" },
@@ -150,6 +161,7 @@ const ChefOrderCard = React.memo((props) => {
     onPrint,
     onReprint,
     onDeleteConfirmed,
+    onRemoveItem,
     isProcessing,
     timeLeft,
     isChefMode,
@@ -210,6 +222,11 @@ const ChefOrderCard = React.memo((props) => {
       <View style={styles.chefItemsContainer}>
         {items.map((item, idx) => (
           <View key={idx} style={[styles.chefItemRow, idx !== items.length - 1 && styles.chefItemRowDivider]}>
+            {!isChefMode && (
+              <TouchableOpacity style={styles.itemTrashBtn} onPress={() => onRemoveItem?.(order, item)} activeOpacity={0.75}>
+                <Ionicons name="trash-outline" size={13} color="#EF4444" />
+              </TouchableOpacity>
+            )}
             <LocalizedText style={styles.chefItemName} numberOfLines={2}>
               • {localizedItemName(item, language)}
             </LocalizedText>
@@ -417,7 +434,22 @@ const gateStyles = StyleSheet.create({
 });
 
 // ─── DISCOUNT MODAL ────────────────────────────────────────────────────
-const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discountValue, setDiscountValue, onApply, modalSubtotal, modalDiscountAmount }) => {
+const DiscountModal = ({
+  visible,
+  onClose,
+  discountType,
+  setDiscountType,
+  discountValue,
+  setDiscountValue,
+  onApply,
+  modalSubtotal,
+  modalDiscountAmount,
+  outstandingForm,
+  setOutstandingForm,
+  outstandingTotalCents,
+  outstandingRemainingCents,
+}) => {
+  const updateOutstanding = (field, value) => setOutstandingForm((prev) => ({ ...prev, [field]: value }));
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.discountModalOverlay} onPress={onClose}>
@@ -430,6 +462,7 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
           </View>
           <View style={styles.discountSegment}>
             {[
+              { key: "outstanding", label: "Outstanding", icon: "person-outline" },
               { key: "none", label: "None", icon: "close-circle-outline" },
               { key: "percentage", label: "% Off", icon: "pricetag-outline" },
               { key: "flat", label: "₹ Off", icon: "cash-outline" },
@@ -445,7 +478,34 @@ const DiscountModal = ({ visible, onClose, discountType, setDiscountType, discou
               </TouchableOpacity>
             ))}
           </View>
-          {discountType !== "none" && (
+          {discountType === "outstanding" ? (
+            <View style={styles.outstandingFields}>
+              <TextInput style={styles.outstandingInput} placeholder="Customer Name" placeholderTextColor="#9CA3AF" value={outstandingForm.customerName} onChangeText={(v) => updateOutstanding("customerName", v)} />
+              <TextInput style={styles.outstandingInput} placeholder="Phone Number" placeholderTextColor="#9CA3AF" keyboardType="number-pad" maxLength={10} value={outstandingForm.phoneNumber} onChangeText={(v) => updateOutstanding("phoneNumber", v.replace(/\D/g, ""))} />
+              <View style={styles.outstandingReadonly}>
+                <LocalizedText style={styles.previewLabel}>Total Amount</LocalizedText>
+                <LocalizedText style={styles.previewValue}>Rs. {formatCents(outstandingTotalCents)}</LocalizedText>
+              </View>
+              <TextInput
+                style={styles.outstandingInput}
+                placeholder="Paid Amount (optional, default 0.00)"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={outstandingForm.paidAmount}
+                onChangeText={(v) => updateOutstanding("paidAmount", v.replace(/[^0-9.]/g, ""))}
+                selectTextOnFocus
+              />
+              <TextInput
+                style={styles.outstandingInput}
+                placeholder={`Remaining Amount (default ${formatCents(outstandingRemainingCents)})`}
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={outstandingForm.remainingAmount}
+                onChangeText={(v) => updateOutstanding("remainingAmount", v.replace(/[^0-9.]/g, ""))}
+                selectTextOnFocus
+              />
+            </View>
+          ) : discountType !== "none" && (
             <>
               <View style={styles.discountInputWrap}>
                 <LocalizedText style={styles.discountPrefix}>{discountType === "percentage" ? "%" : "₹"}</LocalizedText>
@@ -523,6 +583,12 @@ export default function OrdersScreen() {
   const [selectedOrderForDiscount, setSelectedOrderForDiscount] = useState(null);
   const [discountType, setDiscountType] = useState("none");
   const [discountValue, setDiscountValue] = useState("");
+  const [outstandingForm, setOutstandingForm] = useState({
+    customerName: "",
+    phoneNumber: "",
+    paidAmount: "",
+    remainingAmount: "",
+  });
 
   const localUpdateTimestamps = useRef({});
 
@@ -733,6 +799,23 @@ export default function OrdersScreen() {
   // ─── BUILD BILL HTML WITH UPI QR ──────────────────────────────────
   // Redesigned as a clean, monochrome thermal-receipt style layout —
   // no emoji, no green accents, dashed rules and a bordered total box.
+  const handleRemoveOrderItem = useCallback(
+    async (order, orderItem) => {
+      try {
+        const itemId = orderItem.id || orderItem.menu_item_id || orderItem.menuItemId;
+        const res = await removeOrderItem(order.id, itemId);
+        if (res?.data?.id) {
+          setOrders((prev) => prev.map((o) => (o.id === res.data.id ? { ...o, ...res.data } : o)));
+        } else {
+          loadData();
+        }
+      } catch (err) {
+        Alert.alert(localizeText("Remove Item", language), err.response?.data?.error || localizeText("Could not remove item.", language));
+      }
+    },
+    [language, loadData]
+  );
+
   const buildBillHtml = useCallback(
     (tableOrders, discount) => {
       let combinedSubtotal = 0;
@@ -1127,7 +1210,7 @@ return `
 
   // ─── HANDLE PRINT AND CHECKOUT ──────────────────────────────────
   const handlePrintAndCheckout = useCallback(
-    async (currentOrder, discount) => {
+    async (currentOrder, discount, outstandingPayload = null) => {
       // Prevent multiple print requests
       if (isPrinting) {
         console.log('⏳ Print already in progress, skipping...');
@@ -1151,6 +1234,13 @@ return `
         }
 
         const htmlContent = buildBillHtml(tableOrders, discount);
+
+        if (outstandingPayload) {
+          await saveCustomerOutstanding({
+            ...outstandingPayload,
+            orderId: currentOrder.id,
+          });
+        }
 
         const now = Date.now();
         await Promise.all(
@@ -1232,20 +1322,9 @@ return `
     setSelectedOrderForDiscount(order);
     setDiscountType("none");
     setDiscountValue("");
+    setOutstandingForm({ customerName: "", phoneNumber: "", paidAmount: "", remainingAmount: "" });
     setShowDiscountModal(true);
   }, []);
-
-  const applyDiscount = useCallback(() => {
-    const value = parseFloat(discountValue);
-    if (discountType !== "none" && (!value || value <= 0)) {
-      Alert.alert(localizeText("Invalid", language), localizeText("Please enter a valid discount amount.", language));
-      return;
-    }
-    const discount = { type: discountType, value: value || 0 };
-    handlePrintAndCheckout(selectedOrderForDiscount, discount);
-    setShowDiscountModal(false);
-    setSelectedOrderForDiscount(null);
-  }, [discountType, discountValue, selectedOrderForDiscount, handlePrintAndCheckout]);
 
   const modalSubtotal = useMemo(() => {
     if (!selectedOrderForDiscount) return 0;
@@ -1261,6 +1340,71 @@ return `
     if (discountType === "flat") return Math.min(value, modalSubtotal);
     return 0;
   }, [discountType, discountValue, modalSubtotal, selectedOrderForDiscount]);
+
+  const outstandingTotalCents = useMemo(() => numberToCents(modalSubtotal), [modalSubtotal]);
+  const outstandingRemainingCents = useMemo(() => {
+    const paid = parseMoneyToCents(outstandingForm.paidAmount);
+    const remaining = parseMoneyToCents(outstandingForm.remainingAmount);
+    if (remaining !== null && !Number.isNaN(remaining)) return remaining;
+    if (paid !== null && !Number.isNaN(paid)) return Math.max(0, outstandingTotalCents - paid);
+    return outstandingTotalCents;
+  }, [outstandingForm.paidAmount, outstandingForm.remainingAmount, outstandingTotalCents]);
+
+  const applyDiscount = useCallback(() => {
+    if (discountType === "outstanding") {
+      const name = outstandingForm.customerName.trim();
+      const phone = outstandingForm.phoneNumber.trim();
+      const totalCents = numberToCents(modalSubtotal);
+      let paidCents = parseMoneyToCents(outstandingForm.paidAmount);
+      let remainingCents = parseMoneyToCents(outstandingForm.remainingAmount);
+
+      if (!name) {
+        Alert.alert(localizeText("Invalid", language), "Customer name is required.");
+        return;
+      }
+      if (!/^\d{10}$/.test(phone)) {
+        Alert.alert(localizeText("Invalid", language), "Phone number must be exactly 10 digits.");
+        return;
+      }
+      if (Number.isNaN(paidCents) || Number.isNaN(remainingCents)) {
+        Alert.alert(localizeText("Invalid", language), "Enter valid rupee amounts with up to 2 decimals.");
+        return;
+      }
+      if (paidCents === null && remainingCents === null) {
+        paidCents = 0;
+        remainingCents = totalCents;
+      } else if (paidCents !== null && remainingCents === null) {
+        remainingCents = totalCents - paidCents;
+      } else if (paidCents === null && remainingCents !== null) {
+        paidCents = totalCents - remainingCents;
+      }
+      if (paidCents < 0 || remainingCents < 0 || remainingCents > totalCents || paidCents + remainingCents !== totalCents) {
+        Alert.alert(localizeText("Invalid", language), "Paid and remaining amounts must add up to the total.");
+        return;
+      }
+
+      handlePrintAndCheckout(selectedOrderForDiscount, { type: "none", value: 0 }, {
+        customerName: name,
+        phoneNumber: phone,
+        totalAmount: formatCents(totalCents),
+        paidAmount: formatCents(paidCents),
+        remainingAmount: formatCents(remainingCents),
+      });
+      setShowDiscountModal(false);
+      setSelectedOrderForDiscount(null);
+      return;
+    }
+
+    const value = parseFloat(discountValue);
+    if (discountType !== "none" && (!value || value <= 0)) {
+      Alert.alert(localizeText("Invalid", language), localizeText("Please enter a valid discount amount.", language));
+      return;
+    }
+    const discount = { type: discountType, value: value || 0 };
+    handlePrintAndCheckout(selectedOrderForDiscount, discount);
+    setShowDiscountModal(false);
+    setSelectedOrderForDiscount(null);
+  }, [discountType, discountValue, outstandingForm, modalSubtotal, selectedOrderForDiscount, handlePrintAndCheckout, language]);
 
   const onDateChange = (event, selected) => {
     if (event.type === "dismissed") {
@@ -1317,9 +1461,16 @@ return `
           </View>
         </View>
         {items.map((i, idx) => (
-          <LocalizedText key={idx} style={{ fontSize: 15, color: "#374151", marginBottom: 5, fontWeight: "500", lineHeight: 20 }}>
+          <View key={idx} style={styles.oldItemRow}>
+            {!isChefMode && (
+              <TouchableOpacity style={styles.itemTrashBtn} onPress={() => handleRemoveOrderItem(item, i)} activeOpacity={0.75}>
+                <Ionicons name="trash-outline" size={13} color="#EF4444" />
+              </TouchableOpacity>
+            )}
+          <LocalizedText style={{ fontSize: 15, color: "#374151", fontWeight: "500", lineHeight: 20, flex: 1 }}>
             • {localizedItemName(i, language)} × {i.quantity} - <LocalizedText style={{ fontWeight: "700" }}>₹{(i.price * i.quantity).toFixed(0)}</LocalizedText>
           </LocalizedText>
+          </View>
         ))}
         {item.special_instructions && (
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#FEF3C7", padding: 10, borderRadius: 10, marginTop: 8 }}>
@@ -1450,13 +1601,14 @@ return `
           onPrint={openDiscountModal}
           onReprint={handleReprint}
           onDeleteConfirmed={confirmDeleteOrder}
+          onRemoveItem={handleRemoveOrderItem}
           isProcessing={processingTable === item.table_number}
           timeLeft={timeLeft}
           isChefMode={isChefMode}
         />
       );
     },
-    [currentTime, handleStatusUpdate, processingTable, isChefMode, openDiscountModal, handleReprint, confirmDeleteOrder]
+    [currentTime, handleStatusUpdate, processingTable, isChefMode, openDiscountModal, handleReprint, confirmDeleteOrder, handleRemoveOrderItem]
   );
 
   const tableTabs = useMemo(() => {
@@ -1738,6 +1890,7 @@ return `
         onClose={() => {
           setShowDiscountModal(false);
           setSelectedOrderForDiscount(null);
+          setOutstandingForm({ customerName: "", phoneNumber: "", paidAmount: "", remainingAmount: "" });
         }}
         discountType={discountType}
         setDiscountType={setDiscountType}
@@ -1746,6 +1899,10 @@ return `
         onApply={applyDiscount}
         modalSubtotal={modalSubtotal}
         modalDiscountAmount={modalDiscountAmount}
+        outstandingForm={outstandingForm}
+        setOutstandingForm={setOutstandingForm}
+        outstandingTotalCents={outstandingTotalCents}
+        outstandingRemainingCents={outstandingRemainingCents}
       />
     </SafeAreaView>
   );
@@ -1784,6 +1941,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9, paddingVertical: 5,
   },
   reprintBtnTextOld: { fontSize: 11, fontWeight: "700", color: "#6B7280" },
+  oldItemRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 5 },
+  itemTrashBtn: { width: 24, height: 24, borderRadius: 7, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
 
   chefBadge: { flexDirection: "row", alignItems: "center", borderRadius: 12, gap: 4 },
   chefBadgeLabel: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
@@ -1921,7 +2080,7 @@ const styles = StyleSheet.create({
   mobileDateText: { fontSize: 14, fontWeight: "700", color: "#111827" },
 
   discountModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-  discountModal: { backgroundColor: "#fff", borderRadius: 22, padding: 22, width: "100%", maxWidth: 380 },
+  discountModal: { backgroundColor: "#fff", borderRadius: 22, padding: 22, width: "100%", maxWidth: 480 },
   discountModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
   discountModalTitle: { fontSize: 18, fontWeight: "800", color: "#111827" },
   discountSegment: { flexDirection: "row", backgroundColor: "#F3F4F6", borderRadius: 12, padding: 4, gap: 4, marginBottom: 16 },
@@ -1932,6 +2091,9 @@ const styles = StyleSheet.create({
   discountInputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, marginBottom: 10 },
   discountPrefix: { fontSize: 18, fontWeight: "800", color: "#9CA3AF", marginRight: 8 },
   discountInputField: { flex: 1, fontSize: 20, fontWeight: "700", paddingVertical: 12, color: "#111827" },
+  outstandingFields: { gap: 10, marginBottom: 12 },
+  outstandingInput: { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: "700", color: "#111827" },
+  outstandingReadonly: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   presetRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
   presetChip: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: "#ECFDF5", alignItems: "center" },
   presetChipText: { fontSize: 13, fontWeight: "700", color: "#10B981" },

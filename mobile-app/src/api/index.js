@@ -247,6 +247,12 @@ export const getQRPdfUrl = (id) => `${API.defaults.baseURL}/tables/${id}/qr-pdf`
 
 export const getOrders = () => API.get("/orders");
 export const updateOrderStatus = (id, status) => API.patch(`/orders/${id}/status`, { status });
+export const appendOrderItems = (id, items) => API.post(`/orders/${id}/items`, { items });
+export const removeOrderItem = (orderId, itemId) => API.delete(`/orders/${orderId}/items/${itemId}`);
+export const saveCustomerOutstanding = (data) => API.post("/orders/outstanding", data);
+export const getCustomerOutstandings = () => API.get("/orders/outstanding");
+export const getCustomerOutstandingPDFUrl = (token) =>
+  `${API.defaults.baseURL}/orders/outstanding/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 
 // Staff order creation — reuses the EXISTING customer order pipeline
 // (/orders/place), so staff orders become real, analytics-participating orders.
