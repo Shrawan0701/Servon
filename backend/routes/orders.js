@@ -526,6 +526,69 @@ router.post("/:id/items", auth, async (req, res) => {
   }
 });
 
+router.delete("/:id/items/:itemId", auth, async (req, res) => {
+  try {
+    const orderResult = await pool.query(
+      `SELECT * FROM orders
+       WHERE id = $1
+         AND business_id = $2
+         AND status IN ('EDITABLE', 'CONFIRMED', 'PREPARING', 'SERVED', 'TABLE_ACTIVE')`,
+      [req.params.id, req.businessId]
+    );
+    if (orderResult.rows.length === 0) return res.status(404).json({ error: "Order not found" });
+
+    const order = orderResult.rows[0];
+    const existingItems = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
+    const removeId = String(req.params.itemId);
+    const remainingItems = existingItems.filter((item) => String(item.id || item.menu_item_id || item.menuItemId) !== removeId);
+
+    if (remainingItems.length === existingItems.length) {
+      return res.status(404).json({ error: "Item not found in this order" });
+    }
+
+    const totals = await calculateOrderTotals(
+      req.businessId,
+      remainingItems,
+      order.discount_type || "none",
+      parseFloat(order.discount_value || 0) || 0
+    );
+
+    const updated = await pool.query(
+      `UPDATE orders
+       SET items = $1,
+           total_amount = $2,
+           discount_amount = $3,
+           subtotal_before_discount = $4,
+           gst_amount = $5,
+           updated_at = NOW()
+           ${remainingItems.length === 0 ? ", status = 'REJECTED'" : ""}
+       WHERE id = $6 AND business_id = $7
+       RETURNING *`,
+      [
+        JSON.stringify(remainingItems),
+        totals.finalTotal,
+        totals.discountAmount,
+        totals.subtotal,
+        totals.gstTotal,
+        req.params.id,
+        req.businessId,
+      ]
+    );
+
+    try {
+      const io = getIO();
+      io.to(`business_${req.businessId}`).emit("order_updated", updated.rows[0]);
+    } catch (e) {
+      console.warn("Socket emit failed:", e.message);
+    }
+
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error("Remove order item error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.post("/outstanding", auth, async (req, res) => {
   const {
     orderId,
