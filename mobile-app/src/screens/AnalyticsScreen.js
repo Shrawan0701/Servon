@@ -976,6 +976,7 @@ function ExpensesTab() {
   const [deleting,      setDeleting]      = useState(null);
   const [ledgerTab,     setLedgerTab]     = useState("Expenses");
   const [exporting,     setExporting]     = useState(false);
+  const [vendorSearch,  setVendorSearch]  = useState("");
 
   const { language } = useLocale();
   const { width: screenWidth } = useWindowDimensions();
@@ -1351,6 +1352,10 @@ function ExpensesTab() {
 
   const grandTotal = data?.grandTotal || 0;
   const expenses   = data?.expenses   || [];
+  const vendorQuery = vendorSearch.trim().toLowerCase();
+  const filteredExpenses = vendorQuery
+    ? expenses.filter((exp) => String(exp.supplier || "").toLowerCase().includes(vendorQuery))
+    : expenses;
   const netProfit  = totalSales - grandTotal;
 
   const salesList = (() => {
@@ -1416,13 +1421,31 @@ function ExpensesTab() {
           <View style={FL.ledgerHeaderRow}>
             <LocalizedText style={FL.sectionTitleLabel}>{ledgerTab} Records</LocalizedText>
             {ledgerTab === "Expenses" && (
-              <View style={FL.exportRow}>
-                <TouchableOpacity style={[FL.exportBtn, { backgroundColor: FL_DARK }, exporting && { opacity: 0.5 }]} onPress={exportPDF} disabled={exporting}>
-                  {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-text-outline" size={14} color="#fff" /><LocalizedText translate style={FL.exportBtnText}>PDF</LocalizedText></>}
-                </TouchableOpacity>
-                <TouchableOpacity style={[FL.exportBtn, { backgroundColor: "#059669" }, exporting && { opacity: 0.5 }]} onPress={exportCSV} disabled={exporting}>
-                  {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-outline" size={14} color="#fff" /><LocalizedText translate style={FL.exportBtnText}>CSV</LocalizedText></>}
-                </TouchableOpacity>
+              <View style={FL.expenseHeaderTools}>
+                <View style={FL.vendorSearchWrap}>
+                  <Ionicons name="search-outline" size={16} color="#94A3B8" />
+                  <TextInput
+                    style={FL.vendorSearchInput}
+                    value={vendorSearch}
+                    onChangeText={setVendorSearch}
+                    placeholder="Search vendor name..."
+                    placeholderTextColor="#94A3B8"
+                    returnKeyType="search"
+                  />
+                  {!!vendorSearch && (
+                    <TouchableOpacity onPress={() => setVendorSearch("")} style={FL.vendorSearchClear}>
+                      <Ionicons name="close" size={14} color="#64748B" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={FL.exportRow}>
+                  <TouchableOpacity style={[FL.exportBtn, { backgroundColor: FL_DARK }, exporting && { opacity: 0.5 }]} onPress={exportPDF} disabled={exporting}>
+                    {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-text-outline" size={14} color="#fff" /><LocalizedText translate style={FL.exportBtnText}>PDF</LocalizedText></>}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[FL.exportBtn, { backgroundColor: "#059669" }, exporting && { opacity: 0.5 }]} onPress={exportCSV} disabled={exporting}>
+                    {exporting ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="document-outline" size={14} color="#fff" /><LocalizedText translate style={FL.exportBtnText}>CSV</LocalizedText></>}
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
@@ -1453,14 +1476,14 @@ function ExpensesTab() {
                   </View>
                 ))
               )
-            ) : !expenses.length ? (
+            ) : !filteredExpenses.length ? (
               <View style={FL.emptyWrap}>
-                <View style={FL.emptyIconBox}><Ionicons name="receipt-outline" size={32} color="#94A3B8" /></View>
-                <LocalizedText translate style={FL.emptyTitle}>Log clear</LocalizedText>
-                <LocalizedText translate style={FL.emptySub}>No metrics listed for this horizon window view.</LocalizedText>
+                <View style={FL.emptyIconBox}><Ionicons name={vendorQuery ? "search-outline" : "receipt-outline"} size={32} color="#94A3B8" /></View>
+                <LocalizedText translate style={FL.emptyTitle}>{vendorQuery ? "No vendor found" : "Log clear"}</LocalizedText>
+                <LocalizedText translate style={FL.emptySub}>{vendorQuery ? "Try another vendor name." : "No metrics listed for this horizon window view."}</LocalizedText>
               </View>
             ) : (
-              expenses.map((exp) => {
+              filteredExpenses.map((exp) => {
                 const cat = getCat(exp.category);
                 const isDeleting = deleting === exp.id;
                 const status = exp.payment_status || 'unpaid';
@@ -2086,8 +2109,12 @@ const FL = StyleSheet.create({
   periodChipText:      { fontSize: 12, fontWeight: "600", color: TEXT_MUTED },
   periodChipTextActive:{ color: "#fff" },
 
-  ledgerHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderBottomWidth: 1, borderBottomColor: BORDER, paddingBottom: 10, marginBottom: 12, marginTop: 4 },
+  ledgerHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", borderBottomWidth: 1, borderBottomColor: BORDER, paddingBottom: 10, marginBottom: 12, marginTop: 4 },
   sectionTitleLabel: { fontSize: 15, fontWeight: "700", color: PRIMARY },
+  expenseHeaderTools: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap", flex: 1, minWidth: 260 },
+  vendorSearchWrap: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 220, flexGrow: 1, maxWidth: 360, height: 36, borderWidth: 1, borderColor: FL_BORD, backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 10 },
+  vendorSearchInput: { flex: 1, minWidth: 0, color: FL_DARK, fontSize: 13, fontWeight: "600", paddingVertical: 0 },
+  vendorSearchClear: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
   exportRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
   exportBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   exportBtnText:{ fontSize: 12, fontWeight: "600", color: "#fff" },
