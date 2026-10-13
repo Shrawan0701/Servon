@@ -7,6 +7,8 @@ import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { getMenu, getProfile, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../api";
+import localDB from "../services/LocalDB";
+import networkMonitor from "../services/NetworkMonitor";
 import { localizedItemName } from "../utils/localizedItemName";
 import { useAuth } from "../context/AuthContext";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -111,6 +113,20 @@ export default function MenuScreen() {
 
   const loadMenu = async () => {
   try {
+    const online = await networkMonitor.checkConnectivity();
+    if (!online) {
+      const cachedMenu = await localDB.getMenu();
+      const cachedProfile = await localDB.getProfile();
+      setProfileLiquorEnabled(cachedProfile?.liquor_available === true);
+      setItems(cachedMenu.map(item => ({
+        ...item,
+        food_type: itemFoodType(item),
+        menu_type: item.menu_type === "liquor" ? "liquor" : "food",
+        category_code: item.category_code ? Number(item.category_code) : null,
+        liquor_brand_code: item.liquor_brand_code ? Number(item.liquor_brand_code) : null,
+      })));
+      return;
+    }
     const [res, profileRes] = await Promise.all([
       getMenu(),
       getProfile().catch(() => null),
@@ -148,9 +164,13 @@ export default function MenuScreen() {
 
    
     setItems(normalized);
+    await localDB.saveMenu(normalized);
+    if (profileRes?.data) await localDB.saveProfile(profileRes.data);
 
   } catch (err) {
     console.error(err);
+    const cachedMenu = await localDB.getMenu();
+    setItems(cachedMenu);
   } finally {
     setLoading(false);
     setRefreshing(false);

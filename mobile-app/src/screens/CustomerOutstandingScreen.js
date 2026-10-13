@@ -14,9 +14,12 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import * as Print from "expo-print";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { getCustomerOutstandingPDFUrl, getCustomerOutstandings } from "../api";
+import localDB from "../services/LocalDB";
+import networkMonitor from "../services/NetworkMonitor";
 
 const rs = (value) =>
   `Rs. ${Number(value || 0).toLocaleString("en-IN", {
@@ -45,11 +48,20 @@ export default function CustomerOutstandingScreen() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await getCustomerOutstandings();
-      setRecords(res.data?.records || []);
-      setTotalRemaining(res.data?.totalRemaining || "0.00");
+      const online = await networkMonitor.checkConnectivity();
+      if (online) {
+        const res = await getCustomerOutstandings();
+        setRecords(res.data?.records || []);
+        setTotalRemaining(res.data?.totalRemaining || "0.00");
+      } else {
+        const localRecords = await localDB.getCustomerOutstandings();
+        setRecords(localRecords);
+        setTotalRemaining(localRecords.reduce((sum, record) => sum + Number(record.remaining_amount || 0), 0).toFixed(2));
+      }
     } catch (err) {
-      Alert.alert("Error", "Could not load customer outstanding records.");
+      const localRecords = await localDB.getCustomerOutstandings();
+      setRecords(localRecords);
+      setTotalRemaining(localRecords.reduce((sum, record) => sum + Number(record.remaining_amount || 0), 0).toFixed(2));
     } finally {
       setLoading(false);
     }
@@ -68,6 +80,37 @@ export default function CustomerOutstandingScreen() {
 
     setPrinting(true);
     try {
+      const online = await networkMonitor.checkConnectivity();
+      if (!online) {
+        const profile = await localDB.getProfile();
+        const businessName = profile?.business_name || profile?.businessName || "Servon Hotel";
+        const rows = records.map((record) => `
+          <tr>
+            <td>${fmtDate(record.created_at)}</td>
+            <td>${record.customer_name || ""}</td>
+            <td>${record.phone_number || ""}</td>
+            <td>${rs(record.total_amount)}</td>
+            <td><strong>${rs(record.remaining_amount)}</strong></td>
+          </tr>
+        `).join("");
+        const html = `
+          <html><head><style>
+            body{font-family:Arial,sans-serif;padding:28px;color:#111827}
+            h1{margin:0 0 6px;font-size:26px} h2{margin:0 0 8px;font-size:18px}
+            table{width:100%;border-collapse:collapse;margin-top:24px;font-size:12px}
+            th,td{padding:10px;border-bottom:1px solid #E5E7EB;text-align:left}
+            th{background:#F3F4F6} .total{font-weight:800;background:#F9FAFB}
+          </style></head><body>
+            <h1>${businessName}</h1>
+            <h2>Customer Outstanding Report</h2>
+            <div>Generated: ${new Date().toLocaleString("en-IN")}</div>
+            <table><thead><tr><th>Date</th><th>Customer Name</th><th>Phone Number</th><th>Total Amount</th><th>Remaining Amount</th></tr></thead>
+            <tbody>${rows}<tr class="total"><td colspan="4">GRAND TOTAL</td><td>${rs(totalRemaining)}</td></tr></tbody></table>
+          </body></html>
+        `;
+        await Print.printAsync({ html });
+        return;
+      }
       const url = getCustomerOutstandingPDFUrl(token);
       if (Platform.OS === "web") {
         window.open(url, "_blank");

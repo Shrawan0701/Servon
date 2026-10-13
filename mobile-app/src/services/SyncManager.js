@@ -1,6 +1,6 @@
 import localDB from './LocalDB';
 import networkMonitor from './NetworkMonitor';
-import { getOrders, updateOrderStatus } from '../api';
+import { addTable, appendOrderItems, deleteTable, getOrders, placeOrder, removeOrderItem, saveCustomerOutstanding, updateOrderStatus } from '../api';
 
 class SyncManager {
     constructor() {
@@ -92,9 +92,50 @@ class SyncManager {
 
         for (const action of actions) {
             try {
-                if (action.action_type === 'UPDATE' && action.table_name === 'orders') {
+                if (action.action_type === 'CREATE' && action.table_name === 'orders') {
+                    const currentOrder = await localDB.getOrderById(action.record_id);
+                    const order = currentOrder || action.data.order;
+                    if (!order) {
+                        await localDB.removeAction(action.id);
+                        continue;
+                    }
+                    const response = await placeOrder({
+                        tableId: order.table_id || order.tableId,
+                        items: order.items || [],
+                        totalAmount: order.total_amount,
+                        orderSource: order.order_source || 'staff',
+                        initialStatus: order.status || 'CONFIRMED',
+                    });
+                    if (response?.data?.id) {
+                        await localDB.replaceLocalOrderId(action.record_id, response.data);
+                    }
+                    await localDB.removeAction(action.id);
+                    uploaded++;
+                } else if (action.action_type === 'UPDATE' && action.table_name === 'orders') {
                     await updateOrderStatus(action.record_id, action.data.status);
                     await localDB.markAsSynced(action.record_id);
+                    await localDB.removeAction(action.id);
+                    uploaded++;
+                } else if (action.action_type === 'APPEND_ITEMS' && action.table_name === 'orders') {
+                    await appendOrderItems(action.record_id, action.data.items || []);
+                    await localDB.markAsSynced(action.record_id);
+                    await localDB.removeAction(action.id);
+                    uploaded++;
+                } else if (action.action_type === 'REMOVE_ITEM' && action.table_name === 'orders') {
+                    await removeOrderItem(action.record_id, action.data.itemId);
+                    await localDB.markAsSynced(action.record_id);
+                    await localDB.removeAction(action.id);
+                    uploaded++;
+                } else if (action.action_type === 'CREATE' && action.table_name === 'customer_outstandings') {
+                    await saveCustomerOutstanding(action.data);
+                    await localDB.removeAction(action.id);
+                    uploaded++;
+                } else if (action.action_type === 'CREATE' && action.table_name === 'tables') {
+                    await addTable(action.data.tableNumber);
+                    await localDB.removeAction(action.id);
+                    uploaded++;
+                } else if (action.action_type === 'DELETE' && action.table_name === 'tables') {
+                    await deleteTable(action.record_id);
                     await localDB.removeAction(action.id);
                     uploaded++;
                 }

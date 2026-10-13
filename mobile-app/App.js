@@ -256,6 +256,14 @@ export default function App() {
     initOffline();
   }, []);
 
+  React.useEffect(() => {
+    if (Platform.OS === "web" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/servon-sw.js").catch((err) => {
+        console.log("Service worker registration skipped:", err?.message || err);
+      });
+    }
+  }, []);
+
   return (
     <SafeAreaProvider>
       <LocaleProvider>

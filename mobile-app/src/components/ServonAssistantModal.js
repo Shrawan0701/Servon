@@ -40,6 +40,8 @@ import {
   updateRoom,
   checkOutRoom,
 } from "../api";
+import localDB from "../services/LocalDB";
+import networkMonitor from "../services/NetworkMonitor";
 
 const isWeb = Platform.OS === "web";
 
@@ -124,13 +126,31 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
 
   const loadData = useCallback(async () => {
     try {
-      const [menuRes, tableRes, profileRes] = await Promise.all([getMenu(), getTables(), getProfile()]);
-      setMenu([]);
-      setAllMenu(menuRes.data || []);
-      setTables(tableRes.data || []);
-      setProfile(profileRes.data || null);
+      const online = await networkMonitor.checkConnectivity();
+      if (online) {
+        const [menuRes, tableRes, profileRes] = await Promise.all([getMenu(), getTables(), getProfile()]);
+        const menuData = menuRes.data || [];
+        const tableData = tableRes.data || [];
+        const profileData = profileRes.data || null;
+        setMenu([]);
+        setAllMenu(menuData);
+        setTables(tableData);
+        setProfile(profileData);
+        await localDB.saveMenu(menuData);
+        await localDB.saveTables(tableData);
+        await localDB.saveProfile(profileData);
+      } else {
+        setMenu([]);
+        setAllMenu(await localDB.getMenu());
+        setTables(await localDB.getTables());
+        setProfile(await localDB.getProfile());
+      }
     } catch (err) {
       console.error("Assistant load data error:", err);
+      setMenu([]);
+      setAllMenu(await localDB.getMenu());
+      setTables(await localDB.getTables());
+      setProfile(await localDB.getProfile());
     }
   }, []);
 
@@ -310,7 +330,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       setMenu(res.data || []);
     } catch (err) {
       console.error("Category code menu load error:", err);
-      setMenu([]);
+      setMenu(await localDB.getMenu({ category_code: clean }));
     } finally {
       setCodeLoading(false);
     }
@@ -327,7 +347,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       setMenu(res.data || []);
     } catch (err) {
       console.error("Liquor brand menu load error:", err);
-      setMenu([]);
+      setMenu(await localDB.getMenu({ liquor_brand_code: clean }));
     } finally {
       setCodeLoading(false);
     }
@@ -346,7 +366,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       })
       .catch((err) => {
         console.error("Liquor brand search load error:", err);
-        if (!cancelled) setMenu([]);
+        localDB.getMenu({ liquor_brand_code: searchBrandCode }).then((cached) => {
+          if (!cancelled) setMenu(cached);
+        });
       })
       .finally(() => {
         if (!cancelled) setCodeLoading(false);
@@ -383,20 +405,42 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         thali_includes: i.thali_includes || [],
         thali_custom: i.thali_custom || "",
       }));
-      const res = appendOrder
-        ? await appendOrderItems(appendOrder.id, items)
-        : await placeOrder({
+      const isOnline = await networkMonitor.checkConnectivity();
+      const selectedTableNumber = selectedTable.table_number || selectedTable.tableNumber || selectedTable.id;
+      let savedOrder;
+      if (appendOrder) {
+        if (isOnline && !String(appendOrder.id).startsWith("local_order_")) {
+          const res = await appendOrderItems(appendOrder.id, items);
+          savedOrder = res?.data;
+          await localDB.saveOrders([savedOrder]);
+        } else {
+          savedOrder = await localDB.appendOrderItems(appendOrder.id, items);
+        }
+      } else if (isOnline) {
+        const res = await placeOrder({
             businessId: business?.id,
             tableId: selectedTable.id,
             items,
             totalAmount: manualSubtotal,
             orderSource: "staff",
             initialStatus: "CONFIRMED",
-          });
+        });
+        savedOrder = res?.data;
+        await localDB.saveOrders([savedOrder]);
+      } else {
+        savedOrder = await localDB.createLocalOrder({
+          tableId: selectedTable.id,
+          tableNumber: selectedTableNumber,
+          items,
+          totalAmount: manualSubtotal,
+          orderSource: "staff",
+          initialStatus: "CONFIRMED",
+        });
+      }
       Alert.alert(appendOrder ? "Items Added" : "Order Created", appendOrder ? `Items added to Table ${selectedTable.table_number}.` : `Order placed for ${selectedTable.table_number}.`);
-      onOrderSaved?.(res?.data);
+      onOrderSaved?.(savedOrder);
       onClose?.();
-      return res;
+      return savedOrder;
     } catch (err) {
       Alert.alert("Error", err.response?.data?.error || (appendOrder ? "Could not add items." : "Could not place order."));
     } finally {

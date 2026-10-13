@@ -4,6 +4,8 @@ import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { getTables, addTable, deleteTable } from "../api";
+import localDB from "../services/LocalDB";
+import networkMonitor from "../services/NetworkMonitor";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,9 +48,18 @@ export default function TablesScreen() {
 
   const loadTables = async () => {
     try {
-      const res = await getTables();
-      setTables(res.data);
-    } catch (err) { console.error(err); }
+      const online = await networkMonitor.checkConnectivity();
+      if (online) {
+        const res = await getTables();
+        setTables(res.data);
+        await localDB.saveTables(res.data || []);
+      } else {
+        setTables(await localDB.getTables());
+      }
+    } catch (err) {
+      console.error(err);
+      setTables(await localDB.getTables());
+    }
     finally { setLoading(false); setRefreshing(false); }
   };
 
@@ -56,8 +67,9 @@ export default function TablesScreen() {
     if (!tableNumber.trim()) { Alert.alert(localizeText("Required", language), localizeText("Enter a table number", language)); return; }
     setAdding(true);
     try {
-      const res = await addTable(tableNumber.trim());
-      setTables((prev) => [...prev, res.data]);
+      const online = await networkMonitor.checkConnectivity();
+      const table = online ? (await addTable(tableNumber.trim())).data : await localDB.addLocalTable(tableNumber.trim());
+      setTables((prev) => [...prev, table]);
       setTableNumber("");
       setShowAddModal(false);
     } catch (err) {
@@ -81,7 +93,9 @@ export default function TablesScreen() {
   const confirmDelete = async (id) => {
     setDeleting(true);
     try {
-      await deleteTable(id);
+      const online = await networkMonitor.checkConnectivity();
+      if (online && !String(id).startsWith("local_table_")) await deleteTable(id);
+      else await localDB.deleteLocalTable(id);
       setTables((prev) => prev.filter((t) => t.id !== id));
       setShowDeleteModal(false);
       setTableToDelete(null);

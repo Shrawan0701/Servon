@@ -47,6 +47,8 @@ import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import ServonAssistantModal from "../components/ServonAssistantModal";
 import { localizedItemName } from "../utils/localizedItemName";
+import localDB from "../services/LocalDB";
+import networkMonitor from "../services/NetworkMonitor";
 import io from "socket.io-client";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ReactDOM from "react-dom";
@@ -863,11 +865,29 @@ export default function DashboardScreen() {
 
   const loadData = async () => {
     try {
+      const online = await networkMonitor.checkConnectivity();
+      if (!online) {
+        const localOrders = await localDB.getOrders();
+        setLiveOrders(localOrders.filter(o =>
+          isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
+        ));
+        setAnalytics((prev) => prev || {
+          ordersToday: localOrders.filter(o => isToday(o.created_at)).length,
+          revenueToday: localOrders.filter(o => isToday(o.created_at) && o.status === "PAID").reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
+          activeTables: new Set(localOrders.filter(o => isToday(o.created_at) && !["PAID", "REJECTED"].includes(o.status)).map(o => o.table_number)).size,
+          topItem: "-",
+        });
+        setNotifications([]);
+        setTrialLoading(false);
+        return;
+      }
+
       const [analyticsRes, ordersRes, notifRes, subRes] = await Promise.all([
         getAnalytics(), getOrders(), getNotifications(), getSubscriptionDetails()
       ]);
 
       setAnalytics(analyticsRes.data);
+      await localDB.saveOrders(ordersRes.data || []);
       setLiveOrders(ordersRes.data.filter(o => 
         isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
       ));
@@ -950,6 +970,14 @@ export default function DashboardScreen() {
 
     } catch (err) {
       console.error("Dashboard load error:", err);
+      try {
+        const localOrders = await localDB.getOrders();
+        setLiveOrders(localOrders.filter(o =>
+          isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
+        ));
+      } catch (localErr) {
+        console.error("Dashboard local fallback error:", localErr);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1021,8 +1049,15 @@ export default function DashboardScreen() {
   const handleRemoveOrderItem = async (order, item) => {
     try {
       const itemId = item.id || item.menu_item_id || item.menuItemId;
-      const res = await removeOrderItem(order.id, itemId);
-      handleOrderSaved(res.data);
+      const online = await networkMonitor.checkConnectivity();
+      if (online && !String(order.id).startsWith("local_order_")) {
+        const res = await removeOrderItem(order.id, itemId);
+        await localDB.saveOrders([res.data]);
+        handleOrderSaved(res.data);
+      } else {
+        const updated = await localDB.removeOrderItem(order.id, itemId);
+        handleOrderSaved(updated);
+      }
     } catch (err) {
       Alert.alert("Remove Item", err.response?.data?.error || "Could not remove item.");
     }

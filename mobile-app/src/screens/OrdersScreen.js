@@ -699,10 +699,14 @@ export default function OrdersScreen() {
 
         await localDB.saveOrders(freshOrders);
         setProfile(profileRes.data);
+        await localDB.saveProfile(profileRes.data);
         setTables(Array.isArray(tablesRes.data) ? tablesRes.data : []);
+        await localDB.saveTables(Array.isArray(tablesRes.data) ? tablesRes.data : []);
         setIsOffline(false);
       } else {
         setIsOffline(true);
+        setProfile(await localDB.getProfile());
+        setTables(await localDB.getTables());
         if (!localOrders || localOrders.length === 0) {
           const fallbackOrders = await localDB.getOrders();
           if (fallbackOrders && fallbackOrders.length > 0) {
@@ -750,7 +754,7 @@ export default function OrdersScreen() {
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
 
       const isOnline = await networkMonitor.checkConnectivity();
-      if (isOnline) {
+      if (isOnline && !String(orderId).startsWith("local_order_")) {
         try {
           await updateOrderStatus(orderId, status);
           await localDB.markAsSynced(orderId);
@@ -803,11 +807,18 @@ export default function OrdersScreen() {
     async (order, orderItem) => {
       try {
         const itemId = orderItem.id || orderItem.menu_item_id || orderItem.menuItemId;
-        const res = await removeOrderItem(order.id, itemId);
-        if (res?.data?.id) {
-          setOrders((prev) => prev.map((o) => (o.id === res.data.id ? { ...o, ...res.data } : o)));
+        const isOnline = await networkMonitor.checkConnectivity();
+        if (isOnline && !String(order.id).startsWith("local_order_")) {
+          const res = await removeOrderItem(order.id, itemId);
+          if (res?.data?.id) {
+            await localDB.saveOrders([res.data]);
+            setOrders((prev) => prev.map((o) => (o.id === res.data.id ? { ...o, ...res.data } : o)));
+          } else {
+            loadData();
+          }
         } else {
-          loadData();
+          const updated = await localDB.removeOrderItem(order.id, itemId);
+          if (updated?.id) setOrders((prev) => prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o)));
         }
       } catch (err) {
         Alert.alert(localizeText("Remove Item", language), err.response?.data?.error || localizeText("Could not remove item.", language));
@@ -1236,10 +1247,16 @@ return `
         const htmlContent = buildBillHtml(tableOrders, discount);
 
         if (outstandingPayload) {
-          await saveCustomerOutstanding({
+          const outstandingRecord = {
             ...outstandingPayload,
             orderId: currentOrder.id,
-          });
+          };
+          const isOnlineForOutstanding = await networkMonitor.checkConnectivity();
+          if (isOnlineForOutstanding && !String(currentOrder.id).startsWith("local_order_")) {
+            await saveCustomerOutstanding(outstandingRecord);
+          } else {
+            await localDB.saveCustomerOutstanding(outstandingRecord);
+          }
         }
 
         const now = Date.now();
@@ -1264,8 +1281,10 @@ return `
           await Promise.all(
             tableOrders.map(async (o) => {
               try {
-                await updateOrderStatus(o.id, "PAID");
-                await localDB.markAsSynced(o.id);
+                if (!String(o.id).startsWith("local_order_")) {
+                  await updateOrderStatus(o.id, "PAID");
+                  await localDB.markAsSynced(o.id);
+                }
               } catch (apiError) {
                 console.log("Server PAID update failed, will sync later:", apiError);
               }
