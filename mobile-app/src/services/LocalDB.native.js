@@ -533,6 +533,14 @@ class LocalDB {
 
     async cacheCustomerOutstandings(records) {
         await this.db.runAsync(`DELETE FROM customer_outstandings WHERE is_synced = 1`);
+        await this.db.runAsync(`
+            DELETE FROM customer_outstandings
+            WHERE is_synced = 0
+              AND id NOT IN (
+                SELECT record_id FROM offline_actions
+                WHERE status = 'pending' AND table_name = 'customer_outstandings'
+              )
+        `);
         for (const record of records || []) {
             const data = { ...record, is_synced: record.is_synced ?? 1 };
             await this.db.runAsync(

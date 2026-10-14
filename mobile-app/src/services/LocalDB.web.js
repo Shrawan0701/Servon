@@ -398,10 +398,19 @@ class LocalDB {
     }
 
     async cacheCustomerOutstandings(records) {
-        await this.setData('customer_outstandings', (records || []).map((record) => ({
+        const existing = await this.getData('customer_outstandings') || [];
+        const actions = await this.getData('offline_actions') || [];
+        const pendingLocalIds = new Set(
+            actions
+                .filter((action) => action.status === 'pending' && action.table_name === 'customer_outstandings')
+                .map((action) => String(action.record_id))
+        );
+        const unsynced = existing.filter((record) => !record.is_synced && pendingLocalIds.has(String(record.id)));
+        const remote = (records || []).map((record) => ({
             ...record,
             is_synced: record.is_synced ?? 1,
-        })));
+        }));
+        await this.setData('customer_outstandings', [...unsynced, ...remote]);
     }
 
     async getCustomerOutstandings() {

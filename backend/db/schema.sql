@@ -83,7 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_business_id ON notifications(busine
 CREATE TABLE IF NOT EXISTS customer_outstandings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
   customer_name VARCHAR(255) NOT NULL,
   phone_number VARCHAR(10) NOT NULL CHECK (phone_number ~ '^[0-9]{10}$'),
   original_total_amount NUMERIC(10,2) NOT NULL CHECK (original_total_amount >= 0),
@@ -101,6 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_customer_outstandings_business_remaining
 
 ALTER TABLE customer_outstandings ADD COLUMN IF NOT EXISTS original_total_amount NUMERIC(10,2);
 ALTER TABLE customer_outstandings ADD COLUMN IF NOT EXISTS final_total_amount NUMERIC(10,2);
+ALTER TABLE customer_outstandings ALTER COLUMN order_id DROP NOT NULL;
 UPDATE customer_outstandings
 SET original_total_amount = COALESCE(original_total_amount, total_amount),
     final_total_amount = COALESCE(final_total_amount, total_amount);

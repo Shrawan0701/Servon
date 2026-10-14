@@ -601,8 +601,9 @@ router.post("/outstanding", auth, async (req, res) => {
 
   const cleanName = String(customerName || "").trim();
   const cleanPhone = String(phoneNumber || "").trim();
-  if (!orderId || !cleanName || !/^\d{10}$/.test(cleanPhone)) {
-    return res.status(400).json({ error: "Valid customer name, phone number and order are required" });
+  const cleanOrderId = orderId ? String(orderId).trim() : null;
+  if (!cleanName || !/^\d{10}$/.test(cleanPhone)) {
+    return res.status(400).json({ error: "Valid customer name and phone number are required" });
   }
 
   const totalCents = toCents(totalAmount);
@@ -628,11 +629,13 @@ router.post("/outstanding", auth, async (req, res) => {
   }
 
   try {
-    const orderResult = await pool.query(
-      "SELECT id FROM orders WHERE id = $1 AND business_id = $2",
-      [orderId, req.businessId]
-    );
-    if (orderResult.rows.length === 0) return res.status(404).json({ error: "Order not found" });
+    if (cleanOrderId) {
+      const orderResult = await pool.query(
+        "SELECT id FROM orders WHERE id = $1 AND business_id = $2",
+        [cleanOrderId, req.businessId]
+      );
+      if (orderResult.rows.length === 0) return res.status(404).json({ error: "Order not found" });
+    }
 
     const result = await pool.query(
       `INSERT INTO customer_outstandings
@@ -651,7 +654,7 @@ router.post("/outstanding", auth, async (req, res) => {
        RETURNING *`,
       [
         req.businessId,
-        orderId,
+        cleanOrderId,
         cleanName,
         cleanPhone,
         centsToAmount(totalCents),
