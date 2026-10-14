@@ -22,7 +22,7 @@ import VoiceAdvisorTab from '../components/VoiceAdvisorTab';
 import { useLocale } from '../context/LocaleContext';
 
 const COLORS = {
-  bg: '#FAF8F5',
+  bg: '#F5F3EF',
   card: '#FFFFFF',
   border: '#E8E2D9',
   text: '#111827',
@@ -30,6 +30,9 @@ const COLORS = {
   muted: '#9CA3AF',
   green: '#10B981',
   greenBg: '#ECFDF5',
+  greenSoft: '#DFF8EC',
+  navy: '#0F172A',
+  cream: '#FFFCF6',
   amber: '#B45309',
   amberBg: '#FEF3C7',
   amberIcon: '#F59E0B',
@@ -37,6 +40,8 @@ const COLORS = {
   red: '#EF4444',
   redBg: '#FEF2F2',
 };
+
+const SHOW_VOICE_ADVISOR_UI = false;
 
 // ─── COMMON / SUGGESTED QUESTIONS ──────────────────────────────────
 // Tapping a chip asks the question the same way typing + sending does.
@@ -133,6 +138,7 @@ export default function AdvisorScreen() {
   const [activeTab, setActiveTab] = useState('chat');
   const [question, setQuestion] = useState('');
   const [conversations, setConversations] = useState([]);
+  const [visibleConversations, setVisibleConversations] = useState([]);
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -157,6 +163,7 @@ export default function AdvisorScreen() {
 
   // ─── HISTORY SIDEBAR STATE (docked on tablet/web, overlay on mobile) ─
   const [sidebarOpen, setSidebarOpen] = useState(isTablet);
+  const [showOlderHistory, setShowOlderHistory] = useState(false);
   const insets = useSafeAreaInsets();
   const sidebarAnim = useRef(new Animated.Value(0)).current;
 
@@ -170,6 +177,12 @@ export default function AdvisorScreen() {
       }).start();
     }
   }, [sidebarOpen, isTablet]);
+
+  useEffect(() => {
+    if (!SHOW_VOICE_ADVISOR_UI && activeTab === 'voice') {
+      setActiveTab('chat');
+    }
+  }, [activeTab]);
 
   const sidebarTranslateX = sidebarAnim.interpolate({
     inputRange: [0, 1],
@@ -210,39 +223,55 @@ export default function AdvisorScreen() {
     if (!textToAsk || asking) return;
     setAsking(true);
     const userQuestion = textToAsk;
+    const tempConversation = { id: Date.now(), question: userQuestion, answer: '', is_loading: true };
     setQuestion('');
 
-    setConversations(prev => [
-      ...prev,
-      { id: Date.now(), question: userQuestion, answer: '', is_loading: true },
-    ]);
+    setConversations(prev => [...prev, tempConversation]);
+    setVisibleConversations(prev => [...prev, tempConversation]);
 
     try {
       const res = await API.post('/advisor/ask', { question: userQuestion });
+      const savedConversation = {
+        id: res.data.id || Date.now(),
+        question: res.data.question,
+        answer: res.data.answer,
+        created_at: new Date().toISOString(),
+      };
       setConversations(prev => {
         const index = prev.findIndex(msg => msg.is_loading);
         if (index === -1) return prev;
         const updated = [...prev];
-        updated[index] = {
-          id: res.data.id || Date.now(),
-          question: res.data.question,
-          answer: res.data.answer,
-          created_at: new Date().toISOString(),
-        };
+        updated[index] = savedConversation;
+        return updated;
+      });
+      setVisibleConversations(prev => {
+        const index = prev.findIndex(msg => msg.is_loading);
+        if (index === -1) return prev;
+        const updated = [...prev];
+        updated[index] = savedConversation;
         return updated;
       });
     } catch (err) {
       console.error('Ask error:', err);
+      const failedConversation = {
+        id: tempConversation.id,
+        question: userQuestion,
+        answer: 'Sorry, I could not answer that. Please try again.',
+        is_loading: false,
+        is_error: true,
+      };
       setConversations(prev => {
         const index = prev.findIndex(msg => msg.is_loading);
         if (index === -1) return prev;
         const updated = [...prev];
-        updated[index] = {
-          ...updated[index],
-          answer: 'Sorry, I could not answer that. Please try again.',
-          is_loading: false,
-          is_error: true,
-        };
+        updated[index] = failedConversation;
+        return updated;
+      });
+      setVisibleConversations(prev => {
+        const index = prev.findIndex(msg => msg.is_loading);
+        if (index === -1) return prev;
+        const updated = [...prev];
+        updated[index] = failedConversation;
         return updated;
       });
     } finally {
@@ -261,6 +290,7 @@ export default function AdvisorScreen() {
     try {
       await API.delete(`/advisor/conversations/${deleteTargetId}`);
       setConversations(prev => prev.filter(item => item.id !== deleteTargetId));
+      setVisibleConversations(prev => prev.filter(item => item.id !== deleteTargetId));
     } catch (err) {
       console.error('Delete error:', err);
     } finally {
@@ -279,6 +309,7 @@ export default function AdvisorScreen() {
     try {
       await API.delete('/advisor/conversations');
       setConversations([]);
+      setVisibleConversations([]);
     } catch (err) {
       console.error('Clear all error:', err);
     } finally {
@@ -288,6 +319,12 @@ export default function AdvisorScreen() {
 
   // ─── JUMP TO A MESSAGE FROM THE HISTORY SIDEBAR ────────────────────
   const scrollToMessage = (id) => {
+    const historyItem = conversations.find((item) => item.id === id);
+    if (historyItem) {
+      setVisibleConversations([historyItem]);
+    }
+
+    setTimeout(() => {
     const node = messageRefs.current[id];
     if (node) {
       if (typeof node.scrollIntoView === 'function') {
@@ -314,15 +351,16 @@ export default function AdvisorScreen() {
         }
       }
     }
+    }, 50);
     if (!isTablet) setSidebarOpen(false);
   };
 
   // ─── AUTO-SCROLL ──────────────────────────────────────────────────
   useEffect(() => {
-    if (conversations.length > 0 && !conversations[conversations.length - 1]?.is_loading) {
+    if (visibleConversations.length > 0 && !visibleConversations[visibleConversations.length - 1]?.is_loading) {
       scrollRef.current?.scrollToEnd({ animated: true });
     }
-  }, [conversations]);
+  }, [visibleConversations]);
 
   useEffect(() => {
     loadInsights();
@@ -367,13 +405,13 @@ export default function AdvisorScreen() {
 
     return (
       <View style={styles.messageContainer}>
-        <TouchableOpacity style={styles.deleteIconWrap} onPress={() => onDelete(item.id)} activeOpacity={0.7}>
-          <Ionicons name="close-circle" size={18} color={COLORS.muted} />
-        </TouchableOpacity>
         <View style={styles.userMessageRow}>
           <View style={[styles.userMessage, { maxWidth: bubbleMaxWidth }]}>
             <LocalizedText style={styles.userMessageText}>{item.question}</LocalizedText>
           </View>
+          <TouchableOpacity style={styles.deleteIconWrap} onPress={() => onDelete(item.id)} activeOpacity={0.7}>
+            <Ionicons name="close" size={13} color={COLORS.muted} />
+          </TouchableOpacity>
         </View>
         <View style={styles.aiMessageRow}>
           <View style={styles.aiAvatar}>
@@ -382,11 +420,15 @@ export default function AdvisorScreen() {
           <View style={[styles.aiMessage, { maxWidth: bubbleMaxWidth }, item.is_error && styles.aiMessageError]}>
             {item.is_loading ? (
               <View style={styles.typingRow}>
-                <ActivityIndicator size="small" color={COLORS.text} />
+                <ActivityIndicator size="small" color={COLORS.green} />
                 <LocalizedText translate style={styles.typingText}>Thinking...</LocalizedText>
               </View>
             ) : (
               <View style={styles.aiMessageInner}>
+                <View style={styles.aiAnswerHeader}>
+                  <Ionicons name="analytics-outline" size={13} color={COLORS.green} />
+                  <LocalizedText style={styles.aiAnswerLabel}>Advisor insight</LocalizedText>
+                </View>
                 {segments.map((seg, idx) => {
                   if (seg.type === 'step') {
                     return (
@@ -426,6 +468,7 @@ export default function AdvisorScreen() {
       <View style={styles.emptyIconWrap}>
         <Ionicons name={icon} size={26} color={COLORS.green} />
       </View>
+      <LocalizedText style={styles.emptyTitle}>Ask smarter, decide faster</LocalizedText>
       <LocalizedText style={styles.emptyText}>{text}</LocalizedText>
     </View>
   );
@@ -456,6 +499,13 @@ export default function AdvisorScreen() {
   // ─── HISTORY SIDEBAR (docked on tablet/web, slide-over on mobile) ──
   const HistorySidebarContent = ({ onClose, showClose }) => {
     const hasAny = conversations.length > 0;
+    const showAllHistory = isTablet || showOlderHistory;
+    const visibleHistoryGroups = showAllHistory ? GROUP_ORDER : ['Today'];
+    const hasVisibleHistory = visibleHistoryGroups.some((label) => sidebarGroups[label]?.length > 0);
+    const olderHistoryCount = GROUP_ORDER
+      .filter((label) => label !== 'Today')
+      .reduce((total, label) => total + (sidebarGroups[label]?.length || 0), 0);
+
     return (
       <View style={styles.sidebarInner}>
         <View style={styles.sidebarHeader}>
@@ -474,14 +524,23 @@ export default function AdvisorScreen() {
           </View>
         </View>
 
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.sidebarScroll}
+          contentContainerStyle={styles.sidebarScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {!hasAny ? (
             <View style={styles.sidebarEmpty}>
               <Ionicons name="time-outline" size={20} color={COLORS.muted} />
               <LocalizedText translate style={styles.sidebarEmptyText}>No questions yet</LocalizedText>
             </View>
+          ) : !hasVisibleHistory ? (
+            <View style={styles.sidebarEmptyCompact}>
+              <Ionicons name="calendar-outline" size={18} color={COLORS.muted} />
+              <LocalizedText translate style={styles.sidebarEmptyText}>No chats today</LocalizedText>
+            </View>
           ) : (
-            GROUP_ORDER.map((label) => {
+            visibleHistoryGroups.map((label) => {
               const items = sidebarGroups[label];
               if (!items || items.length === 0) return null;
               return (
@@ -503,6 +562,16 @@ export default function AdvisorScreen() {
               );
             })
           )}
+          {!showAllHistory && olderHistoryCount > 0 && (
+            <TouchableOpacity
+              style={styles.loadMoreHistoryBtn}
+              activeOpacity={0.75}
+              onPress={() => setShowOlderHistory(true)}
+            >
+              <Ionicons name="chevron-down" size={16} color={COLORS.green} />
+              <LocalizedText translate style={styles.loadMoreHistoryText}>Load more chats</LocalizedText>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
     );
@@ -518,7 +587,10 @@ export default function AdvisorScreen() {
               <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setSidebarOpen((prev) => !prev)}
+              onPress={() => {
+                if (!isTablet && !sidebarOpen) setShowOlderHistory(false);
+                setSidebarOpen((prev) => !prev);
+              }}
               style={styles.navBtn}
               activeOpacity={0.7}
             >
@@ -549,10 +621,12 @@ export default function AdvisorScreen() {
           <Ionicons name="chatbubble-ellipses-outline" size={16} color={activeTab === 'chat' ? COLORS.green : COLORS.subtext} />
           <LocalizedText translate style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>Chat</LocalizedText>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, activeTab === 'voice' && styles.tabActive]} onPress={() => setActiveTab('voice')}>
-          <Ionicons name="mic-outline" size={16} color={activeTab === 'voice' ? COLORS.green : COLORS.subtext} />
-          <LocalizedText translate style={[styles.tabText, activeTab === 'voice' && styles.tabTextActive]}>Voice</LocalizedText>
-        </TouchableOpacity>
+        {SHOW_VOICE_ADVISOR_UI && (
+          <TouchableOpacity style={[styles.tab, activeTab === 'voice' && styles.tabActive]} onPress={() => setActiveTab('voice')}>
+            <Ionicons name="mic-outline" size={16} color={activeTab === 'voice' ? COLORS.green : COLORS.subtext} />
+            <LocalizedText translate style={[styles.tabText, activeTab === 'voice' && styles.tabTextActive]}>Voice</LocalizedText>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Body: docked sidebar (tablet/web) + main column */}
@@ -564,14 +638,18 @@ export default function AdvisorScreen() {
         )}
 
         <View style={styles.mainColumn}>
-          {activeTab === 'voice' ? (
+          {SHOW_VOICE_ADVISOR_UI && activeTab === 'voice' ? (
             <VoiceAdvisorTab onConversationSaved={loadConversations} language={language} />
           ) : (
             <>
           <ScrollView
             ref={scrollRef}
             style={styles.content}
-            contentContainerStyle={{ alignItems: 'center', flexGrow: 1 }}
+            contentContainerStyle={{
+              alignItems: 'center',
+              flexGrow: visibleConversations.length === 0 ? 1 : 0,
+              paddingBottom: 18,
+            }}
             showsVerticalScrollIndicator={false}
           >
             <View
@@ -581,28 +659,30 @@ export default function AdvisorScreen() {
             >
               {/* Conversations */}
               <View style={styles.section}>
-                {conversations.length > 0 && (
+                {visibleConversations.length > 0 && (
                   <View style={styles.sectionHeader}>
                     <Ionicons name="chatbubbles-outline" size={16} color={COLORS.text} />
                     <LocalizedText translate style={styles.sectionTitle}>Your Questions</LocalizedText>
                   </View>
                 )}
 
-                {conversations.length === 0 ? (
+                {visibleConversations.length === 0 ? (
                   <View style={styles.emptyWrap}>
                     <EmptyState icon="chatbox-ellipses-outline" text="Ask your first question below, or try one of these." />
                     <SuggestedQuestions onSelect={askQuestion} disabled={asking} />
                   </View>
                 ) : (
-                  conversations.map(item => (
-                    <View
-                      key={item.id}
-                      ref={(el) => { messageRefs.current[item.id] = el; }}
-                      collapsable={false}
-                    >
-                      <MessageBubble item={item} onDelete={confirmDelete} />
-                    </View>
-                  ))
+                  <View style={styles.chatTimeline}>
+                    {visibleConversations.map(item => (
+                      <View
+                        key={item.id}
+                        ref={(el) => { messageRefs.current[item.id] = el; }}
+                        collapsable={false}
+                      >
+                        <MessageBubble item={item} onDelete={confirmDelete} />
+                      </View>
+                    ))}
+                  </View>
                 )}
               </View>
             </View>
@@ -612,16 +692,21 @@ export default function AdvisorScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
            <View style={[styles.inputWrap, { paddingBottom: (Platform.OS === 'android' ? 10 : 0) + insets.bottom }]}>
               <View style={[styles.inputContainer, { maxWidth: contentMaxWidth, marginHorizontal: 'auto', width: '100%' }]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder={localizeText("Ask about your business...", language)}
-                  placeholderTextColor={COLORS.muted}
-                  value={question}
-                  onChangeText={setQuestion}
-                  onSubmitEditing={() => askQuestion()}
-                  multiline
-                  maxLength={500}
-                />
+                <View style={styles.inputFieldShell}>
+                  <View style={styles.inputIconWrap}>
+                    <Ionicons name="sparkles-outline" size={16} color={COLORS.green} />
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={localizeText("Ask about your business...", language)}
+                    placeholderTextColor={COLORS.muted}
+                    value={question}
+                    onChangeText={setQuestion}
+                    onSubmitEditing={() => askQuestion()}
+                    multiline
+                    maxLength={500}
+                  />
+                </View>
                 <TouchableOpacity
                   style={[styles.sendBtn, (!question.trim() || asking) && styles.sendBtnDisabled]}
                   onPress={() => askQuestion()}
@@ -647,7 +732,16 @@ export default function AdvisorScreen() {
           onRequestClose={() => setSidebarOpen(false)}
         >
           <View style={styles.overlayContainer}>
-            <Animated.View style={[styles.overlayPanel, { transform: [{ translateX: sidebarTranslateX }], paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+            <Animated.View
+              style={[
+                styles.overlayPanel,
+                {
+                  transform: [{ translateX: sidebarTranslateX }],
+                  marginTop: insets.top + 12,
+                  marginBottom: insets.bottom + 12,
+                },
+              ]}
+            >
               <HistorySidebarContent onClose={() => setSidebarOpen(false)} showClose />
             </Animated.View>
             <TouchableOpacity
@@ -717,7 +811,7 @@ export default function AdvisorScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     alignItems: 'center',
@@ -729,9 +823,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
   },
-  tabBar: { flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 10 },
-  tabActive: { backgroundColor: COLORS.greenBg },
+  tabBar: { flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.88)', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 999 },
+  tabActive: { backgroundColor: COLORS.greenBg, borderWidth: 1, borderColor: COLORS.greenSoft },
   tabText: { color: COLORS.subtext, fontSize: 13, fontWeight: '700' },
   tabTextActive: { color: COLORS.green },
   headerLeft: {
@@ -757,9 +851,11 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: COLORS.greenBg,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.greenSoft,
   },
   headerTitleWrap: { minWidth: 0, flexShrink: 1 },
   title: { fontSize: 17, fontWeight: '800', color: COLORS.text, flexShrink: 1 },
@@ -767,11 +863,11 @@ const styles = StyleSheet.create({
 
   // ─── BODY / LAYOUT ────────────────────────────────────────────────
   bodyRow: { flex: 1, flexDirection: 'row' },
-  mainColumn: { flex: 1, minWidth: 0 },
+  mainColumn: { flex: 1, minWidth: 0, backgroundColor: COLORS.bg },
 
   content: { flex: 1 },
-  section: { marginTop: 20 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  section: { marginTop: 20, paddingBottom: 18 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 18 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   insightGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
   insightGridItem: { width: '50%', paddingHorizontal: 6 },
@@ -798,43 +894,63 @@ const styles = StyleSheet.create({
   actionContainer: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 10, gap: 6 },
   actionText: { fontSize: 12, color: COLORS.amber, flex: 1, lineHeight: 18 },
 
-  messageContainer: { marginBottom: 16 },
-  userMessageRow: { alignSelf: 'flex-end', marginBottom: 8, minWidth: 0 },
-  userMessage: {
-    backgroundColor: COLORS.text,
-    borderRadius: 16,
-    borderBottomRightRadius: 4,
-    paddingHorizontal: 14,
+  chatTimeline: {
+    backgroundColor: 'rgba(255,255,255,0.34)',
+    borderRadius: 24,
     paddingVertical: 10,
+    paddingHorizontal: 6,
+  },
+  messageContainer: { marginBottom: 18 },
+  userMessageRow: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 6, marginBottom: 10, minWidth: 0 },
+  userMessage: {
+    backgroundColor: COLORS.navy,
+    borderRadius: 18,
+    borderBottomRightRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
     flexShrink: 1,
     minWidth: 0,
+    shadowColor: COLORS.navy,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
   },
-  userMessageText: { color: '#fff', fontSize: 14, lineHeight: 20, flexWrap: 'wrap' },
+  userMessageText: { color: '#fff', fontSize: 14, lineHeight: 20, flexWrap: 'wrap', fontWeight: '600' },
 
-  aiMessageRow: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'flex-end', gap: 8, minWidth: 0 },
+  aiMessageRow: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'flex-start', gap: 10, minWidth: 0 },
   aiAvatar: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#ECFDF5',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.greenBg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: COLORS.greenSoft,
   },
   aiMessage: {
     backgroundColor: COLORS.card,
-    borderRadius: 16,
-    borderBottomLeftRadius: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 20,
+    borderTopLeftRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     flexShrink: 1,
     minWidth: 0,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   aiMessageInner: { minWidth: 0 },
+  aiAnswerHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 9 },
+  aiAnswerLabel: { fontSize: 11, color: COLORS.green, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   aiMessageError: { borderColor: '#FCA5A5', backgroundColor: COLORS.redBg },
-  aiMessageText: { color: COLORS.text, fontSize: 14, lineHeight: 21, flexShrink: 1, flexWrap: 'wrap' },
+  aiMessageText: { color: COLORS.text, fontSize: 14, lineHeight: 22, flexShrink: 1, flexWrap: 'wrap' },
   aiMessageErrorText: { color: COLORS.red },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typingText: { color: COLORS.subtext, fontSize: 13 },
@@ -860,33 +976,41 @@ const styles = StyleSheet.create({
   stepContent: {
     fontSize: 14,
     color: COLORS.text,
-    lineHeight: 21,
+    lineHeight: 22,
   },
 
   emptyWrap: {
     backgroundColor: COLORS.card,
-    borderRadius: 18,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingVertical: 24,
-    paddingHorizontal: 18,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2,
   },
-  emptyState: { alignItems: 'center', paddingBottom: 18, gap: 10 },
+  emptyState: { alignItems: 'center', paddingBottom: 20, gap: 9 },
   emptyIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: COLORS.greenBg,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.greenSoft,
   },
-  emptyText: { fontSize: 13, color: COLORS.subtext, textAlign: 'center' },
+  emptyTitle: { fontSize: 20, color: COLORS.text, textAlign: 'center', fontWeight: '900', letterSpacing: -0.2 },
+  emptyText: { fontSize: 13.5, color: COLORS.subtext, textAlign: 'center', lineHeight: 20 },
 
   // ─── SUGGESTED QUESTIONS ────────────────────────────────────────────
   suggestionsWrap: {
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    paddingTop: 16,
+    paddingTop: 18,
   },
   suggestionsLabel: {
     fontSize: 11,
@@ -894,7 +1018,7 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   suggestionsGrid: {
     flexDirection: 'row',
@@ -905,13 +1029,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: COLORS.bg,
+    backgroundColor: COLORS.cream,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
+    borderRadius: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 13,
     maxWidth: '100%',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   suggestionChipIconWrap: {
     width: 22,
@@ -924,12 +1053,12 @@ const styles = StyleSheet.create({
   suggestionChipText: {
     fontSize: 13,
     color: COLORS.text,
-    fontWeight: '600',
+    fontWeight: '700',
     flexShrink: 1,
   },
 
   inputWrap: {
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     alignItems: 'center',
@@ -939,40 +1068,73 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 10,
+  },
+  inputFieldShell: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  inputIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.greenBg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.inputBg,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 4,
     fontSize: 14,
     maxHeight: 100,
     color: COLORS.text,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
   },
   sendBtn: {
-    backgroundColor: COLORS.text,
-    borderRadius: 14,
-    width: 42,
-    height: 42,
+    backgroundColor: COLORS.green,
+    borderRadius: 18,
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: COLORS.green,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   sendBtnDisabled: { opacity: 0.5 },
   deleteIconWrap: {
-    alignSelf: 'flex-end',
-    padding: 8,
-    marginBottom: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(156,163,175,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
   },
 
   // ─── HISTORY SIDEBAR (docked + drawer share these) ─────────────────
   dockedSidebar: {
-    width: 280,
+    width: 300,
     borderRightWidth: 1,
     borderRightColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   sidebarInner: { flex: 1, paddingTop: 12 },
   sidebarHeader: {
@@ -987,6 +1149,8 @@ const styles = StyleSheet.create({
   sidebarHeaderTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
   sidebarHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   sidebarIconBtn: { padding: 6, borderRadius: 8 },
+  sidebarScroll: { flex: 1 },
+  sidebarScrollContent: { paddingBottom: 14 },
   sidebarGroup: { marginTop: 14, paddingHorizontal: 12 },
   sidebarGroupLabel: {
     fontSize: 11,
@@ -1000,24 +1164,53 @@ const styles = StyleSheet.create({
   sidebarItem: {
     paddingVertical: 9,
     paddingHorizontal: 10,
-    borderRadius: 10,
-    marginBottom: 2,
+    borderRadius: 12,
+    marginBottom: 4,
+    backgroundColor: 'rgba(245,243,239,0.7)',
   },
   sidebarItemText: { fontSize: 13, color: COLORS.text, lineHeight: 18 },
   sidebarEmpty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, gap: 8 },
+  sidebarEmptyCompact: { alignItems: 'center', justifyContent: 'center', paddingVertical: 22, gap: 8 },
   sidebarEmptyText: { fontSize: 13, color: COLORS.muted },
+  loadMoreHistoryBtn: {
+    marginHorizontal: 12,
+    marginTop: 8,
+    paddingVertical: 11,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.22)',
+    backgroundColor: COLORS.greenBg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  loadMoreHistoryText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.green,
+  },
 
   // Mobile drawer overlay
   overlayContainer: {
     flex: 1,
     flexDirection: 'row',
+    alignItems: 'flex-start',
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   overlayPanel: {
-    width: '80%',
+    width: '78%',
     maxWidth: 320,
-    height: '100%',
+    height: '64%',
     backgroundColor: COLORS.card,
+    borderTopRightRadius: 22,
+    borderBottomRightRadius: 22,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
 
   // ─── DELETE MODAL STYLES ──────────────────────────────────────────

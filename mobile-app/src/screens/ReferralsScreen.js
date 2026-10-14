@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  Dimensions
+  useWindowDimensions
 } from "react-native";
 import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
@@ -28,9 +28,11 @@ const NAVY = "#0F172A";
 export default function ReferralsScreen() {
   const navigation = useNavigation();
   const { language } = useLocale();
+  const { width } = useWindowDimensions();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState(false);
+  const useDesktopLayout = IS_WEB && width >= 820;
 
   useFocusEffect(
     useCallback(() => {
@@ -259,7 +261,8 @@ const progressPct = availableRewards > 0
 
       <ScrollView contentContainerStyle={[
         styles.scrollContent,
-        IS_WEB && { alignSelf: 'center', width: '100%', maxWidth: WEB_STACK_MAX }
+        IS_WEB && { alignSelf: 'center', width: '100%', maxWidth: useDesktopLayout ? WEB_STACK_MAX : 560 },
+        !useDesktopLayout && styles.mobileScrollContent
       ]}>
 
         {/* Hero Banner (full width either way) */}
@@ -278,7 +281,7 @@ const progressPct = availableRewards > 0
           </View>
         </View>
 
-        {IS_WEB ? (
+        {useDesktopLayout ? (
           // ─── WEB: two-column dashboard layout ──────────────────
           <View style={styles.webGrid}>
             <View style={styles.webColLeft}>
@@ -332,6 +335,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 15, fontWeight: "700", color: NAVY },
 
   scrollContent: { padding: 20 },
+  mobileScrollContent: { paddingHorizontal: 14, paddingTop: 16 },
 
   // ─── WEB GRID ───────────────────────────────────────────────────
   webGrid: { flexDirection: "row", gap: 20, alignItems: "flex-start" },
@@ -354,7 +358,7 @@ const styles = StyleSheet.create({
   heroBanner: {
     backgroundColor: NAVY,
     borderRadius: 20,
-    padding: 24,
+    padding: IS_WEB ? 24 : 20,
     marginBottom: 20,
     shadowColor: NAVY,
     shadowOpacity: 0.18,
@@ -377,6 +381,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    flexWrap: "wrap",
     backgroundColor: "rgba(16,185,129,0.14)",
     borderWidth: 1,
     borderColor: "rgba(16,185,129,0.3)",
@@ -416,9 +421,10 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 6,
     paddingVertical: 6,
+    gap: 8,
   },
-  codeText: { fontSize: 19, fontWeight: "800", color: NAVY, letterSpacing: 2.5 },
-  copyBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: GREEN, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9 },
+  codeText: { flex: 1, minWidth: 0, fontSize: 19, fontWeight: "800", color: NAVY, letterSpacing: 2.5 },
+  copyBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: GREEN, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, flexShrink: 0 },
   copyBtnText: { color: "#fff", fontWeight: "700", fontSize: 12.5 },
 
   // ─── STATS ──────────────────────────────────────────────────────
@@ -487,10 +493,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 6,
     elevation: 1,
+    gap: 10,
   },
   historyName: { fontSize: 13.5, fontWeight: "700", color: "#1E293B", marginBottom: 2 },
   historyDate: { fontSize: 11.5, color: "#9CA3AF" },
-  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
+  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, flexShrink: 0 },
   badgeText: { fontSize: 10, fontWeight: "800" },
 
   emptyBox: { alignItems: "center", padding: 32, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#EAECF0", gap: 8 },
