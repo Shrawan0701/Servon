@@ -673,7 +673,7 @@ router.post("/outstanding", auth, async (req, res) => {
 router.get("/outstanding", auth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT customer_name, phone_number, total_amount, remaining_amount, created_at
+      `SELECT id, order_id, customer_name, phone_number, total_amount, remaining_amount, created_at
        FROM customer_outstandings
        WHERE business_id = $1 AND remaining_amount > 0
        ORDER BY created_at DESC`,
@@ -683,6 +683,25 @@ router.get("/outstanding", auth, async (req, res) => {
     res.json({ records: result.rows, totalRemaining: totalRemaining.toFixed(2) });
   } catch (err) {
     console.error("Fetch outstanding error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.delete("/outstanding/:id", auth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE customer_outstandings
+       SET paid_amount = total_amount,
+           remaining_amount = 0,
+           updated_at = NOW()
+       WHERE id = $1 AND business_id = $2
+       RETURNING id`,
+      [req.params.id, req.businessId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Outstanding not found" });
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error("Clear outstanding error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

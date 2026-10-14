@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,7 +20,7 @@ import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { getCustomerOutstandingPDFUrl, getCustomerOutstandings, saveCustomerOutstanding } from "../api";
+import { clearCustomerOutstanding, getCustomerOutstandingPDFUrl, getCustomerOutstandings, saveCustomerOutstanding } from "../api";
 import localDB from "../services/LocalDB";
 import networkMonitor from "../services/NetworkMonitor";
 
@@ -94,6 +94,7 @@ export default function CustomerOutstandingScreen() {
   const [printing, setPrinting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [manualForm, setManualForm] = useState({
     customerName: "",
     phoneNumber: "",
@@ -106,6 +107,13 @@ export default function CustomerOutstandingScreen() {
   const manualRemaining = Number.isFinite(manualTotal) && Number.isFinite(manualPaid)
     ? Math.max(0, manualTotal - manualPaid)
     : 0;
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+  const filteredRecords = useMemo(() => {
+    if (!trimmedSearch) return records;
+    return records.filter((record) =>
+      String(record.customer_name || "").toLowerCase().includes(trimmedSearch)
+    );
+  }, [records, trimmedSearch]);
 
   const updateManualForm = (key, value) => {
     setManualForm((prev) => ({
@@ -264,8 +272,40 @@ export default function CustomerOutstandingScreen() {
     }
   };
 
+  const recalcTotal = (list) =>
+    list.reduce((sum, record) => sum + Number(record.remaining_amount || 0), 0).toFixed(2);
+
+  const clearOutstanding = async (item) => {
+    if (!item?.id) return;
+    const previousRecords = records;
+    const nextRecords = records.filter((record) => String(record.id) !== String(item.id));
+    setRecords(nextRecords);
+    setTotalRemaining(recalcTotal(nextRecords));
+
+    try {
+      await localDB.clearCustomerOutstanding?.(item.id);
+      if (!String(item.id).startsWith("local_outstanding_")) {
+        const online = await networkMonitor.checkConnectivity();
+        if (online) {
+          await withOfflineFallbackTimeout(clearCustomerOutstanding(item.id));
+        } else {
+          await localDB.queueAction?.("CLEAR", "customer_outstandings", item.id, { id: item.id }, 1);
+        }
+      }
+    } catch (err) {
+      setRecords(previousRecords);
+      setTotalRemaining(recalcTotal(previousRecords));
+      Alert.alert("Clear Failed", "Could not clear this outstanding.");
+    }
+  };
+
   const renderTableRow = ({ item }) => (
     <View style={styles.row}>
+      <View style={styles.checkCol}>
+        <TouchableOpacity style={styles.clearCheckBtn} onPress={() => clearOutstanding(item)}>
+          <Ionicons name="checkmark" size={14} color="#059669" />
+        </TouchableOpacity>
+      </View>
       <Text style={[styles.td, styles.dateCol]}>{fmtDate(item.created_at)}</Text>
       <Text style={[styles.td, styles.nameCol]} numberOfLines={1}>{item.customer_name}</Text>
       <Text style={[styles.td, styles.phoneCol]}>{item.phone_number}</Text>
@@ -281,7 +321,12 @@ export default function CustomerOutstandingScreen() {
           <Text style={styles.cardName} numberOfLines={1}>{item.customer_name}</Text>
           <Text style={styles.cardPhone}>{item.phone_number}</Text>
         </View>
-        <Text style={styles.cardDate}>{fmtDate(item.created_at)}</Text>
+        <View style={styles.cardMeta}>
+          <TouchableOpacity style={styles.clearCheckBtn} onPress={() => clearOutstanding(item)}>
+            <Ionicons name="checkmark" size={14} color="#059669" />
+          </TouchableOpacity>
+          <Text style={styles.cardDate}>{fmtDate(item.created_at)}</Text>
+        </View>
       </View>
       <View style={styles.cardAmounts}>
         <View style={styles.amountBox}>
@@ -320,9 +365,29 @@ export default function CustomerOutstandingScreen() {
         </View>
       </View>
 
+      <View style={[styles.searchWrap, isCompact && styles.searchWrapCompact]}>
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={18} color="#6B7280" />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search customer name"
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="none"
+          />
+          {!!searchQuery && (
+            <TouchableOpacity style={styles.searchClearBtn} onPress={() => setSearchQuery("")}>
+              <Ionicons name="close" size={16} color="#6B7280" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       <View style={[styles.table, isCompact && styles.mobileList]}>
         {!isCompact && (
           <View style={[styles.row, styles.headRow]}>
+            <Text style={[styles.th, styles.checkCol]}></Text>
             <Text style={[styles.th, styles.dateCol]}>Date</Text>
             <Text style={[styles.th, styles.nameCol]}>Customer Name</Text>
             <Text style={[styles.th, styles.phoneCol]}>Phone Number</Text>
@@ -334,11 +399,17 @@ export default function CustomerOutstandingScreen() {
           <View style={styles.empty}><ActivityIndicator color="#111827" /></View>
         ) : (
           <FlatList
-            data={records}
+            data={filteredRecords}
             keyExtractor={(item, index) => `${item.phone_number}-${item.created_at || index}-${index}`}
             renderItem={isCompact ? renderCard : renderTableRow}
             contentContainerStyle={isCompact ? styles.cardList : null}
-            ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>No outstanding customers.</Text></View>}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>
+                  {trimmedSearch ? "No customers found." : "No outstanding customers."}
+                </Text>
+              </View>
+            }
           />
         )}
       </View>
@@ -445,12 +516,19 @@ const styles = StyleSheet.create({
   printBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#111827", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
   actionBtnCompact: { width: "100%" },
   printText: { color: "#fff", fontWeight: "800" },
+  searchWrap: { width: "100%", alignItems: "center", marginBottom: 16 },
+  searchWrapCompact: { alignItems: "stretch", marginBottom: 10 },
+  searchBox: { width: "100%", maxWidth: 520, minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 14, paddingHorizontal: 14 },
+  searchInput: { flex: 1, minWidth: 0, color: "#111827", fontSize: 15, fontWeight: "700", outlineStyle: "none" },
+  searchClearBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" },
   table: { flex: 1, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#E8E2D9", overflow: "hidden" },
   mobileList: { backgroundColor: "transparent", borderWidth: 0, borderRadius: 0, overflow: "visible" },
   row: { flexDirection: "row", alignItems: "center", minHeight: 48, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
   headRow: { backgroundColor: "#F3F4F6" },
   th: { fontSize: 12, fontWeight: "900", color: "#374151", textTransform: "uppercase" },
   td: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  checkCol: { width: 36, alignItems: "center", justifyContent: "center" },
+  clearCheckBtn: { width: 26, height: 26, borderRadius: 8, borderWidth: 1.5, borderColor: "#A7F3D0", backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" },
   dateCol: { flex: 0.9, minWidth: 92 },
   nameCol: { flex: 1.4, minWidth: 130 },
   phoneCol: { flex: 1, minWidth: 104 },
@@ -459,6 +537,7 @@ const styles = StyleSheet.create({
   cardList: { gap: 10, paddingBottom: 24 },
   card: { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E8E2D9", padding: 14 },
   cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 12 },
+  cardMeta: { alignItems: "flex-end", gap: 6 },
   cardName: { color: "#111827", fontSize: 16, fontWeight: "900" },
   cardPhone: { color: "#6B7280", fontSize: 13, fontWeight: "700", marginTop: 3 },
   cardDate: { color: "#374151", fontSize: 12, fontWeight: "800", backgroundColor: "#F3F4F6", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },

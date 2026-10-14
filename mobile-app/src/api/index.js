@@ -251,6 +251,7 @@ export const appendOrderItems = (id, items) => API.post(`/orders/${id}/items`, {
 export const removeOrderItem = (orderId, itemId) => API.delete(`/orders/${orderId}/items/${itemId}`);
 export const saveCustomerOutstanding = (data) => API.post("/orders/outstanding", data);
 export const getCustomerOutstandings = () => API.get("/orders/outstanding");
+export const clearCustomerOutstanding = (id) => API.delete(`/orders/outstanding/${id}`);
 export const getCustomerOutstandingPDFUrl = (token) =>
   `${API.defaults.baseURL}/orders/outstanding/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 

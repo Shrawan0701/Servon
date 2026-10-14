@@ -555,6 +555,10 @@ class LocalDB {
         return rows.map((row) => JSON.parse(row.data));
     }
 
+    async clearCustomerOutstanding(id) {
+        await this.db.runAsync(`DELETE FROM customer_outstandings WHERE id = ?`, [String(id)]);
+    }
+
     async clearExpiredCache() {
         try {
             await this.db.runAsync(`DELETE FROM cache WHERE expires_at <= datetime('now')`);

@@ -418,6 +418,14 @@ class LocalDB {
         return records.filter((record) => Number(record.remaining_amount || 0) > 0);
     }
 
+    async clearCustomerOutstanding(id) {
+        const records = await this.getData('customer_outstandings') || [];
+        await this.setData(
+            'customer_outstandings',
+            records.filter((record) => String(record.id) !== String(id))
+        );
+    }
+
     async clearExpiredCache() {
         try {
             const cache = await this.getData('cache') || {};

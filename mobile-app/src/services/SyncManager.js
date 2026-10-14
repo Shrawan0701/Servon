@@ -1,6 +1,6 @@
 import localDB from './LocalDB';
 import networkMonitor from './NetworkMonitor';
-import { addTable, appendOrderItems, deleteTable, getOrders, placeOrder, removeOrderItem, saveCustomerOutstanding, updateOrderStatus } from '../api';
+import { addTable, appendOrderItems, clearCustomerOutstanding, deleteTable, getOrders, placeOrder, removeOrderItem, saveCustomerOutstanding, updateOrderStatus } from '../api';
 
 class SyncManager {
     constructor() {
@@ -128,6 +128,10 @@ class SyncManager {
                     uploaded++;
                 } else if (action.action_type === 'CREATE' && action.table_name === 'customer_outstandings') {
                     await saveCustomerOutstanding(action.data);
+                    await localDB.removeAction(action.id);
+                    uploaded++;
+                } else if (action.action_type === 'CLEAR' && action.table_name === 'customer_outstandings') {
+                    await clearCustomerOutstanding(action.record_id);
                     await localDB.removeAction(action.id);
                     uploaded++;
                 } else if (action.action_type === 'CREATE' && action.table_name === 'tables') {
