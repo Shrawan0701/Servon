@@ -3,10 +3,13 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -17,7 +20,7 @@ import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { getCustomerOutstandingPDFUrl, getCustomerOutstandings } from "../api";
+import { getCustomerOutstandingPDFUrl, getCustomerOutstandings, saveCustomerOutstanding } from "../api";
 import localDB from "../services/LocalDB";
 import networkMonitor from "../services/NetworkMonitor";
 
@@ -42,6 +45,45 @@ const withOfflineFallbackTimeout = (promise, ms = 2500) =>
     new Promise((_, reject) => setTimeout(() => reject(new Error("offline_fallback_timeout")), ms)),
   ]);
 
+const parseAmount = (value) => {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : NaN;
+};
+
+const cleanAmountInput = (value) => String(value || "").replace(/[^0-9.]/g, "");
+
+const buildOutstandingHtml = ({ records, totalRemaining, businessName }) => {
+  const rows = records.map((record) => `
+    <tr>
+      <td>${fmtDate(record.created_at)}</td>
+      <td>${record.customer_name || ""}</td>
+      <td>${record.phone_number || ""}</td>
+      <td>${rs(record.total_amount)}</td>
+      <td><strong>${rs(record.remaining_amount)}</strong></td>
+    </tr>
+  `).join("");
+
+  return `
+    <html><head><style>
+      body{font-family:Arial,sans-serif;padding:28px;color:#111827}
+      h1{margin:0 0 6px;font-size:26px} h2{margin:0 0 8px;font-size:18px}
+      table{width:100%;border-collapse:collapse;margin-top:24px;font-size:12px}
+      th,td{padding:10px;border-bottom:1px solid #E5E7EB;text-align:left}
+      th{background:#F3F4F6;text-transform:uppercase}
+      td:nth-child(4),td:nth-child(5),th:nth-child(4),th:nth-child(5){text-align:right}
+      .total{font-weight:800;background:#F9FAFB}
+    </style></head><body>
+      <h1>${businessName}</h1>
+      <h2>Customer Outstanding Report</h2>
+      <div>Generated: ${new Date().toLocaleString("en-IN")}</div>
+      <table><thead><tr><th>Date</th><th>Customer Name</th><th>Phone Number</th><th>Total Amount</th><th>Remaining Amount</th></tr></thead>
+      <tbody>${rows}<tr class="total"><td colspan="4">GRAND TOTAL</td><td>${rs(totalRemaining)}</td></tr></tbody></table>
+    </body></html>
+  `;
+};
+
 export default function CustomerOutstandingScreen() {
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
@@ -50,6 +92,36 @@ export default function CustomerOutstandingScreen() {
   const [totalRemaining, setTotalRemaining] = useState("0.00");
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    customerName: "",
+    phoneNumber: "",
+    totalAmount: "",
+    paidAmount: "",
+  });
+
+  const manualTotal = parseAmount(manualForm.totalAmount);
+  const manualPaid = parseAmount(manualForm.paidAmount) ?? 0;
+  const manualRemaining = Number.isFinite(manualTotal) && Number.isFinite(manualPaid)
+    ? Math.max(0, manualTotal - manualPaid)
+    : 0;
+
+  const updateManualForm = (key, value) => {
+    setManualForm((prev) => ({
+      ...prev,
+      [key]:
+        key === "phoneNumber"
+          ? value.replace(/\D/g, "").slice(0, 10)
+          : key === "customerName"
+            ? value
+            : cleanAmountInput(value),
+    }));
+  };
+
+  const resetManualForm = () => {
+    setManualForm({ customerName: "", phoneNumber: "", totalAmount: "", paidAmount: "" });
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -79,6 +151,66 @@ export default function CustomerOutstandingScreen() {
     loadData();
   }, [loadData]);
 
+  const addManualOutstanding = async () => {
+    const name = manualForm.customerName.trim();
+    const phone = manualForm.phoneNumber.trim();
+    const totalAmount = parseAmount(manualForm.totalAmount);
+    const paidAmount = parseAmount(manualForm.paidAmount) ?? 0;
+
+    if (!name) {
+      Alert.alert("Invalid", "Customer name is required.");
+      return;
+    }
+    if (!/^\d{10}$/.test(phone)) {
+      Alert.alert("Invalid", "Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      Alert.alert("Invalid", "Enter a valid total amount.");
+      return;
+    }
+    if (!Number.isFinite(paidAmount) || paidAmount < 0 || paidAmount > totalAmount) {
+      Alert.alert("Invalid", "Paid amount must be between 0 and total amount.");
+      return;
+    }
+
+    const payload = {
+      customerName: name,
+      phoneNumber: phone,
+      totalAmount: totalAmount.toFixed(2),
+      paidAmount: paidAmount.toFixed(2),
+      remainingAmount: Math.max(0, totalAmount - paidAmount).toFixed(2),
+    };
+
+    setSaving(true);
+    try {
+      let savedLocalRecord = null;
+      const online = await networkMonitor.checkConnectivity();
+      if (online) {
+        try {
+          await withOfflineFallbackTimeout(saveCustomerOutstanding(payload));
+        } catch (err) {
+          savedLocalRecord = await localDB.saveCustomerOutstanding(payload);
+        }
+      } else {
+        savedLocalRecord = await localDB.saveCustomerOutstanding(payload);
+      }
+      resetManualForm();
+      setShowAddModal(false);
+      if (savedLocalRecord) {
+        const localRecords = await localDB.getCustomerOutstandings();
+        setRecords(localRecords);
+        setTotalRemaining(localRecords.reduce((sum, record) => sum + Number(record.remaining_amount || 0), 0).toFixed(2));
+      } else {
+        await loadData();
+      }
+    } catch (err) {
+      Alert.alert("Save Failed", "Could not save customer outstanding.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const printOutstanding = async () => {
     const token = await AsyncStorage.getItem("token");
     if (!token) {
@@ -88,34 +220,23 @@ export default function CustomerOutstandingScreen() {
 
     setPrinting(true);
     try {
+      const profile = await localDB.getProfile();
+      const businessName = profile?.business_name || profile?.businessName || "Servon Hotel";
+      const html = buildOutstandingHtml({ records, totalRemaining, businessName });
+
+      if (Platform.OS === "web" && !isCompact) {
+        const printWindow = window.open("", "_blank", "width=900,height=700");
+        if (!printWindow) throw new Error("print_window_blocked");
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => printWindow.print(), 250);
+        return;
+      }
+
       const online = await networkMonitor.checkConnectivity();
       if (!online) {
-        const profile = await localDB.getProfile();
-        const businessName = profile?.business_name || profile?.businessName || "Servon Hotel";
-        const rows = records.map((record) => `
-          <tr>
-            <td>${fmtDate(record.created_at)}</td>
-            <td>${record.customer_name || ""}</td>
-            <td>${record.phone_number || ""}</td>
-            <td>${rs(record.total_amount)}</td>
-            <td><strong>${rs(record.remaining_amount)}</strong></td>
-          </tr>
-        `).join("");
-        const html = `
-          <html><head><style>
-            body{font-family:Arial,sans-serif;padding:28px;color:#111827}
-            h1{margin:0 0 6px;font-size:26px} h2{margin:0 0 8px;font-size:18px}
-            table{width:100%;border-collapse:collapse;margin-top:24px;font-size:12px}
-            th,td{padding:10px;border-bottom:1px solid #E5E7EB;text-align:left}
-            th{background:#F3F4F6} .total{font-weight:800;background:#F9FAFB}
-          </style></head><body>
-            <h1>${businessName}</h1>
-            <h2>Customer Outstanding Report</h2>
-            <div>Generated: ${new Date().toLocaleString("en-IN")}</div>
-            <table><thead><tr><th>Date</th><th>Customer Name</th><th>Phone Number</th><th>Total Amount</th><th>Remaining Amount</th></tr></thead>
-            <tbody>${rows}<tr class="total"><td colspan="4">GRAND TOTAL</td><td>${rs(totalRemaining)}</td></tr></tbody></table>
-          </body></html>
-        `;
         await Print.printAsync({ html });
         return;
       }
@@ -187,10 +308,16 @@ export default function CustomerOutstandingScreen() {
             <Text style={styles.subtitle}>Total outstanding: {rs(totalRemaining)}</Text>
           </View>
         </View>
-        <TouchableOpacity style={[styles.printBtn, isCompact && styles.printBtnCompact]} onPress={printOutstanding} disabled={printing}>
-          {printing ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="print-outline" size={18} color="#fff" />}
-          <Text style={styles.printText}>Print Outstanding</Text>
-        </TouchableOpacity>
+        <View style={[styles.headerActions, isCompact && styles.headerActionsCompact]}>
+          <TouchableOpacity style={[styles.addBtn, isCompact && styles.actionBtnCompact]} onPress={() => setShowAddModal(true)}>
+            <Ionicons name="add" size={18} color="#fff" />
+            <Text style={styles.printText}>Add Outstanding</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.printBtn, isCompact && styles.actionBtnCompact]} onPress={printOutstanding} disabled={printing}>
+            {printing ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name={isCompact ? "download-outline" : "print-outline"} size={18} color="#fff" />}
+            <Text style={styles.printText}>{isCompact ? "Download PDF" : "Print Outstanding"}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.table, isCompact && styles.mobileList]}>
@@ -215,6 +342,89 @@ export default function CustomerOutstandingScreen() {
           />
         )}
       </View>
+
+      <Modal visible={showAddModal} transparent animationType="fade" onRequestClose={() => setShowAddModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
+          <View style={[styles.modalCard, isCompact && styles.modalCardCompact]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Add Outstanding</Text>
+                <Text style={styles.modalSubtitle}>Remaining amount is calculated automatically.</Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowAddModal(false)}>
+                <Ionicons name="close" size={20} color="#111827" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formGrid}>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Customer Name</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  value={manualForm.customerName}
+                  onChangeText={(value) => updateManualForm("customerName", value)}
+                  placeholder="Enter customer name"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  value={manualForm.phoneNumber}
+                  onChangeText={(value) => updateManualForm("phoneNumber", value)}
+                  placeholder="10 digit number"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
+              </View>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Total Amount</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  value={manualForm.totalAmount}
+                  onChangeText={(value) => updateManualForm("totalAmount", value)}
+                  placeholder="0.00"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Paid Amount Optional</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  value={manualForm.paidAmount}
+                  onChangeText={(value) => updateManualForm("paidAmount", value)}
+                  placeholder="0.00"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              <View style={[styles.fieldGroup, styles.remainingPreview]}>
+                <Text style={styles.fieldLabel}>Remaining Amount</Text>
+                <Text style={styles.remainingPreviewValue}>{rs(manualRemaining)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.cancelBtn]}
+                onPress={() => {
+                  resetManualForm();
+                  setShowAddModal(false);
+                }}
+                disabled={saving}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, styles.saveBtn, saving && styles.disabledBtn]} onPress={addManualOutstanding} disabled={saving}>
+                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save Outstanding</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -229,8 +439,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: "900", color: "#111827" },
   titleCompact: { fontSize: 22, lineHeight: 26 },
   subtitle: { marginTop: 2, color: "#6B7280", fontWeight: "700" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerActionsCompact: { width: "100%", flexDirection: "column", alignItems: "stretch" },
+  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#059669", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
   printBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#111827", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  printBtnCompact: { width: "100%" },
+  actionBtnCompact: { width: "100%" },
   printText: { color: "#fff", fontWeight: "800" },
   table: { flex: 1, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#E8E2D9", overflow: "hidden" },
   mobileList: { backgroundColor: "transparent", borderWidth: 0, borderRadius: 0, overflow: "visible" },
@@ -255,4 +468,24 @@ const styles = StyleSheet.create({
   amountValue: { color: "#111827", fontSize: 14, fontWeight: "900" },
   empty: { padding: 36, alignItems: "center" },
   emptyText: { color: "#6B7280", fontWeight: "700" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(17,24,39,0.48)", alignItems: "center", justifyContent: "center", padding: 18 },
+  modalCard: { width: "100%", maxWidth: 520, backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#E8E2D9", padding: 20 },
+  modalCardCompact: { maxWidth: "100%", padding: 16 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16 },
+  modalTitle: { color: "#111827", fontSize: 20, fontWeight: "900" },
+  modalSubtitle: { color: "#6B7280", fontSize: 13, fontWeight: "600", marginTop: 3 },
+  modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  formGrid: { gap: 12 },
+  fieldGroup: { gap: 7 },
+  fieldLabel: { color: "#374151", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  fieldInput: { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: "#111827", fontSize: 14, fontWeight: "700", backgroundColor: "#fff" },
+  remainingPreview: { backgroundColor: "#FAFAFA", borderWidth: 1, borderColor: "#E8E2D9", borderRadius: 12, padding: 14 },
+  remainingPreviewValue: { color: "#B91C1C", fontSize: 20, fontWeight: "900" },
+  modalActions: { flexDirection: "row", gap: 10, marginTop: 18 },
+  modalBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: "center", justifyContent: "center" },
+  cancelBtn: { backgroundColor: "#F3F4F6" },
+  cancelBtnText: { color: "#111827", fontWeight: "900" },
+  saveBtn: { backgroundColor: "#111827" },
+  saveBtnText: { color: "#fff", fontWeight: "900" },
+  disabledBtn: { opacity: 0.65 },
 });

@@ -58,6 +58,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import ReactDOM from "react-dom";
 
 const isWeb = Platform.OS === "web";
+const BILL_PRINT_TITLE = "Powered by Servon Labs";
 
 const localizeBusinessSummaryValue = (value, language) => {
   if (typeof value !== "string" || language === "en") return value;
@@ -1158,7 +1159,9 @@ export default function DashboardScreen() {
     return `
       <html>
         <head>
+          <title>${BILL_PRINT_TITLE}</title>
           <style>
+            @page { margin: 0; }
             body { font-family: monospace; width: 80mm; padding: 10px; color: #000; margin: 0 auto; }
             h2 { text-align: center; margin: 0 0 5px 0; font-size: 24px; }
             .center { text-align: center; font-size: 14px; margin-bottom: 5px; }
@@ -1212,24 +1215,80 @@ export default function DashboardScreen() {
 
   const printDashboardHtml = useCallback(async (htmlContent) => {
     if (Platform.OS === "web") {
-      const existingIframe = document.getElementById("servon-dashboard-print-iframe");
-      if (existingIframe) document.body.removeChild(existingIframe);
-      const iframe = document.createElement("iframe");
-      iframe.id = "servon-dashboard-print-iframe";
-      iframe.style.cssText = "position:absolute;width:0px;height:0px;border:none;";
-      document.body.appendChild(iframe);
-      iframe.contentWindow.document.open();
-      iframe.contentWindow.document.write(htmlContent);
-      iframe.contentWindow.document.close();
-      setTimeout(() => {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      }, 500);
-      setTimeout(() => {
-        if (document.body.contains(iframe)) document.body.removeChild(iframe);
-      }, 3000);
+      const previousTitle = document.title;
+      const printHtml = htmlContent
+        .replace(/<title>.*?<\/title>/i, `<title>${BILL_PRINT_TITLE}</title>`);
+      const styleMatch = printHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+      const bodyMatch = printHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const printStyle = document.createElement("style");
+      const printRoot = document.createElement("div");
+      const restoreTitle = () => {
+        document.title = previousTitle;
+        if (document.head.contains(printStyle)) document.head.removeChild(printStyle);
+        if (document.body.contains(printRoot)) document.body.removeChild(printRoot);
+        window.removeEventListener("afterprint", restoreTitle);
+      };
+
+      document.title = BILL_PRINT_TITLE;
+      window.addEventListener("afterprint", restoreTitle);
+
+      const existingRoot = document.getElementById("servon-dashboard-print-root");
+      if (existingRoot) document.body.removeChild(existingRoot);
+      const existingStyle = document.getElementById("servon-dashboard-print-style");
+      if (existingStyle) document.head.removeChild(existingStyle);
+
+      printRoot.id = "servon-dashboard-print-root";
+      printRoot.innerHTML = bodyMatch?.[1] || printHtml;
+      printRoot.style.display = "none";
+      printStyle.id = "servon-dashboard-print-style";
+      printStyle.textContent = `
+        ${styleMatch?.[1] || ""}
+        @media screen { #servon-dashboard-print-root { display: none !important; } }
+        @media print {
+          body > *:not(#servon-dashboard-print-root) { display: none !important; }
+          #servon-dashboard-print-root {
+            display: block !important;
+            font-family: monospace;
+            width: 80mm;
+            padding: 10px;
+            margin: 0 auto;
+            color: #000;
+          }
+        }
+      `;
+      document.head.appendChild(printStyle);
+      document.body.appendChild(printRoot);
+
+      const printWhenReady = () => {
+        document.title = BILL_PRINT_TITLE;
+        window.focus();
+        window.print();
+        setTimeout(restoreTitle, 30000);
+      };
+
+      const images = Array.from(printRoot.querySelectorAll("img") || []);
+      if (images.length) {
+        await Promise.race([
+          Promise.all(images.map((img) => {
+            if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+            return new Promise((resolve) => {
+              img.onload = resolve;
+              img.onerror = resolve;
+            });
+          })),
+          new Promise((resolve) => setTimeout(resolve, 1800)),
+        ]);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+
+      printWhenReady();
     } else {
-      await Print.printAsync({ html: htmlContent });
+      await Print.printAsync({
+        html: htmlContent
+          .replace("<title></title>", `<title>${BILL_PRINT_TITLE}</title>`)
+          .replace("<title>&#8203;</title>", `<title>${BILL_PRINT_TITLE}</title>`),
+      });
     }
   }, []);
 

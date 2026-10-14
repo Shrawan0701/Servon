@@ -34,6 +34,7 @@ import syncManager from "../services/SyncManager";
 // ─── CONSTANTS ──────────────────────────────────────────────────────────
 
 const LOCAL_UPDATE_TRUST_WINDOW_MS = 20000;
+const BILL_PRINT_TITLE = "Powered by Servon Labs";
 
 const statusColor = (s) =>
   ({
@@ -946,7 +947,9 @@ const qrCodeUrlFallback = upiId
 return `
   <html>
     <head>
+      <title>${BILL_PRINT_TITLE}</title>
       <style>
+        @page { margin: 0; }
         body {
           font-family: monospace;
           width: 80mm;
@@ -1193,34 +1196,79 @@ return `
     }
 
     if (Platform.OS === "web") {
-      // Remove any existing print iframe
-      const existingIframe = document.getElementById('servon-print-iframe');
-      if (existingIframe) {
-        document.body.removeChild(existingIframe);
+      const previousTitle = document.title;
+      const printHtml = htmlContent
+        .replace(/<title>.*?<\/title>/i, `<title>${BILL_PRINT_TITLE}</title>`);
+      const styleMatch = printHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+      const bodyMatch = printHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const printStyle = document.createElement("style");
+      const printRoot = document.createElement("div");
+      const restoreTitle = () => {
+        document.title = previousTitle;
+        if (document.head.contains(printStyle)) document.head.removeChild(printStyle);
+        if (document.body.contains(printRoot)) document.body.removeChild(printRoot);
+        window.removeEventListener("afterprint", restoreTitle);
+      };
+
+      document.title = BILL_PRINT_TITLE;
+      window.addEventListener("afterprint", restoreTitle);
+
+      const existingRoot = document.getElementById("servon-print-root");
+      if (existingRoot) document.body.removeChild(existingRoot);
+      const existingStyle = document.getElementById("servon-print-style");
+      if (existingStyle) document.head.removeChild(existingStyle);
+
+      printRoot.id = "servon-print-root";
+      printRoot.innerHTML = bodyMatch?.[1] || printHtml;
+      printRoot.style.display = "none";
+      printStyle.id = "servon-print-style";
+      printStyle.textContent = `
+        ${styleMatch?.[1] || ""}
+        @media screen { #servon-print-root { display: none !important; } }
+        @media print {
+          body > *:not(#servon-print-root) { display: none !important; }
+          #servon-print-root {
+            display: block !important;
+            font-family: monospace;
+            width: 80mm;
+            padding: 10px;
+            margin: 0 auto;
+            color: #000;
+          }
+        }
+      `;
+      document.head.appendChild(printStyle);
+      document.body.appendChild(printRoot);
+
+      const images = Array.from(printRoot.querySelectorAll("img") || []);
+      if (images.length) {
+        await Promise.race([
+          Promise.all(images.map((img) => {
+            if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+            return new Promise((resolve) => {
+              img.onload = resolve;
+              img.onerror = resolve;
+            });
+          })),
+          new Promise((resolve) => setTimeout(resolve, 1800)),
+        ]);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
 
-      const iframe = document.createElement("iframe");
-      iframe.id = 'servon-print-iframe';
-      iframe.style.cssText = "position:absolute;width:0px;height:0px;border:none;";
-      document.body.appendChild(iframe);
-
-      iframe.contentWindow.document.open();
-      iframe.contentWindow.document.write(htmlContent);
-      iframe.contentWindow.document.close();
-
       setTimeout(() => {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      }, 500);
-
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      }, 3000);
+        document.title = BILL_PRINT_TITLE;
+        window.focus();
+        window.print();
+        setTimeout(restoreTitle, 30000);
+      }, 0);
 
     } else {
-      await Print.printAsync({ html: htmlContent });
+      await Print.printAsync({
+        html: htmlContent
+          .replace("<title></title>", `<title>${BILL_PRINT_TITLE}</title>`)
+          .replace("<title>&#8203;</title>", `<title>${BILL_PRINT_TITLE}</title>`),
+      });
     }
   }, [isPrinting]);
 
