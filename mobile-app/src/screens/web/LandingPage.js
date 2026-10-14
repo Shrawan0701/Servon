@@ -1721,19 +1721,7 @@ useEffect(() => {
               </View>
 
               {/* Message */}
-              <View style={s.formGroup}>
-                <Text style={s.formLabel}>Message</Text>
-                <TextInput
-                  style={[s.formInput, s.formTextArea]}
-                  placeholder="Tell us a bit more about what you need (optional)"
-                  placeholderTextColor="#94A3B8"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  value={formData.message}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, message: text }))}
-                />
-              </View>
+             
             </ScrollView>
 
             {/* Submit Button */}

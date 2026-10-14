@@ -87,39 +87,39 @@ export default function LoginScreen({ navigation, onNavigate }) {
                   </Text>
                   <View style={styles.badgePill}>
                     <View style={styles.livePulseDot} />
-                    <Text style={styles.badgePillText}>LIVE POS NETWORK</Text>
+                    <Text style={styles.badgePillText}>LOCAL-FIRST POS</Text>
                   </View>
                 </View>
 
                 {/* Hero Headline */}
                 <View style={styles.heroContent}>
-                  <Text style={styles.heroTag}>RESTAURANT OS & POS</Text>
+                  <Text style={styles.heroTag}>RESTAURANT OPERATIONS</Text>
                   <Text style={styles.heroHeading}>
-                    Powering fast-paced dining & kitchen floors.
+                    A calm command center for every table, bill, and shift.
                   </Text>
                   <Text style={styles.heroSubheading}>
-                    Manage dine-in orders, kitchen tickets, split bills, and live store analytics in one unified platform.
+                    Run dine-in orders, menu updates, customer dues, and offline billing from one focused workspace.
                   </Text>
 
                   {/* HUMAN & LIVE ORDER STREAM */}
                   <View style={styles.streamWrapper}>
                     <View style={styles.streamHeader}>
-                      <Text style={styles.streamTitle}>⚡ REAL-TIME STORE STREAM</Text>
-                      <Text style={styles.streamSub}>Live Activity</Text>
+                      <Text style={styles.streamTitle}>TODAY'S FLOOR</Text>
+                      <Text style={styles.streamSub}>Live snapshot</Text>
                     </View>
 
                     {/* Stream Card 1: Chef KOT */}
                     <View style={styles.streamCard}>
                       <View style={styles.avatarCircleChef}>
-                        <Text style={styles.avatarEmoji}>👨‍🍳</Text>
+                        <Text style={styles.avatarEmoji}>KOT</Text>
                       </View>
                       <View style={styles.streamContent}>
                         <View style={styles.streamRowBetween}>
-                          <Text style={styles.streamActor}>Kitchen Order #104</Text>
+                          <Text style={styles.streamActor}>Kitchen order #104</Text>
                           <Text style={styles.streamTime}>Just now</Text>
                         </View>
                         <Text style={styles.streamDetail}>
-                          2x Paneer Tikka • 3x Garlic Naan
+                          2x Paneer tikka - 3x Garlic naan
                         </Text>
                         <View style={styles.statusBadgeGreen}>
                           <Text style={styles.statusBadgeTextGreen}>PREPARING</Text>
@@ -130,15 +130,15 @@ export default function LoginScreen({ navigation, onNavigate }) {
                     {/* Stream Card 2: Captain / Floor Staff */}
                     <View style={styles.streamCard}>
                       <View style={styles.avatarCircleStaff}>
-                        <Text style={styles.avatarEmoji}>💁‍♂️</Text>
+                        <Text style={styles.avatarEmoji}>BILL</Text>
                       </View>
                       <View style={styles.streamContent}>
                         <View style={styles.streamRowBetween}>
-                          <Text style={styles.streamActor}>Table #06 (Floor 1)</Text>
+                          <Text style={styles.streamActor}>Table #06</Text>
                           <Text style={styles.streamTime}>2m ago</Text>
                         </View>
                         <Text style={styles.streamDetail}>
-                          Bill Generated • ₹1,450 
+                          Bill generated - Rs 1,450
                         </Text>
                         <View style={styles.statusBadgeBlue}>
                           <Text style={styles.statusBadgeTextBlue}>SETTLED</Text>
@@ -151,18 +151,18 @@ export default function LoginScreen({ navigation, onNavigate }) {
                 {/* Hero Footer Metrics */}
                 <View style={styles.heroFooter}>
                   <View style={styles.heroStatItem}>
-                    <Text style={styles.heroStatNum}>99.9%</Text>
-                    <Text style={styles.heroStatLabel}>Uptime</Text>
+                    <Text style={styles.heroStatNum}>Manual</Text>
+                    <Text style={styles.heroStatLabel}>Order entry</Text>
                   </View>
                   <View style={styles.heroStatDivider} />
                   <View style={styles.heroStatItem}>
-                    <Text style={styles.heroStatNum}>&lt; 200ms</Text>
-                    <Text style={styles.heroStatLabel}>Billing Speed</Text>
+                    <Text style={styles.heroStatNum}>Fast</Text>
+                    <Text style={styles.heroStatLabel}>Bill print</Text>
                   </View>
                   <View style={styles.heroStatDivider} />
                   <View style={styles.heroStatItem}>
                     <Text style={styles.heroStatNum}>Offline</Text>
-                    <Text style={styles.heroStatLabel}>Sync Engine</Text>
+                    <Text style={styles.heroStatLabel}>Ready flow</Text>
                   </View>
                 </View>
               </View>
@@ -188,7 +188,7 @@ export default function LoginScreen({ navigation, onNavigate }) {
                 {/* Error Box */}
                 {error && (
                   <View style={styles.errorBox}>
-                    <Text style={styles.errorIcon}>⚠</Text>
+                    <Text style={styles.errorIcon}>!</Text>
                     <Text style={styles.errorText}>{error}</Text>
                   </View>
                 )}
@@ -201,7 +201,7 @@ export default function LoginScreen({ navigation, onNavigate }) {
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>EMAIL ADDRESS</Text>
                     <View style={styles.inputWrap}>
-                      <Text style={styles.inputIcon}>✉</Text>
+                      <Text style={styles.inputIcon}>@</Text>
                       <TextInput
                         style={[styles.input, isWeb && { outlineStyle: "none" }]}
                         value={email}
@@ -217,7 +217,7 @@ export default function LoginScreen({ navigation, onNavigate }) {
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>PASSWORD</Text>
                     <View style={styles.inputWrap}>
-                      <Text style={styles.inputIcon}>🔒</Text>
+                      <Text style={styles.inputIcon}>*</Text>
                       <TextInput
                         style={[styles.input, isWeb && { outlineStyle: "none" }]}
                         value={password}
@@ -263,7 +263,7 @@ export default function LoginScreen({ navigation, onNavigate }) {
                   )}
                 </View>
 
-                <Text style={styles.footer}>© 2026 Servon</Text>
+                <Text style={styles.footer}>2026 Servon</Text>
               </View>
             </View>
 
@@ -275,7 +275,7 @@ export default function LoginScreen({ navigation, onNavigate }) {
 }
 
 const GREEN = "#008060";
-const BG = "#FAF8F5";
+const BG = "#F6F4EF";
 const CARD_BG = "#FFFFFF";
 const BORDER = "#E8E2D9";
 const TEXT_PRIMARY = "#1C1917";
@@ -293,11 +293,13 @@ const styles = StyleSheet.create({
   // HERO PANEL (DESKTOP WEB)
   webHeroPanel: {
     flex: 1.1,
-    backgroundColor: "#0F172A",
+    backgroundColor: "#EEF5EF",
     padding: 48,
     justifyContent: "space-between",
     position: "relative",
     overflow: "hidden",
+    borderRightWidth: 1,
+    borderRightColor: "#DDE7DE",
   },
   heroGlowCircle: {
     position: "absolute",
@@ -306,7 +308,7 @@ const styles = StyleSheet.create({
     width: 450,
     height: 450,
     borderRadius: 225,
-    backgroundColor: "rgba(0, 128, 96, 0.15)",
+    backgroundColor: "transparent",
   },
   heroTopRow: {
     flexDirection: "row",
@@ -317,8 +319,8 @@ const styles = StyleSheet.create({
   heroBrandText: {
     fontSize: 32,
     fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: -1,
+    color: TEXT_PRIMARY,
+    letterSpacing: 0,
   },
   heroBrandDot: {
     color: GREEN,
@@ -327,12 +329,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderColor: "#D7E6D8",
   },
   livePulseDot: {
     width: 8,
@@ -341,7 +343,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#10B981",
   },
   badgePillText: {
-    color: "#E2E8F0",
+    color: "#245B46",
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1.5,
@@ -352,7 +354,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   heroTag: {
-    color: GREEN,
+    color: "#2F7D5F",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 2.5,
@@ -361,26 +363,30 @@ const styles = StyleSheet.create({
   heroHeading: {
     fontSize: 34,
     fontWeight: "900",
-    color: "#FFFFFF",
+    color: TEXT_PRIMARY,
     lineHeight: 42,
-    letterSpacing: -0.5,
+    letterSpacing: 0,
     marginBottom: 12,
   },
   heroSubheading: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: "#5F6F65",
     lineHeight: 22,
     marginBottom: 24,
   },
 
   // LIVE STREAM CONTAINER
   streamWrapper: {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     padding: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "#DDE7DE",
     gap: 14,
+    shadowColor: "#1C1917",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.06,
+    shadowRadius: 30,
   },
   streamHeader: {
     flexDirection: "row",
@@ -391,23 +397,23 @@ const styles = StyleSheet.create({
   streamTitle: {
     fontSize: 10,
     fontWeight: "800",
-    color: GREEN,
+    color: "#2F7D5F",
     letterSpacing: 1.5,
   },
   streamSub: {
     fontSize: 11,
-    color: "#64748B",
+    color: TEXT_MUTED,
     fontWeight: "600",
   },
   streamCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    backgroundColor: "#FAF8F5",
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: BORDER,
   },
   avatarCircleChef: {
     width: 42,
@@ -426,7 +432,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarEmoji: {
-    fontSize: 20,
+    fontSize: 10,
+    fontWeight: "900",
+    color: TEXT_PRIMARY,
   },
   streamContent: {
     flex: 1,
@@ -439,15 +447,15 @@ const styles = StyleSheet.create({
   streamActor: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: TEXT_PRIMARY,
   },
   streamTime: {
     fontSize: 10,
-    color: "#64748B",
+    color: TEXT_MUTED,
   },
   streamDetail: {
     fontSize: 12,
-    color: "#94A3B8",
+    color: TEXT_MUTED,
     marginTop: 2,
     marginBottom: 6,
   },
@@ -480,12 +488,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "#FFFFFF",
     padding: 16,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "#DDE7DE",
     zIndex: 2,
+    shadowColor: "#1C1917",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 24,
   },
   heroStatItem: {
     flex: 1,
@@ -494,18 +506,18 @@ const styles = StyleSheet.create({
   heroStatNum: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#FFFFFF",
+    color: TEXT_PRIMARY,
   },
   heroStatLabel: {
     fontSize: 10,
-    color: "#64748B",
+    color: TEXT_MUTED,
     fontWeight: "700",
     marginTop: 2,
   },
   heroStatDivider: {
     width: 1,
     height: 24,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: BORDER,
   },
 
   // FORM PANEL (WORKS PERFECTLY ON BOTH DESKTOP & MOBILE)
@@ -522,7 +534,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   headerContainer: { alignItems: "center", paddingBottom: 28 },
-  brandText: { fontSize: 36, fontWeight: "900", color: TEXT_PRIMARY, letterSpacing: -1 },
+  brandText: { fontSize: 36, fontWeight: "900", color: TEXT_PRIMARY, letterSpacing: 0 },
   brandAccent: { color: GREEN },
   dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
   dividerLine: { width: 32, height: 1, backgroundColor: BORDER },
@@ -554,7 +566,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08, 
     shadowRadius: 24 
   },
-  formHeading: { fontSize: 22, fontWeight: "800", color: TEXT_PRIMARY, letterSpacing: -0.5, marginBottom: 4 },
+  formHeading: { fontSize: 22, fontWeight: "800", color: TEXT_PRIMARY, letterSpacing: 0, marginBottom: 4 },
   formSubheading: { fontSize: 13, color: TEXT_MUTED, marginBottom: 24 },
   inputGroup: { marginBottom: 20 },
   label: { fontSize: 10, fontWeight: "800", color: GREEN, letterSpacing: 2, marginBottom: 8 },
