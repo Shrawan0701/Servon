@@ -1656,22 +1656,12 @@ useEffect(() => {
               />
 
               {/* Email */}
-              <Field
-                label="Email Address"
-                required
-                placeholder="you@example.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={formData.email}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
-                error={formErrors.email}
-                styles={s}
-              />
+             
 
               {/* Phone */}
               <Field
                 label="Phone Number"
-                placeholder="Optional"
+                placeholder=""
                 keyboardType="phone-pad"
                 value={formData.phone}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
