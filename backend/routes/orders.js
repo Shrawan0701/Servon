@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
+const orderTransaction = require("../middleware/orderTransaction");
+const { transaction } = require("../services/inventoryTransaction");
 const pool = require("../db");
 const auth = require("../middleware/auth");
 const sendPush = require('../utils/pushNotify');
@@ -35,14 +37,14 @@ function getOptionalBusinessId(req) {
   }
 }
 
-async function calculateOrderTotals(businessId, items, discountType = "none", discountValue = 0) {
+async function calculateOrderTotals(businessId, items, discountType = "none", discountValue = 0, db = pool) {
   const subtotal = (Array.isArray(items) ? items : []).reduce((sum, item) => {
     const price = parseFloat(item.price) || 0;
     const qty = parseInt(item.quantity) || 0;
     return sum + price * qty;
   }, 0);
 
-  const gstResult = await pool.query(
+  const gstResult = await db.query(
     "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
     [businessId]
   );
@@ -73,8 +75,26 @@ function centsToAmount(cents) {
   return (Number(cents) / 100).toFixed(2);
 }
 
+// Keep the legacy editable-order timer, using a new transaction after the
+// request commits rather than retaining its released database client.
+function scheduleConfirmation(businessId, orderId) {
+  const timer = setTimeout(async () => {
+    try {
+      const updated = await transaction(businessId, async db => {
+        const result = await db.query("SELECT * FROM orders WHERE id=$1 AND business_id=$2 FOR UPDATE", [orderId,businessId]);
+        const order = result.rows[0];
+        if (!order || order.status !== 'EDITABLE' || Date.now()-new Date(order.updated_at).getTime()<58000) return null;
+        await deductInventoryForOrder(businessId,orderId,order.items,{client:db});
+        return (await db.query("UPDATE orders SET status='CONFIRMED',updated_at=NOW() WHERE id=$1 AND business_id=$2 RETURNING *",[orderId,businessId])).rows[0];
+      });
+      if (updated) getIO().to(`business_${businessId}`).emit('order_updated',updated);
+    } catch (error) { console.warn(JSON.stringify({event:'order_auto_confirm_failed',type:error.name})); }
+  },60000);
+  timer.unref?.();
+}
+
 // ─── CUSTOMER: PLACE ORDER (New or Edit) ─────────────────────────────
-router.post("/place", async (req, res) => {
+router.post("/place", orderTransaction(async (req, res, db) => {
   const {
     businessId,
     tableId,
@@ -92,7 +112,7 @@ router.post("/place", async (req, res) => {
   }
 
   try {
-    const biz = await pool.query(
+    const biz = await db.query(
       "SELECT subscription_status, subscription_end_date, trial_end_date, push_token FROM businesses WHERE id = $1",
       [businessId]
     );
@@ -119,10 +139,11 @@ router.post("/place", async (req, res) => {
 
     const pushToken = biz.rows[0].push_token;
 
-    const tableInfo = await pool.query(
-      "SELECT table_number FROM tables WHERE id = $1",
-      [tableId]
+    const tableInfo = await db.query(
+      "SELECT table_number FROM tables WHERE id = $1 AND business_id = $2",
+      [tableId, businessId]
     );
+    if (!tableInfo.rowCount) return res.status(404).json({ error: "Table not found" });
     const tableNum = tableInfo.rows[0]?.table_number || "Unknown";
 
     let subtotal = 0;
@@ -145,7 +166,7 @@ router.post("/place", async (req, res) => {
       } catch (e) {}
     }
 
-    const gstResult = await pool.query(
+    const gstResult = await db.query(
       "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
       [businessId]
     );
@@ -165,46 +186,13 @@ router.post("/place", async (req, res) => {
     const isStaffOrder = orderSource === "staff" && authenticatedBusinessId === businessId;
     const newOrderStatus = "CONFIRMED";
 
-    const triggerAutoConfirm = (targetOrderId) => {
-      setTimeout(async () => {
-        try {
-          const checkStatus = await pool.query("SELECT status, updated_at FROM orders WHERE id = $1", [targetOrderId]);
-          if (checkStatus.rows.length > 0 && checkStatus.rows[0].status === 'EDITABLE') {
-            const elapsed = Date.now() - new Date(checkStatus.rows[0].updated_at).getTime();
-            if (elapsed >= 58000) {
-              const updated = await pool.query(
-                `UPDATE orders SET status = 'CONFIRMED', updated_at = NOW() WHERE id = $1 RETURNING *`,
-                [targetOrderId]
-              );
-              try {
-                await deductInventoryForOrder(businessId, targetOrderId, updated.rows[0].items);
-              } catch (invErr) {
-                console.error("Auto-confirm inventory deduction failed:", invErr.message);
-                await pool.query(
-                  `UPDATE orders SET status = 'REJECTED', updated_at = NOW() WHERE id = $1`,
-                  [targetOrderId]
-                );
-                return;
-              }
-              try {
-                const io = getIO();
-                io.to(`business_${businessId}`).emit("order_updated", updated.rows[0]);
-              } catch (e) {
-                console.warn("Auto-confirm socket emit failed:", e.message);
-              }
-            }
-          }
-        } catch (e) {
-          console.error("Auto-confirm error:", e);
-        }
-      }, 60 * 1000);
-    };
+
 
     // ─── EDIT FLOW ──────────────────────────────────────────────────────
     if (orderId) {
-      const checkOrder = await pool.query("SELECT status FROM orders WHERE id = $1", [orderId]);
+      const checkOrder = await db.query("SELECT status FROM orders WHERE id = $1 AND business_id = $2 AND table_id = $3 FOR UPDATE", [orderId,businessId,tableId]);
       if (checkOrder.rows.length > 0 && checkOrder.rows[0].status === "EDITABLE") {
-        const updatedOrder = await pool.query(
+        const updatedOrder = await db.query(
           `UPDATE orders 
            SET 
              items = $1,
@@ -231,21 +219,20 @@ router.post("/place", async (req, res) => {
           ]
         );
 
-        // Reverse the stock deducted for the old item list, then deduct
-        // for the new one, so an edited order never double-counts stock.
-        try {
+        req.afterCommit.push(() => scheduleConfirmation(businessId, orderId));
+        req.afterCommit.push(() => {
           const io = getIO();
           io.to(`business_${businessId}`).emit("order_updated", updatedOrder.rows[0]);
-        } catch (e) {
-          console.warn("Socket emit failed:", e.message);
-        }
-        triggerAutoConfirm(orderId);
+        });
+
         return res.status(200).json(updatedOrder.rows[0]);
       }
     }
 
+    if (orderId) return res.status(409).json({ error: "Order cannot be edited" });
+
     // ─── NEW ORDER FLOW ──────────────────────────────────────────────
-    const result = await pool.query(
+    const result = await db.query(
       `INSERT INTO orders 
        (
          business_id, table_id, items, total_amount, 
@@ -273,60 +260,58 @@ router.post("/place", async (req, res) => {
     const order = result.rows[0];
     let notificationRow = null;
 
-    // Deduct stock for the new order's items. Non-blocking on failure —
-    // an inventory hiccup should never stop an order from being placed.
+    // Save the order and its ingredient deductions in the same transaction.
     if (newOrderStatus === "CONFIRMED") {
       try {
-        await deductInventoryForOrder(businessId, order.id, items);
+        await deductInventoryForOrder(businessId, order.id, items, { client: db });
       } catch (invErr) {
-        await pool.query("DELETE FROM orders WHERE id = $1", [order.id]);
+
         return res.status(400).json({ error: invErr.message || "Insufficient stock" });
       }
     }
 
+    await db.query('SAVEPOINT order_notification');
     try {
       if (pushToken) {
-        sendPush(
+        req.afterCommit.push(() => sendPush(
           pushToken,
           "New Order! 🍕",
           `Table ${tableNum} just placed an order for ₹${finalTotal}`
-        );
+        ));
       }
 
       const notifMessage = `New order from Table ${tableNum} - ₹${finalTotal}`;
-      const notifResult = await pool.query(
+      const notifResult = await db.query(
         "INSERT INTO notifications (business_id, order_id, message, type) VALUES ($1, $2, $3, $4) RETURNING *",
         [businessId, order.id, notifMessage, 'new_order']
       );
       notificationRow = notifResult.rows[0];
+      await db.query('RELEASE SAVEPOINT order_notification');
     } catch (notifErr) {
+      await db.query('ROLLBACK TO SAVEPOINT order_notification');
       console.error("Non-critical notification creation failed:", notifErr.message);
     }
 
-    try {
+    req.afterCommit.push(() => {
       const io = getIO();
       io.to(`business_${businessId}`).emit("new_order", {
         order,
         notification: notificationRow,
         tableNumber: tableNum,
       });
-    } catch (e) {
-      console.warn("Socket emit failed:", e.message);
-    }
+    });
 
-    if (newOrderStatus === "EDITABLE") {
-      triggerAutoConfirm(order.id);
-    }
+
     return res.status(201).json(order);
 
   } catch (err) {
     console.error("Place order error:", err);
     return res.status(500).json({ error: "Server error" });
   }
-});
+}));
 
 // ─── CUSTOMER: EDIT ORDER (within 1 minute) ──────────────────────────
-router.put("/edit/:id", async (req, res) => {
+router.put("/edit/:id", orderTransaction(async (req, res, db) => {
   const { items, specialInstructions, discount_type, discount_value } = req.body;
 
   if (!items) {
@@ -334,10 +319,15 @@ router.put("/edit/:id", async (req, res) => {
   }
 
   try {
-    const result = await pool.query("SELECT * FROM orders WHERE id = $1", [req.params.id]);
+    const result = await db.query("SELECT * FROM orders WHERE id = $1", [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Order not found" });
 
     const order = result.rows[0];
+    // Customer edits are scoped to the QR table context supplied by the caller.
+    const authenticatedBusinessId = getOptionalBusinessId(req);
+    if (authenticatedBusinessId !== order.business_id && (req.body.businessId !== order.business_id || req.body.tableId !== order.table_id)) {
+      return res.status(403).json({ error: "Restaurant and table context are required to edit this order" });
+    }
     const elapsed = (Date.now() - new Date(order.created_at).getTime()) / 1000;
 
     if (elapsed > 60 || order.status !== "EDITABLE") {
@@ -353,7 +343,7 @@ router.put("/edit/:id", async (req, res) => {
     const discValue = parseFloat(discount_value) || parseFloat(order.discount_value) || 0;
 
     const businessId = order.business_id;
-    const gstResult = await pool.query(
+    const gstResult = await db.query(
       "SELECT cgst_percentage, sgst_percentage FROM businesses WHERE id = $1",
       [businessId]
     );
@@ -366,7 +356,7 @@ router.put("/edit/:id", async (req, res) => {
     const gstTotal = cgst + sgst;
     const finalTotal = amountAfterDiscount + gstTotal;
 
-    const updated = await pool.query(
+    const updated = await db.query(
       `UPDATE orders 
        SET 
          items = $1,
@@ -398,7 +388,7 @@ router.put("/edit/:id", async (req, res) => {
     console.error("Edit order error:", err);
     res.status(500).json({ error: "Server error" });
   }
-});
+}));
 
 // ─── BUSINESS: GET ALL ORDERS ────────────────────────────────────────
 router.get("/", auth, async (req, res) => {
@@ -444,14 +434,14 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-router.post("/:id/items", auth, async (req, res) => {
+router.post("/:id/items", auth, orderTransaction(async (req, res, db) => {
   const { items } = req.body;
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Items required" });
   }
 
   try {
-    const orderResult = await pool.query(
+    const orderResult = await db.query(
       `SELECT * FROM orders
        WHERE id = $1
          AND business_id = $2
@@ -482,16 +472,17 @@ router.post("/:id/items", auth, async (req, res) => {
       req.businessId,
       merged,
       order.discount_type || "none",
-      parseFloat(order.discount_value || 0) || 0
+      parseFloat(order.discount_value || 0) || 0,
+      db
     );
 
     try {
-      await deductInventoryForOrder(req.businessId, req.params.id, items);
+      await deductInventoryForOrder(req.businessId, req.params.id, merged, { client: db });
     } catch (invErr) {
       return res.status(400).json({ error: invErr.message || "Insufficient stock" });
     }
 
-    const updated = await pool.query(
+    const updated = await db.query(
       `UPDATE orders
        SET items = $1,
            total_amount = $2,
@@ -512,23 +503,21 @@ router.post("/:id/items", auth, async (req, res) => {
       ]
     );
 
-    try {
+    req.afterCommit.push(() => {
       const io = getIO();
       io.to(`business_${req.businessId}`).emit("order_updated", updated.rows[0]);
-    } catch (e) {
-      console.warn("Socket emit failed:", e.message);
-    }
+    });
 
     res.json(updated.rows[0]);
   } catch (err) {
     console.error("Append order items error:", err);
     res.status(500).json({ error: "Server error" });
   }
-});
+}));
 
-router.delete("/:id/items/:itemId", auth, async (req, res) => {
+router.delete("/:id/items/:itemId", auth, orderTransaction(async (req, res, db) => {
   try {
-    const orderResult = await pool.query(
+    const orderResult = await db.query(
       `SELECT * FROM orders
        WHERE id = $1
          AND business_id = $2
@@ -550,10 +539,13 @@ router.delete("/:id/items/:itemId", auth, async (req, res) => {
       req.businessId,
       remainingItems,
       order.discount_type || "none",
-      parseFloat(order.discount_value || 0) || 0
+      parseFloat(order.discount_value || 0) || 0,
+      db
     );
 
-    const updated = await pool.query(
+    await deductInventoryForOrder(req.businessId, req.params.id, remainingItems, { client: db });
+
+    const updated = await db.query(
       `UPDATE orders
        SET items = $1,
            total_amount = $2,
@@ -575,19 +567,17 @@ router.delete("/:id/items/:itemId", auth, async (req, res) => {
       ]
     );
 
-    try {
+    req.afterCommit.push(() => {
       const io = getIO();
       io.to(`business_${req.businessId}`).emit("order_updated", updated.rows[0]);
-    } catch (e) {
-      console.warn("Socket emit failed:", e.message);
-    }
+    });
 
     res.json(updated.rows[0]);
   } catch (err) {
     console.error("Remove order item error:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(err.status || 500).json({ error: err.status ? err.message : "Server error" });
   }
-});
+}));
 
 router.post("/outstanding", auth, async (req, res) => {
   const {
@@ -734,14 +724,14 @@ router.get("/outstanding/pdf", auth, async (req, res) => {
 });
 
 // ─── BUSINESS: UPDATE ORDER STATUS ──────────────────────────────────
-router.patch("/:id/status", auth, async (req, res) => {
+router.patch("/:id/status", auth, orderTransaction(async (req, res, db) => {
   const { status } = req.body;
   const validStatuses = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE", "PAID", "REJECTED"];
   if (!validStatuses.includes(status)) return res.status(400).json({ error: "Invalid status" });
 
   try {
-    const targetOrder = await pool.query(
-      "SELECT table_id, status FROM orders WHERE id = $1 AND business_id = $2",
+    const targetOrder = await db.query(
+      "SELECT table_id, status FROM orders WHERE id = $1 AND business_id = $2 FOR UPDATE",
       [req.params.id, req.businessId]
     );
 
@@ -749,19 +739,20 @@ router.patch("/:id/status", auth, async (req, res) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
+    if (targetOrder.rows[0].status === "REJECTED" && status !== "REJECTED") return res.status(409).json({ error: "Rejected orders cannot be reopened" });
     const tableId = targetOrder.rows[0].table_id;
     const previousStatus = targetOrder.rows[0].status;
 
-    if (status === "CONFIRMED" && previousStatus === "EDITABLE") {
+    if (["CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE", "PAID"].includes(status)) {
       try {
-        const orderForDeduction = await pool.query(
+        const orderForDeduction = await db.query(
           "SELECT items FROM orders WHERE id = $1 AND business_id = $2",
           [req.params.id, req.businessId]
         );
         await deductInventoryForOrder(
           req.businessId,
           req.params.id,
-          orderForDeduction.rows[0]?.items || []
+          orderForDeduction.rows[0]?.items || [], { client: db }
         );
       } catch (invErr) {
         return res.status(400).json({ error: invErr.message || "Insufficient stock" });
@@ -769,7 +760,9 @@ router.patch("/:id/status", auth, async (req, res) => {
     }
 
     if (status === "PAID" && tableId) {
-      await pool.query(
+      const activeOrders = await db.query("SELECT id,items FROM orders WHERE table_id=$1 AND business_id=$2 AND status IN ('EDITABLE','CONFIRMED','PREPARING','SERVED','TABLE_ACTIVE') ORDER BY id FOR UPDATE", [tableId,req.businessId]);
+      for (const activeOrder of activeOrders.rows) await deductInventoryForOrder(req.businessId,activeOrder.id,activeOrder.items,{client:db});
+      await db.query(
         `UPDATE orders 
          SET status = 'PAID', updated_at = NOW() 
          WHERE table_id = $1 
@@ -779,7 +772,7 @@ router.patch("/:id/status", auth, async (req, res) => {
       );
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 AND business_id = $3 RETURNING *`,
       [status, req.params.id, req.businessId]
     );
@@ -788,25 +781,23 @@ router.patch("/:id/status", auth, async (req, res) => {
     // when they were placed. Guarded so re-saving REJECTED doesn't double-refund.
     if (status === "REJECTED" && previousStatus !== "REJECTED") {
       try {
-        await reverseDeductionsForOrder(req.businessId, req.params.id, "order_reject_refund");
+        await reverseDeductionsForOrder(req.businessId, req.params.id, "order_reject_refund", { client: db });
       } catch (invErr) {
-        console.error("Inventory refund on reject failed:", invErr.message);
+        return res.status(409).json({ error: invErr.message || "Inventory reversal failed" });
       }
     }
 
-    try {
+    req.afterCommit.push(() => {
       const io = getIO();
       io.to(`business_${req.businessId}`).emit("order_updated", result.rows[0]);
-    } catch (e) {
-      console.warn("Socket emit failed:", e.message);
-    }
+    });
 
     return res.json(result.rows[0]);
   } catch (err) {
     console.error("Update status error:", err);
     return res.status(500).json({ error: "Server error" });
   }
-});
+}));
 
 // ─── BUSINESS: GET NOTIFICATIONS ─────────────────────────────────────
 router.get("/notifications", auth, async (req, res) => {

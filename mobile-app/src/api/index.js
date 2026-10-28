@@ -247,7 +247,9 @@ export const getQRPdfUrl = (id) => `${API.defaults.baseURL}/tables/${id}/qr-pdf`
 
 export const getOrders = () => API.get("/orders");
 export const updateOrderStatus = (id, status) => API.patch(`/orders/${id}/status`, { status });
-export const appendOrderItems = (id, items) => API.post(`/orders/${id}/items`, { items });
+const orderRequestKey = () => `order-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+export const appendOrderItems = (id, items, requestKey = orderRequestKey()) =>
+  API.post(`/orders/${id}/items`, { items }, { headers: { 'Idempotency-Key': requestKey } });
 export const removeOrderItem = (orderId, itemId) => API.delete(`/orders/${orderId}/items/${itemId}`);
 export const saveCustomerOutstanding = (data) => API.post("/orders/outstanding", data);
 export const getCustomerOutstandings = () => API.get("/orders/outstanding");
@@ -257,7 +259,10 @@ export const getCustomerOutstandingPDFUrl = (token) =>
 
 // Staff order creation — reuses the EXISTING customer order pipeline
 // (/orders/place), so staff orders become real, analytics-participating orders.
-export const placeOrder = (data) => API.post("/orders/place", data);
+export const placeOrder = async (data, requestKey = orderRequestKey()) => {
+  const businessId = data.businessId || await getBusinessId();
+  return API.post("/orders/place", { ...data, businessId }, { headers: { 'Idempotency-Key': requestKey } });
+};
 
 // ==========================================================
 // ROOM MANAGEMENT (staff-side)

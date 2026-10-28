@@ -21,6 +21,8 @@ module.exports = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     // Use whatever key you stored in the JWT (decoded.id or decoded.businessId)
     req.businessId = decoded.businessId || decoded.id; 
+    req.auth = decoded;
+    req.actor = decoded.sub || decoded.staffId || `business:${req.businessId}`;
     next();
   } catch (err) {
     return res.status(401).json({ error: "Invalid or expired token" });

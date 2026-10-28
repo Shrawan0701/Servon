@@ -1,15 +1,18 @@
-const pool = require("../db");
-
+const { transaction } = require("../services/inventoryTransaction");
+const {
+  catalogue,
+  consumptionForMenu,
+} = require("../services/inventoryRecipes");
+const { fail, round } = require("../services/inventoryUnits");
 function parseItems(items) {
   if (Array.isArray(items)) return items;
   try {
-    const parsed = JSON.parse(items || "[]");
-    return Array.isArray(parsed) ? parsed : [];
+    const p = JSON.parse(items || "[]");
+    return Array.isArray(p) ? p : [];
   } catch {
     return [];
   }
 }
-
 function normalizeStockName(value) {
   return String(value || "")
     .toLowerCase()
@@ -17,128 +20,202 @@ function normalizeStockName(value) {
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
-
-async function deductStockRow(client, businessId, orderId, row, amount) {
-  const deductAmount = parseFloat(amount) || 0;
-  if (deductAmount <= 0) return;
-
-  const currentStock = parseFloat(row.current_stock) || 0;
-  if (currentStock < deductAmount) {
-    throw new Error(`Insufficient stock for ${row.name}. Required ${deductAmount}, available ${currentStock}.`);
+function quantities(items) {
+  const result = new Map();
+  for (const item of parseItems(items)) {
+    const id = item.id || item.menu_item_id || item.menuItemId,
+      qty = Number(item.quantity);
+    if (!id || !Number.isSafeInteger(qty) || qty <= 0)
+      fail("Order items require a menu item and positive whole quantity");
+    result.set(String(id), (result.get(String(id)) || 0) + qty);
   }
-
-  await client.query(
-    "UPDATE inventory_items SET current_stock = current_stock - $1, updated_at = NOW() WHERE id = $2 AND business_id = $3",
-    [deductAmount, row.inventory_item_id || row.id, businessId]
+  return result;
+}
+async function move(db, businessId, orderId, menuId, stockId, amount, reason) {
+  amount = round(amount);
+  if (!amount) return;
+  const updated = await db.query(
+    `UPDATE inventory_items SET current_stock=current_stock+$1,updated_at=NOW()
+    WHERE id=$2 AND business_id=$3 AND ($1::numeric>=0 OR current_stock+$1::numeric>=0) RETURNING unit`,
+    [amount, stockId, businessId],
   );
-  await client.query(
-    `INSERT INTO inventory_stock_logs (business_id, inventory_item_id, change_amount, reason, order_id)
-     VALUES ($1, $2, $3, 'order_deduction', $4)`,
-    [businessId, row.inventory_item_id || row.id, -deductAmount, orderId]
+  if (!updated.rowCount)
+    fail("Insufficient stock or ingredient unavailable", 409);
+  await db.query(
+    `INSERT INTO inventory_stock_logs(business_id,inventory_item_id,change_amount,reason,order_id,menu_item_id,unit,actor)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [
+      businessId,
+      stockId,
+      amount,
+      reason,
+      orderId,
+      menuId,
+      updated.rows[0].unit,
+      `business:${businessId}`,
+    ],
   );
 }
-
-async function deductLiquorByNameFallback(client, businessId, orderId, orderItem, qty) {
-  if (orderItem.menu_type !== "liquor") return false;
-
-  const sizeMl = parseFloat(orderItem.size_ml);
-  if (!sizeMl || sizeMl <= 0) return false;
-
-  const targetName = normalizeStockName(orderItem.name);
-  if (!targetName) return false;
-
-  const stockRes = await client.query(
-    `SELECT id, name, unit, current_stock
-     FROM inventory_items
-     WHERE business_id = $1
-       AND unit IN ('ml', 'litre')
-     FOR UPDATE`,
-    [businessId]
-  );
-
-  const match = stockRes.rows.find((row) => {
-    const stockName = normalizeStockName(row.name);
-    return stockName === targetName || targetName.startsWith(`${stockName} `) || stockName.startsWith(`${targetName} `);
-  });
-
-  if (!match) return false;
-
-  const unitDeduction = match.unit === "litre" ? sizeMl / 1000 : sizeMl;
-  await deductStockRow(client, businessId, orderId, match, unitDeduction * qty);
-  return true;
-}
-
-// Deducts stock for every ingredient tied to the menu items in an order,
-// and logs each deduction against the order so it can be reversed later.
-async function deductInventoryForOrder(businessId, orderId, items) {
-  const itemsArr = parseItems(items);
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    for (const orderItem of itemsArr) {
-      const menuItemId = orderItem.id || orderItem.menu_item_id || orderItem.menuItemId;
-      const qty = parseInt(orderItem.quantity, 10) || 0;
-      if (!menuItemId || qty <= 0) continue;
-
-      const recipeRes = await client.query(
-        `SELECT mi.inventory_item_id, mi.quantity_required, ii.name, ii.current_stock
-         FROM menu_item_ingredients mi
-         JOIN inventory_items ii ON ii.id = mi.inventory_item_id AND ii.business_id = mi.business_id
-         WHERE mi.menu_item_id = $1 AND mi.business_id = $2
-         FOR UPDATE OF ii`,
-        [menuItemId, businessId]
+// Input is the complete desired order. Saved per-serving snapshots ensure
+// retries and later recipe changes cannot cause duplicate/incorrect refunds.
+async function deductInventoryForOrder(
+  businessId,
+  orderId,
+  items,
+  options = {},
+) {
+  return transaction(
+    businessId,
+    async (db) => {
+      const order = await db.query(
+        "SELECT id,status FROM orders WHERE id=$1 AND business_id=$2 FOR UPDATE",
+        [orderId, businessId],
       );
-
-      if (recipeRes.rows.length === 0) {
-        await deductLiquorByNameFallback(client, businessId, orderId, orderItem, qty);
-        continue;
+      if (!order.rowCount) fail("Order not found", 404);
+      if (order.rows[0].status === "REJECTED")
+        fail("Rejected orders cannot consume inventory", 409);
+      await db.query(
+        "INSERT INTO inventory_order_state(business_id,order_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
+        [businessId, orderId],
+      );
+      const state = await db.query(
+        "SELECT lines FROM inventory_order_state WHERE business_id=$1 AND order_id=$2 FOR UPDATE",
+        [businessId, orderId],
+      );
+      const lines = state.rows[0].lines,
+        desired = quantities(items),
+        cat = await catalogue(db, businessId);
+      if (lines._legacy) {
+        const old = quantities(lines._legacy.items);
+        if (!desired.size) {
+          for (const c of lines._legacy.consumption)
+            await move(
+              db,
+              businessId,
+              orderId,
+              null,
+              c.inventory_item_id,
+              Number(c.quantity) * lines._legacy.quantity,
+              "order_edit_refund",
+            );
+          lines._legacy.quantity = 0;
+          lines._legacy.items = [];
+        } else {
+          // Old logs have no per-dish attribution. Preserve their baseline;
+          // only additional servings use new recipes. Never guess a refund.
+          for (const [id, quantity] of old) {
+            if ((desired.get(id) || 0) < quantity)
+              fail(
+                "This order predates recipe snapshots. Cancel it and create a corrected order to preserve exact stock accounting.",
+                409,
+              );
+            desired.set(id, (desired.get(id) || 0) - quantity);
+          }
+        }
       }
-
-      for (const row of recipeRes.rows) {
-        const deductAmount = parseFloat(row.quantity_required) * qty;
-        if (deductAmount <= 0) continue;
-
-        await deductStockRow(client, businessId, orderId, row, deductAmount);
+      for (const id of [
+        ...new Set([
+          ...Object.keys(lines).filter((id) => id !== "_legacy"),
+          ...desired.keys(),
+        ]),
+      ].sort()) {
+        const previous = lines[id],
+          quantity = desired.get(id) || 0;
+        if (
+          (!previous && quantity === 0) ||
+          (previous && previous.quantity === quantity)
+        )
+          continue;
+        let consumption = previous?.consumption;
+        if (!consumption) {
+          consumption = await consumptionForMenu(db, businessId, id, cat);
+          if (!consumption.length) {
+            const m = await db.query(
+              "SELECT name,menu_type,size_ml FROM menu_items WHERE id=$1 AND business_id=$2",
+              [id, businessId],
+            );
+            const menu = m.rows[0];
+            if (menu?.menu_type === "liquor" && Number(menu.size_ml) > 0) {
+              const name = normalizeStockName(menu.name);
+              const matches = cat.stock.filter(
+                (s) =>
+                  ["ml", "litre"].includes(s.unit) &&
+                  normalizeStockName(s.name) === name,
+              );
+              if (matches.length === 1)
+                consumption = [
+                  {
+                    inventory_item_id: matches[0].id,
+                    quantity:
+                      Number(menu.size_ml) /
+                      (matches[0].unit === "litre" ? 1000 : 1),
+                  },
+                ];
+            }
+          }
+        }
+        const delta = quantity - (previous?.quantity || 0);
+        for (const c of [...consumption].sort(
+          (a, b) => a.inventory_item_id - b.inventory_item_id,
+        ))
+          await move(
+            db,
+            businessId,
+            orderId,
+            id,
+            c.inventory_item_id,
+            -delta * Number(c.quantity),
+            delta < 0 ? "order_edit_refund" : "order_deduction",
+          );
+        lines[id] = { quantity, consumption };
       }
-    }
-
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-// Reverses every 'order_deduction' log entry for an order (used on reject
-// or on edit, right before re-deducting the new item list) and records the
-// reversal under its own reason so the log stays auditable.
-async function reverseDeductionsForOrder(businessId, orderId, reason = "order_edit_refund") {
-  const logs = await pool.query(
-    `SELECT inventory_item_id, SUM(change_amount) as total
-     FROM inventory_stock_logs
-     WHERE business_id = $1 AND order_id = $2 AND reason = 'order_deduction'
-     GROUP BY inventory_item_id`,
-    [businessId, orderId]
+      await db.query(
+        "UPDATE inventory_order_state SET lines=$1,updated_at=NOW() WHERE business_id=$2 AND order_id=$3",
+        [JSON.stringify(lines), businessId, orderId],
+      );
+    },
+    options.client,
   );
-
-  for (const row of logs.rows) {
-    const refundAmount = Math.abs(parseFloat(row.total));
-    if (refundAmount <= 0) continue;
-
-    await pool.query(
-      "UPDATE inventory_items SET current_stock = current_stock + $1, updated_at = NOW() WHERE id = $2 AND business_id = $3",
-      [refundAmount, row.inventory_item_id, businessId]
-    );
-    await pool.query(
-      `INSERT INTO inventory_stock_logs (business_id, inventory_item_id, change_amount, reason, order_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [businessId, row.inventory_item_id, refundAmount, reason, orderId]
-    );
-  }
 }
-
-module.exports = { deductInventoryForOrder, reverseDeductionsForOrder, parseItems };
+async function reverseDeductionsForOrder(
+  businessId,
+  orderId,
+  reason = "order_reject_refund",
+  options = {},
+) {
+  return transaction(
+    businessId,
+    async (db) => {
+      const state = await db.query(
+        "SELECT lines FROM inventory_order_state WHERE business_id=$1 AND order_id=$2 FOR UPDATE",
+        [businessId, orderId],
+      );
+      if (!state.rowCount) return;
+      const lines = state.rows[0].lines;
+      for (const [id, line] of Object.entries(lines)) {
+        for (const c of line.consumption)
+          await move(
+            db,
+            businessId,
+            orderId,
+            id === "_legacy" ? null : id,
+            c.inventory_item_id,
+            Number(c.quantity) * line.quantity,
+            reason,
+          );
+        line.quantity = 0;
+      }
+      await db.query(
+        "UPDATE inventory_order_state SET lines=$1,updated_at=NOW() WHERE business_id=$2 AND order_id=$3",
+        [JSON.stringify(lines), businessId, orderId],
+      );
+    },
+    options.client,
+  );
+}
+module.exports = {
+  deductInventoryForOrder,
+  reverseDeductionsForOrder,
+  parseItems,
+  quantities,
+};

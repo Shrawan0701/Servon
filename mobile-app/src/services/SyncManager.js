@@ -105,7 +105,7 @@ class SyncManager {
                         totalAmount: order.total_amount,
                         orderSource: order.order_source || 'staff',
                         initialStatus: order.status || 'CONFIRMED',
-                    });
+                    }, `sync-create-${action.record_id}`);
                     if (response?.data?.id) {
                         await localDB.replaceLocalOrderId(action.record_id, response.data);
                     }
@@ -117,7 +117,7 @@ class SyncManager {
                     await localDB.removeAction(action.id);
                     uploaded++;
                 } else if (action.action_type === 'APPEND_ITEMS' && action.table_name === 'orders') {
-                    await appendOrderItems(action.record_id, action.data.items || []);
+                    await appendOrderItems(action.record_id, action.data.items || [], `sync-append-${action.id}`);
                     await localDB.markAsSynced(action.record_id);
                     await localDB.removeAction(action.id);
                     uploaded++;

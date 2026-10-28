@@ -1,3 +1,5 @@
+import InventoryRecipeEditor from "../components/InventoryRecipeEditor";
+import InventoryTools from "../components/InventoryTools";
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
@@ -10,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getInventory, addInventoryItem, updateInventoryItem, restockInventoryItem,
-  deleteInventoryItem, getMenuRecipes, getRecipeForItem, setRecipeForItem,
+  deleteInventoryItem, getMenuRecipes,
 } from "../api";
 
 const isWeb = Platform.OS === "web";
@@ -70,6 +72,8 @@ const liquorLinkKey = (item) => `liquor-${item.liquor_brand_code || String(item.
 export default function InventoryScreen() {
   const navigation = useNavigation();
   const { language } = useLocale();
+  const [toolsTab, setToolsTab] = useState(null);
+  const [loadError, setLoadError] = useState("");
   const [activeTab, setActiveTab] = useState("stock"); // 'stock' | 'recipes'
   const [items, setItems] = useState([]);
   const [recipeMenu, setRecipeMenu] = useState([]);
@@ -96,8 +100,6 @@ export default function InventoryScreen() {
 
   const [showRecipeModal, setShowRecipeModal] = useState(false);
   const [recipeMenuItem, setRecipeMenuItem] = useState(null);
-  const [recipeSelections, setRecipeSelections] = useState({}); // { inventory_item_id: quantity_string }
-  const [savingRecipe, setSavingRecipe] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -120,12 +122,13 @@ export default function InventoryScreen() {
   );
 
   const loadData = async () => {
+    setLoadError("");
     try {
       const [invRes, recipeRes] = await Promise.all([getInventory(), getMenuRecipes()]);
       setItems(invRes.data || []);
       setRecipeMenu(recipeRes.data || []);
     } catch (err) {
-      console.error("Load inventory error:", err);
+      setLoadError(err.response?.data?.error || "Inventory could not be loaded. Please retry.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -183,7 +186,7 @@ export default function InventoryScreen() {
       setShowItemModal(false);
       await loadData();
     } catch (err) {
-      Alert.alert(localizeText("Could not save", language), err.response?.data?.error || localizeText("Something went wrong. Please try again.", language));
+      Alert.alert(localizeText("Could not save", language), err.response?.data?.error || localizeText(err.response?.data?.error || "Something went wrong. Please try again.", language));
     } finally {
       setSavingItem(false);
     }
@@ -243,74 +246,7 @@ export default function InventoryScreen() {
   };
 
   // ─── RECIPE CRUD ──────────────────────────────────────────────────
-  const openRecipeModal = async (menuItem) => {
-    setRecipeMenuItem(menuItem);
-    setShowRecipeModal(true);
-    setRecipeSelections({});
-    try {
-      const res = await getRecipeForItem(menuItem.variants?.[0]?.id || menuItem.id);
-      const selections = {};
-      (res.data || []).forEach((row) => {
-        selections[row.inventory_item_id] = menuItem.is_liquor_group ? "auto" : String(row.quantity_required);
-      });
-      setRecipeSelections(selections);
-    } catch (err) {
-      console.error("Load recipe error:", err);
-    }
-  };
-
-  const toggleIngredient = (inventoryItemId) => {
-    setRecipeSelections((prev) => {
-      const copy = { ...prev };
-      if (copy[inventoryItemId] !== undefined) {
-        delete copy[inventoryItemId];
-      } else {
-        copy[inventoryItemId] = "";
-      }
-      return copy;
-    });
-  };
-
-  const setIngredientQty = (inventoryItemId, value) => {
-    setRecipeSelections((prev) => ({ ...prev, [inventoryItemId]: value }));
-  };
-
-  const handleSaveRecipe = async () => {
-    setSavingRecipe(true);
-    try {
-      if (recipeMenuItem?.is_liquor_group) {
-        const selectedInventoryIds = Object.keys(recipeSelections).map((id) => parseInt(id, 10)).filter(Boolean);
-        await Promise.all((recipeMenuItem.variants || []).map((variant) => {
-          const variantSizeMl = parseFloat(variant.size_ml) || 0;
-          const ingredients = selectedInventoryIds
-            .map((inventory_item_id) => {
-              const invItem = items.find((item) => Number(item.id) === Number(inventory_item_id));
-              if (!invItem || !variantSizeMl) return null;
-              return {
-                inventory_item_id,
-                quantity_required: invItem.unit === "litre" ? variantSizeMl / 1000 : variantSizeMl,
-              };
-            })
-            .filter(Boolean);
-          return setRecipeForItem(variant.id, ingredients);
-        }));
-      } else {
-        const ingredients = Object.entries(recipeSelections)
-          .filter(([, qty]) => parseFloat(qty) > 0)
-          .map(([inventory_item_id, qty]) => ({
-            inventory_item_id: parseInt(inventory_item_id, 10),
-            quantity_required: parseFloat(qty),
-          }));
-        await setRecipeForItem(recipeMenuItem.id, ingredients);
-      }
-      setShowRecipeModal(false);
-      await loadData();
-    } catch (err) {
-      Alert.alert("Could not save", "Something went wrong. Please try again.");
-    } finally {
-      setSavingRecipe(false);
-    }
-  };
+  const openRecipeModal = (menuItem) => { setRecipeMenuItem(menuItem); setShowRecipeModal(true); };
 
   const lowStockCount = useMemo(() => items.filter((i) => i.is_low).length, [items]);
   const recipeMenuForDisplay = useMemo(() => {
@@ -424,6 +360,14 @@ export default function InventoryScreen() {
           </TouchableOpacity>
         </View>
 
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, paddingHorizontal: 20, marginTop: 10 }}>
+          {[["scan", "Scan Inventory"], ["preparations", "Preparations"], ["bulk", "Bulk Recipe Setup"], ["history", "History"]].map(([key, label]) => (
+            <TouchableOpacity key={key} accessibilityRole="button" onPress={() => setToolsTab(key)} style={{ backgroundColor: "#F3F4F6", borderRadius: 10, padding: 12 }}>
+              <NativeText style={{ color: "#111827", fontWeight: "700" }}>{label}</NativeText>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {!!loadError && <View style={{ padding: 12 }}><NativeText accessibilityRole="alert" style={{ color: "#B91C1C" }}>{loadError}</NativeText><TouchableOpacity accessibilityRole="button" onPress={loadData}><NativeText>Retry loading inventory</NativeText></TouchableOpacity></View>}
         {activeTab === "stock" && (
           <TouchableOpacity style={styles.headerAddBtn} onPress={openAddItem} activeOpacity={0.85}>
             <Ionicons name="add-circle" size={18} color="#fff" />
@@ -541,6 +485,7 @@ export default function InventoryScreen() {
                 {UNITS.map((u) => (
                   <TouchableOpacity
                     key={u.key}
+                    disabled={!!editingItem && itemForm.unit !== u.key}
                     style={[styles.unitChip, itemForm.unit === u.key && styles.unitChipActive]}
                     onPress={() => setItemForm((p) => ({
                       ...p,
@@ -743,90 +688,11 @@ export default function InventoryScreen() {
       </Modal>
 
       {/* ─── RECIPE MODAL ─── */}
-      <Modal visible={showRecipeModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={{ flex: 1, backgroundColor: "#fff" }}>
-          <View style={styles.recipeModalHeaderBar}>
-            <View style={{ flex: 1 }}>
-              <LocalizedText style={styles.formModalTitle}>{recipeMenuItem?.name}</LocalizedText>
-              <LocalizedText translate style={styles.recipeModalSub}>
-                {recipeMenuItem?.is_liquor_group
-                  ? "Select the stock item for this liquor brand. Each size will use its own ML."
-                  : "Tick each ingredient this dish uses, and how much per order"}
-              </LocalizedText>
-            </View>
-            <TouchableOpacity style={styles.closeIconBtn} onPress={() => setShowRecipeModal(false)}>
-              <Ionicons name="close" size={22} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 20, maxWidth: isWeb ? 640 : "100%", alignSelf: "center", width: "100%" }}>
-            {items.length === 0 ? (
-              <View style={styles.recipeEmptyNotice}>
-                <Ionicons name="information-circle-outline" size={22} color="#9CA3AF" />
-                <LocalizedText translate style={styles.emptySub}>
-                  You haven't added any stock items yet. Go to the "My Stock" tab, add items like
-                  tomato or rice, then come back here to link them.
-                </LocalizedText>
-              </View>
-            ) : (
-              items.filter((invItem) => !recipeMenuItem?.is_liquor_group || isVolumeUnit(invItem.unit)).map((invItem) => {
-                const isSelected = recipeSelections[invItem.id] !== undefined;
-                return (
-                  <View
-                    key={invItem.id}
-                    style={[styles.ingredientRow, isSelected && styles.ingredientRowActive]}
-                  >
-                    <TouchableOpacity
-                      style={styles.ingredientToggle}
-                      onPress={() => toggleIngredient(invItem.id)}
-                      activeOpacity={0.85}
-                    >
-                      <Ionicons
-                        name={isSelected ? "checkmark-circle" : "ellipse-outline"}
-                        size={26}
-                        color={isSelected ? "#10B981" : "#D1D5DB"}
-                      />
-                      <View style={{ marginLeft: 12, flex: 1 }}>
-                        <LocalizedText style={styles.ingredientName}>{invItem.name}</LocalizedText>
-                        <LocalizedText style={styles.ingredientStock}>
-                          {formatStockDisplay(invItem)} available now
-                        </LocalizedText>
-                      </View>
-                    </TouchableOpacity>
-                    {isSelected && !recipeMenuItem?.is_liquor_group && (
-                      <View style={styles.ingredientQtyWrap} onStartShouldSetResponder={() => true}>
-                        <LocalizedText translate style={styles.ingredientQtyLabel}>Used per order:</LocalizedText>
-                        <TextInput
-                          style={styles.ingredientQtyInput}
-                          value={recipeSelections[invItem.id]}
-                          onChangeText={(v) => setIngredientQty(invItem.id, v)}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor="#A8A29E"
-                        />
-                        <LocalizedText style={styles.ingredientQtyUnit}>{invItem.unit}</LocalizedText>
-                      </View>
-                    )}
-                    {isSelected && recipeMenuItem?.is_liquor_group && (
-                      <View style={styles.ingredientQtyWrap}>
-                        <LocalizedText style={styles.ingredientQtyLabel}>
-                          {(recipeMenuItem.variants || [])
-                            .filter((variant) => parseFloat(variant.size_ml) > 0)
-                            .map((variant) => `${formatQty(variant.size_ml)} ML`)
-                            .join(", ")} will be deducted by selected order size.
-                        </LocalizedText>
-                      </View>
-                    )}
-                  </View>
-                );
-              })
-            )}
-          </ScrollView>
-          <View style={styles.recipeModalFooter}>
-            <TouchableOpacity style={styles.formSaveBtn} onPress={handleSaveRecipe} disabled={savingRecipe} activeOpacity={0.85}>
-              {savingRecipe ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.formSaveBtnText}>Save This Recipe</LocalizedText>}
-            </TouchableOpacity>
-          </View>
-        </View>
+      <Modal visible={showRecipeModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowRecipeModal(false)}>
+        {showRecipeModal && recipeMenuItem && <InventoryRecipeEditor menuItem={recipeMenuItem} stock={items} onClose={() => setShowRecipeModal(false)} onSaved={loadData} />}
+      </Modal>
+      <Modal visible={toolsTab !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setToolsTab(null)}>
+        {toolsTab !== null && <InventoryTools initialTab={toolsTab} stock={items} menu={recipeMenu} onClose={() => setToolsTab(null)} onChanged={loadData} />}
       </Modal>
     </SafeAreaView>
   );
@@ -934,7 +800,7 @@ function StockCardWeb({ item, onRestock, onEdit, onDelete }) {
 function RecipeCardWeb({ item, onPress }) {
   const linked = item.ingredient_count > 0;
   return (
-    <div className="inv-recipe-card" onClick={onPress}>
+    <div className="inv-recipe-card" role="button" tabIndex={0} onClick={onPress} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onPress(); } }}>
       <div
         style={{
           width: 38, height: 38, borderRadius: 11, flexShrink: 0,
