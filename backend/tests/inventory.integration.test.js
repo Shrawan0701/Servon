@@ -727,6 +727,711 @@ test(
         },
       );
       await t.test(
+        "an empty inventory can scan products and add reviewed items without changing stock until reconciliation",
+        async () => {
+          const freshBusiness = (
+            await pool.query(
+              "INSERT INTO businesses DEFAULT VALUES RETURNING id",
+            )
+          ).rows[0].id;
+          const freshToken = jwt.sign(
+            { businessId: freshBusiness },
+            process.env.JWT_SECRET,
+          );
+          const freshStaff = jwt.sign(
+            { businessId: freshBusiness, staffId: "scanner", role: "staff" },
+            process.env.JWT_SECRET,
+          );
+          const options = { token: freshToken };
+          const previousDetect = vision.detect;
+          vision.detect = async (image, catalogue) => {
+            assert.equal(image.mime, "image/png");
+            assert.deepEqual(catalogue, []);
+            return [
+              {
+                label: "Royal Stag",
+                count: 2,
+                confidence: 0.9,
+                inventory_item_id: null,
+                bottle_size_ml: 750,
+                needs_review: true,
+              },
+            ];
+          };
+          try {
+            const upload = (selected) => {
+              const form = new FormData();
+              form.append(
+                "image",
+                new Blob(
+                  [Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 3])],
+                  { type: "image/png" },
+                ),
+                "bottles.png",
+              );
+              if (selected) form.append("inventory_item_id", selected);
+              return form;
+            };
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  "/inventory/scans",
+                  upload("999999"),
+                  options,
+                )
+              ).status,
+              404,
+            );
+            const analyzed = await request(
+              "POST",
+              "/inventory/scans",
+              upload(),
+              options,
+            );
+            assert.equal(analyzed.status, 201, JSON.stringify(analyzed.data));
+            assert.equal(analyzed.data.detections[0].count, 2);
+            assert.equal(analyzed.data.detections[0].bottle_size_ml, 750);
+            assert.equal(
+              (await request("GET", "/inventory", undefined, options)).data
+                .length,
+              0,
+            );
+            const endpoint = `/inventory/scans/${analyzed.data.id}`;
+            const counts = [
+              {
+                new_item: { name: "Royal Stag", unit: "ml" },
+                full_bottles: 2,
+                bottle_size_ml: 750,
+                opened_ml: 0,
+              },
+              {
+                new_item: { name: "Packaged water", unit: "pcs" },
+                full_bottles: 3,
+                opened_ml: 0,
+              },
+            ];
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  `${endpoint}/confirm`,
+                  { counts },
+                  { token: freshStaff },
+                )
+              ).status,
+              403,
+            );
+            const invalid = await request(
+              "POST",
+              `${endpoint}/confirm`,
+              { counts: [counts[0], { ...counts[1], full_bottles: -1 }] },
+              options,
+            );
+            assert.equal(invalid.status, 400);
+            assert.equal(
+              (await request("GET", "/inventory", undefined, options)).data
+                .length,
+              0,
+            );
+            const confirmed = await request(
+              "POST",
+              `${endpoint}/confirm`,
+              { counts },
+              options,
+            );
+            assert.equal(confirmed.status, 200, JSON.stringify(confirmed.data));
+            assert.equal(confirmed.data.counts.length, 2);
+            assert.ok(
+              confirmed.data.counts.every(
+                (row) => Number(row.expected_stock) === 0,
+              ),
+            );
+            assert.deepEqual(
+              confirmed.data.counts.map((row) => Number(row.physical_stock)),
+              [1500, 3],
+            );
+            let items = (await request("GET", "/inventory", undefined, options))
+              .data;
+            assert.equal(items.length, 2);
+            assert.ok(items.every((row) => Number(row.current_stock) === 0));
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  `${endpoint}/confirm`,
+                  { counts },
+                  options,
+                )
+              ).status,
+              200,
+            );
+            assert.equal(
+              (await request("GET", "/inventory", undefined, options)).data
+                .length,
+              2,
+            );
+            const reconciled = await request(
+              "POST",
+              `${endpoint}/reconcile`,
+              { note: "First shelf count checked" },
+              options,
+            );
+            assert.equal(
+              reconciled.status,
+              200,
+              JSON.stringify(reconciled.data),
+            );
+            items = (await request("GET", "/inventory", undefined, options))
+              .data;
+            assert.equal(
+              Number(
+                items.find((item) => item.name === "Royal Stag").current_stock,
+              ),
+              1500,
+            );
+            assert.equal(
+              Number(
+                items.find((item) => item.name === "Packaged water")
+                  .current_stock,
+              ),
+              3,
+            );
+          } finally {
+            vision.detect = previousDetect;
+          }
+        },
+      );
+      await t.test(
+        "scan menu selection links owned serving variants and deducts exactly once through normal orders",
+        async () => {
+          const tenant = (
+            await pool.query(
+              "INSERT INTO businesses DEFAULT VALUES RETURNING id",
+            )
+          ).rows[0].id;
+          const options = {
+            token: jwt.sign({ businessId: tenant }, process.env.JWT_SECRET),
+          };
+          const staff = {
+            token: jwt.sign(
+              { businessId: tenant, staffId: "scanner", role: "staff" },
+              process.env.JWT_SECRET,
+            ),
+          };
+          const localTable = (
+            await pool.query(
+              "INSERT INTO tables(business_id,table_number) VALUES($1,'scan-menu') RETURNING id",
+              [tenant],
+            )
+          ).rows[0].id;
+          async function menu(name, size, type = "liquor") {
+            return (
+              await pool.query(
+                "INSERT INTO menu_items(business_id,name,menu_type,size_ml) VALUES($1,$2,$3,$4) RETURNING id",
+                [tenant, name, type, size],
+              )
+            ).rows[0].id;
+          }
+          const m30 = await menu("Royal Stag 30ml", 30),
+            m60 = await menu("Royal Stag 60ml", 60),
+            untouched = await menu("Royal Green 30ml", 30);
+          const previousDetect = vision.detect;
+          vision.detect = async () => [
+            {
+              label: "Royal Stag",
+              count: 10,
+              confidence: 0.95,
+              bottle_size_ml: 750,
+              product_type: "bottle",
+              inventory_item_id: null,
+            },
+          ];
+          try {
+            const form = new FormData();
+            form.append(
+              "image",
+              new Blob(
+                [Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 5])],
+                { type: "image/png" },
+              ),
+              "royal.png",
+            );
+            form.append("scan_session", "scan-menu-link-0001");
+            const scanned = await request(
+              "POST",
+              "/inventory/scans",
+              form,
+              options,
+            );
+            assert.equal(scanned.status, 201, JSON.stringify(scanned.data));
+            const endpoint = `/inventory/scans/${scanned.data.id}/confirm`;
+            const counts = [
+              {
+                new_item: { name: "Royal Stag", unit: "ml" },
+                full_bottles: 10,
+                bottle_size_ml: 750,
+                opened_ml: 0,
+                menu_links: [
+                  { menu_item_id: m30, quantity_required: 99999 },
+                  { menu_item_id: m60, quantity_required: 99999 },
+                ],
+              },
+            ];
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  endpoint,
+                  { counts, apply_stock: true },
+                  staff,
+                )
+              ).status,
+              403,
+            );
+            const invalid = await request(
+              "POST",
+              endpoint,
+              {
+                counts: [
+                  {
+                    ...counts[0],
+                    menu_links: [
+                      { menu_item_id: menuIds[0], quantity_required: 30 },
+                    ],
+                  },
+                ],
+                apply_stock: true,
+              },
+              options,
+            );
+            assert.equal(invalid.status, 404);
+            assert.equal(
+              (await request("GET", "/inventory", undefined, options)).data
+                .length,
+              0,
+            );
+            const saved = await request(
+              "POST",
+              endpoint,
+              { counts, apply_stock: true },
+              options,
+            );
+            assert.equal(saved.status, 200, JSON.stringify(saved.data));
+            const stockId = saved.data.counts[0].inventory_item_id;
+            assert.equal(saved.data.counts[0].menu_links.length, 2);
+            assert.equal(await balance(stockId), 7500);
+            const r30 = (
+              await request(
+                "GET",
+                `/inventory/recipes/${m30}`,
+                undefined,
+                options,
+              )
+            ).data;
+            const r60 = (
+              await request(
+                "GET",
+                `/inventory/recipes/${m60}`,
+                undefined,
+                options,
+              )
+            ).data;
+            assert.equal(Number(r30[0].quantity_required), 30);
+            assert.equal(Number(r60[0].quantity_required), 60);
+            assert.deepEqual(
+              (
+                await request(
+                  "GET",
+                  `/inventory/recipes/${untouched}`,
+                  undefined,
+                  options,
+                )
+              ).data,
+              [],
+            );
+            const listed = (
+              await request("GET", "/inventory/recipes", undefined, options)
+            ).data;
+            assert.deepEqual(
+              listed.find((item) => item.id === m30).inventory_item_ids,
+              [stockId],
+            );
+            assert.equal(
+              (await request("GET", "/inventory", undefined, options)).data[0]
+                .menu_link_count,
+              2,
+            );
+            const order = await request(
+              "POST",
+              "/orders/place",
+              {
+                businessId: tenant,
+                tableId: localTable,
+                items: [
+                  { id: m30, quantity: 2, price: 100 },
+                  { id: m60, quantity: 1, price: 200 },
+                ],
+              },
+              options,
+            );
+            assert.equal(order.status, 201, JSON.stringify(order.data));
+            assert.equal(await balance(stockId), 7380);
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  endpoint,
+                  { counts, apply_stock: true },
+                  options,
+                )
+              ).status,
+              200,
+            );
+            assert.equal(await balance(stockId), 7380);
+            assert.equal(
+              (
+                await request(
+                  "PATCH",
+                  `/orders/${order.data.id}/status`,
+                  { status: "REJECTED" },
+                  options,
+                )
+              ).status,
+              200,
+            );
+            assert.equal(await balance(stockId), 7500);
+            const otherStock = (
+              await request(
+                "POST",
+                "/inventory",
+                { name: "Other stock", unit: "ml", current_stock: 1000 },
+                options,
+              )
+            ).data;
+            const conflict = await request(
+              "PUT",
+              `/inventory/${otherStock.id}/menu-links`,
+              { menu_links: [{ menu_item_id: m30, quantity_required: 30 }] },
+              options,
+            );
+            assert.equal(conflict.status, 409);
+            assert.equal(
+              (
+                await request(
+                  "GET",
+                  `/inventory/recipes/${m30}`,
+                  undefined,
+                  options,
+                )
+              ).data[0].inventory_item_id,
+              stockId,
+            );
+            const litre = (
+              await request(
+                "POST",
+                "/inventory",
+                { name: "Vodka stock", unit: "litre", current_stock: 2 },
+                options,
+              )
+            ).data;
+            const vodka = await menu("Vodka 30ml", 30);
+            assert.equal(
+              (
+                await request(
+                  "PUT",
+                  `/inventory/${litre.id}/menu-links`,
+                  {
+                    menu_links: [
+                      { menu_item_id: vodka, quantity_required: 999 },
+                    ],
+                  },
+                  options,
+                )
+              ).status,
+              200,
+            );
+            assert.equal(
+              Number(
+                (
+                  await request(
+                    "GET",
+                    `/inventory/recipes/${vodka}`,
+                    undefined,
+                    options,
+                  )
+                ).data[0].quantity_required,
+              ),
+              0.03,
+            );
+            const packaged = (
+              await request(
+                "POST",
+                "/inventory",
+                { name: "Packaged cola", unit: "pcs", current_stock: 5 },
+                options,
+              )
+            ).data;
+            const cola = await menu("Cola 300ml", null, "food");
+            assert.equal(
+              (
+                await request(
+                  "PUT",
+                  `/inventory/${packaged.id}/menu-links`,
+                  {
+                    menu_links: [{ menu_item_id: cola, quantity_required: 1 }],
+                  },
+                  options,
+                )
+              ).status,
+              200,
+            );
+            const colaOrder = await request(
+              "POST",
+              "/orders/place",
+              {
+                businessId: tenant,
+                tableId: localTable,
+                items: [{ id: cola, quantity: 2, price: 50 }],
+              },
+              options,
+            );
+            assert.equal(colaOrder.status, 201, JSON.stringify(colaOrder.data));
+            assert.equal(await balance(packaged.id), 3);
+          } finally {
+            vision.detect = previousDetect;
+          }
+        },
+      );
+      await t.test(
+        "one-click scan saving applies 900 ml once, supports draft edits and starts fresh after deletion",
+        async () => {
+          const tenant = (
+            await pool.query(
+              "INSERT INTO businesses DEFAULT VALUES RETURNING id",
+            )
+          ).rows[0].id;
+          const options = {
+            token: jwt.sign({ businessId: tenant }, process.env.JWT_SECRET),
+          };
+          const staff = {
+            token: jwt.sign(
+              { businessId: tenant, staffId: "scanner", role: "staff" },
+              process.env.JWT_SECRET,
+            ),
+          };
+          const previousDetect = vision.detect;
+          vision.detect = async () => [
+            {
+              label: "Royal Stag bottle",
+              count: 5,
+              confidence: 0.95,
+              bottle_size_ml: 180,
+              product_type: "bottle",
+              inventory_item_id: null,
+            },
+          ];
+          const upload = async (session) => {
+            const form = new FormData();
+            form.append(
+              "image",
+              new Blob(
+                [Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 4])],
+                { type: "image/png" },
+              ),
+              "bottles.png",
+            );
+            form.append("scan_session", session);
+            const result = await request(
+              "POST",
+              "/inventory/scans",
+              form,
+              options,
+            );
+            assert.ok(
+              [200, 201].includes(result.status),
+              JSON.stringify(result.data),
+            );
+            return result.data;
+          };
+          const newCounts = [
+            {
+              new_item: { name: "Royal Stag bottle", unit: "ml" },
+              full_bottles: 5,
+              bottle_size_ml: 180,
+              opened_ml: 0,
+            },
+          ];
+          try {
+            const first = await upload("scan-ui-atomic-0001");
+            assert.equal((await upload("scan-ui-atomic-0001")).id, first.id);
+            let response = await request(
+              "POST",
+              `/inventory/scans/${first.id}/confirm`,
+              {
+                counts: [{ ...newCounts[0], bottle_size_ml: "" }],
+                apply_stock: true,
+              },
+              options,
+            );
+            assert.equal(response.status, 400);
+            assert.equal(
+              (await request("GET", "/inventory", undefined, options)).data
+                .length,
+              0,
+            );
+            response = await request(
+              "POST",
+              `/inventory/scans/${first.id}/confirm`,
+              { counts: newCounts, apply_stock: true },
+              options,
+            );
+            assert.equal(response.status, 200, JSON.stringify(response.data));
+            assert.equal(response.data.status, "reconciled");
+            assert.equal(Number(response.data.counts[0].current_stock), 900);
+            const itemId = response.data.counts[0].inventory_item_id;
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  `/inventory/scans/${first.id}/confirm`,
+                  { counts: newCounts, apply_stock: true },
+                  options,
+                )
+              ).status,
+              200,
+            );
+            assert.equal(await balance(itemId), 900);
+            assert.equal(
+              (
+                await pool.query(
+                  "SELECT 1 FROM inventory_stock_logs WHERE inventory_item_id=$1 AND reason='scan_reconciliation'",
+                  [itemId],
+                )
+              ).rowCount,
+              1,
+            );
+            const second = await upload("scan-ui-atomic-0002");
+            assert.notEqual(first.id, second.id);
+            const existingCounts = [
+              {
+                inventory_item_id: itemId,
+                full_bottles: 5,
+                bottle_size_ml: 180,
+                opened_ml: 0,
+              },
+            ];
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  `/inventory/scans/${second.id}/confirm`,
+                  { counts: existingCounts, apply_stock: true },
+                  staff,
+                )
+              ).status,
+              403,
+            );
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  `/inventory/scans/${second.id}/confirm`,
+                  { counts: existingCounts },
+                  options,
+                )
+              ).status,
+              200,
+            );
+            assert.equal(await balance(itemId), 900);
+            const edited = {
+              counts: [{ ...existingCounts[0], full_bottles: 2 }],
+              replace_counts: true,
+              apply_stock: true,
+            };
+            response = await request(
+              "POST",
+              `/inventory/scans/${second.id}/confirm`,
+              edited,
+              options,
+            );
+            assert.equal(response.status, 200, JSON.stringify(response.data));
+            assert.equal(await balance(itemId), 360);
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  `/inventory/scans/${second.id}/confirm`,
+                  edited,
+                  options,
+                )
+              ).status,
+              200,
+            );
+            assert.equal(await balance(itemId), 360);
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  `/inventory/scans/${second.id}/confirm`,
+                  { ...edited, counts: existingCounts },
+                  options,
+                )
+              ).status,
+              409,
+            );
+            const third = await upload("scan-ui-atomic-0003");
+            assert.equal(
+              (
+                await request(
+                  "POST",
+                  `/inventory/scans/${third.id}/confirm`,
+                  { counts: existingCounts },
+                  options,
+                )
+              ).status,
+              200,
+            );
+            assert.equal(
+              (
+                await request(
+                  "DELETE",
+                  `/inventory/${itemId}`,
+                  undefined,
+                  options,
+                )
+              ).status,
+              200,
+            );
+            response = await request(
+              "POST",
+              `/inventory/scans/${third.id}/reconcile`,
+              {},
+              options,
+            );
+            assert.equal(response.status, 409);
+            assert.equal(
+              response.data.error,
+              "This item was removed. Start a new scan to add it again.",
+            );
+            const fresh = await upload("scan-ui-atomic-0004");
+            assert.equal(fresh.status, "review");
+            assert.notEqual(fresh.id, first.id);
+            response = await request(
+              "POST",
+              `/inventory/scans/${fresh.id}/confirm`,
+              { counts: newCounts, apply_stock: true },
+              options,
+            );
+            assert.equal(response.status, 200, JSON.stringify(response.data));
+            assert.equal(Number(response.data.counts[0].current_stock), 900);
+            assert.notEqual(response.data.counts[0].inventory_item_id, itemId);
+          } finally {
+            vision.detect = previousDetect;
+          }
+        },
+      );
+      await t.test(
         "reconciliation preserves intervening movements, authorizes owner and applies variance only once",
         async () => {
           assert.equal(
@@ -775,7 +1480,8 @@ test(
           assert.equal(
             (
               await pool.query(
-                "SELECT * FROM inventory_stock_logs WHERE reason='scan_reconciliation'",
+                "SELECT * FROM inventory_stock_logs WHERE reason='scan_reconciliation' AND business_id=$1",
+                [business],
               )
             ).rowCount,
             2,
@@ -872,7 +1578,10 @@ test(
             { items: [{ id: menuIds[1], quantity: 1, price: 100 }] },
           );
           assert.equal(r.status, 200, JSON.stringify(r.data));
-          assert.equal(await balance(paneer), Number((before - 0.15).toFixed(6)));
+          assert.equal(
+            await balance(paneer),
+            Number((before - 0.15).toFixed(6)),
+          );
           assert.equal(
             (
               await request(
@@ -936,6 +1645,147 @@ test(
         },
       );
       await t.test(
+        "deleting linked stock removes recipe dependencies, preserves history and keeps old refunds correct",
+        async () => {
+          const removed = await add("Archive regression ingredient", "kg", 20);
+          const retained = await add(
+            "Archive regression retained ingredient",
+            "kg",
+            10,
+          );
+          const menu = (
+            await pool.query(
+              "INSERT INTO menu_items(business_id,name) VALUES($1,'Archive regression dish') RETURNING id",
+              [business],
+            )
+          ).rows[0].id;
+          async function preparation(name, ingredients) {
+            const result = await request("POST", "/inventory/preparations", {
+              name,
+              yield_quantity: 2,
+              yield_unit: "kg",
+              ingredients,
+            });
+            assert.equal(result.status, 201, JSON.stringify(result.data));
+            return result.data;
+          }
+          const base = await preparation("Archive regression base", [
+            { inventory_item_id: removed, quantity_required: 2 },
+          ]);
+          const parent = await preparation("Archive regression nested base", [
+            { preparation_id: base.id, quantity_required: 2 },
+          ]);
+          const mixed = await preparation("Archive regression mixed base", [
+            { inventory_item_id: removed, quantity_required: 1 },
+            { inventory_item_id: retained, quantity_required: 1 },
+          ]);
+          const saved = await request("PUT", `/inventory/recipes/${menu}`, {
+            ingredients: [
+              { inventory_item_id: removed, quantity_required: 1 },
+              { preparation_id: parent.id, quantity_required: 1 },
+              { preparation_id: mixed.id, quantity_required: 0.5 },
+            ],
+          });
+          assert.equal(saved.status, 200);
+          const input = {
+            businessId: business,
+            tableId: table,
+            items: [{ id: menu, quantity: 1, price: 100 }],
+          };
+          const oldOrder = await request("POST", "/orders/place", input);
+          assert.equal(oldOrder.status, 201, JSON.stringify(oldOrder.data));
+          assert.equal(await balance(removed), 17.75);
+          const snapshot = (
+            await pool.query(
+              "SELECT lines FROM inventory_order_state WHERE business_id=$1 AND order_id=$2",
+              [business, oldOrder.data.id],
+            )
+          ).rows[0].lines;
+          const history = (
+            await pool.query(
+              "SELECT * FROM inventory_stock_logs WHERE inventory_item_id=$1 ORDER BY id",
+              [removed],
+            )
+          ).rows;
+          assert.equal(
+            (
+              await request("DELETE", `/inventory/${removed}`, undefined, {
+                token: foreignToken,
+              })
+            ).status,
+            404,
+          );
+          assert.equal(
+            (
+              await request("DELETE", `/inventory/${removed}`, undefined, {
+                token: staffToken,
+              })
+            ).status,
+            403,
+          );
+          assert.equal(
+            (await request("DELETE", `/inventory/${removed}`)).status,
+            200,
+          );
+          assert.equal(
+            (await request("DELETE", `/inventory/${removed}`)).status,
+            404,
+          );
+          assert.equal(await balance(removed), 17.75);
+          assert.ok(
+            !(await request("GET", "/inventory")).data.some(
+              (item) => item.id === removed,
+            ),
+          );
+          assert.deepEqual(
+            (
+              await pool.query(
+                "SELECT * FROM inventory_stock_logs WHERE inventory_item_id=$1 ORDER BY id",
+                [removed],
+              )
+            ).rows,
+            history,
+          );
+          assert.deepEqual(
+            (
+              await pool.query(
+                "SELECT lines FROM inventory_order_state WHERE business_id=$1 AND order_id=$2",
+                [business, oldOrder.data.id],
+              )
+            ).rows[0].lines,
+            snapshot,
+          );
+          const active = (await request("GET", "/inventory/preparations")).data;
+          assert.ok(
+            !active.some((prep) => [base.id, parent.id].includes(prep.id)),
+          );
+          const surviving = active.find((prep) => prep.id === mixed.id);
+          assert.equal(surviving.version, mixed.version + 1);
+          assert.deepEqual(
+            surviving.ingredients.map((ing) => ing.inventory_item_id),
+            [retained],
+          );
+          const recipe = (await request("GET", `/inventory/recipes/${menu}`))
+            .data;
+          assert.equal(recipe.length, 1);
+          assert.equal(recipe[0].preparation_id, mixed.id);
+          const newOrder = await request("POST", "/orders/place", input);
+          assert.equal(newOrder.status, 201, JSON.stringify(newOrder.data));
+          assert.equal(await balance(removed), 17.75);
+          assert.equal(await balance(retained), 9.5);
+          assert.equal(
+            (
+              await request("PATCH", `/orders/${oldOrder.data.id}/status`, {
+                status: "REJECTED",
+              })
+            ).status,
+            200,
+          );
+          assert.equal(await balance(removed), 20);
+          assert.equal(await balance(retained), 9.75);
+        },
+      );
+      await t.test(
         "existing stock workflow validates restocks, logs adjustments and preserves deleted-item audit history",
         async () => {
           assert.equal(
@@ -980,7 +1830,7 @@ test(
           );
           assert.equal(
             (await request("DELETE", `/inventory/${tomato}`)).status,
-            409,
+            200,
           );
         },
       );

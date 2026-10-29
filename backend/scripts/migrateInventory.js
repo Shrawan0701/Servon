@@ -1,4 +1,4 @@
-require("dotenv").config({ quiet: true });
+require("../config/env");
 const fs = require("node:fs");
 const path = require("node:path");
 const { Pool } = require("pg");

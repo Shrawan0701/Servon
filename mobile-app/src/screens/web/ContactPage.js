@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Text,
   StyleSheet,
   View,
   TouchableOpacity,
-  TextInput,
+  Linking,
   Platform,
   useWindowDimensions,
 } from 'react-native';
@@ -17,15 +17,6 @@ export default function ContactPage({ onNavigate }) {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
-  const [form, setForm] = useState({ name: '', email: '', message: '' });
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = () => {
-    if (form.name && form.email && form.message) {
-      setSubmitted(true);
-    }
-  };
-
   return (
     <WebPageLayout
       onNavigate={onNavigate}
@@ -34,48 +25,62 @@ export default function ContactPage({ onNavigate }) {
     >
       <View style={styles.container}>
         <View style={[styles.wrapper, isMobile && styles.wrapperMobile]}>
-          
+
           {/* LEFT COLUMN: CONTACT CARDS */}
           <View style={[styles.infoCol, isMobile && styles.colMobile]}>
             {/* CARD 1: GENERAL INQUIRY */}
             <View style={[styles.card, isMobile && styles.cardMobile]}>
               <View style={styles.iconBadge}>
-                <Ionicons name="mail" size={20} color="#008060" />
+                <Ionicons name="mail" size={20} color="#477047" />
               </View>
               <Text style={styles.cardHeader}>General Inquiry</Text>
               <Text style={styles.cardDesc}>
                 Interested in a demo or have specific questions about our ERP modules and Chef Mode™?
               </Text>
               <View style={styles.infoRow}>
-                <Ionicons name="mail-outline" size={18} color="#008060" />
-                <Text style={styles.infoText}>support@servon.cloud</Text>
+                <Ionicons name="mail-outline" size={18} color="#477047" />
+                <Text accessibilityRole="link" onPress={() => Linking.openURL("mailto:support@servon.cloud")} style={styles.infoText}>support@servon.cloud</Text>
               </View>
             </View>
 
             {/* CARD 2: SALES & ONBOARDING */}
             <View style={[styles.card, isMobile && styles.cardMobile]}>
               <View style={styles.iconBadge}>
-                <Ionicons name="call" size={20} color="#008060" />
+                <Ionicons name="call" size={20} color="#477047" />
               </View>
               <Text style={styles.cardHeader}>Sales & Onboarding</Text>
               <Text style={styles.cardDesc}>
                 Ready to go live today? Our onboarding specialists will help you import menus and set up QR ordering instantly.
               </Text>
-              
+
               <View style={styles.infoRow}>
-                <Ionicons name="time-outline" size={18} color="#64748B" />
+                <Ionicons name="time-outline" size={18} color="#6C7D63" />
                 <Text style={styles.subInfoText}>Mon - Sat (9 AM - 9 PM IST)</Text>
               </View>
 
+              <View style={[styles.infoRow, { marginTop: 12 }]}>
+                <Ionicons name="call-outline" size={18} color="#477047" />
+                <Text accessibilityRole="link" accessibilityLabel="Call Servon at +91 9834386415" onPress={() => Linking.openURL("tel:+919834386415")} style={styles.infoText}>+91 98343 86415</Text>
+              </View>
+
               <View style={[styles.infoRow, { marginTop: 8 }]}>
-                <Ionicons name="mail-outline" size={18} color="#008060" />
-                <Text style={styles.infoText}>support@servon.cloud</Text>
+                <Ionicons name="mail-outline" size={18} color="#477047" />
+                <Text accessibilityRole="link" onPress={() => Linking.openURL("mailto:support@servon.cloud")} style={styles.infoText}>support@servon.cloud</Text>
               </View>
             </View>
           </View>
 
           {/* RIGHT COLUMN: CONTACT FORM */}
-         
+          <View style={[styles.formCol, isMobile && styles.colMobile]}>
+            <View style={[styles.formCard, isMobile && styles.formCardMobile]}>
+              <Text accessibilityRole="heading" style={styles.formTitle}>Your restaurant. Your questions.</Text>
+              <Text style={styles.formSub}>See the ordering, kitchen, inventory, and AI workflows in a personal walkthrough with the Servon team.</Text>
+              <TouchableOpacity accessibilityRole="button" style={styles.submitBtn} onPress={() => onNavigate("landing", { openDemo: true })}>
+                <Text style={styles.submitBtnText}>Book a personal demo</Text>
+              </TouchableOpacity>
+              <Text style={[styles.formSub, { marginTop: 24, marginBottom: 0 }]}>Prefer email? Reach us at support@servon.cloud with your business name and what you would like to explore.</Text>
+            </View>
+          </View>
 
         </View>
       </View>
@@ -125,11 +130,11 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFEF8',
     padding: 32,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
     shadowColor: '#000',
     shadowOpacity: 0.03,
     shadowRadius: 12,
@@ -138,14 +143,14 @@ const styles = StyleSheet.create({
   },
   cardMobile: {
     padding: 24,
-    borderRadius: 16,
+    borderRadius: 12,
   },
 
   iconBadge: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -153,15 +158,15 @@ const styles = StyleSheet.create({
 
   cardHeader: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 8,
     letterSpacing: -0.4,
   },
 
   cardDesc: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#6C7D63',
     lineHeight: 22,
     marginBottom: 20,
   },
@@ -174,23 +179,23 @@ const styles = StyleSheet.create({
 
   infoText: {
     fontSize: 15,
-    color: '#0F172A',
+    color: '#193A2C',
     fontWeight: '700',
   },
 
   subInfoText: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#6C7D63',
     fontWeight: '500',
   },
 
   // FORM CARD
   formCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFEF8',
     padding: 36,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
     shadowColor: '#000',
     shadowOpacity: 0.04,
     shadowRadius: 16,
@@ -199,20 +204,20 @@ const styles = StyleSheet.create({
   },
   formCardMobile: {
     padding: 24,
-    borderRadius: 16,
+    borderRadius: 12,
   },
 
   formTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 6,
     letterSpacing: -0.4,
   },
 
   formSub: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#6C7D63',
     lineHeight: 20,
     marginBottom: 24,
   },
@@ -224,20 +229,20 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#193A2C',
     marginTop: 10,
     marginBottom: 4,
   },
 
   input: {
-    backgroundColor: '#FAF9F6',
+    backgroundColor: '#F8F9F3',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-    color: '#0F172A',
+    color: '#193A2C',
   },
 
   textArea: {
@@ -246,7 +251,7 @@ const styles = StyleSheet.create({
   },
 
   submitBtn: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#193A2C',
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
@@ -255,7 +260,7 @@ const styles = StyleSheet.create({
   },
 
   submitBtnText: {
-    color: '#FFFFFF',
+    color: '#FFFEF8',
     fontWeight: '700',
     fontSize: 15,
   },
@@ -272,14 +277,14 @@ const styles = StyleSheet.create({
 
   successTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 8,
   },
 
   successDesc: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#6C7D63',
     textAlign: 'center',
     lineHeight: 22,
   },

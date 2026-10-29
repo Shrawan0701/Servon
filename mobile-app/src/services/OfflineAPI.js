@@ -1,6 +1,7 @@
 // src/services/OfflineAPI.js
 import localDB from './LocalDB';
 import networkMonitor from './NetworkMonitor';
+import { API_BASE_URL } from '../config/api';
 
 class OfflineAPI {
     constructor(baseURL) {
@@ -151,5 +152,5 @@ class OfflineAPI {
     }
 }
 
-const api = new OfflineAPI('https://api.servon.com');
+const api = new OfflineAPI(API_BASE_URL);
 export default api;

@@ -13,10 +13,11 @@ import {
 import { sendOTP, verifyOTP, resetPassword } from "../../api";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import RecoveryWebView from "./RecoveryWebView";
 
 const isWeb = Platform.OS === "web";
 
-export default function ForgotPasswordScreen({ navigation }) {
+export default function ForgotPasswordScreen({ navigation, onNavigate }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
@@ -91,6 +92,21 @@ export default function ForgotPasswordScreen({ navigation }) {
       setLoading(false);
     }
   };
+
+  if (isWeb) {
+    return (
+      <RecoveryWebView
+        step={step} email={email} otp={otp} newPassword={newPassword}
+        showPassword={showPassword} loading={loading} error={error}
+        success={success} timer={timer}
+        onEmailChange={setEmail} onOtpChange={setOtp} onPasswordChange={setNewPassword}
+        onTogglePassword={() => setShowPassword(!showPassword)}
+        onSendCode={handleSendOTP} onVerifyCode={handleVerifyOTP}
+        onResetPassword={handleResetPassword}
+        onLogin={() => navigation.navigate("Login")} onNavigate={onNavigate}
+      />
+    );
+  }
 
   // Render Step Icon Header
   const renderStepBadge = () => {

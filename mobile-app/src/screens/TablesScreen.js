@@ -11,6 +11,7 @@ import * as Sharing from "expo-sharing";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { API_BASE_URL } from '../config/api';
 
 const isWeb = Platform.OS === 'web';
 
@@ -109,7 +110,7 @@ export default function TablesScreen() {
   const handleDownloadQR = async (table) => {
     try {
       const token = await AsyncStorage.getItem("token");
-      const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://192.168.x.x:5000"; 
+      const baseUrl = API_BASE_URL;
       const downloadUrl = `${baseUrl}/api/tables/${table.id}/qr-pdf?token=${token}&lang=${language}`;
 
       if (Platform.OS === 'web') {

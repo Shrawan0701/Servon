@@ -1,3 +1,4 @@
+import { useLocalizeText } from "./LocalizedText";
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -9,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import API from "../api";
+import { Ionicons } from "@expo/vector-icons";
 
 export const unitsFor = (unit) =>
   ["kg", "gm", "g"].includes(unit)
@@ -18,18 +20,38 @@ export const unitsFor = (unit) =>
       : ["pcs"];
 export const ingredientKey = (row) =>
   row.preparation_id ? `p:${row.preparation_id}` : `i:${row.inventory_item_id}`;
-export function InvButton({ children, onPress, disabled, secondary = false }) {
+export function InvButton({
+  children,
+  onPress,
+  disabled,
+  secondary = false,
+  icon,
+  style,
+  accessibilityLabel,
+}) {
   return (
     <TouchableOpacity
       accessibilityRole="button"
+      accessibilityLabel={
+        accessibilityLabel ||
+        (typeof children === "string" ? children : undefined)
+      }
       disabled={disabled}
       onPress={onPress}
       style={[
         s.button,
         secondary && s.secondary,
         disabled && { opacity: 0.45 },
+        style,
       ]}
     >
+      {icon && (
+        <Ionicons
+          name={icon}
+          size={19}
+          color={secondary ? "#334155" : "#fff"}
+        />
+      )}
       <Text style={[s.buttonText, secondary && { color: "#111827" }]}>
         {children}
       </Text>
@@ -57,31 +79,55 @@ export function InvField({
     </View>
   );
 }
-export function InvChoice({ label, options, value, onChange }) {
+export function InvChoice({
+  label,
+  options,
+  value,
+  onChange,
+  compact = false,
+  disabled = false,
+}) {
+  const tr = useLocalizeText();
   const [query, setQuery] = useState(""),
     [open, setOpen] = useState(false);
   const selected = options.find((x) => String(x.id) === String(value));
   return (
-    <View style={{ marginVertical: 6 }}>
-      <Text style={s.label}>{label}</Text>
-      <InvButton secondary onPress={() => setOpen(!open)}>
-        {selected?.name || "Choose…"} {open ? "▴" : "▾"}
-      </InvButton>
+    <View style={{ marginVertical: compact ? 0 : 6 }}>
+      {!compact && <Text style={s.label}>{label}</Text>}
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ expanded: open, disabled }}
+        disabled={disabled}
+        onPress={() => setOpen(!open)}
+        style={[s.choice, compact && { minWidth: 76 }]}
+      >
+        <Text style={s.choiceText}>{selected?.name || tr("Choose item")}</Text>
+        <Ionicons
+          name={open ? "chevron-up" : "chevron-down"}
+          size={16}
+          color="#64748B"
+        />
+      </TouchableOpacity>
       {open && (
         <View style={s.card}>
-          <TextInput
-            accessibilityLabel={`Search ${label}`}
-            style={s.input}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search…"
-          />
+          {options.length > 6 && (
+            <TextInput
+              accessibilityLabel={tr("Search {label}", { label })}
+              style={s.input}
+              value={query}
+              onChangeText={setQuery}
+              placeholder={tr("Search…")}
+            />
+          )}
           <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
             {options
               .filter((x) => x.name.toLowerCase().includes(query.toLowerCase()))
               .map((x) => (
-                <InvButton
-                  secondary
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={x.name}
+                  style={s.choiceOption}
                   key={x.id}
                   onPress={() => {
                     onChange(x.id);
@@ -89,8 +135,11 @@ export function InvChoice({ label, options, value, onChange }) {
                     setQuery("");
                   }}
                 >
-                  {x.name}
-                </InvButton>
+                  <Text style={s.choiceText}>{x.name}</Text>
+                  {String(x.id) === String(value) && (
+                    <Ionicons name="checkmark" size={18} color="#008060" />
+                  )}
+                </TouchableOpacity>
               ))}
           </ScrollView>
         </View>
@@ -104,8 +153,11 @@ export function IngredientEditor({
   value,
   onChange,
   excludePreparation,
+  context = "serving",
 }) {
+  const tr = useLocalizeText();
   const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const catalogue = [
     ...stock.map((x) => ({
       ...x,
@@ -123,6 +175,8 @@ export function IngredientEditor({
       })),
   ];
   function toggle(record) {
+    setQuery("");
+    setShowAll(false);
     const found = value.some((x) => ingredientKey(x) === record.key);
     onChange(
       found
@@ -134,11 +188,21 @@ export function IngredientEditor({
                 ? { inventory_item_id: record.id }
                 : { preparation_id: record.id }),
               quantity_required: "",
-              unit: record.unit,
+              unit:
+                record.unit === "kg"
+                  ? "gm"
+                  : record.unit === "litre"
+                    ? "ml"
+                    : record.unit,
             },
           ],
     );
   }
+  const remaining = catalogue.filter(
+    (x) =>
+      !value.some((r) => ingredientKey(r) === x.key) &&
+      x.name.toLowerCase().includes(query.toLowerCase()),
+  );
   function patch(index, changes) {
     onChange(
       value.map((row, i) => (i === index ? { ...row, ...changes } : row)),
@@ -147,72 +211,124 @@ export function IngredientEditor({
   return (
     <View>
       <Text style={s.hint}>
-        Quantities are per serving or per preparation batch. Select existing
-        stock or a shared preparation.
+        {context === "batch"
+          ? tr("How much goes into one batch?")
+          : tr("How much is used for one serving?")}
       </Text>
       {value.map((row, index) => {
         const record = catalogue.find((x) => x.key === ingredientKey(row));
         return (
-          <View key={ingredientKey(row)} style={s.card}>
+          <View key={ingredientKey(row)} style={[s.card, { padding: 14 }]}>
             <View style={s.row}>
-              <Text style={[s.label, { flex: 1 }]}>
-                {record?.name || "Unavailable ingredient"} · {record?.kind}
-              </Text>
-              <InvButton
-                secondary
+              <View style={{ flex: 1 }}>
+                <Text style={s.label}>
+                  {record?.name || tr("Unavailable ingredient")}
+                </Text>
+                {record?.kind === "Preparation" && (
+                  <Text style={s.smallHint}>
+                    {tr("Shared gravy / preparation")}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={tr("Remove {name}", {
+                  name: record?.name || tr("Ingredient"),
+                })}
+                style={s.iconButton}
                 onPress={() => onChange(value.filter((_, i) => i !== index))}
               >
-                Remove
-              </InvButton>
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
             </View>
-            <InvField
-              label={`Quantity of ${record?.name || "ingredient"}`}
-              numeric
-              value={row.quantity_required}
-              onChangeText={(v) => patch(index, { quantity_required: v })}
-            />
-            <View style={s.row}>
-              {unitsFor(record?.unit || row.unit).map((unit) => (
-                <InvButton
-                  key={unit}
-                  secondary={(row.unit || record?.unit) !== unit}
-                  onPress={() => patch(index, { unit })}
-                >
-                  {unit}
-                </InvButton>
-              ))}
+            <View style={[s.row, { marginTop: 8, alignItems: "flex-start" }]}>
+              <TextInput
+                style={[s.input, { flex: 1, minWidth: 90 }]}
+                accessibilityLabel={tr("Quantity of {name}", {
+                  name: record?.name || tr("Ingredient"),
+                })}
+                keyboardType="decimal-pad"
+                placeholder={tr("e.g. 100")}
+                value={String(row.quantity_required ?? "")}
+                onChangeText={(v) => patch(index, { quantity_required: v })}
+              />
+              <InvChoice
+                compact
+                label={tr("Unit for {name}", {
+                  name: record?.name || tr("Ingredient"),
+                })}
+                options={unitsFor(record?.unit || row.unit).map((unit) => ({
+                  id: unit,
+                  name: unit === "gm" ? "g" : unit === "litre" ? "L" : unit,
+                }))}
+                value={row.unit === "g" ? "gm" : row.unit || record?.unit}
+                onChange={(unit) => patch(index, { unit })}
+              />
             </View>
           </View>
         );
       })}
       <InvField
-        label="Search ingredients and preparations"
+        label={
+          value.length ? tr("Add another ingredient") : tr("Add ingredients")
+        }
         value={query}
         onChangeText={setQuery}
-        placeholder="Tomato, paneer, gravy…"
+        placeholder={tr("Search tomato, paneer, gravy…")}
       />
       <ScrollView style={{ maxHeight: 230 }} nestedScrollEnabled>
-        {catalogue
-          .filter(
-            (x) =>
-              !value.some((r) => ingredientKey(r) === x.key) &&
-              x.name.toLowerCase().includes(query.toLowerCase()),
-          )
-          .map((record) => (
-            <InvButton
-              key={record.key}
-              secondary
-              onPress={() => toggle(record)}
-            >
-              + {record.name} · {record.kind} ({record.unit})
-            </InvButton>
-          ))}
+        {remaining.slice(0, query || showAll ? undefined : 5).map((record) => (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={tr("Add {name}", { name: record.name })}
+            style={s.catalogueRow}
+            key={record.key}
+            onPress={() => toggle(record)}
+          >
+            <View style={s.miniIcon}>
+              <Ionicons
+                name={
+                  record.kind === "Preparation"
+                    ? "restaurant-outline"
+                    : "leaf-outline"
+                }
+                size={18}
+                color="#008060"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>{record.name}</Text>
+              <Text style={s.smallHint}>
+                {record.kind === "Preparation"
+                  ? tr("Shared preparation")
+                  : tr("Stock ingredient")}
+              </Text>
+            </View>
+            <Ionicons name="add-circle-outline" size={23} color="#008060" />
+          </TouchableOpacity>
+        ))}
         {!catalogue.length && (
           <Text style={s.hint}>
-            Add stock items before configuring a recipe.
+            {tr("Add stock items before configuring a recipe.")}
+          </Text>
+        )}
+        {!!catalogue.length && !remaining.length && (
+          <Text style={s.hint}>
+            {query
+              ? tr("No matching ingredients. Try a different name.")
+              : tr("All available ingredients have been added.")}
           </Text>
         )}
       </ScrollView>
+      {!query &&
+        catalogue.filter((x) => !value.some((r) => ingredientKey(r) === x.key))
+          .length > 5 && (
+          <InvButton secondary onPress={() => setShowAll(!showAll)}>
+            {showAll
+              ? tr("Show fewer ingredients")
+              : tr("Show all ingredients")}
+          </InvButton>
+        )}
     </View>
   );
 }
@@ -222,6 +338,7 @@ export default function InventoryRecipeEditor({
   onClose,
   onSaved,
 }) {
+  const tr = useLocalizeText();
   const [preparations, setPreparations] = useState([]),
     [ingredients, setIngredients] = useState([]),
     [selected, setSelected] = useState([]);
@@ -310,20 +427,31 @@ export default function InventoryRecipeEditor({
     }
   }
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+    <View style={{ flex: 1, backgroundColor: "#F7F9F8" }}>
       <View
         style={[
           s.row,
-          { padding: 20, borderBottomWidth: 1, borderColor: "#EAE6E0" },
+          {
+            padding: 20,
+            borderBottomWidth: 1,
+            borderColor: "#E2E8E5",
+            backgroundColor: "#fff",
+          },
         ]}
       >
         <View style={{ flex: 1 }}>
           <Text style={s.title}>{menuItem.name}</Text>
-          <Text style={s.hint}>Recipe ingredients consumed per serving</Text>
+          <Text style={s.hint}>{tr("Ingredients for one serving")}</Text>
         </View>
-        <InvButton secondary onPress={onClose} disabled={saving}>
-          Close
-        </InvButton>
+        <TouchableOpacity
+          style={s.iconButton}
+          accessibilityRole="button"
+          accessibilityLabel={tr("Close recipe")}
+          onPress={onClose}
+          disabled={saving}
+        >
+          <Ionicons name="close" size={24} color="#334155" />
+        </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={s.content}>
         {loading ? (
@@ -331,8 +459,9 @@ export default function InventoryRecipeEditor({
         ) : menuItem.is_liquor_group ? (
           <View>
             <Text style={s.hint}>
-              Choose one volume stock pool. Each menu variant deducts its
-              configured serving size in ml.
+              {tr(
+                "Choose the stock used for this brand. Each serving size is linked automatically.",
+              )}
             </Text>
             {stock
               .filter((x) => ["ml", "litre"].includes(x.unit))
@@ -363,20 +492,23 @@ export default function InventoryRecipeEditor({
         )}
         {!!error && (
           <Text accessibilityRole="alert" style={s.error}>
-            {error}
+            {tr(error)}
           </Text>
         )}
       </ScrollView>
-      <View style={{ padding: 20 }}>
+      <View style={s.footer}>
         <Text style={s.hint}>
-          Saving replaces this dish’s recipe. An empty recipe disables
-          ingredient tracking for future sales.
+          {(menuItem.is_liquor_group ? selected.length : ingredients.length)
+            ? tr("Stock is deducted automatically when this dish is ordered.")
+            : tr(
+                "No ingredients selected. Saving will turn off stock tracking for this dish.",
+              )}
         </Text>
         <InvButton
           onPress={save}
           disabled={loading || saving || (!ingredients.length && !!error)}
         >
-          {saving ? "Saving…" : "Save This Recipe"}
+          {saving ? tr("Saving…") : tr("Save recipe")}
         </InvButton>
       </View>
     </View>
@@ -386,13 +518,13 @@ export const inventoryStyles = StyleSheet.create({
   content: {
     padding: 20,
     width: "100%",
-    maxWidth: 850,
+    maxWidth: 820,
     alignSelf: "center",
     paddingBottom: 40,
   },
   title: { fontSize: 22, fontWeight: "800", color: "#111827" },
   label: { fontSize: 14, fontWeight: "700", color: "#111827", marginBottom: 6 },
-  hint: { fontSize: 13, color: "#6B7280", lineHeight: 20, marginVertical: 6 },
+  hint: { fontSize: 14, color: "#52645D", lineHeight: 22, marginVertical: 6 },
   input: {
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
@@ -403,15 +535,25 @@ export const inventoryStyles = StyleSheet.create({
     fontSize: 15,
   },
   button: {
-    backgroundColor: "#111827",
+    backgroundColor: "#008060",
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginVertical: 4,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    minHeight: 48,
   },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  secondary: { backgroundColor: "#F3F4F6" },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+    flexShrink: 1,
+    textAlign: "center",
+  },
+  secondary: { backgroundColor: "#EDF2EF" },
   card: {
     borderWidth: 1,
     borderColor: "#E8E2D9",
@@ -421,6 +563,61 @@ export const inventoryStyles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   row: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  choice: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 13,
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: "#DCE5DF",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+  },
+  choiceText: { fontSize: 15, color: "#243A30", flexShrink: 1 },
+  choiceOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 13,
+    gap: 8,
+    minHeight: 44,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EDF2EF",
+  },
+  smallHint: { fontSize: 12, color: "#64756C", lineHeight: 18 },
+  catalogueRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: "#E6ECE8",
+    minHeight: 62,
+  },
+  miniIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: "#E6F3EC",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  footer: {
+    padding: 16,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderColor: "#E2E8E5",
+    width: "100%",
+    maxWidth: 820,
+    alignSelf: "center",
+  },
   error: {
     color: "#B91C1C",
     backgroundColor: "#FEF2F2",

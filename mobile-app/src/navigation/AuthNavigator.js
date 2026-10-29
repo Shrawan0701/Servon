@@ -15,7 +15,9 @@ export default function AuthNavigator({ initialRoute = "Login", onNavigateWeb })
         {(props) => <LoginScreen {...props} onNavigate={onNavigateWeb} />}
       </Stack.Screen>
       <Stack.Screen name="Signup" component={SignupScreen} />
-      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ForgotPassword">
+        {(props) => <ForgotPasswordScreen {...props} onNavigate={onNavigateWeb} />}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 }

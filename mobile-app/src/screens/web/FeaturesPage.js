@@ -87,6 +87,16 @@ export default function FeaturesPage({ onNavigate }) {
           desc: "Automatically deduct raw ingredient stock per order to prevent kitchen wastage and track variance in real-time.",
           icon: "cube-outline",
         },
+        {
+          name: "AI Bottle & Product Counts",
+          desc: "Take or upload a shelf photo, match recognizable products to stock, and review every count before saving. Enter opened-bottle quantities manually.",
+          icon: "scan-outline",
+        },
+        {
+          name: "Shared Preparations & Bulk Recipes",
+          desc: "Reuse gravies, pastes, and marinades across dishes. Set common ingredients for several dishes together, then check quantities for each serving.",
+          icon: "layers-outline",
+        },
       ],
     },
   ];
@@ -101,7 +111,7 @@ export default function FeaturesPage({ onNavigate }) {
         {categories.map((cat, i) => (
           <View key={i} style={styles.categorySection}>
             <View style={styles.categoryHeader}>
-              <Text style={styles.categoryTitle}>{cat.title}</Text>
+              <Text accessibilityRole="heading" style={styles.categoryTitle}>{cat.title}</Text>
               <View style={styles.categoryLine} />
             </View>
 
@@ -115,10 +125,10 @@ export default function FeaturesPage({ onNavigate }) {
                   ]}
                 >
                   <View style={styles.iconBadge}>
-                    <Ionicons name={item.icon} size={22} color="#008060" />
+                    <Ionicons name={item.icon} size={22} color="#477047" />
                   </View>
 
-                  <Text style={styles.cardTitle}>{item.name}</Text>
+                  <Text accessibilityRole="heading" style={styles.cardTitle}>{item.name}</Text>
                   <Text style={styles.cardDesc}>{item.desc}</Text>
                 </View>
               ))}
@@ -129,7 +139,7 @@ export default function FeaturesPage({ onNavigate }) {
         {/* BOTTOM CTA BANNER */}
         <View style={[styles.ctaCard, isMobile && styles.ctaCardMobile]}>
           <View style={styles.ctaTextContainer}>
-            <Text style={styles.ctaTitle}>Ready to transform your restaurant?</Text>
+            <Text accessibilityRole="heading" style={styles.ctaTitle}>Ready to transform your restaurant?</Text>
             <Text style={styles.ctaSub}>
               Experience how Servon can streamline operations and boost your profit margins.
             </Text>
@@ -162,14 +172,14 @@ const styles = StyleSheet.create({
   },
   categoryTitle: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#008060",
+    fontWeight: '600',
+    color: "#477047",
     letterSpacing: -0.3,
   },
   categoryLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#DEE5D5",
   },
   gridContainer: {
     flexDirection: "row",
@@ -177,9 +187,9 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFFEF8",
     padding: 24,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#EAEAEA",
     alignItems: "flex-start",
@@ -200,7 +210,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#EAF1DF",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -208,13 +218,13 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#193A2C",
     marginBottom: 8,
     letterSpacing: -0.3,
   },
   cardDesc: {
     fontSize: 14,
-    color: "#475569",
+    color: "#52664D",
     lineHeight: 22,
   },
 
@@ -222,8 +232,8 @@ const styles = StyleSheet.create({
   ctaCard: {
     marginTop: 20,
     marginBottom: 40,
-    backgroundColor: "#0F172A",
-    borderRadius: 20,
+    backgroundColor: "#193A2C",
+    borderRadius: 12,
     padding: 36,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -240,24 +250,24 @@ const styles = StyleSheet.create({
   },
   ctaTitle: {
     fontSize: 22,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: '600',
+    color: "#FFFEF8",
     marginBottom: 8,
     letterSpacing: -0.5,
   },
   ctaSub: {
     fontSize: 15,
-    color: "#94A3B8",
+    color: "#B7C5AC",
     lineHeight: 22,
   },
   ctaButton: {
-    backgroundColor: "#008060",
+    backgroundColor: "#477047",
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 12,
   },
   ctaButtonText: {
-    color: "#FFFFFF",
+    color: "#FFFEF8",
     fontSize: 15,
     fontWeight: "700",
   },

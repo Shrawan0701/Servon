@@ -13,10 +13,10 @@ import {
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { API_BASE_URL as BASE_URL } from '../../config/api';
+import LoginWebView from "./LoginWebView";
 
 const isWeb = Platform.OS === "web";
-const BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://10.198.185.12:5000";
 
 export default function LoginScreen({ navigation, onNavigate }) {
   const { login } = useAuth();
@@ -61,6 +61,8 @@ export default function LoginScreen({ navigation, onNavigate }) {
       setLoading(false);
     }
   };
+
+  if (isWeb) return <LoginWebView email={email} password={password} onEmailChange={setEmail} onPasswordChange={setPassword} loading={loading} error={error} onSubmit={handleLogin} onForgot={() => navigation.navigate("ForgotPassword")} onNavigate={onNavigate} />;
 
   return (
     <SafeAreaView style={styles.safeArea}>

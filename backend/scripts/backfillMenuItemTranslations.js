@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("../config/env");
 
 const pool = require("../db");
 const { translateMenuItemName } = require("../services/menuTranslationService");

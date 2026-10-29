@@ -1,14 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useLocalizeText } from "./LocalizedText";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   ScrollView,
   ActivityIndicator,
-  Image,
-  Platform,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import Scanner, { CountReview } from "./InventoryScanner";
 import API from "../api";
 import {
   IngredientEditor,
@@ -18,7 +17,72 @@ import {
   ingredientKey,
   inventoryStyles as s,
 } from "./InventoryRecipeEditor";
+import { Ionicons } from "@expo/vector-icons";
+import { TouchableOpacity } from "react-native";
 
+function Details({ title, children, initiallyOpen = false }) {
+  const tr = useLocalizeText();
+  const [open, setOpen] = useState(initiallyOpen);
+  return (
+    <View style={{ marginVertical: 8 }}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(!open)}
+        style={[s.row, { minHeight: 44 }]}
+      >
+        <Text style={[s.label, { flex: 1, marginBottom: 0 }]}>{title}</Text>
+        <Ionicons
+          name={open ? "chevron-up" : "chevron-down"}
+          size={18}
+          color="#52645D"
+        />
+      </TouchableOpacity>
+      {open && children}
+    </View>
+  );
+}
+
+function Steps({ labels, current }) {
+  const tr = useLocalizeText();
+  return (
+    <View style={[s.row, { marginBottom: 20, flexWrap: "nowrap" }]}>
+      {labels.map((label, i) => (
+        <View
+          key={label}
+          style={{
+            flex: 1,
+            borderTopWidth: 3,
+            borderColor: i <= current ? "#008060" : "#DCE5DF",
+            paddingTop: 10,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: "700",
+              color: i === current ? "#008060" : "#64756C",
+            }}
+          >
+            {i + 1}. {tr(label)}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const scanStatusLabel = (status, tr) => {
+  const labels = {
+    review: "Awaiting review",
+    confirmed: "Count saved",
+    reconciled: "Stock updated",
+    processing: "Counting",
+    failed: "Failed",
+  };
+  return labels[status] ? tr(labels[status]) : status;
+};
 const errorText = (e) =>
   e.response?.data?.error || e.message || "Request failed. Please retry.";
 const keyFor = () =>
@@ -29,16 +93,19 @@ export default function InventoryTools({
   menu,
   onClose,
   onChanged,
+  onOpenMenu,
 }) {
-  const [tab, setTab] = useState(initialTab),
-    [preparations, setPreparations] = useState([]),
+  const tr = useLocalizeText();
+  const scroll = useRef(null);
+  const tab = initialTab;
+  const [preparations, setPreparations] = useState([]),
     [loading, setLoading] = useState(true),
     [loadError, setLoadError] = useState("");
   async function load() {
-    setLoading(true);
     setLoadError("");
     try {
-      setPreparations((await API.get("/inventory/preparations")).data);
+      if (["preparations", "bulk"].includes(tab))
+        setPreparations((await API.get("/inventory/preparations")).data);
     } catch (e) {
       setLoadError(errorText(e));
     } finally {
@@ -59,29 +126,28 @@ export default function InventoryTools({
         }}
       >
         <View style={s.row}>
-          <Text style={[s.title, { flex: 1 }]}>Inventory tools</Text>
-          <InvButton secondary onPress={onClose}>
-            Close
-          </InvButton>
-        </View>
-        <View style={s.row}>
-          {[
-            ["scan", "Scan Inventory"],
-            ["preparations", "Preparations"],
-            ["bulk", "Bulk Recipes"],
-            ["history", "Count & Stock History"],
-          ].map(([id, label]) => (
-            <InvButton
-              secondary={tab !== id}
-              key={id}
-              onPress={() => setTab(id)}
-            >
-              {label}
-            </InvButton>
-          ))}
+          <Text style={[s.title, { flex: 1 }]}>
+            {tr(
+              {
+                scan: "Count stock from a photo",
+                preparations: "Gravies & preparations",
+                bulk: "Set up several dishes",
+                history: "Stock history",
+              }[tab],
+            )}
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={tr("Close inventory tool")}
+            onPress={onClose}
+            style={s.iconButton}
+          >
+            <Ionicons name="close" size={24} color="#334155" />
+          </TouchableOpacity>
         </View>
       </View>
       <ScrollView
+        ref={scroll}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={s.content}
       >
@@ -89,12 +155,19 @@ export default function InventoryTools({
           <ActivityIndicator />
         ) : loadError ? (
           <View>
-            <Text style={s.error}>{loadError}</Text>
-            <InvButton onPress={load}>Retry</InvButton>
+            <Text style={s.error}>{tr(loadError)}</Text>
+            <InvButton onPress={load}>{tr("Retry")}</InvButton>
           </View>
         ) : (
           <>
-            {tab === "scan" && <Scanner stock={stock} onChanged={onChanged} />}
+            {tab === "scan" && (
+              <Scanner
+                stock={stock}
+                menu={menu}
+                onChanged={onChanged}
+                onOpenMenu={onOpenMenu}
+              />
+            )}
             {tab === "preparations" && (
               <Preparations
                 stock={stock}
@@ -108,6 +181,9 @@ export default function InventoryTools({
                 preparations={preparations}
                 menu={menu}
                 onChanged={onChanged}
+                onStep={() =>
+                  scroll.current?.scrollTo({ y: 0, animated: false })
+                }
               />
             )}
             {tab === "history" && <History onChanged={onChanged} />}
@@ -117,415 +193,8 @@ export default function InventoryTools({
     </View>
   );
 }
-function Scanner({ stock, onChanged }) {
-  const [target, setTarget] = useState("all"),
-    [photo, setPhoto] = useState(null),
-    [scan, setScan] = useState(null),
-    [rows, setRows] = useState([]);
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [message, setMessage] = useState("");
-  async function choose(camera = false) {
-    setError("");
-    try {
-      let result;
-      if (camera) {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted)
-          throw new Error(
-            "Camera permission is needed. You can upload a photo instead.",
-          );
-        result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ["images"],
-          quality: 0.85,
-        });
-      } else
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ["images"],
-          quality: 0.85,
-        });
-      if (result.canceled) return;
-      const asset = result.assets[0];
-      if (asset.fileSize > 5 * 1024 * 1024)
-        throw new Error("Choose a photo smaller than 5 MB.");
-      setPhoto(asset);
-      setScan(null);
-      setRows([]);
-      setMessage("");
-    } catch (e) {
-      setError(errorText(e));
-    }
-  }
-  async function analyze() {
-    setBusy(true);
-    setError("");
-    try {
-      const data = new FormData();
-      if (Platform.OS === "web") {
-        const blob = photo.file || (await (await fetch(photo.uri)).blob());
-        data.append("image", blob, photo.fileName || "inventory.jpg");
-      } else
-        data.append("image", {
-          uri: photo.uri,
-          name: photo.fileName || "inventory.jpg",
-          type: photo.mimeType || "image/jpeg",
-        });
-      if (target !== "all") data.append("inventory_item_id", String(target));
-      const result = (
-        await API.post("/inventory/scans", data, {
-          timeout: 65000,
-          headers: { "Content-Type": "multipart/form-data" },
-        })
-      ).data;
-      setScan(result);
-      setRows(
-        result.detections.map((d, index) => {
-          const match = stock.find((s) => s.id === d.inventory_item_id);
-          return {
-            ...d,
-            key: index,
-            inventory_item_id: d.inventory_item_id || "",
-            full_bottles: String(d.count),
-            opened_ml: "0",
-            bottle_size_ml: match?.bottle_size
-              ? String(
-                  Number(match.bottle_size) *
-                    (match.unit === "litre" ? 1000 : 1),
-                )
-              : "",
-            include: true,
-          };
-        }),
-      );
-      if (["confirmed", "reconciled"].includes(result.status))
-        setScan((await API.get(`/inventory/scans/${result.id}`)).data);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  function patch(index, change) {
-    setRows(rows.map((r, i) => (i === index ? { ...r, ...change } : r)));
-  }
-  async function confirm() {
-    setBusy(true);
-    setError("");
-    try {
-      const included = rows.filter((r) => r.include);
-      if (!included.length) throw new Error("Include at least one product.");
-      if (included.some((r) => !r.inventory_item_id))
-        throw new Error(
-          "Map every included product to existing stock, or exclude it.",
-        );
-      const counts = included.map((r) => ({
-        inventory_item_id: r.inventory_item_id,
-        full_bottles: r.full_bottles,
-        opened_ml: r.opened_ml,
-        bottle_size_ml: r.bottle_size_ml,
-      }));
-      const result = (
-        await API.post(`/inventory/scans/${scan.id}/confirm`, { counts })
-      ).data;
-      setScan(result);
-      setMessage("Physical count saved. Expected stock is unchanged.");
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <View>
-      <Text style={s.title}>Scan Inventory</Text>
-      <Text style={s.hint}>
-        Photograph visible sealed bottles or packaged products. AI counts can be
-        wrong: check every match and count before confirming. Opened liquid is
-        entered manually.
-      </Text>
-      <InvChoice
-        label="Catalogue to identify"
-        value={target}
-        options={[{ id: "all", name: "All existing stock items" }, ...stock]}
-        onChange={setTarget}
-      />
-      <View style={s.row}>
-        <InvButton secondary onPress={() => choose(false)} disabled={busy}>
-          Upload photograph
-        </InvButton>
-        {Platform.OS !== "web" && (
-          <InvButton secondary onPress={() => choose(true)} disabled={busy}>
-            Open camera
-          </InvButton>
-        )}
-      </View>
-      {Platform.OS === "web" && (
-        <Text style={s.hint}>
-          On a phone, the upload chooser may offer your camera.
-        </Text>
-      )}
-      {photo && (
-        <Image
-          accessibilityLabel="Inventory photograph"
-          source={{ uri: photo.uri }}
-          style={{
-            height: 210,
-            width: "100%",
-            borderRadius: 14,
-            marginVertical: 10,
-            resizeMode: "contain",
-          }}
-        />
-      )}
-      <InvButton disabled={!photo || busy} onPress={analyze}>
-        {busy ? "Working…" : "Analyze photograph"}
-      </InvButton>
-      {scan?.status === "review" && (
-        <View>
-          <Text style={[s.title, { marginTop: 16 }]}>
-            Review detected products
-          </Text>
-          <Text style={s.hint}>
-            Counts must cover the whole stock pool for each included item.
-            Combine duplicate product groups into one row. Exclude uncounted
-            products; they are never treated as zero.
-          </Text>
-          {!rows.length && (
-            <Text style={s.hint}>
-              No recognizable products detected. Take a clearer photograph or
-              add a count below.
-            </Text>
-          )}
-          {rows.map((r, index) => {
-            const item = stock.find(
-              (x) => String(x.id) === String(r.inventory_item_id),
-            );
-            const allowed = stock.filter((x) =>
-              ["ml", "litre", "pcs"].includes(x.unit),
-            );
-            const total =
-              item && r.bottle_size_ml !== ""
-                ? Number(r.full_bottles) * Number(r.bottle_size_ml) +
-                  Number(r.opened_ml)
-                : null;
-            return (
-              <View
-                key={r.key}
-                style={[s.card, !r.include && { opacity: 0.55 }]}
-              >
-                <Text style={s.label}>{r.label}</Text>
-                <Text style={s.hint}>
-                  {Math.round(r.confidence * 100)}% model confidence ·{" "}
-                  {r.confidence < 0.8
-                    ? "Uncertain—map manually"
-                    : "Check product and package size"}
-                  {r.note ? `\n${r.note}` : ""}
-                </Text>
-                <InvButton
-                  secondary
-                  onPress={() => patch(index, { include: !r.include })}
-                >
-                  {r.include
-                    ? "Exclude this detection"
-                    : "Include this detection"}
-                </InvButton>
-                {r.include && (
-                  <>
-                    <InvChoice
-                      label="Match existing stock"
-                      options={allowed}
-                      value={r.inventory_item_id}
-                      onChange={(id) => {
-                        const x = stock.find((s) => s.id === id);
-                        patch(index, {
-                          inventory_item_id: id,
-                          bottle_size_ml: x.bottle_size
-                            ? String(
-                                Number(x.bottle_size) *
-                                  (x.unit === "litre" ? 1000 : 1),
-                              )
-                            : "",
-                          opened_ml: "0",
-                        });
-                      }}
-                    />
-                    <InvField
-                      numeric
-                      label={
-                        item?.unit === "pcs"
-                          ? "Visible pieces / sealed bottles"
-                          : "Full sealed bottles"
-                      }
-                      value={r.full_bottles}
-                      onChangeText={(v) => patch(index, { full_bottles: v })}
-                    />
-                    {["ml", "litre"].includes(item?.unit) && (
-                      <>
-                        <InvField
-                          numeric
-                          label="One full bottle (ml)"
-                          value={r.bottle_size_ml}
-                          onChangeText={(v) =>
-                            patch(index, { bottle_size_ml: v })
-                          }
-                        />
-                        <InvField
-                          numeric
-                          label="Remaining opened stock (ml, manual entry)"
-                          value={r.opened_ml}
-                          onChangeText={(v) => patch(index, { opened_ml: v })}
-                        />
-                        <Text style={s.hint}>
-                          Total: {total ?? "—"} ml
-                          {item.unit === "litre" && total !== null
-                            ? ` = ${total / 1000} litres`
-                            : ""}
-                          . Opened stock is excluded from full-bottle count.
-                        </Text>
-                      </>
-                    )}
-                  </>
-                )}
-              </View>
-            );
-          })}
-          <InvButton
-            secondary
-            onPress={() =>
-              setRows([
-                ...rows,
-                {
-                  key: keyFor(),
-                  label: "Manual product",
-                  confidence: 0,
-                  inventory_item_id: "",
-                  full_bottles: "0",
-                  opened_ml: "0",
-                  bottle_size_ml: "",
-                  include: true,
-                },
-              ])
-            }
-          >
-            Add missing product count
-          </InvButton>
-          <InvButton disabled={busy} onPress={confirm}>
-            Confirm reviewed physical count
-          </InvButton>
-        </View>
-      )}
-      {scan?.counts && (
-        <CountReview scan={scan} onUpdated={setScan} onChanged={onChanged} />
-      )}
-      {!!message && <Text style={s.success}>{message}</Text>}
-      {!!error && (
-        <Text accessibilityRole="alert" style={s.error}>
-          {error}
-        </Text>
-      )}
-    </View>
-  );
-}
-function CountReview({ scan, onUpdated, onChanged }) {
-  const [note, setNote] = useState(""),
-    [reviewing, setReviewing] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function reconcile() {
-    setBusy(true);
-    setError("");
-    try {
-      const result = (
-        await API.post(`/inventory/scans/${scan.id}/reconcile`, { note })
-      ).data;
-      onUpdated(result);
-      setReviewing(false);
-      await onChanged();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <View>
-      <Text style={[s.title, { marginTop: 16 }]}>
-        Physical count · {scan.status}
-      </Text>
-      <Text style={s.hint}>
-        Confirmed{" "}
-        {scan.confirmed_at ? new Date(scan.confirmed_at).toLocaleString() : ""}{" "}
-        by {scan.confirmed_by}
-      </Text>
-      {scan.counts.map((c) => (
-        <View key={c.id} style={s.card}>
-          <Text style={s.label}>{c.name}</Text>
-          <Text style={s.hint}>
-            Expected at scan: {Number(c.expected_stock)} {c.unit}
-            {"\n"}Confirmed physical: {Number(c.physical_stock)} {c.unit}
-            {"\n"}Variance: {Number(c.variance) > 0 ? "+" : ""}
-            {Number(c.variance)} {c.unit}
-            {"\n"}Current expected: {Number(c.current_stock)} {c.unit}
-          </Text>
-          {c.reconciled_at && (
-            <Text style={s.hint}>
-              Reconciled {new Date(c.reconciled_at).toLocaleString()} ·{" "}
-              {c.reconciliation_note}
-            </Text>
-          )}
-        </View>
-      ))}
-      {scan.status === "confirmed" && (
-        <>
-          <Text style={s.hint}>
-            Reconciliation applies the recorded variance to current expected
-            stock, preserving later orders and restocks. Owner permission is
-            required.
-          </Text>
-          <InvField
-            label="Reason for stock adjustment"
-            value={note}
-            onChangeText={(v) => {
-              setNote(v);
-              setReviewing(false);
-            }}
-          />
-          {reviewing ? (
-            <View style={s.card}>
-              <Text style={s.label}>Apply these variances to inventory?</Text>
-              <Text style={s.hint}>
-                This creates permanent adjustment entries. Reason: {note}
-              </Text>
-              <InvButton disabled={busy} onPress={reconcile}>
-                {busy ? "Applying…" : "Confirm stock adjustment"}
-              </InvButton>
-              <InvButton
-                secondary
-                disabled={busy}
-                onPress={() => setReviewing(false)}
-              >
-                Keep count without adjustment
-              </InvButton>
-            </View>
-          ) : (
-            <InvButton
-              disabled={!note.trim()}
-              onPress={() => setReviewing(true)}
-            >
-              Review reconciliation
-            </InvButton>
-          )}
-        </>
-      )}
-      {!!error && (
-        <Text accessibilityRole="alert" style={s.error}>
-          {error}
-        </Text>
-      )}
-    </View>
-  );
-}
 function Preparations({ stock, preparations, onChanged }) {
+  const tr = useLocalizeText();
   const [draft, setDraft] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -587,28 +256,31 @@ function Preparations({ stock, preparations, onChanged }) {
   }
   return (
     <View>
-      <Text style={s.title}>Shared preparations</Text>
       <Text style={s.hint}>
-        Define each gravy, paste or marinade once. Servon calculates raw
-        ingredient use when a dish is sold. These definitions do not maintain
-        separate prepared stock or deduct a batch in advance. Use separate names
-        for vegetarian and non-vegetarian preparations when needed.
+        {tr(
+          "Save a gravy, paste or marinade once, then use it in any dish. Ingredients are deducted when the dish is ordered.",
+        )}
       </Text>
       {!draft ? (
         <>
-          <InvButton onPress={() => edit()}>Create preparation</InvButton>
+          <InvButton icon="add-circle-outline" onPress={() => edit()}>
+            {tr("Add gravy or preparation")}
+          </InvButton>
           {!preparations.length && (
-            <Text style={s.hint}>No shared preparations yet.</Text>
+            <Text style={s.hint}>{tr("No shared preparations yet.")}</Text>
           )}
           {preparations.map((p) => (
             <View key={p.id} style={s.card}>
               <Text style={s.label}>{p.name}</Text>
               <Text style={s.hint}>
-                {Number(p.yield_quantity)} {p.yield_unit} per batch ·{" "}
-                {Number(p.wastage_percent)}% wastage · version {p.version}
+                {tr("{quantity} {unit} per batch · {count} ingredients", {
+                  quantity: Number(p.yield_quantity),
+                  unit: p.yield_unit,
+                  count: p.ingredients.length,
+                })}
               </Text>
               <InvButton secondary onPress={() => edit(p)}>
-                Edit recipe
+                {tr("Edit recipe")}
               </InvButton>
             </View>
           ))}
@@ -616,56 +288,66 @@ function Preparations({ stock, preparations, onChanged }) {
       ) : (
         <View style={s.card}>
           <InvField
-            label="Preparation name"
+            label={tr("Preparation name")}
             value={draft.name}
             onChangeText={(v) => setDraft({ ...draft, name: v })}
           />
           <InvField
             numeric
-            label="Expected batch yield before wastage"
+            label={tr("How much does one batch make?")}
             value={draft.yield_quantity}
             onChangeText={(v) => setDraft({ ...draft, yield_quantity: v })}
           />
-          <Text style={s.label}>Yield unit</Text>
-          <View style={s.row}>
-            {["kg", "gm", "litre", "ml", "pcs"].map((u) => (
-              <InvButton
-                disabled={!!draft.id && draft.yield_unit !== u}
-                key={u}
-                secondary={draft.yield_unit !== u}
-                onPress={() => setDraft({ ...draft, yield_unit: u })}
-              >
-                {u}
-              </InvButton>
-            ))}
-          </View>
-          <InvField
-            numeric
-            label="Optional yield loss (%)"
-            value={draft.wastage_percent}
-            onChangeText={(v) => setDraft({ ...draft, wastage_percent: v })}
+          <InvChoice
+            label={tr("Batch unit")}
+            disabled={!!draft.id}
+            value={draft.yield_unit}
+            options={[
+              { id: "kg", name: tr("Kilograms (kg)") },
+              { id: "gm", name: tr("Grams (g)") },
+              { id: "litre", name: tr("Litres (L)") },
+              { id: "ml", name: tr("Millilitres (ml)") },
+              { id: "pcs", name: tr("Pieces") },
+            ]}
+            onChange={(yield_unit) => setDraft({ ...draft, yield_unit })}
           />
+          <Details
+            title={`${tr("Batch loss (optional)")}${Number(draft.wastage_percent) ? ` · ${draft.wastage_percent}%` : ""}`}
+          >
+            <InvField
+              numeric
+              label={tr("Optional yield loss (%)")}
+              value={draft.wastage_percent}
+              onChangeText={(v) => setDraft({ ...draft, wastage_percent: v })}
+            />
+            <Text style={s.hint}>
+              {tr(
+                "Use 0 if your batch amount already allows for waste. Nothing is deducted while setting up this recipe.",
+              )}
+            </Text>
+          </Details>
           <Text style={s.hint}>
-            Usable yield:{" "}
+            {tr("Usable yield:")}{" "}
             {(
               Number(draft.yield_quantity) *
               (1 - Number(draft.wastage_percent) / 100)
             ).toFixed(3)}{" "}
-            {draft.yield_unit}. Ingredient quantities below describe one full
-            batch.
+            {draft.yield_unit}
+            {tr(". Ingredient quantities below describe one full batch.")}
           </Text>
           <IngredientEditor
             stock={stock}
             preparations={preparations}
             excludePreparation={draft.id}
+            context="batch"
             value={draft.ingredients}
             onChange={(ingredients) => setDraft({ ...draft, ingredients })}
           />
           <InvButton disabled={busy} onPress={save}>
-            {busy ? "Saving…" : "Save preparation"}
+            {busy ? tr("Saving…") : tr("Save preparation")}
           </InvButton>
           <InvButton secondary disabled={busy} onPress={() => setDraft(null)}>
-            Cancel
+            {tr("Cancel")}
           </InvButton>
           {draft.id && (
             <InvButton
@@ -673,21 +355,29 @@ function Preparations({ stock, preparations, onChanged }) {
               disabled={busy}
               onPress={() => (archive ? archivePrep() : setArchive(true))}
             >
-              {archive ? "Confirm archive preparation" : "Archive preparation"}
+              {archive
+                ? tr("Confirm archive preparation")
+                : tr("Archive preparation")}
             </InvButton>
           )}
         </View>
       )}
-      {!!message && <Text style={s.success}>{message}</Text>}
+      {!!message && <Text style={s.success}>{tr(message)}</Text>}
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
-          {error}
+          {tr(error)}
         </Text>
       )}
     </View>
   );
 }
-function BulkRecipes({ stock, preparations, menu, onChanged }) {
+function BulkRecipes({ stock, preparations, menu, onChanged, onStep }) {
+  const tr = useLocalizeText();
+  const [step, setStep] = useState(0);
+  const [messageValues, setMessageValues] = useState({});
+  useEffect(() => {
+    onStep();
+  }, [step]);
   const [search, setSearch] = useState(""),
     [category, setCategory] = useState("all"),
     [filter, setFilter] = useState("all"),
@@ -737,9 +427,9 @@ function BulkRecipes({ stock, preparations, menu, onChanged }) {
     rows
       .map(
         (row) =>
-          `${ingredientName(row) || "ingredient"}: ${Number(row.quantity_required)} ${row.unit || (row.preparation_id ? preparations.find((p) => p.id === row.preparation_id)?.yield_unit : stock.find((s) => s.id === row.inventory_item_id)?.unit)}`,
+          `${ingredientName(row) || tr("Ingredient")}: ${Number(row.quantity_required)} ${row.unit || (row.preparation_id ? preparations.find((p) => p.id === row.preparation_id)?.yield_unit : stock.find((s) => s.id === row.inventory_item_id)?.unit)}`,
       )
-      .join("\n") || "No ingredients";
+      .join("\n") || tr("No ingredients");
   async function submit(isPreview) {
     setBusy(true);
     setError("");
@@ -754,12 +444,16 @@ function BulkRecipes({ stock, preparations, menu, onChanged }) {
           preview_token: isPreview ? undefined : preview?.preview_token,
         })
       ).data;
-      if (isPreview) setPreview(result);
-      else {
+      if (isPreview) {
+        setPreview(result);
+        setStep(2);
+      } else {
         setPreview(null);
         setSelected([]);
+        setStep(0);
         setOverrides({});
-        setMessage(`${result.results.length} dish recipes saved successfully.`);
+        setMessage("{count} dish recipes saved successfully.");
+        setMessageValues({ count: result.results.length });
         await onChanged();
       }
     } catch (e) {
@@ -769,224 +463,373 @@ function BulkRecipes({ stock, preparations, menu, onChanged }) {
       setBusy(false);
     }
   }
+  const quantitiesValid = changes.every((change) =>
+    change.ingredients.every(
+      (row) =>
+        Number.isFinite(Number(row.quantity_required)) &&
+        Number(row.quantity_required) > 0,
+    ),
+  );
   return (
     <View>
-      <Text style={s.title}>Bulk recipe setup</Text>
-      <Text style={s.hint}>
-        Select dishes, add common ingredients, then edit quantities per dish.
-        Defaults are suggestions; verify each recipe.
-      </Text>
-      <InvField
-        label="Search dishes"
-        value={search}
-        onChangeText={(v) => {
-          setSearch(v);
-          setPage(0);
-        }}
+      <Steps
+        labels={["Choose dishes", "Ingredients", "Check & save"]}
+        current={step}
       />
-      <InvChoice
-        label="Menu category"
-        value={category}
-        options={[
-          { id: "all", name: "All categories" },
-          ...[...new Set(menu.map((m) => m.category).filter(Boolean))].map(
-            (c) => ({ id: c, name: c }),
-          ),
-        ]}
-        onChange={(v) => {
-          setCategory(v);
-          setPage(0);
-        }}
-      />
-      <View style={s.row}>
-        {[
-          ["all", "All recipes"],
-          ["configured", "Configured"],
-          ["missing", "Unconfigured"],
-        ].map(([id, label]) => (
-          <InvButton
-            key={id}
-            secondary={filter !== id}
-            onPress={() => {
-              setFilter(id);
+      {step === 0 && (
+        <>
+          <Text style={s.title}>
+            {tr("Which dishes use the same ingredients?")}
+          </Text>
+          <Text style={s.hint}>
+            {tr("Choose dishes, then add their common ingredients once.")}
+          </Text>
+          <InvField
+            label={tr("Search dishes")}
+            placeholder={tr("Search by dish name...")}
+            value={search}
+            onChangeText={(v) => {
+              setSearch(v);
               setPage(0);
             }}
+          />
+          <Details
+            title={tr(
+              category !== "all" || filter !== "all"
+                ? "Filter dishes (active)"
+                : "Filter dishes",
+            )}
           >
-            {label}
-          </InvButton>
-        ))}
-      </View>
-      <View style={s.row}>
-        <InvButton
-          secondary
-          disabled={busy || filtered.length > 250}
-          onPress={() => {
-            setSelected(filtered.map((m) => m.id));
-            changed();
-          }}
-        >
-          Select all {filtered.length} filtered dishes
-        </InvButton>
-        <InvButton
-          secondary
-          disabled={busy}
-          onPress={() => {
-            setSelected([]);
-            changed();
-          }}
-        >
-          Clear selection
-        </InvButton>
-      </View>
-      {filtered.length > 250 && (
-        <Text style={s.hint}>
-          Narrow your search to 250 dishes or fewer to select all.
-        </Text>
-      )}
-      <Text style={s.hint}>{selected.length} dishes selected</Text>
-      {displayed.map((m) => (
-        <InvButton
-          disabled={busy}
-          key={m.id}
-          secondary={!selected.includes(m.id)}
-          onPress={() => {
-            setSelected(
-              selected.includes(m.id)
-                ? selected.filter((id) => id !== m.id)
-                : [...selected, m.id],
-            );
-            changed();
-          }}
-        >
-          {selected.includes(m.id) ? "✓ " : ""}
-          {m.name} ·{" "}
-          {m.ingredient_count
-            ? `${m.ingredient_count} ingredients configured`
-            : "Recipe unconfigured"}
-        </InvButton>
-      ))}
-      <View style={s.row}>
-        <InvButton
-          secondary
-          disabled={page === 0}
-          onPress={() => setPage(page - 1)}
-        >
-          Previous
-        </InvButton>
-        <Text>
-          {page + 1} / {Math.max(1, Math.ceil(filtered.length / 30))}
-        </Text>
-        <InvButton
-          secondary
-          disabled={(page + 1) * 30 >= filtered.length}
-          onPress={() => setPage(page + 1)}
-        >
-          Next
-        </InvButton>
-      </View>
-      <Text style={[s.title, { marginTop: 22 }]}>Common ingredients</Text>
-      <IngredientEditor
-        stock={stock}
-        preparations={preparations}
-        value={ingredients}
-        onChange={(v) => {
-          setIngredients(v);
-          setOverrides({});
-          changed();
-        }}
-      />
-      <View style={s.row}>
-        <InvButton
-          secondary={mode !== "merge"}
-          onPress={() => {
-            setMode("merge");
-            changed();
-          }}
-        >
-          Add / update selected ingredients
-        </InvButton>
-        <InvButton
-          secondary={mode !== "replace"}
-          onPress={() => {
-            setMode("replace");
-            changed();
-          }}
-        >
-          Replace entire recipes
-        </InvButton>
-      </View>
-      <Text style={mode === "replace" ? s.error : s.hint}>
-        {mode === "replace"
-          ? "Replacement removes every unrelated ingredient from the selected recipes. Review the before and after lists carefully."
-          : "Adding preserves unrelated ingredients and updates matching ingredient quantities."}
-      </Text>
-      {selected.length > 0 && ingredients.length > 0 && (
-        <>
-          <Text style={[s.title, { marginTop: 18 }]}>Per-dish quantities</Text>
-          {selected.map((id) => (
-            <View key={id} style={s.card}>
-              <Text style={s.label}>{menu.find((m) => m.id === id)?.name}</Text>
-              {ingredients.map((row) => (
-                <InvField
-                  key={ingredientKey(row)}
-                  numeric
-                  label={`${ingredientName(row)} (${row.unit})`}
-                  value={
-                    overrides[`${id}/${ingredientKey(row)}`] ??
-                    row.quantity_required
-                  }
-                  onChangeText={(v) => {
-                    setOverrides({
-                      ...overrides,
-                      [`${id}/${ingredientKey(row)}`]: v,
-                    });
+            <InvChoice
+              label={tr("Category")}
+              value={category}
+              options={[
+                { id: "all", name: tr("All categories") },
+                ...[
+                  ...new Set(menu.map((m) => m.category).filter(Boolean)),
+                ].map((c) => ({ id: c, name: tr(c) })),
+              ]}
+              onChange={(v) => {
+                setCategory(v);
+                setPage(0);
+              }}
+            />
+            <InvChoice
+              label={tr("Recipe status")}
+              value={filter}
+              options={[
+                { id: "all", name: tr("All dishes") },
+                { id: "configured", name: tr("With ingredients") },
+                { id: "missing", name: tr("Without ingredients") },
+              ]}
+              onChange={(v) => {
+                setFilter(v);
+                setPage(0);
+              }}
+            />
+          </Details>
+          <View style={[s.row, { justifyContent: "space-between" }]}>
+            <Text style={s.label}>
+              {tr("{count} selected", { count: selected.length })}
+            </Text>
+            <View style={s.row}>
+              <InvButton
+                secondary
+                disabled={busy || !filtered.length}
+                onPress={() => {
+                  setSelected(filtered.slice(0, 250).map((m) => m.id));
+                  changed();
+                }}
+              >
+                {filtered.length > 250
+                  ? tr("Select first 250")
+                  : tr("Select all")}
+              </InvButton>
+              {!!selected.length && (
+                <InvButton
+                  secondary
+                  disabled={busy}
+                  onPress={() => {
+                    setSelected([]);
                     changed();
                   }}
-                />
-              ))}
+                >
+                  {tr("Clear")}
+                </InvButton>
+              )}
             </View>
-          ))}
+          </View>
+          {filtered.length > 250 && (
+            <Text style={s.smallHint}>
+              {tr(
+                "Up to 250 dishes at a time. Search or filter to narrow the list.",
+              )}
+            </Text>
+          )}
+          <ScrollView
+            style={{ maxHeight: 380 }}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+          >
+            {displayed.map((m) => {
+              const checked = selected.includes(m.id);
+              return (
+                <TouchableOpacity
+                  key={m.id}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={m.name}
+                  accessibilityState={{
+                    checked,
+                    disabled: !checked && selected.length >= 250,
+                  }}
+                  disabled={busy || (!checked && selected.length >= 250)}
+                  onPress={() => {
+                    setSelected(
+                      checked
+                        ? selected.filter((id) => id !== m.id)
+                        : [...selected, m.id],
+                    );
+                    changed();
+                  }}
+                  style={[
+                    s.catalogueRow,
+                    {
+                      paddingHorizontal: 12,
+                      backgroundColor: checked ? "#EAF5EF" : "#fff",
+                      borderRadius: 10,
+                      marginTop: 6,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={checked ? "checkbox" : "square-outline"}
+                    size={24}
+                    color={checked ? "#008060" : "#94A89B"}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.label}>{m.name}</Text>
+                    <Text style={s.smallHint}>
+                      {m.category ? tr(m.category) : tr("Dish")}
+                      {m.size_ml ? ` - ${m.size_ml} ml` : ""}{" "}
+                      {m.ingredient_count
+                        ? ` / ${tr("{count} ingredients", { count: m.ingredient_count })}`
+                        : ` / ${tr("Not set up yet")}`}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {!filtered.length && (
+            <Text style={s.hint}>{tr("No dishes match your search.")}</Text>
+          )}
+          {filtered.length > 30 && (
+            <View
+              style={[
+                s.row,
+                { justifyContent: "space-between", marginTop: 12 },
+              ]}
+            >
+              <InvButton
+                secondary
+                disabled={page === 0}
+                onPress={() => setPage(page - 1)}
+              >
+                {tr("Previous")}
+              </InvButton>
+              <Text style={s.hint}>
+                {page + 1} / {Math.ceil(filtered.length / 30)}
+              </Text>
+              <InvButton
+                secondary
+                disabled={(page + 1) * 30 >= filtered.length}
+                onPress={() => setPage(page + 1)}
+              >
+                {tr("Next")}
+              </InvButton>
+            </View>
+          )}
+          <InvButton
+            disabled={!selected.length}
+            onPress={() => {
+              setStep(1);
+              setError("");
+            }}
+          >
+            {tr("Next: add ingredients ({count} dishes)", {
+              count: selected.length,
+            })}
+          </InvButton>
         </>
       )}
-      <InvButton
-        disabled={busy || !selected.length || !ingredients.length}
-        onPress={() => submit(true)}
-      >
-        {busy ? "Working…" : "Preview all recipe changes"}
-      </InvButton>
-      {preview && (
-        <View>
-          <Text style={s.title}>Review {preview.results.length} changes</Text>
-          {preview.results.map((r) => (
-            <View style={s.card} key={r.menu_item_id}>
-              <Text style={s.label}>
-                {menu.find((m) => m.id === r.menu_item_id)?.name}
-              </Text>
-              <Text style={s.hint}>
-                Before{"\n"}
-                {recipeDescription(r.before)}
-                {"\n\n"}After{"\n"}
-                {recipeDescription(r.after)}
-              </Text>
-            </View>
-          ))}
-          <InvButton disabled={busy} onPress={() => submit(false)}>
-            {mode === "replace"
-              ? "Confirm replacement of selected recipes"
-              : "Confirm and apply all changes"}
+      {step === 1 && (
+        <>
+          <Text style={s.title}>
+            {tr("Ingredients for {count} dishes", { count: selected.length })}
+          </Text>
+          <Text style={s.hint}>
+            {tr(
+              "Enter the amount for one serving. You can change it for each dish next.",
+            )}
+          </Text>
+          <IngredientEditor
+            stock={stock}
+            preparations={preparations}
+            value={ingredients}
+            onChange={(v) => {
+              setIngredients(v);
+              setOverrides({});
+              changed();
+            }}
+          />
+          <Details
+            title={
+              mode === "replace"
+                ? tr("Replace existing recipes (selected)")
+                : tr("Existing recipes: keep other ingredients")
+            }
+          >
+            <InvChoice
+              label={tr("When saving")}
+              value={mode}
+              onChange={(v) => {
+                setMode(v);
+                changed();
+              }}
+              options={[
+                { id: "merge", name: tr("Keep other ingredients") },
+                { id: "replace", name: tr("Replace entire recipes") },
+              ]}
+            />
+            <Text style={mode === "replace" ? s.error : s.hint}>
+              {mode === "replace"
+                ? tr(
+                    "This removes all other ingredients from these dishes. Check the changes before saving.",
+                  )
+                : tr(
+                    "Only these ingredients are added or updated. Other ingredients stay as they are.",
+                  )}
+            </Text>
+          </Details>
+          <InvButton
+            disabled={busy || !ingredients.length || !quantitiesValid}
+            onPress={() => submit(true)}
+          >
+            {busy ? tr("Preparing changes...") : tr("Next: check quantities")}
           </InvButton>
-        </View>
+          <InvButton secondary disabled={busy} onPress={() => setStep(0)}>
+            {tr("Back to dishes")}
+          </InvButton>
+        </>
       )}
-      {!!message && <Text style={s.success}>{message}</Text>}
+      {step === 2 && (
+        <>
+          <Text style={s.title}>{tr("Check quantities, then save")}</Text>
+          <Text style={s.hint}>
+            {tr(
+              "Amounts are per serving. Tap an amount to change it for that dish.",
+            )}
+          </Text>
+          {mode === "replace" && (
+            <Text style={s.error}>
+              {tr(
+                "Replacing entire recipes. Other ingredients will be removed.",
+              )}
+            </Text>
+          )}
+          {selected.map((id) => {
+            const result = preview?.results.find((r) => r.menu_item_id === id);
+            return (
+              <View key={id} style={s.card}>
+                <Text style={[s.label, { fontSize: 17 }]}>
+                  {menu.find((m) => m.id === id)?.name}
+                </Text>
+                {ingredients.map((row) => (
+                  <View
+                    key={ingredientKey(row)}
+                    style={[s.row, { marginVertical: 6, flexWrap: "nowrap" }]}
+                  >
+                    <Text style={[s.choiceText, { flex: 1 }]}>
+                      {ingredientName(row)}
+                    </Text>
+                    <TextInput
+                      accessibilityLabel={`${menu.find((m) => m.id === id)?.name}: ${ingredientName(row)}`}
+                      style={[s.input, { width: 92 }]}
+                      keyboardType="decimal-pad"
+                      value={String(
+                        overrides[`${id}/${ingredientKey(row)}`] ??
+                          row.quantity_required,
+                      )}
+                      onChangeText={(v) => {
+                        setOverrides({
+                          ...overrides,
+                          [`${id}/${ingredientKey(row)}`]: v,
+                        });
+                        changed();
+                      }}
+                    />
+                    <Text style={[s.smallHint, { width: 30 }]}>
+                      {row.unit === "gm"
+                        ? "g"
+                        : row.unit === "litre"
+                          ? "L"
+                          : row.unit}
+                    </Text>
+                  </View>
+                ))}
+                {result && (
+                  <Details title={tr("See recipe changes")}>
+                    <Text style={s.hint}>
+                      {tr("Before")}
+                      {"\n"}
+                      {recipeDescription(result.before)}
+                      {"\n\n"}
+                      {tr("After")}
+                      {"\n"}
+                      {recipeDescription(result.after)}
+                    </Text>
+                  </Details>
+                )}
+              </View>
+            );
+          })}
+          {!preview && (
+            <Text style={s.hint}>
+              {tr(
+                "Quantities changed. Review the updated recipes before saving.",
+              )}
+            </Text>
+          )}
+          <InvButton
+            disabled={busy || !quantitiesValid}
+            onPress={() => submit(!preview)}
+          >
+            {busy
+              ? tr("Working...")
+              : preview
+                ? tr("Save {count} dish recipes", { count: selected.length })
+                : tr("Review updated recipes")}
+          </InvButton>
+          <InvButton secondary disabled={busy} onPress={() => setStep(1)}>
+            {tr("Back to ingredients")}
+          </InvButton>
+        </>
+      )}
+      {!!message && (
+        <Text accessibilityRole="alert" style={s.success}>
+          {tr(message, messageValues)}
+        </Text>
+      )}
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
-          {error}
+          {tr(error)}
         </Text>
       )}
     </View>
   );
 }
 function History({ onChanged }) {
+  const tr = useLocalizeText();
   const [scans, setScans] = useState([]),
     [logs, setLogs] = useState([]),
     [detail, setDetail] = useState(null),
@@ -1026,15 +869,15 @@ function History({ onChanged }) {
   }
   return (
     <View>
-      <Text style={s.title}>Count & stock history</Text>
+      <Text style={s.title}>{tr("Count & stock history")}</Text>
       <InvButton secondary disabled={busy} onPress={() => load(offset)}>
-        Refresh history
+        {tr("Refresh history")}
       </InvButton>
       {busy && <ActivityIndicator />}
       {detail ? (
         <>
           <InvButton secondary onPress={() => setDetail(null)}>
-            Back to history
+            {tr("Back to history")}
           </InvButton>
           {detail.counts.length ? (
             <CountReview
@@ -1047,38 +890,49 @@ function History({ onChanged }) {
             />
           ) : (
             <Text style={s.hint}>
-              Status: {detail.status}.{" "}
-              {detail.error ||
-                "This scan has not been confirmed. Re-upload the same photo to resume review."}
+              {tr("Status:")} {scanStatusLabel(detail.status, tr)}.{" "}
+              {tr(
+                detail.error ||
+                  "This scan has not been confirmed. Re-upload the same photo to resume review.",
+              )}
             </Text>
           )}
         </>
       ) : (
         <>
-          <Text style={s.label}>Recent scans</Text>
-          {!scans.length && <Text style={s.hint}>No scans recorded.</Text>}
+          <Text style={s.label}>{tr("Recent scans")}</Text>
+          {!scans.length && (
+            <Text style={s.hint}>{tr("No scans recorded.")}</Text>
+          )}
           {scans.map((scan) => (
             <InvButton secondary key={scan.id} onPress={() => open(scan.id)}>
-              {new Date(scan.created_at).toLocaleString()} · {scan.status} ·{" "}
-              {scan.detections.length} product groups
+              {new Date(scan.created_at).toLocaleString()} ·{" "}
+              {scanStatusLabel(scan.status, tr)} ·{" "}
+              {tr("{count} product groups", { count: scan.detections.length })}
             </InvButton>
           ))}
-          <Text style={[s.label, { marginTop: 22 }]}>Inventory movements</Text>
+          <Text style={[s.label, { marginTop: 22 }]}>
+            {tr("Inventory movements")}
+          </Text>
           {!logs.length && (
-            <Text style={s.hint}>No movements on this page.</Text>
+            <Text style={s.hint}>{tr("No movements on this page.")}</Text>
           )}
           {logs.map((log) => (
             <View key={log.id} style={s.card}>
               <Text style={s.label}>
-                {log.name || "Stock item"} ·{" "}
+                {log.name || tr("Stock item")} ·{" "}
                 {Number(log.change_amount) > 0 ? "+" : ""}
                 {Number(log.change_amount)} {log.unit}
               </Text>
               <Text style={s.hint}>
-                {log.reason} · {new Date(log.created_at).toLocaleString()}
-                {log.order_id ? `\nOrder: ${log.order_id}` : ""}
-                {log.menu_item_id ? `\nMenu item: ${log.menu_item_id}` : ""}
-                {log.actor ? `\nBy: ${log.actor}` : ""}
+                {tr(log.reason)} · {new Date(log.created_at).toLocaleString()}
+                {log.order_id
+                  ? `\n${tr("Order: {id}", { id: log.order_id })}`
+                  : ""}
+                {log.menu_item_id
+                  ? `\n${tr("Menu item: {id}", { id: log.menu_item_id })}`
+                  : ""}
+                {log.actor ? `\n${tr("By: {name}", { name: log.actor })}` : ""}
                 {log.note ? `\n${log.note}` : ""}
               </Text>
             </View>
@@ -1089,21 +943,21 @@ function History({ onChanged }) {
               disabled={busy || !offset}
               onPress={() => load(offset - 50)}
             >
-              Previous movements
+              {tr("Previous movements")}
             </InvButton>
             <InvButton
               secondary
               disabled={busy || logs.length < 50}
               onPress={() => load(offset + 50)}
             >
-              Next movements
+              {tr("Next movements")}
             </InvButton>
           </View>
         </>
       )}
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
-          {error}
+          {tr(error)}
         </Text>
       )}
     </View>

@@ -11,10 +11,15 @@ node_modules/
 # --- Secrets & Environment Variables ---
 # DO NOT remove these; these files contain your DB passwords and JWT keys
 .env
+.env.*
+*.env
+*.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
+/backend/backups/
 
 # --- Backend Specific ---
 /backend/dist

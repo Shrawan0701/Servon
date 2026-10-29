@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { API_BASE_URL } from '../../config/api';
 // You need to go up 3 levels to reach the root assets folder: 
 // web -> screens -> src -> root/assets
 import servonLogo from '../../../assets/servon-logo.png';
@@ -761,7 +762,6 @@ export default function LandingPage({ onNavigate, openDemo, setOpenDemoOnLanding
   // ─── FORM STATE ──────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
     phone: '',
     businessName: '',
     businessType: '',
@@ -774,7 +774,7 @@ export default function LandingPage({ onNavigate, openDemo, setOpenDemoOnLanding
   // ─────────────────────────────────────────────────────────────────────
 
   // ─── API URL ──────────────────────────────────────────────────────────
-  const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+  const API_URL = API_BASE_URL;
 
   // TEMP: backend route /api/demo-request doesn't exist yet.
   // Flip this to false once it's built, to re-enable the real fetch call below.
@@ -790,22 +790,15 @@ export default function LandingPage({ onNavigate, openDemo, setOpenDemoOnLanding
       isValid = false;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!formData.email.trim()) {
-      errors.email = 'Email is required';
-      isValid = false;
-    } else if (!emailRegex.test(formData.email.trim())) {
-      errors.email = 'Please enter a valid email address';
+    const phone = formData.phone.trim();
+    const digits = phone.replace(/\D/g, '');
+    if (!/^\+?[\d\s().-]+$/.test(phone) || digits.length < 10 || digits.length > 15) {
+      errors.phone = 'Please enter a valid phone number';
       isValid = false;
     }
 
     if (!formData.businessName.trim() || formData.businessName.trim().length < 2) {
       errors.businessName = 'Business name is required (min 2 characters)';
-      isValid = false;
-    }
-
-    if (!formData.businessType) {
-      errors.businessType = 'Please select a business type';
       isValid = false;
     }
 
@@ -825,16 +818,7 @@ useEffect(() => {
 
   // ─── SUBMIT HANDLER ──────────────────────────────────────────────────
  const handleSubmit = async () => {
-  // 1. Basic UI Validation
-  if (!formData.name || !formData.email || !formData.businessName || !formData.businessType) {
-    setFormErrors({
-      name: !formData.name ? 'Name is required' : '',
-      email: !formData.email ? 'Email is required' : '',
-      businessName: !formData.businessName ? 'Business name is required' : '',
-      businessType: !formData.businessType ? 'Please select a business type' : '',
-    });
-    return;
-  }
+  if (isSubmitting || !validateForm()) return;
 
   setIsSubmitting(true);
   setSubmitError('');
@@ -859,10 +843,9 @@ useEffect(() => {
         
         // Form Data Fields
         name: formData.name,
-        email: formData.email,
-        phone: formData.phone || 'Not Provided',
+        phone: formData.phone.trim(),
         businessName: formData.businessName,
-        businessType: formData.businessType,
+        businessType: formData.businessType || 'Not provided',
         message: formData.message || 'No additional message',
       }),
     });
@@ -872,7 +855,7 @@ useEffect(() => {
     if (result.success) {
       setSubmitSuccess(true);
       // Reset form on success
-      setFormData({ name: '', email: '', phone: '', businessName: '', businessType: '', message: '' });
+      setFormData({ name: '', phone: '', businessName: '', businessType: '', message: '' });
     } else {
       throw new Error(result.message || 'Failed to send request.');
     }
@@ -980,22 +963,7 @@ useEffect(() => {
     });
     document.head.appendChild(schemaScript);
 
-    // 5. Favicon Injection (PNG & ICO Shortcuts)
-    const favicon = document.createElement('link');
-    favicon.rel = 'icon';
-    favicon.type = 'image/png';
-    favicon.href = 'https://www.servon.cloud/favicon.png';
-    document.head.appendChild(favicon);
-
-    const faviconIco = document.createElement('link');
-    faviconIco.rel = 'shortcut icon';
-    faviconIco.href = 'https://www.servon.cloud/favicon.ico';
-    document.head.appendChild(faviconIco);
-
-    const appleIcon = document.createElement('link');
-    appleIcon.rel = 'apple-touch-icon';
-    appleIcon.href = 'https://www.servon.cloud/favicon.png';
-    document.head.appendChild(appleIcon);
+    // Favicon links are managed app-wide in App.js for every route.
 
     // 6. "Book a Demo" Modal Scrollbar
     if (!document.getElementById('servon-demo-modal-scrollbar-style')) {
@@ -1278,7 +1246,7 @@ useEffect(() => {
       {[
         { id: 'monthly', label: 'Monthly' },
         { id: 'quarterly', label: 'Quarterly', tag: 'Save 17%' },
-        { id: 'yearly', label: 'Yearly', tag: 'Save 50%' },
+        { id: 'yearly', label: 'Yearly', tag: 'Save 25%' },
       ].map((opt) => (
         <TouchableOpacity
           key={opt.id}
@@ -1304,7 +1272,7 @@ useEffect(() => {
     const PLAN_BY_CYCLE = {
       monthly:   { price: "₹999",   period: "/month",   note: "Standard monthly billing" },
       quarterly: { price: "₹2,500", period: "/3 months", note: "Save ~₹500 (17% off)" },
-      yearly:    { price: "₹6,000", period: "/year",    note: "Save ~₹6,000 (50% off)" },
+      yearly:    { price: "₹8,999", period: "/year",    note: "Save ₹2,989 (25% off)" },
     };
     const plan = PLAN_BY_CYCLE[billingCycle];
     return (
@@ -1376,7 +1344,7 @@ useEffect(() => {
 
           <View style={s.trialSubBadge}>
             <Ionicons name="shield-checkmark-outline" size={13} color="#10B981" />
-            <Text style={s.trialSubText}>3-day free trial · No credit card required</Text>
+            <Text style={s.trialSubText}>Contact our team for a product walkthrough</Text>
           </View>
 
           {/* Bottom tear line */}
@@ -1655,15 +1623,14 @@ useEffect(() => {
                 styles={s}
               />
 
-              {/* Email */}
-             
-
               {/* Phone */}
               <Field
                 label="Phone Number"
-                placeholder=""
+                required
+                placeholder="Your contact number"
                 keyboardType="phone-pad"
                 value={formData.phone}
+                error={formErrors.phone}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
                 styles={s}
               />
@@ -1682,7 +1649,7 @@ useEffect(() => {
               {/* Business Type */}
               <View style={s.formGroup}>
                 <Text style={s.formLabel}>
-                  Business Type<Text style={s.requiredStar}> *</Text>
+                  Business Type (optional)
                 </Text>
                 <View style={s.pillRow}>
                   {BUSINESS_TYPES.map((type) => (

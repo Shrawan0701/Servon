@@ -4,6 +4,8 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 const owner = require("../middleware/inventoryOwner");
 const { transaction } = require("../services/inventoryTransaction");
+const { archiveStockItem } = require("../services/inventoryArchive");
+const { linkStockToMenu } = require("../services/inventoryMenuLinks");
 const {
   fail,
   number,
@@ -74,7 +76,9 @@ router.get(
     res.json(
       (
         await pool.query(
-          "SELECT *, (current_stock<=low_stock_threshold) AS is_low FROM inventory_items WHERE business_id=$1 AND NOT archived ORDER BY name",
+          `SELECT i.*, (current_stock<=low_stock_threshold) AS is_low,
+            (SELECT COUNT(DISTINCT menu_item_id)::int FROM menu_item_ingredients m WHERE m.business_id=i.business_id AND m.inventory_item_id=i.id) AS menu_link_count
+           FROM inventory_items i WHERE business_id=$1 AND NOT archived ORDER BY name`,
           [req.businessId],
         )
       ).rows,
@@ -156,6 +160,7 @@ router.get(
       (
         await pool.query(
           `SELECT m.id,m.name,m.category,m.menu_type,m.liquor_brand_code,m.size_ml,
+  ARRAY(SELECT i.inventory_item_id FROM menu_item_ingredients i WHERE i.menu_item_id=m.id AND i.business_id=m.business_id) AS inventory_item_ids,
   ((SELECT COUNT(*) FROM menu_item_ingredients i WHERE i.menu_item_id=m.id AND i.business_id=m.business_id)+
    (SELECT COUNT(*) FROM menu_item_preparations p WHERE p.menu_item_id=m.id AND p.business_id=m.business_id))::int AS ingredient_count
   FROM menu_items m WHERE m.business_id=$1 ORDER BY m.category,m.name`,
@@ -414,16 +419,28 @@ router.post(
     const stock = selected
       ? all.filter((s) => String(s.id) === String(selected))
       : all;
-    if (!stock.length)
-      fail("Choose an existing inventory item or add stock items first");
+    if (selected && !stock.length)
+      fail(
+        "Selected stock item is unavailable. Scan all products instead.",
+        404,
+      );
     if (stock.length > 1000)
       fail(
         "Select a stock item before scanning a catalogue of more than 1000 items",
       );
+    const session = req.body.scan_session;
+    if (
+      session != null &&
+      (typeof session !== "string" || !/^[a-zA-Z0-9-]{8,100}$/.test(session))
+    )
+      fail("Invalid scan session");
     const catalogueKey = crypto
       .createHash("sha256")
       .update(
-        JSON.stringify(stock.map((s) => [s.id, s.name, s.unit, s.bottle_size])),
+        JSON.stringify({
+          stock: stock.map((s) => [s.id, s.name, s.unit, s.bottle_size]),
+          session: session || null,
+        }),
       )
       .digest("hex");
     const reservation = await transaction(req.businessId, async (db) => {
@@ -519,10 +536,24 @@ async function scanDetail(db, businessId, id) {
   );
   if (!s.rowCount) fail("Scan not found", 404);
   const counts = await db.query(
-    `SELECT c.*,i.name,i.current_stock FROM inventory_physical_counts c JOIN inventory_items i ON i.id=c.inventory_item_id AND i.business_id=c.business_id WHERE c.scan_id=$1 AND c.business_id=$2 ORDER BY c.id`,
+    `SELECT c.*,i.name,i.current_stock,i.archived FROM inventory_physical_counts c JOIN inventory_items i ON i.id=c.inventory_item_id AND i.business_id=c.business_id WHERE c.scan_id=$1 AND c.business_id=$2 ORDER BY c.id`,
     [id, businessId],
   );
-  return { ...s.rows[0], counts: counts.rows };
+  const links = await db.query(
+    `SELECT i.inventory_item_id,m.id,m.name,m.size_ml FROM menu_item_ingredients i
+     JOIN menu_items m ON m.business_id=i.business_id AND m.id=i.menu_item_id
+     WHERE i.business_id=$1 AND i.inventory_item_id=ANY($2::int[]) ORDER BY m.name,m.size_ml`,
+    [businessId, counts.rows.map((count) => count.inventory_item_id)],
+  );
+  return {
+    ...s.rows[0],
+    counts: counts.rows.map((count) => ({
+      ...count,
+      menu_links: links.rows.filter(
+        (link) => link.inventory_item_id === count.inventory_item_id,
+      ),
+    })),
+  };
 }
 router.get(
   "/scans/:id",
@@ -532,23 +563,112 @@ router.get(
 );
 router.post(
   "/scans/:id/confirm",
+  (req, res, next) => {
+    // Staff may record counts. Creating items or applying the checked balance
+    // requires the same owner permission as other stock changes.
+    if (
+      req.body.apply_stock === true ||
+      (Array.isArray(req.body.counts) &&
+        req.body.counts.some((row) => row?.new_item || row?.menu_links?.length))
+    )
+      return owner(req, res, next);
+    next();
+  },
   route(async (req, res) => {
     res.json(
       await transaction(req.businessId, async (db) => {
         const scan = await scanDetail(db, req.businessId, req.params.id);
-        if (["confirmed", "reconciled"].includes(scan.status)) return scan;
-        if (scan.status !== "review")
+        if (scan.status === "reconciled") {
+          if (req.body.replace_counts === true) {
+            const repeated =
+              Array.isArray(req.body.counts) &&
+              req.body.counts.length === scan.counts.length &&
+              req.body.counts.every((row) => {
+                const count = scan.counts.find(
+                  (saved) =>
+                    Number(saved.inventory_item_id) ===
+                    Number(row?.inventory_item_id),
+                );
+                return (
+                  count &&
+                  physicalQuantity(row, { unit: count.unit }).quantity ===
+                    Number(count.physical_stock)
+                );
+              });
+            if (!repeated)
+              fail(
+                "Stock was already updated. Start a new scan to change it.",
+                409,
+              );
+          }
+          return scan;
+        }
+        if (scan.status === "confirmed" && req.body.replace_counts !== true)
+          return req.body.apply_stock === true
+            ? reconcileScan(
+                db,
+                req,
+                scan.id,
+                name(req.body.note || "Photo count checked"),
+              )
+            : scan;
+        if (!["review", "confirmed"].includes(scan.status))
           fail("Only a completed scan can be confirmed", 409);
         const rows = req.body.counts;
         if (!Array.isArray(rows) || !rows.length || rows.length > 100)
           fail("Review and map at least one detected product");
+        if (scan.status === "confirmed") {
+          await db.query(
+            "DELETE FROM inventory_physical_counts WHERE scan_id=$1 AND business_id=$2",
+            [scan.id, req.businessId],
+          );
+        }
         const seen = new Set();
+        const linkedMenus = new Set();
         for (const row of rows) {
           if (!row || typeof row !== "object" || Array.isArray(row))
             fail("Each physical count must be an object");
-          const id = number(row.inventory_item_id, "Stock item", {
-            integer: true,
-          });
+          let id;
+          if (row.new_item != null) {
+            if (
+              row.inventory_item_id != null ||
+              typeof row.new_item !== "object" ||
+              Array.isArray(row.new_item)
+            )
+              fail("Choose an existing stock item or a new product, not both");
+            const productName = name(row.new_item.name);
+            const productUnit = unit(row.new_item.unit);
+            if (!["pcs", "ml", "litre"].includes(productUnit))
+              fail("Scanned products must use pieces, ml or litres");
+            const duplicate = await db.query(
+              "SELECT id FROM inventory_items WHERE business_id=$1 AND NOT archived AND lower(trim(name))=lower($2) AND unit=$3",
+              [req.businessId, productName, productUnit],
+            );
+            if (duplicate.rowCount)
+              fail(
+                "A stock item with this name and unit already exists. Choose it under Match existing stock.",
+                409,
+              );
+            const bottleSize = ["ml", "litre"].includes(productUnit)
+              ? number(row.bottle_size_ml, "Bottle size in ml") /
+                (productUnit === "litre" ? 1000 : 1)
+              : null;
+            const created = await db.query(
+              "INSERT INTO inventory_items(business_id,name,unit,current_stock,low_stock_threshold,bottle_size) VALUES($1,$2,$3,0,0,$4) RETURNING id",
+              [req.businessId, productName, productUnit, bottleSize],
+            );
+            id = created.rows[0].id;
+            await log(db, req, id, 0, "opening_stock", { unit: productUnit });
+            // The new item did not exist at photo time. Start its baseline at
+            // zero; apply the reviewed variance below when Save Stock is used.
+            scan.expected_snapshot[id] = {
+              quantity: 0,
+              unit: productUnit,
+              last_log_id: 0,
+            };
+          } else {
+            id = number(row.inventory_item_id, "Stock item", { integer: true });
+          }
           if (seen.has(id))
             fail("Combine counts for the same stock item before confirming");
           seen.add(id);
@@ -565,6 +685,17 @@ router.post(
               "This stock item changed after the scan. Take a new photograph.",
               409,
             );
+          if (row.menu_links !== undefined) {
+            if (!Array.isArray(row.menu_links)) fail("Choose valid menu items");
+            for (const link of row.menu_links) {
+              if (!link || linkedMenus.has(link.menu_item_id))
+                fail(
+                  "Link a menu item to only one scanned stock item at a time",
+                );
+              linkedMenus.add(link.menu_item_id);
+            }
+            await linkStockToMenu(db, req.businessId, item, row.menu_links);
+          }
           await db.query(
             `INSERT INTO inventory_physical_counts(business_id,scan_id,inventory_item_id,expected_stock,physical_stock,unit,full_bottles,bottle_size_ml,opened_ml)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -582,80 +713,119 @@ router.post(
           );
         }
         await db.query(
-          "UPDATE inventory_scans SET status='confirmed',confirmed_at=NOW(),confirmed_by=$1 WHERE id=$2 AND business_id=$3",
-          [actor(req), scan.id, req.businessId],
+          "UPDATE inventory_scans SET status='confirmed',confirmed_at=NOW(),confirmed_by=$1,expected_snapshot=$4 WHERE id=$2 AND business_id=$3",
+          [
+            actor(req),
+            scan.id,
+            req.businessId,
+            JSON.stringify(scan.expected_snapshot),
+          ],
         );
-        return scanDetail(db, req.businessId, scan.id);
+        return req.body.apply_stock === true
+          ? reconcileScan(
+              db,
+              req,
+              scan.id,
+              name(req.body.note || "Photo count checked"),
+            )
+          : scanDetail(db, req.businessId, scan.id);
       }),
     );
   }),
 );
+async function reconcileScan(db, req, scanId, note) {
+  const scan = await scanDetail(db, req.businessId, scanId);
+  if (scan.status === "reconciled") return scan;
+  if (scan.status !== "confirmed")
+    fail("Confirm the physical count first", 409);
+  for (const count of scan.counts) {
+    const stock = await db.query(
+      "SELECT current_stock,unit FROM inventory_items WHERE id=$1 AND business_id=$2 AND NOT archived FOR UPDATE",
+      [count.inventory_item_id, req.businessId],
+    );
+    if (!stock.rowCount)
+      fail("This item was removed. Start a new scan to add it again.", 409);
+    if (stock.rows[0].unit !== count.unit)
+      fail("This item uses a different unit now. Start a new scan.", 409);
+    const conflicting = await db.query(
+      "SELECT 1 FROM inventory_stock_logs WHERE business_id=$1 AND inventory_item_id=$2 AND id>$3 AND reason IN ('scan_reconciliation','manual_adjustment') LIMIT 1",
+      [
+        req.businessId,
+        count.inventory_item_id,
+        scan.expected_snapshot[count.inventory_item_id].last_log_id || 0,
+      ],
+    );
+    if (conflicting.rowCount)
+      fail(
+        "Another physical adjustment was applied after this photo. Take a new count to avoid adjusting the same discrepancy twice.",
+        409,
+      );
+    // Apply the observed variance, never overwrite movements made since count.
+    const variance = Number(count.variance),
+      after = Number(stock.rows[0].current_stock) + variance;
+    if (after < 0)
+      fail(
+        "Stock moved below this variance. Investigate and make a new count.",
+        409,
+      );
+    await db.query(
+      "UPDATE inventory_items SET current_stock=current_stock+$1,updated_at=NOW() WHERE id=$2 AND business_id=$3",
+      [variance, count.inventory_item_id, req.businessId],
+    );
+    await log(
+      db,
+      req,
+      count.inventory_item_id,
+      variance,
+      "scan_reconciliation",
+      { unit: count.unit, note, countId: count.id },
+    );
+    await db.query(
+      "UPDATE inventory_physical_counts SET reconciled_by=$1,reconciled_at=NOW(),reconciliation_note=$2 WHERE id=$3 AND business_id=$4",
+      [actor(req), note, count.id, req.businessId],
+    );
+  }
+  await db.query(
+    "UPDATE inventory_scans SET status='reconciled' WHERE id=$1 AND business_id=$2",
+    [scan.id, req.businessId],
+  );
+  return scanDetail(db, req.businessId, scan.id);
+}
 router.post(
   "/scans/:id/reconcile",
   owner,
   route(async (req, res) => {
-    const note = name(req.body.note);
+    const note = name(req.body.note || "Photo count checked");
     res.json(
-      await transaction(req.businessId, async (db) => {
-        const scan = await scanDetail(db, req.businessId, req.params.id);
-        if (scan.status === "reconciled") return scan;
-        if (scan.status !== "confirmed")
-          fail("Confirm the physical count first", 409);
-        for (const count of scan.counts) {
-          const stock = await db.query(
-            "SELECT current_stock,unit FROM inventory_items WHERE id=$1 AND business_id=$2 AND NOT archived FOR UPDATE",
-            [count.inventory_item_id, req.businessId],
-          );
-          if (!stock.rowCount || stock.rows[0].unit !== count.unit)
-            fail("Stock unit has changed. Make a new physical count.", 409);
-          const conflicting = await db.query(
-            "SELECT 1 FROM inventory_stock_logs WHERE business_id=$1 AND inventory_item_id=$2 AND id>$3 AND reason IN ('scan_reconciliation','manual_adjustment') LIMIT 1",
-            [
-              req.businessId,
-              count.inventory_item_id,
-              scan.expected_snapshot[count.inventory_item_id].last_log_id || 0,
-            ],
-          );
-          if (conflicting.rowCount)
-            fail(
-              "Another physical adjustment was applied after this photo. Take a new count to avoid adjusting the same discrepancy twice.",
-              409,
-            );
-          // Apply the observed variance, never overwrite movements made since count.
-          const variance = Number(count.variance),
-            after = Number(stock.rows[0].current_stock) + variance;
-          if (after < 0)
-            fail(
-              "Stock moved below this variance. Investigate and make a new count.",
-              409,
-            );
-          await db.query(
-            "UPDATE inventory_items SET current_stock=current_stock+$1,updated_at=NOW() WHERE id=$2 AND business_id=$3",
-            [variance, count.inventory_item_id, req.businessId],
-          );
-          await log(
-            db,
-            req,
-            count.inventory_item_id,
-            variance,
-            "scan_reconciliation",
-            { unit: count.unit, note, countId: count.id },
-          );
-          await db.query(
-            "UPDATE inventory_physical_counts SET reconciled_by=$1,reconciled_at=NOW(),reconciliation_note=$2 WHERE id=$3 AND business_id=$4",
-            [actor(req), note, count.id, req.businessId],
-          );
-        }
-        await db.query(
-          "UPDATE inventory_scans SET status='reconciled' WHERE id=$1 AND business_id=$2",
-          [scan.id, req.businessId],
-        );
-        return scanDetail(db, req.businessId, scan.id);
-      }),
+      await transaction(req.businessId, (db) =>
+        reconcileScan(db, req, req.params.id, note),
+      ),
     );
   }),
 );
 
+router.put(
+  "/:id/menu-links",
+  owner,
+  route(async (req, res) => {
+    res.json(
+      await transaction(req.businessId, async (db) => {
+        const stock = await db.query(
+          "SELECT * FROM inventory_items WHERE id=$1 AND business_id=$2 AND NOT archived FOR UPDATE",
+          [req.params.id, req.businessId],
+        );
+        if (!stock.rowCount) fail("Stock item not found", 404);
+        await linkStockToMenu(
+          db,
+          req.businessId,
+          stock.rows[0],
+          req.body.menu_links,
+        );
+        return { linked: true };
+      }),
+    );
+  }),
+);
 router.put(
   "/:id",
   owner,
@@ -758,24 +928,9 @@ router.delete(
   owner,
   route(async (req, res) =>
     res.json(
-      await transaction(req.businessId, async (db) => {
-        const used = await db.query(
-          `SELECT 1 FROM menu_item_ingredients WHERE inventory_item_id=$1 AND business_id=$2 UNION ALL
-    SELECT 1 FROM inventory_preparation_components WHERE inventory_item_id=$1 AND business_id=$2`,
-          [req.params.id, req.businessId],
-        );
-        if (used.rowCount)
-          fail(
-            "Remove this stock item from recipes and preparations before deleting it",
-            409,
-          );
-        const r = await db.query(
-          "UPDATE inventory_items SET archived=true,updated_at=NOW() WHERE id=$1 AND business_id=$2 AND NOT archived RETURNING id",
-          [req.params.id, req.businessId],
-        );
-        if (!r.rowCount) fail("Item not found", 404);
-        return { message: "Item deleted; audit history preserved" };
-      }),
+      await transaction(req.businessId, (db) =>
+        archiveStockItem(db, req.businessId, req.params.id),
+      ),
     ),
   ),
 );

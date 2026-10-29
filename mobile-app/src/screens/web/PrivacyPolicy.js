@@ -28,18 +28,18 @@ export default function PrivacyPolicy({ onNavigate }) {
   ];
 
   return (
-    <WebPageLayout 
+    <WebPageLayout
       onNavigate={onNavigate}
-      title="Privacy Policy" 
+      title="Privacy Policy"
       subtitle="Your data sovereignty is our highest priority."
     >
       <View style={ts.container}>
-        
+
         {/* SECTION 1 */}
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>1. Introduction to Data Privacy</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>1. Introduction to Data Privacy</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile]}>
             Servon Technologies ("we", "us", or "our") is committed to protecting the privacy of restaurant owners and their customers. This policy outlines how we handle data within our POS and ERP ecosystem. We operate under a strict "Zero-Data-Monetization" policy, meaning your business insights are never sold or shared with external aggregators.
@@ -50,7 +50,7 @@ export default function PrivacyPolicy({ onNavigate }) {
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>2. Information Ownership</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>2. Information Ownership</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile]}>
             Unlike traditional delivery aggregators, Servon acts solely as a data processor. You, the restaurant owner, remain the sole Data Controller. Every phone number collected via QR scans, every transaction record, and every inventory log belongs exclusively to your legal entity.
@@ -59,7 +59,7 @@ export default function PrivacyPolicy({ onNavigate }) {
           {/* ENCRYPTION HIGHLIGHT CARD */}
           <View style={[ts.card, isMobile && ts.cardMobile]}>
             <View style={ts.iconBadge}>
-              <Ionicons name="lock-closed" size={20} color="#008060" />
+              <Ionicons name="lock-closed" size={20} color="#477047" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={ts.cardHeader}>DATA ENCRYPTION STANDARD</Text>
@@ -74,14 +74,14 @@ export default function PrivacyPolicy({ onNavigate }) {
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>3. Information We Collect</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>3. Information We Collect</Text>
           </View>
-          
+
           <View style={ts.dataList}>
             {collectedDataItems.map((item, idx) => (
               <View key={idx} style={ts.dataItem}>
                 <View style={ts.checkBadge}>
-                  <Ionicons name="checkmark-circle" size={18} color="#008060" />
+                  <Ionicons name="checkmark-circle" size={18} color="#477047" />
                 </View>
                 <View style={ts.dataTextGroup}>
                   <Text style={ts.dataLabel}>{item.label}: </Text>
@@ -96,7 +96,7 @@ export default function PrivacyPolicy({ onNavigate }) {
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>4. Use of Information</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>4. Use of Information</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile]}>
             We use your data strictly to facilitate restaurant operations: generating instant KOTs, calculating real-time net profit margins, and automating export-ready accounting reports. We do not use your customer records to market third-party services to your diners.
@@ -107,7 +107,7 @@ export default function PrivacyPolicy({ onNavigate }) {
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>5. Third-Party Services</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>5. Third-Party Services</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile]}>
             Servon integrates directly with certified UPI providers and banking gateways. Payment transactions are processed directly by the respective banking infrastructure; Servon never stores raw credit card numbers or UPI PINs on its servers.
@@ -139,24 +139,24 @@ const ts = StyleSheet.create({
   accentLine: {
     width: 4,
     height: 22,
-    backgroundColor: '#008060',
+    backgroundColor: '#477047',
     borderRadius: 2,
     marginRight: 12,
   },
 
-  h: { 
-    fontSize: 22, 
-    fontWeight: '800', 
-    color: '#0F172A', 
+  h: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#193A2C',
     letterSpacing: -0.4,
   },
   hMobile: {
     fontSize: 19,
   },
 
-  p: { 
-    fontSize: 15, 
-    color: '#475569', 
+  p: {
+    fontSize: 15,
+    color: '#52664D',
     lineHeight: 26,
   },
   pMobile: {
@@ -165,12 +165,12 @@ const ts = StyleSheet.create({
   },
 
   // CARD STYLE
-  card: { 
-    backgroundColor: '#FFFFFF', 
-    padding: 24, 
-    borderRadius: 16, 
-    borderWidth: 1, 
-    borderColor: '#E2E8F0', 
+  card: {
+    backgroundColor: '#FFFEF8',
+    padding: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DEE5D5',
     marginTop: 20,
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -191,15 +191,15 @@ const ts = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   cardHeader: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
     letterSpacing: 1.2,
     marginBottom: 6,
   },
@@ -235,13 +235,13 @@ const ts = StyleSheet.create({
   dataLabel: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#193A2C',
     lineHeight: 24,
   },
 
   dataDetail: {
     fontSize: 15,
-    color: '#475569',
+    color: '#52664D',
     lineHeight: 24,
   },
 });

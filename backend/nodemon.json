@@ -1,0 +1,6 @@
+{
+  "watch": ["server.js", "routes", "services", "utils", "middleware", "db", "config", "jobs", "cron", "socket", ".env", ".env.development.local"],
+  "ext": "js,mjs,cjs,json,env,local",
+  "ignore": ["node_modules", "tests", "docs"],
+  "delay": 300
+}

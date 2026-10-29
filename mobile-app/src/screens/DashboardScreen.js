@@ -54,6 +54,7 @@ import { localizedItemName } from "../utils/localizedItemName";
 import localDB from "../services/LocalDB";
 import networkMonitor from "../services/NetworkMonitor";
 import io from "socket.io-client";
+import { API_BASE_URL } from '../config/api';
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ReactDOM from "react-dom";
 
@@ -1347,7 +1348,7 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-      const socket = io(process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000", {
+      const socket = io(API_BASE_URL, {
         transports: ["websocket"],
       });
       socket.on("connect", () => business?.id && socket.emit("join_business", business.id));
@@ -1474,7 +1475,7 @@ export default function DashboardScreen() {
 
   // ─── WEB RENDER ─────────────────────────────────────────────────────────────
   if (isWeb) {
-    const todayStr = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+    const todayStr = new Date().toLocaleDateString(language === "mr" ? "mr-IN" : language === "hi" ? "hi-IN" : "en-IN", { weekday: "long", day: "numeric", month: "long" });
 
     return (
       <div style={{ minHeight: "100vh", background: "#F5F3EF", fontFamily: "'DM Sans', sans-serif", overflowY: "auto" }}>
@@ -1564,7 +1565,7 @@ export default function DashboardScreen() {
           <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <div>
               <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#111827", letterSpacing: "-0.4px" }}>
-                Good {getGreeting()} 👋
+                {localizeText(`Good ${getGreeting()}`, language)} 👋
               </h1>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9CA3AF" }}>{todayStr}</p>
             </div>
@@ -1574,7 +1575,7 @@ export default function DashboardScreen() {
               cursor: "pointer", display: "flex", alignItems: "center", gap: 6
             }}>
               <Ionicons name="refresh-outline" size={14} color="#374151" />
-              Refresh
+              {localizeText("Refresh", language)}
             </button>
           </div>
 
@@ -1885,7 +1886,7 @@ export default function DashboardScreen() {
           </button>
           <button
             onClick={() => { setAppendOrder(null); setAssistantOpen("manual"); }}
-            title="Create Order"
+            title={localizeText("Create Order", language)}
             style={{
               height: 48, padding: "0 18px", borderRadius: 24, border: "none", cursor: "pointer",
               background: "#111827", color: "#fff", display: "flex", alignItems: "center", gap: 6,
@@ -1893,7 +1894,7 @@ export default function DashboardScreen() {
             }}
           >
             <Ionicons name="add" size={22} color="#fff" />
-            Create Order
+            {localizeText("Create Order", language)}
           </button>
         </div>
 

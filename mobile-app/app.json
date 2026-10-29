@@ -32,7 +32,7 @@
       "description": "The premium operating system for high-growth Indian restaurants.",
       "backgroundColor": "#FAF9F6",
       "themeColor": "#008060",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/servon-logo.png"
     },
     "extra": {
       "eas": {

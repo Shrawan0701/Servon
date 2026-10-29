@@ -19,18 +19,18 @@ export default function TermsOfService({ onNavigate }) {
   ];
 
   return (
-    <WebPageLayout 
+    <WebPageLayout
       onNavigate={onNavigate}
-      title="Terms of Service" 
+      title="Terms of Service"
       subtitle="Standard legal agreement and operational framework for the Servon platform."
     >
       <View style={ts.container}>
-        
+
         {/* SECTION 1 */}
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>1. Acceptance of Terms</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>1. Acceptance of Terms</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile]}>
             By accessing or using the Servon platform, you agree to be bound by these terms. If you are accepting on behalf of a restaurant entity or hospitality group, you represent that you possess full legal authority to bind that entity to this agreement.
@@ -41,7 +41,7 @@ export default function TermsOfService({ onNavigate }) {
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>2. Subscription and Fees</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>2. Subscription and Fees</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile]}>
             Servon provides its software suite under a flat-rate subscription model starting at ₹999 per month. Fee adjustments are subject to a advance 30-day notice. We do not charge per-order commission fees. Your subscription covers continuous software updates, cloud syncing, and standard technical support access.
@@ -50,7 +50,7 @@ export default function TermsOfService({ onNavigate }) {
           {/* NO-COMMISSION HIGHLIGHT CARD */}
           <View style={[ts.promiseCard, isMobile && ts.promiseCardMobile]}>
             <View style={ts.iconBadge}>
-              <Ionicons name="ribbon" size={20} color="#008060" />
+              <Ionicons name="ribbon" size={20} color="#477047" />
             </View>
             <View style={ts.promiseTextGroup}>
               <Text style={ts.promiseTitle}>THE NO-COMMISSION PROMISE</Text>
@@ -65,7 +65,7 @@ export default function TermsOfService({ onNavigate }) {
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>3. User Conduct & Restrictions</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>3. User Conduct & Restrictions</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile, { marginBottom: 16 }]}>
             When utilizing our cloud services and kitchen management tools, users agree strictly not to engage in:
@@ -87,7 +87,7 @@ export default function TermsOfService({ onNavigate }) {
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>4. Account Termination</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>4. Account Termination</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile]}>
             You may request subscription termination at any time through your merchant console. Following account closure, we maintain a 7-day grace window allowing you to export complete historical menu, order, and tax records in CSV or PDF formats before data scrubbing.
@@ -98,7 +98,7 @@ export default function TermsOfService({ onNavigate }) {
         <View style={ts.section}>
           <View style={ts.headingGroup}>
             <View style={ts.accentLine} />
-            <Text style={[ts.h, isMobile && ts.hMobile]}>5. Limitation of Liability</Text>
+            <Text accessibilityRole="heading" style={[ts.h, isMobile && ts.hMobile]}>5. Limitation of Liability</Text>
           </View>
           <Text style={[ts.p, isMobile && ts.pMobile]}>
             Servon is not liable for revenue interruptions resulting from local hardware malfunctions or ISP network failures. While our platform supports offline queuing modes, final cloud sync and remote reporting require active connectivity.
@@ -130,24 +130,24 @@ const ts = StyleSheet.create({
   accentLine: {
     width: 4,
     height: 22,
-    backgroundColor: '#008060',
+    backgroundColor: '#477047',
     borderRadius: 2,
     marginRight: 12,
   },
 
-  h: { 
-    fontSize: 22, 
-    fontWeight: '800', 
-    color: '#0F172A', 
+  h: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#193A2C',
     letterSpacing: -0.4,
   },
   hMobile: {
     fontSize: 19,
   },
 
-  p: { 
-    fontSize: 15, 
-    color: '#475569', 
+  p: {
+    fontSize: 15,
+    color: '#52664D',
     lineHeight: 26,
   },
   pMobile: {
@@ -157,11 +157,11 @@ const ts = StyleSheet.create({
 
   // PROMISE CARD
   promiseCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFEF8',
     padding: 24,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
     marginTop: 20,
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -182,7 +182,7 @@ const ts = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -193,8 +193,8 @@ const ts = StyleSheet.create({
 
   promiseTitle: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
     letterSpacing: 1.2,
     marginBottom: 6,
   },
@@ -223,7 +223,7 @@ const ts = StyleSheet.create({
 
   restrictionText: {
     fontSize: 15,
-    color: '#475569',
+    color: '#52664D',
     lineHeight: 22,
     flex: 1,
   },

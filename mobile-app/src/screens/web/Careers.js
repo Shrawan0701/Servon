@@ -39,7 +39,7 @@ export default function Careers({ onNavigate }) {
     },
   ];
 
-  
+
 
   return (
     <WebPageLayout
@@ -48,17 +48,17 @@ export default function Careers({ onNavigate }) {
       subtitle="Help us build the next generation of software infrastructure for Indian Restaurants."
     >
       <View style={s.container}>
-        
+
         {/* LIGHT CULTURE INTRO CARD */}
-        <View style={s.introCard}>
+        <View style={[s.introCard, isMobile && { flexDirection: "column" }]}>
           <View style={s.introIconWrap}>
-            <Ionicons name="briefcase-outline" size={26} color="#008060" />
+            <Ionicons name="briefcase-outline" size={26} color="#477047" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.introKicker}>OUR MISSION</Text>
-            <Text style={s.introTitle}>Building the Future of Restaurant Tech</Text>
+            <Text accessibilityRole="heading" style={s.introTitle}>Building the Future of Restaurant Tech</Text>
             <Text style={s.introText}>
-              At Servon Labs Private Limited, we are mission-driven problem solvers based in Pune, Maharashtra. We empower restaurant owners, cloud kitchens, and cafes with intelligent, offline-capable POS and AI management suites.
+              At Servon Labs Private Limited, we are mission-driven problem solvers based in Pune, India. We empower restaurant owners, cloud kitchens, and cafes with intelligent, offline-capable POS and AI management suites.
             </Text>
           </View>
         </View>
@@ -69,9 +69,9 @@ export default function Careers({ onNavigate }) {
           {culturePoints.map((item, idx) => (
             <View key={idx} style={s.cultureCard}>
               <View style={s.cardIconBox}>
-                <Ionicons name={item.icon} size={20} color="#008060" />
+                <Ionicons name={item.icon} size={20} color="#477047" />
               </View>
-              <Text style={s.cardTitle}>{item.title}</Text>
+              <Text accessibilityRole="heading" style={s.cardTitle}>{item.title}</Text>
               <Text style={s.cardDesc}>{item.description}</Text>
             </View>
           ))}
@@ -81,10 +81,10 @@ export default function Careers({ onNavigate }) {
         <View style={s.noJobBox}>
           <View style={s.noJobHeader}>
             <View style={s.badgeWrap}>
-              <Ionicons name="mail-open-outline" size={15} color="#008060" />
+              <Ionicons name="mail-open-outline" size={15} color="#477047" />
               <Text style={s.badgeText}>Direct Talent Pipeline</Text>
             </View>
-            <Text style={s.noJobTitle}>Don't see an open role for your skill set?</Text>
+            <Text accessibilityRole="heading" style={s.noJobTitle}>Don't see an open role for your skill set?</Text>
           </View>
 
           <Text style={s.noJobText}>
@@ -92,14 +92,14 @@ export default function Careers({ onNavigate }) {
           </Text>
 
           <View style={s.contactCard}>
-            <View style={{ flex: 1, minWidth: 260 }}>
-              <Text style={s.contactCardTitle}>Send your resume directly to our team</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text accessibilityRole="heading" style={s.contactCardTitle}>Send your resume directly to our team</Text>
               <Text style={s.contactCardSub}>
                 Include your resume, GitHub/portfolio link, and a brief note on what you'd love to build at Servon.
               </Text>
               <View style={s.emailPill}>
-                <Ionicons name="copy-outline" size={14} color="#008060" />
-                <Text style={s.emailPillText}>admin@servon.cloud</Text>
+                <Ionicons name="mail-outline" size={14} color="#477047" />
+                <Text accessibilityRole="link" onPress={() => Linking.openURL("mailto:admin@servon.cloud")} style={s.emailPillText}>admin@servon.cloud</Text>
               </View>
             </View>
 
@@ -123,14 +123,14 @@ const s = StyleSheet.create({
   introCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     padding: 28,
     marginBottom: 36,
     gap: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+    borderColor: '#DEE5D5',
+    shadowColor: '#193A2C',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 8,
@@ -140,35 +140,35 @@ const s = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   introKicker: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
     letterSpacing: 1.2,
     marginBottom: 4,
   },
   introTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 8,
     letterSpacing: -0.3,
   },
   introText: {
     fontSize: 14,
     lineHeight: 24,
-    color: '#475569',
+    color: '#52664D',
   },
 
   // SECTION HEADER
   sectionHeader: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 16,
     paddingLeft: 2,
   },
@@ -183,12 +183,12 @@ const s = StyleSheet.create({
   cultureCard: {
     flexGrow: 1,
     flexBasis: 260,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+    borderColor: '#DEE5D5',
+    shadowColor: '#193A2C',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 6,
@@ -198,30 +198,30 @@ const s = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 6,
   },
   cardDesc: {
     fontSize: 13,
     lineHeight: 21,
-    color: '#64748B',
+    color: '#6C7D63',
   },
 
   // NO JOB / OPEN PIPELINE BOX
   noJobBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 20,
+    backgroundColor: '#F0F3E8',
+    borderRadius: 12,
     padding: 28,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
   },
   noJobHeader: {
     marginBottom: 10,
@@ -229,7 +229,7 @@ const s = StyleSheet.create({
   badgeWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
@@ -239,28 +239,28 @@ const s = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
   },
   noJobTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
   },
   noJobText: {
     fontSize: 14,
-    color: '#475569',
+    color: '#52664D',
     lineHeight: 22,
     marginBottom: 20,
   },
 
   // CONTACT CARD INSIDE PIPELINE
   contactCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -269,13 +269,13 @@ const s = StyleSheet.create({
   },
   contactCardTitle: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 4,
   },
   contactCardSub: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#6C7D63',
     marginBottom: 12,
     maxWidth: 520,
     lineHeight: 18,
@@ -294,11 +294,11 @@ const s = StyleSheet.create({
   },
   emailPillText: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
   },
   emailBtn: {
-    backgroundColor: '#008060',
+    backgroundColor: '#477047',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -308,8 +308,8 @@ const s = StyleSheet.create({
     cursor: isWeb ? 'pointer' : 'default',
   },
   emailBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: '#FFFEF8',
+    fontWeight: '600',
     fontSize: 14,
   },
 });

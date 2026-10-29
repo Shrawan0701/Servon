@@ -21,9 +21,9 @@ export default function RefundPolicy({ onNavigate }) {
 
   const sections = [
     {
-      title: "1. Overview & 3-Day Free Trial",
+      title: "1. Overview",
       content:
-        "Servon Labs Private Limited ('Servon', 'we', 'us', or 'our') provides a 3-day full-access free trial for all new restaurant subscriptions. During this trial period, restaurant operators have complete access to all platform features, including QR ordering, KOT sync, and analytics. No credit card or payment information is required to start the trial. We strongly encourage users to evaluate the platform thoroughly before initiating any paid subscription cycle.",
+        "This policy describes subscription billing, cancellations and refunds for Servon Labs Private Limited ('Servon', 'we', 'us', or 'our'). Please review the plan details and contact our team with any questions before initiating a paid subscription.",
     },
     {
       title: "2. Subscription Billing & Non-Refundable Nature",
@@ -60,13 +60,13 @@ export default function RefundPolicy({ onNavigate }) {
     >
       <View style={s.container}>
         {/* Header Metadata */}
-      
+
 
         {/* Content Sections */}
         <View style={s.contentBlock}>
           {sections.map((sec, idx) => (
             <View key={idx} style={s.sectionCard}>
-              <Text style={s.sectionTitle}>{sec.title}</Text>
+              <Text accessibilityRole="heading" style={s.sectionTitle}>{sec.title}</Text>
               <Text style={s.sectionText}>{sec.content}</Text>
             </View>
           ))}
@@ -122,41 +122,41 @@ const s = StyleSheet.create({
   },
   metaTitle: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
   },
   metaSubtitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#008060',
+    color: '#477047',
     marginTop: 2,
   },
   contentBlock: {
     gap: 20,
   },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 12,
   },
   sectionText: {
     fontSize: 14,
     lineHeight: 22,
-    color: '#475569',
+    color: '#52664D',
     fontWeight: '500',
   },
   supportBox: {
     marginTop: 32,
-    backgroundColor: '#0F172A',
-    borderRadius: 16,
+    backgroundColor: '#193A2C',
+    borderRadius: 12,
     padding: 24,
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -166,16 +166,16 @@ const s = StyleSheet.create({
   },
   supportHeading: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: '#FFFEF8',
     marginBottom: 4,
   },
   supportText: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: '#B7C5AC',
   },
   contactBtn: {
-    backgroundColor: '#008060',
+    backgroundColor: '#477047',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
@@ -185,7 +185,7 @@ const s = StyleSheet.create({
     cursor: isWeb ? 'pointer' : 'default',
   },
   contactBtnText: {
-    color: '#FFFFFF',
+    color: '#FFFEF8',
     fontWeight: '700',
     fontSize: 14,
   },

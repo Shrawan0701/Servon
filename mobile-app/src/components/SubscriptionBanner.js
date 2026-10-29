@@ -40,8 +40,8 @@ export default function SubscriptionBanner() {
   if (status === "ACTIVE" && daysLeft <= 5) {
     return (
       <View style={[styles.banner, { backgroundColor: "#fd7e14" }]}>
-        <LocalizedText style={styles.bannerText}>
-          {daysLeft === 0 ? "Subscription expires today." : `Subscription expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}.`}
+        <LocalizedText style={styles.bannerText} values={{ count: daysLeft }}>
+          {daysLeft === 0 ? "Subscription expires today." : daysLeft === 1 ? "Subscription expires in {count} day." : "Subscription expires in {count} days."}
         </LocalizedText>
         <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
           <LocalizedText translate style={styles.bannerAction}>Renew -&gt;</LocalizedText>

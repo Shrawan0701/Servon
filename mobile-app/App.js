@@ -39,11 +39,14 @@ import RefundPolicy from "./src/screens/web/RefundPolicy";
 import Security from "./src/screens/web/Security";
 import Partners from "./src/screens/web/Partners";
 import Careers from "./src/screens/web/Careers";
+import { publicScreen } from "./src/screens/web/publicRoutes";
 
 function Root() {
   const { token, loading } = useAuth();
   const { language } = useLocale();
-  const [webScreen, setWebScreen] = React.useState("landing");
+  const [webScreen, setWebScreen] = React.useState(() =>
+    Platform.OS === "web" ? publicScreen(window.location.pathname) : "landing",
+  );
   const [openDemoOnLanding, setOpenDemoOnLanding] = React.useState(false);
 
   // ✅ Check if admin route
@@ -67,19 +70,15 @@ function Root() {
   }, [token, isAdminRoute, language]);
 
   // ✅ Web route detection with admin
+  // Public deep links and browser history share the same route map.
   React.useEffect(() => {
-    if (Platform.OS === "web") {
-      const path = window.location.pathname;
-      console.log("📍 Web path detected:", path);
-
-      if (path === "/admin") {
-        setWebScreen("Admin");
-      } else if (path === "/privacy") {
-        setWebScreen("PrivacyPolicy");
-      } else if (path === "/terms") {
-        setWebScreen("TermsOfService");
-      }
-    }
+    if (Platform.OS !== "web") return;
+    const syncRoute = () => {
+      setWebScreen(publicScreen(window.location.pathname));
+      setOpenDemoOnLanding(false);
+    };
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
   }, []);
 
   const handleWebNavigate = (screenName, params = {}) => {
@@ -99,7 +98,7 @@ function Root() {
         window.history.pushState(
           {},
           "",
-          `/${lower === "landing" ? "" : lower}`
+          `/${lower === "landing" ? "" : lower}`,
         );
       }
 
@@ -222,8 +221,7 @@ const registerPushToken = async (language = "en") => {
     let finalStatus = existingStatus;
 
     if (existingStatus !== "granted") {
-      const { status } =
-        await Notifications.requestPermissionsAsync();
+      const { status } = await Notifications.requestPermissionsAsync();
 
       finalStatus = status;
     }
@@ -233,8 +231,7 @@ const registerPushToken = async (language = "en") => {
       return;
     }
 
-    const tokenData =
-      await Notifications.getExpoPushTokenAsync();
+    const tokenData = await Notifications.getExpoPushTokenAsync();
 
     const pushToken = tokenData.data;
 
@@ -249,6 +246,26 @@ const registerPushToken = async (language = "en") => {
 
 export default function App() {
   React.useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+
+    // Set the brand icon on every route, including a direct dashboard/login.
+    // The versioned URL avoids reusing another project's localhost favicon.
+    const iconUrl = "/favicon.png?servon-qr=ebba90af";
+    for (const rel of ["icon", "shortcut icon", "apple-touch-icon"]) {
+      const existing = document.head.querySelectorAll(`link[rel="${rel}"]`);
+      const links = existing.length
+        ? Array.from(existing)
+        : [document.createElement("link")];
+      for (const link of links) {
+        link.rel = rel;
+        link.type = "image/png";
+        link.href = iconUrl;
+        if (!link.parentNode) document.head.appendChild(link);
+      }
+    }
+  }, []);
+
+  React.useEffect(() => {
     async function initOffline() {
       await localDB.init();
     }
@@ -258,9 +275,56 @@ export default function App() {
 
   React.useEffect(() => {
     if (Platform.OS === "web" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/servon-sw.js").catch((err) => {
-        console.log("Service worker registration skipped:", err?.message || err);
-      });
+      if (__DEV__) {
+        // Metro owns development assets. A cached AppEntry.bundle can keep an
+        // old scanner alive even after the source and backend have changed.
+        const oldWorker = navigator.serviceWorker.controller?.scriptURL;
+        const controlledByServon =
+          oldWorker && new URL(oldWorker).pathname === "/servon-sw.js";
+        Promise.all([
+          navigator.serviceWorker.getRegistrations().then((registrations) =>
+            Promise.all(
+              registrations
+                .filter((registration) => {
+                  const worker =
+                    registration.active ||
+                    registration.waiting ||
+                    registration.installing;
+                  return (
+                    worker?.scriptURL &&
+                    new URL(worker.scriptURL).pathname === "/servon-sw.js"
+                  );
+                })
+                .map((registration) => registration.unregister()),
+            ),
+          ),
+          "caches" in window
+            ? caches
+                .keys()
+                .then((keys) =>
+                  Promise.all(
+                    keys
+                      .filter((key) => key.startsWith("servon-pos-shell-"))
+                      .map((key) => caches.delete(key)),
+                  ),
+                )
+            : Promise.resolve(),
+        ])
+          .then(() => {
+            // Unregistering alone does not release an already controlled tab.
+            if (controlledByServon) window.location.reload();
+          })
+          .catch(() => {});
+      } else {
+        navigator.serviceWorker
+          .register("/servon-sw.js", { updateViaCache: "none" })
+          .catch((err) => {
+            console.log(
+              "Service worker registration skipped:",
+              err?.message || err,
+            );
+          });
+      }
     }
   }, []);
 

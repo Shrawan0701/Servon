@@ -17,9 +17,9 @@ export default function AboutPage({ onNavigate }) {
   const isMobile = width < 800;
 
   const stats = [
-    { label: "Commission Fee", value: "0%" },
-    { label: "Offline Reliability", value: "100%" },
-    { label: "Average Setup", value: "<15 Mins" },
+    { label: "Guest ordering", value: "QR" },
+    { label: "Kitchen workflow", value: "KOT" },
+    { label: "Business insights", value: "AI" },
   ];
 
   const coreValues = [
@@ -41,9 +41,9 @@ export default function AboutPage({ onNavigate }) {
   ];
 
   return (
-    <WebPageLayout 
+    <WebPageLayout
       onNavigate={onNavigate}
-      title="Built for Real Kitchens" 
+      title="Built for Real Kitchens"
       subtitle="Servon provides independent restaurant owners with fast, reliable, and private point-of-sale software."
     >
       <View style={s.container}>
@@ -61,7 +61,7 @@ export default function AboutPage({ onNavigate }) {
         {/* MISSION STATEMENT CARD */}
         <View style={s.cardSection}>
           <Text style={s.kicker}>OUR PURPOSE</Text>
-          <Text style={s.cardTitle}>Why We Built Servon</Text>
+          <Text accessibilityRole="heading" style={s.cardTitle}>Why We Built Servon</Text>
           <Text style={s.bodyText}>
             Operating a restaurant is demanding enough without complex software getting in the way. Servon was created to give owners direct control over their billing, kitchen workflow, and customer data.
           </Text>
@@ -74,22 +74,22 @@ export default function AboutPage({ onNavigate }) {
         <View style={s.valuesSection}>
           <View style={s.valuesHeaderBlock}>
             <Text style={s.kicker}>CORE PRINCIPLES</Text>
-            <Text style={s.cardTitle}>How We Productize Servon</Text>
+            <Text accessibilityRole="heading" style={s.cardTitle}>How We Productize Servon</Text>
           </View>
 
           <View style={[s.grid, isMobile && s.gridMobile]}>
             {coreValues.map((value, idx) => (
-              <View 
-                key={idx} 
+              <View
+                key={idx}
                 style={[
-                  s.valueCard, 
+                  s.valueCard,
                   isMobile ? s.valueCardMobile : s.valueCardDesktop
                 ]}
               >
                 <View style={s.iconBadge}>
-                  <Ionicons name={value.icon} size={22} color="#008060" />
+                  <Ionicons name={value.icon} size={22} color="#477047" />
                 </View>
-                <Text style={s.valueCardTitle}>{value.title}</Text>
+                <Text accessibilityRole="heading" style={s.valueCardTitle}>{value.title}</Text>
                 <Text style={s.valueCardDesc}>{value.desc}</Text>
               </View>
             ))}
@@ -99,7 +99,7 @@ export default function AboutPage({ onNavigate }) {
         {/* ARCHITECTURE & WORKFLOW CARD */}
         <View style={s.cardSection}>
           <Text style={s.kicker}>RELIABILITY FIRST</Text>
-          <Text style={s.cardTitle}>Zero Downtime Operational Flow</Text>
+          <Text accessibilityRole="heading" style={s.cardTitle}>Zero Downtime Operational Flow</Text>
           <Text style={s.bodyText}>
             Internet outages shouldn't bring your service to a halt. Servon utilizes a local-first sync architecture—allowing your cashiers to print receipts and your kitchen staff to process KOTs uninterrupted, even during total network disconnections.
           </Text>
@@ -108,18 +108,18 @@ export default function AboutPage({ onNavigate }) {
         {/* CTA CALLOUT BANNER */}
         <View style={[s.ctaCard, isMobile && s.ctaCardMobile]}>
           <View style={{ flex: 1 }}>
-            <Text style={s.ctaTitle}>Ready to streamline your operations?</Text>
+            <Text accessibilityRole="heading" style={s.ctaTitle}>Ready to streamline your operations?</Text>
             <Text style={s.ctaSub}>
-              Start a 3-day free trial or get in touch for an interactive product walkthrough.
+              Get in touch for a product walkthrough tailored to your restaurant.
             </Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={s.ctaBtn}
             onPress={() => onNavigate?.("pricing")}
             activeOpacity={0.85}
           >
             <Text style={s.ctaBtnText}>Explore Plans</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={16} color="#FFFEF8" />
           </TouchableOpacity>
         </View>
 
@@ -138,23 +138,23 @@ const s = StyleSheet.create({
 
   kicker: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
     letterSpacing: 1.2,
     marginBottom: 6,
   },
 
   cardTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 14,
     letterSpacing: -0.3,
   },
 
   bodyText: {
     fontSize: 15,
-    color: '#475569',
+    color: '#52664D',
     lineHeight: 25,
     marginBottom: 12,
   },
@@ -162,14 +162,14 @@ const s = StyleSheet.create({
   // STATS BANNER
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
     padding: 24,
     marginBottom: 28,
     justifyContent: 'space-around',
-    shadowColor: '#0F172A',
+    shadowColor: '#193A2C',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 8,
@@ -185,26 +185,26 @@ const s = StyleSheet.create({
   },
   statValue: {
     fontSize: 32,
-    fontWeight: '900',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
     letterSpacing: -1,
   },
   statLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#6C7D63',
     marginTop: 4,
   },
 
   // MAIN CARD SECTIONS
   cardSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
     padding: 32,
     marginBottom: 28,
-    shadowColor: '#0F172A',
+    shadowColor: '#193A2C',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 8,
@@ -229,12 +229,12 @@ const s = StyleSheet.create({
     gap: 16,
   },
   valueCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFEF8',
     padding: 24,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+    borderColor: '#DEE5D5',
+    shadowColor: '#193A2C',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 6,
@@ -251,7 +251,7 @@ const s = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -259,19 +259,19 @@ const s = StyleSheet.create({
   valueCardTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#193A2C',
     marginBottom: 8,
   },
   valueCardDesc: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#6C7D63',
     lineHeight: 22,
   },
 
   // CTA CARD
   ctaCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 18,
+    backgroundColor: '#193A2C',
+    borderRadius: 12,
     padding: 32,
     flexDirection: 'row',
     alignItems: 'center',
@@ -285,17 +285,17 @@ const s = StyleSheet.create({
   },
   ctaTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: '#FFFEF8',
     marginBottom: 4,
   },
   ctaSub: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#B7C5AC',
     lineHeight: 20,
   },
   ctaBtn: {
-    backgroundColor: '#008060',
+    backgroundColor: '#477047',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
@@ -305,7 +305,7 @@ const s = StyleSheet.create({
     cursor: isWeb ? "pointer" : "default",
   },
   ctaBtnText: {
-    color: '#FFFFFF',
+    color: '#FFFEF8',
     fontWeight: '700',
     fontSize: 14,
   },

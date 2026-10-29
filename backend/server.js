@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("./config/env");
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
@@ -49,7 +49,7 @@ initSocket(server);
 
 // Init & start AI Business Summary + Alerts cron jobs
 initScheduler(getIO());
-startCronJobs();
+if (process.env.ENABLE_BACKGROUND_JOBS !== "false") startCronJobs();
 
 // ─── CORS ──────────────────────────────────────────────────────────────
 const allowedOrigins = [
@@ -64,6 +64,10 @@ const allowedOrigins = [
   "http://localhost:8081",
   "http://localhost:3000",
   "http://localhost:3001",
+  "http://127.0.0.1:8081",
+  "http://127.0.0.1:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
 
   // ─── NETWORK IPs (same Wi-Fi) ──────────────────────────────
   "http://10.193.19.38:8081",
@@ -142,7 +146,7 @@ console.log('✅ Staff routes registered at /api/staff');
 app.get("/api/health", (req, res) => res.json({ status: "ok", time: new Date() }));
 
 // ─── DAILY AI SUMMARY CRON (6:00 AM) ────────────────────────────────
-cron.schedule("0 6 * * *", async () => {
+if (process.env.ENABLE_BACKGROUND_JOBS !== "false") cron.schedule("0 6 * * *", async () => {
   console.log("🔄 Running Daily AI Summary...");
 
   try {
@@ -234,7 +238,7 @@ cron.schedule("0 6 * * *", async () => {
 });
 
 // ─── SUBSCRIPTION EXPIRY CHECK (10:00 AM) ──────────────────────────
-cron.schedule("0 10 * * *", async () => {
+if (process.env.ENABLE_BACKGROUND_JOBS !== "false") cron.schedule("0 10 * * *", async () => {
   try {
     await pool.query("ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'en'");
 

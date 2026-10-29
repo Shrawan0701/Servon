@@ -66,7 +66,7 @@ export default function Security({ onNavigate }) {
         {/* LIGHT SECURITY SHIELD BANNER */}
         <View style={s.bannerCard}>
           <View style={s.bannerIconBox}>
-            <Ionicons name="shield-checkmark-outline" size={28} color="#008060" />
+            <Ionicons name="shield-checkmark-outline" size={28} color="#477047" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.bannerKicker}>DATA PRIVACY FIRST</Text>
@@ -83,9 +83,9 @@ export default function Security({ onNavigate }) {
             <View key={idx} style={s.card}>
               <View style={s.cardHeader}>
                 <View style={s.iconWrap}>
-                  <Ionicons name={item.icon} size={20} color="#008060" />
+                  <Ionicons name={item.icon} size={20} color="#477047" />
                 </View>
-                <Text style={s.cardTitle}>{item.title}</Text>
+                <Text accessibilityRole="heading" style={s.cardTitle}>{item.title}</Text>
               </View>
               <Text style={s.cardDesc}>{item.description}</Text>
             </View>
@@ -97,7 +97,7 @@ export default function Security({ onNavigate }) {
           <View style={{ flex: 1, minWidth: 260 }}>
             <Text style={s.disclosureTitle}>Report a Security Concern</Text>
             <Text style={s.disclosureText}>
-              Have you discovered a potential security vulnerability or data concern? 
+              Have you discovered a potential security vulnerability or data concern?
             </Text>
           </View>
           <TouchableOpacity
@@ -126,14 +126,14 @@ const s = StyleSheet.create({
   bannerCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     padding: 28,
     marginBottom: 32,
     gap: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+    borderColor: '#DEE5D5',
+    shadowColor: '#193A2C',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 8,
@@ -143,28 +143,28 @@ const s = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   bannerKicker: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
     letterSpacing: 1.2,
     marginBottom: 4,
   },
   bannerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 6,
     letterSpacing: -0.3,
   },
   bannerText: {
     fontSize: 14,
     lineHeight: 24,
-    color: '#475569',
+    color: '#52664D',
     maxWidth: 720,
   },
 
@@ -179,12 +179,12 @@ const s = StyleSheet.create({
     flexGrow: 1,
     flexBasis: 280,
     maxWidth: 480,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+    borderColor: '#DEE5D5',
+    shadowColor: '#193A2C',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 6,
@@ -200,31 +200,31 @@ const s = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     flex: 1,
   },
   cardDesc: {
     fontSize: 13,
     lineHeight: 21,
-    color: '#475569',
+    color: '#52664D',
     fontWeight: '400',
   },
 
   // DISCLOSURE BOX
   disclosureCard: {
     marginTop: 36,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
+    backgroundColor: '#F0F3E8',
+    borderRadius: 12,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#DEE5D5',
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -233,18 +233,18 @@ const s = StyleSheet.create({
   },
   disclosureTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 4,
   },
   disclosureText: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#6C7D63',
     maxWidth: 600,
     lineHeight: 18,
   },
   emailBtn: {
-    backgroundColor: '#008060',
+    backgroundColor: '#477047',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
@@ -254,8 +254,8 @@ const s = StyleSheet.create({
     cursor: isWeb ? 'pointer' : 'default',
   },
   emailBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: '#FFFEF8',
+    fontWeight: '600',
     fontSize: 14,
   },
 });

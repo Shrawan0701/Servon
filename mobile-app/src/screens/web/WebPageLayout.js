@@ -131,7 +131,7 @@ export const WebPageLayout = ({ title, subtitle, children, onNavigate }) => {
 
           <View style={f.divider} />
 
-          <Text style={f.subCopy}>Servon Labs Private Limited, Pune, Maharashtra</Text>
+          <Text style={f.subCopy}>Servon Labs Private Limited, Pune, India</Text>
           <Text style={f.copy}>© 2026 Servon. All rights reserved.</Text>
         </View>
       </ScrollView>

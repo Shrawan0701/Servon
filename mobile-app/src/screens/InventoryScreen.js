@@ -1,11 +1,12 @@
 import InventoryRecipeEditor from "../components/InventoryRecipeEditor";
 import InventoryTools from "../components/InventoryTools";
+import { StockMenuLinkEditor } from "../components/InventoryMenuLinks";
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
   ActivityIndicator, Modal, TextInput, ScrollView, Platform, Alert,
 } from "react-native";
-import LocalizedText, { localizeText } from "../components/LocalizedText";
+import LocalizedText, { localizeText, useLocalizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -33,11 +34,11 @@ if (isWeb && typeof document !== "undefined") {
     }
     .inv-stock-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.07); transform: translateY(-1px); }
     .inv-stock-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
       gap: 12px; padding: 16px 24px 32px; max-width: 1200px; margin: 0 auto; width: 100%;
     }
     .inv-recipe-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
       gap: 12px; padding: 16px 24px 32px; max-width: 1200px; margin: 0 auto; width: 100%;
     }
     .inv-recipe-card {
@@ -70,9 +71,13 @@ const isVolumeUnit = (unit) => unit === "ml" || unit === "litre";
 const liquorLinkKey = (item) => `liquor-${item.liquor_brand_code || String(item.name || "").trim().toLowerCase()}`;
 
 export default function InventoryScreen() {
+  const tr = useLocalizeText();
   const navigation = useNavigation();
   const { language } = useLocale();
   const [toolsTab, setToolsTab] = useState(null);
+  const [linkItem, setLinkItem] = useState(null);
+  const openMenu = () => { setToolsTab(null); setLinkItem(null); navigation.navigate("Tabs", { screen: "Menu" }); };
+  const [showMore, setShowMore] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [activeTab, setActiveTab] = useState("stock"); // 'stock' | 'recipes'
   const [items, setItems] = useState([]);
@@ -97,6 +102,7 @@ export default function InventoryScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const [showRecipeModal, setShowRecipeModal] = useState(false);
   const [recipeMenuItem, setRecipeMenuItem] = useState(null);
@@ -227,19 +233,23 @@ export default function InventoryScreen() {
   };
 
   const openDelete = (item) => {
+    setDeleteError("");
     setDeleteTarget(item);
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
+    if (deleting || !deleteTarget) return;
+    setDeleteError("");
     setDeleting(true);
     try {
       await deleteInventoryItem(deleteTarget.id);
       setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id));
       setShowDeleteModal(false);
       setDeleteTarget(null);
+      await loadData();
     } catch (err) {
-      Alert.alert(localizeText("Could not delete", language), localizeText("Something went wrong. Please try again.", language));
+      setDeleteError(err.response?.data?.error || "Something went wrong. Please try again.");
     } finally {
       setDeleting(false);
     }
@@ -328,12 +338,13 @@ export default function InventoryScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <LocalizedText translate style={styles.headerTitle}>Inventory</LocalizedText>
-            <LocalizedText style={styles.headerHint}>
+            <NativeText style={styles.headerHint}>
               {lowStockCount > 0
-                ? `${lowStockCount} item${lowStockCount > 1 ? "s" : ""} running low - restock soon`
-                : "Track your stock and link it to your menu"}
-            </LocalizedText>
+                ? tr("{count} items running low - restock soon", { count: lowStockCount })
+                : tr("Stock counts and dish ingredients, all in one place")}
+            </NativeText>
           </View>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("More inventory options")} style={styles.moreButton} onPress={() => setShowMore(true)}><Ionicons name="ellipsis-horizontal" size={22} color="#334155" /><NativeText style={styles.moreLabel}>{tr("More")}</NativeText></TouchableOpacity>
         </View>
 
         {/* Big, clear tab switcher */}
@@ -355,25 +366,25 @@ export default function InventoryScreen() {
           >
             <Ionicons name="link" size={16} color={activeTab === "recipes" ? "#fff" : "#6B7280"} />
             <LocalizedText translate style={[styles.tabBtnText, activeTab === "recipes" && styles.tabBtnTextActive]}>
-              Link Menu Items
+              Dish ingredients
             </LocalizedText>
           </TouchableOpacity>
         </View>
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, paddingHorizontal: 20, marginTop: 10 }}>
-          {[["scan", "Scan Inventory"], ["preparations", "Preparations"], ["bulk", "Bulk Recipe Setup"], ["history", "History"]].map(([key, label]) => (
-            <TouchableOpacity key={key} accessibilityRole="button" onPress={() => setToolsTab(key)} style={{ backgroundColor: "#F3F4F6", borderRadius: 10, padding: 12 }}>
-              <NativeText style={{ color: "#111827", fontWeight: "700" }}>{label}</NativeText>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {!!loadError && <View style={{ padding: 12 }}><NativeText accessibilityRole="alert" style={{ color: "#B91C1C" }}>{loadError}</NativeText><TouchableOpacity accessibilityRole="button" onPress={loadData}><NativeText>Retry loading inventory</NativeText></TouchableOpacity></View>}
-        {activeTab === "stock" && (
-          <TouchableOpacity style={styles.headerAddBtn} onPress={openAddItem} activeOpacity={0.85}>
-            <Ionicons name="add-circle" size={18} color="#fff" />
-            <LocalizedText translate style={styles.headerAddBtnText}>Add New Stock Item</LocalizedText>
+        <View style={styles.mainActions}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={activeTab === "stock" ? tr("Scan stock") : tr("Set up several dishes")} style={styles.primaryAction} onPress={() => setToolsTab(activeTab === "stock" ? "scan" : "bulk")}>
+            <Ionicons name={activeTab === "stock" ? "camera-outline" : "layers-outline"} size={21} color="#fff" />
+            <NativeText style={styles.primaryActionText}>{activeTab === "stock" ? tr("Scan stock") : tr("Set up several dishes")}</NativeText>
           </TouchableOpacity>
-        )}
+          {activeTab === "stock" && <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("New item")} style={styles.secondaryAction} onPress={openAddItem}>
+            <Ionicons name="add" size={21} color="#243A30" /><NativeText style={styles.secondaryActionText}>{tr("New item")}</NativeText>
+          </TouchableOpacity>}
+        </View>
+        <View style={styles.sectionIntro}>
+          <NativeText style={styles.sectionTitle}>{activeTab === "stock" ? tr("Your stock: {count} items", { count: items.length }) : tr("Choose a dish to add its ingredients")}</NativeText>
+          <NativeText style={styles.sectionHint}>{activeTab === "stock" ? tr("Scan bottles to check counts, or add stock when supplies arrive.") : tr("Set quantities once. Stock updates automatically with each order.")}</NativeText>
+        </View>
+        {!!loadError && <View style={{ padding: 12 }}><NativeText accessibilityRole="alert" style={{ color: "#B91C1C" }}>{tr(loadError)}</NativeText><TouchableOpacity accessibilityRole="button" onPress={loadData}><NativeText>{tr("Retry loading inventory")}</NativeText></TouchableOpacity></View>}
       </View>
 
       {/* ─── STOCK TAB ─── */}
@@ -391,6 +402,7 @@ export default function InventoryScreen() {
                     key={item.id}
                     item={item}
                     onRestock={() => openRestock(item)}
+                    onLink={() => setLinkItem(item)}
                     onEdit={() => openEditItem(item)}
                     onDelete={() => openDelete(item)}
                   />
@@ -409,6 +421,7 @@ export default function InventoryScreen() {
               <StockCardNative
                 item={item}
                 onRestock={() => openRestock(item)}
+                    onLink={() => setLinkItem(item)}
                 onEdit={() => openEditItem(item)}
                 onDelete={() => openDelete(item)}
               />
@@ -599,8 +612,8 @@ export default function InventoryScreen() {
               </View>
               <View>
                 <LocalizedText style={styles.restockItemName}>{restockTarget?.name}</LocalizedText>
-                <LocalizedText style={styles.restockItemCurrent}>
-                  You currently have {restockTarget ? formatStockDisplay(restockTarget) : 0}
+                <LocalizedText translate={false} style={styles.restockItemCurrent}>
+                  {tr("You currently have {stock}", { stock: restockTarget ? formatStockDisplay(restockTarget, tr) : 0 })}
                 </LocalizedText>
               </View>
             </View>
@@ -671,12 +684,13 @@ export default function InventoryScreen() {
             <View style={styles.deleteIconCircle}>
               <Ionicons name="trash-outline" size={28} color="#EF4444" />
             </View>
-            <LocalizedText style={styles.deleteTitle}>Remove {deleteTarget?.name}?</LocalizedText>
+            <LocalizedText translate={false} style={styles.deleteTitle}>{tr("Remove {name}?", { name: deleteTarget?.name })}</LocalizedText>
             <LocalizedText translate style={styles.deleteSub}>
-              This item and any menu links to it will be removed. This cannot be undone.
+              This item will be removed from stock, dish recipes and preparations. Past stock history will be kept.
             </LocalizedText>
+            {!!deleteError && <LocalizedText translate accessibilityRole="alert" style={{ color: "#B91C1C", fontSize: 13, lineHeight: 20, textAlign: "center", marginBottom: 16 }}>{deleteError}</LocalizedText>}
             <View style={styles.deleteActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDeleteModal(false)} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDeleteModal(false)} disabled={deleting} activeOpacity={0.8}>
                 <LocalizedText translate style={styles.cancelBtnText}>Cancel</LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteConfirmBtn} onPress={confirmDelete} disabled={deleting} activeOpacity={0.85}>
@@ -688,11 +702,21 @@ export default function InventoryScreen() {
       </Modal>
 
       {/* ─── RECIPE MODAL ─── */}
+      <Modal visible={!!linkItem} animationType="slide" onRequestClose={() => setLinkItem(null)}>
+        {linkItem && <SafeAreaView style={{ flex: 1 }}><StockMenuLinkEditor item={linkItem} menu={recipeMenu} onClose={() => setLinkItem(null)} onSaved={loadData} onOpenMenu={openMenu} /></SafeAreaView>}
+      </Modal>
       <Modal visible={showRecipeModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowRecipeModal(false)}>
         {showRecipeModal && recipeMenuItem && <InventoryRecipeEditor menuItem={recipeMenuItem} stock={items} onClose={() => setShowRecipeModal(false)} onSaved={loadData} />}
       </Modal>
-      <Modal visible={toolsTab !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setToolsTab(null)}>
-        {toolsTab !== null && <InventoryTools initialTab={toolsTab} stock={items} menu={recipeMenu} onClose={() => setToolsTab(null)} onChanged={loadData} />}
+      <Modal visible={showMore || toolsTab !== null} transparent animationType="fade" onRequestClose={() => { setShowMore(false); setToolsTab(null); }}>
+        {showMore ? (
+        <View style={[styles.modalOverlay, { justifyContent: "center" }]}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 24, width: "100%", alignSelf: "center", maxWidth: 440, padding: 22 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}><NativeText style={{ flex: 1, fontSize: 21, fontWeight: "800", color: "#172B22" }}>{tr("More inventory options")}</NativeText><TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Close more options")} style={styles.moreButton} onPress={() => setShowMore(false)}><Ionicons name="close" size={23} color="#334155" /></TouchableOpacity></View>
+            {[["preparations", "restaurant-outline", "Gravies & preparations", "Save a base recipe to reuse in many dishes"], ["bulk", "layers-outline", "Set up several dishes", "Add common ingredients to dishes together"], ["history", "time-outline", "Stock history", "View photo counts and stock changes"]].map(([key, icon, title, hint]) => <TouchableOpacity key={key} accessibilityRole="button" accessibilityLabel={tr(title)} style={styles.toolOption} onPress={() => { setShowMore(false); setToolsTab(key); }}><View style={styles.toolIcon}><Ionicons name={icon} size={23} color="#008060" /></View><View style={{ flex: 1 }}><NativeText style={styles.sectionTitle}>{tr(title)}</NativeText><NativeText style={styles.sectionHint}>{tr(hint)}</NativeText></View><Ionicons name="chevron-forward" size={17} color="#64756C" /></TouchableOpacity>)}
+          </View>
+        </View>
+        ) : toolsTab !== null && <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}><InventoryTools key={toolsTab} initialTab={toolsTab} stock={items} menu={recipeMenu} onClose={() => setToolsTab(null)} onChanged={loadData} onOpenMenu={openMenu} /></SafeAreaView>}
       </Modal>
     </SafeAreaView>
   );
@@ -734,70 +758,54 @@ function EmptyRecipeState() {
 }
 
 // ─── WEB CARDS ───────────────────────────────────────────────────────
-function StockCardWeb({ item, onRestock, onEdit, onDelete }) {
+function StockActions({ item, onRestock, onEdit, onDelete }) {
+  const tr = useLocalizeText();
+  const [open, setOpen] = useState(false);
+  return <View>
+    <View style={styles.stockCardActions}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Add stock to {name}", { name: item.name })} style={styles.restockBtn} onPress={onRestock}><Ionicons name="add-circle-outline" size={18} color="#fff" /><LocalizedText translate style={styles.restockBtnText}>Add Stock</LocalizedText></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Options for {name}", { name: item.name })} accessibilityState={{ expanded: open }} style={[styles.iconActionBtn, { width: 46, height: 46 }]} onPress={() => setOpen(!open)}><Ionicons name="ellipsis-horizontal" size={22} color="#334155" /></TouchableOpacity>
+    </View>
+    {open && <View style={{ paddingTop: 8, gap: 6 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Edit item")} style={styles.itemOption} onPress={() => { setOpen(false); onEdit(); }}><Ionicons name="create-outline" size={18} color="#334155" /><NativeText style={styles.secondaryActionText}>{tr("Edit item")}</NativeText></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Remove item")} style={styles.itemOption} onPress={() => { setOpen(false); onDelete(); }}><Ionicons name="trash-outline" size={18} color="#B91C1C" /><NativeText style={{ color: "#B91C1C", fontWeight: "600", fontSize: 14 }}>{tr("Remove item")}</NativeText></TouchableOpacity>
+    </View>}
+  </View>;
+}
+
+function StockCardWeb({ item, onRestock, onEdit, onDelete, onLink }) {
+  const tr = useLocalizeText();
   return (
     <div className="inv-stock-card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{item.name}</div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.4, marginTop: 2 }}>
-            {unitLabel(item.unit)}
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#64756C", textTransform: "uppercase", letterSpacing: 0.4, marginTop: 2 }}>
+            {tr(unitLabel(item.unit))}
           </div>
         </div>
         {item.is_low && (
           <div style={{ display: "flex", alignItems: "center", gap: 3, background: "#FEF2F2", borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>
             <Ionicons name="alert-circle" size={11} color="#EF4444" />
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#EF4444" }}>Low</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#EF4444" }}>{tr("Low")}</span>
           </div>
         )}
       </div>
 
       <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 10 }}>
-        <span style={{ fontSize: 24, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{formatStockDisplay(item)}</span>
+        <span style={{ fontSize: 24, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{formatStockDisplay(item, tr)}</span>
       </div>
-      <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
-        Alert below {formatQty(item.low_stock_threshold)} {item.unit}
+      <div style={{ fontSize: 13, color: "#64756C", marginTop: 4 }}>{tr("Alert below {quantity} {unit}", { quantity: formatQty(item.low_stock_threshold), unit: item.unit })}
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginTop: 12, paddingTop: 12, borderTop: "1px solid #F3F4F6" }}>
-        <button
-          className="inv-btn-restock"
-          onClick={onRestock}
-          style={{
-            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-            background: "#10B981", border: "none", borderRadius: 10, padding: "9px 0",
-            color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
-          }}
-        >
-          <Ionicons name="add-circle-outline" size={14} color="#fff" />
-          Add Stock
-        </button>
-        <button
-          onClick={onEdit}
-          style={{
-            width: 36, height: 36, borderRadius: 10, background: "#F3F4F6",
-            border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-          title="Edit item"
-        >
-          <Ionicons name="create-outline" size={15} color="#374151" />
-        </button>
-        <button
-          onClick={onDelete}
-          style={{
-            width: 36, height: 36, borderRadius: 10, background: "#FEF2F2",
-            border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-          title="Remove item"
-        >
-          <Ionicons name="trash-outline" size={15} color="#EF4444" />
-        </button>
-      </div>
+      <TouchableOpacity accessibilityRole="button" onPress={onLink} style={{ paddingTop: 10, paddingBottom: 6 }}><NativeText style={{ color: "#36794F", fontSize: 12, fontWeight: "600" }}>{Number(item.menu_link_count) > 0 ? tr("{count} menu links", { count: item.menu_link_count }) : tr("Link to menu")}</NativeText></TouchableOpacity>
+      <StockActions item={item} onRestock={onRestock} onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
 }
 
 function RecipeCardWeb({ item, onPress }) {
+  const tr = useLocalizeText();
   const linked = item.ingredient_count > 0;
   return (
     <div className="inv-recipe-card" role="button" tabIndex={0} onClick={onPress} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onPress(); } }}>
@@ -812,17 +820,16 @@ function RecipeCardWeb({ item, onPress }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{item.name}</div>
-        <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600, marginTop: 1 }}>{item.category}</div>
+        <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600, marginTop: 1 }}>{tr(item.category)}</div>
       </div>
       {linked ? (
         <div style={{ background: "#ECFDF5", borderRadius: 9, padding: "5px 9px", flexShrink: 0 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: "#10B981" }}>
-            {item.ingredient_count} linked
-          </span>
+            {tr("{count} linked", { count: item.ingredient_count })}</span>
         </div>
       ) : (
         <div style={{ background: "#FFFBEB", borderRadius: 9, padding: "5px 9px", flexShrink: 0 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#B45309" }}>Set up now</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#B45309" }}>{tr("Set up now")}</span>
         </div>
       )}
       <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
@@ -831,13 +838,14 @@ function RecipeCardWeb({ item, onPress }) {
 }
 
 // ─── NATIVE CARDS ────────────────────────────────────────────────────
-function StockCardNative({ item, onRestock, onEdit, onDelete }) {
+function StockCardNative({ item, onRestock, onEdit, onDelete, onLink }) {
+  const tr = useLocalizeText();
   return (
     <View style={styles.stockCard}>
       <View style={styles.stockCardTop}>
         <View style={{ flex: 1 }}>
           <LocalizedText style={styles.stockName}>{item.name}</LocalizedText>
-          <LocalizedText style={styles.stockUnitLabel}>{unitLabel(item.unit)}</LocalizedText>
+          <LocalizedText translate={false} style={styles.stockUnitLabel}>{tr(unitLabel(item.unit))}</LocalizedText>
         </View>
         {item.is_low && (
           <View style={styles.lowBadge}>
@@ -848,27 +856,18 @@ function StockCardNative({ item, onRestock, onEdit, onDelete }) {
       </View>
 
       <View style={styles.stockValueRow}>
-        <LocalizedText style={styles.stockValue}>{formatStockDisplay(item)}</LocalizedText>
+        <LocalizedText translate={false} style={styles.stockValue}>{formatStockDisplay(item, tr)}</LocalizedText>
       </View>
-      <LocalizedText style={styles.thresholdText}>Alert when below {formatQty(item.low_stock_threshold)} {item.unit}</LocalizedText>
+      <LocalizedText translate={false} style={styles.thresholdText}>{tr("Alert below {quantity} {unit}", { quantity: formatQty(item.low_stock_threshold), unit: item.unit })}</LocalizedText>
 
-      <View style={styles.stockCardActions}>
-        <TouchableOpacity style={styles.restockBtn} onPress={onRestock} activeOpacity={0.85}>
-          <Ionicons name="add-circle-outline" size={16} color="#fff" />
-          <LocalizedText translate style={styles.restockBtnText}>Add Stock</LocalizedText>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconActionBtn} onPress={onEdit} activeOpacity={0.8}>
-          <Ionicons name="create-outline" size={16} color="#374151" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconActionBtnDanger} onPress={onDelete} activeOpacity={0.8}>
-          <Ionicons name="trash-outline" size={16} color="#EF4444" />
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity accessibilityRole="button" onPress={onLink} style={{ paddingTop: 10, paddingBottom: 6 }}><NativeText style={{ color: "#36794F", fontSize: 12, fontWeight: "600" }}>{Number(item.menu_link_count) > 0 ? tr("{count} menu links", { count: item.menu_link_count }) : tr("Link to menu")}</NativeText></TouchableOpacity>
+      <StockActions item={item} onRestock={onRestock} onEdit={onEdit} onDelete={onDelete} />
     </View>
   );
 }
 
 function RecipeCardNative({ item, onPress }) {
+  const tr = useLocalizeText();
   const linked = item.ingredient_count > 0;
   return (
     <TouchableOpacity style={styles.recipeCard} onPress={onPress} activeOpacity={0.8}>
@@ -881,7 +880,7 @@ function RecipeCardNative({ item, onPress }) {
       </View>
       {linked ? (
         <View style={styles.configuredBadge}>
-          <LocalizedText style={styles.configuredBadgeText}>{item.ingredient_count} linked</LocalizedText>
+          <LocalizedText translate={false} style={styles.configuredBadgeText}>{tr("{count} linked", { count: item.ingredient_count })}</LocalizedText>
         </View>
       ) : (
         <View style={styles.notConfiguredBadge}>
@@ -902,14 +901,14 @@ function formatQty(value) {
   return Number.isInteger(num) ? String(num) : num.toFixed(2).replace(/\.?0+$/, "");
 }
 
-function formatStockDisplay(item) {
+function formatStockDisplay(item, tr) {
   const stock = parseFloat(item?.current_stock) || 0;
   const bottleSize = parseFloat(item?.bottle_size) || 0;
   if (isVolumeUnit(item?.unit) && bottleSize > 0) {
     const bottles = Math.floor(stock / bottleSize);
     const remainder = stock - bottles * bottleSize;
     const parts = [];
-    if (bottles > 0) parts.push(`${bottles} bottle${bottles === 1 ? "" : "s"}`);
+    if (bottles > 0) parts.push(tr(bottles === 1 ? "{count} bottle" : "{count} bottles", { count: bottles }));
     if (remainder > 0 || bottles === 0) parts.push(`${formatQty(remainder)} ${item.unit}`);
     return parts.join(" + ");
   }
@@ -928,10 +927,23 @@ const styles = StyleSheet.create({
 
   tabRow: { flexDirection: "row", gap: 8, paddingHorizontal: 20, marginTop: 14, maxWidth: 1200, alignSelf: "center", width: "100%" },
   tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 11, borderRadius: 12, backgroundColor: "#F3F4F6" },
-  tabBtnActive: { backgroundColor: "#111827" },
+  tabBtnActive: { backgroundColor: "#173D2D" },
   tabBtnText: { fontSize: 13, fontWeight: "700", color: "#6B7280" },
   tabBtnTextActive: { color: "#fff" },
 
+  moreButton: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", padding: 5, borderRadius: 12, backgroundColor: "#EDF2EF" },
+  moreLabel: { fontSize: 11, fontWeight: "600", color: "#334155" },
+  mainActions: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 16, maxWidth: 1200, width: "100%", alignSelf: "center" },
+  primaryAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, backgroundColor: "#008060", borderRadius: 13, paddingHorizontal: 12, paddingVertical: 15, minHeight: 52 },
+  primaryActionText: { fontSize: 15, fontWeight: "700", color: "#fff", flexShrink: 1 },
+  secondaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#EDF2EF", borderRadius: 13, paddingHorizontal: 18, minHeight: 52 },
+  secondaryActionText: { fontSize: 14, fontWeight: "700", color: "#243A30" },
+  sectionIntro: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4, maxWidth: 1200, width: "100%", alignSelf: "center" },
+  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#243A30" },
+  sectionHint: { fontSize: 13, color: "#52645D", lineHeight: 20, marginTop: 4 },
+  toolOption: { flexDirection: "row", alignItems: "center", gap: 12, borderTopWidth: 1, borderColor: "#E6ECE8", paddingVertical: 18 },
+  toolIcon: { width: 44, height: 44, backgroundColor: "#E6F3EC", borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  itemOption: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, minHeight: 44, backgroundColor: "#F7F9F8", borderRadius: 10 },
   headerAddBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
     backgroundColor: "#10B981", borderRadius: 12, paddingVertical: 12,
@@ -944,17 +956,17 @@ const styles = StyleSheet.create({
   stockCard: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E8E2D9" },
   stockCardTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   stockName: { fontSize: 15, fontWeight: "800", color: "#111827" },
-  stockUnitLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "700", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.3 },
+  stockUnitLabel: { fontSize: 11, color: "#64756C", fontWeight: "700", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.3 },
   lowBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF2F2", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
   lowBadgeText: { fontSize: 10, fontWeight: "700", color: "#EF4444" },
 
   stockValueRow: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginTop: 10 },
   stockValue: { fontSize: 24, fontWeight: "800", color: "#111827", lineHeight: 26 },
   stockValueUnit: { fontSize: 13, color: "#6B7280", fontWeight: "700", marginBottom: 3 },
-  thresholdText: { fontSize: 11, color: "#9CA3AF", marginTop: 4 },
+  thresholdText: { fontSize: 13, color: "#64756C", marginTop: 4 },
 
   stockCardActions: { flexDirection: "row", gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 12 },
-  restockBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#10B981", borderRadius: 10, paddingVertical: 10 },
+  restockBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#008060", borderRadius: 10, paddingVertical: 12 },
   restockBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   iconActionBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
   iconActionBtnDanger: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },

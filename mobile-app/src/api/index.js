@@ -3,18 +3,12 @@
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import { API_BASE_URL as BASE_URL, ADVISOR_API_BASE_URL } from '../config/api';
+export { ADVISOR_API_BASE_URL } from '../config/api';
 
 // ─── CONFIGURATION ───────────────────────────────────────────────────────────
 
-// Use environment variable with fallback for production
-const BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  "http://10.198.185.12:5000";
-
-// Local backend ONLY for AI Advisor (can be configured separately)
-export const ADVISOR_API_BASE_URL = 
-  process.env.EXPO_PUBLIC_ADVISOR_API_URL ||
-  "https://servon.onrender.com/api";
+// Origins are shared with login, downloads and sockets through ../config/api.
 
 // ─── API INSTANCES ───────────────────────────────────────────────────────────
 

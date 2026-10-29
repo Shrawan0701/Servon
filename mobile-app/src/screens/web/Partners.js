@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Text,
+  Linking,
   StyleSheet,
   View,
   TouchableOpacity,
@@ -40,7 +41,7 @@ export default function Partners({ onNavigate }) {
         "Custom referral links and promotional kits provided",
       ],
     },
-   
+
   ];
 
   return (
@@ -51,7 +52,7 @@ export default function Partners({ onNavigate }) {
     >
       <View style={s.container}>
         {/* Value Prop Hero Card */}
-        
+
 
         {/* 3 Partnership Tracks */}
         <View style={s.tracksGrid}>
@@ -59,10 +60,10 @@ export default function Partners({ onNavigate }) {
             <View key={idx} style={s.trackCard}>
               <View style={s.trackHeader}>
                 <View style={s.trackIconBox}>
-                  <Ionicons name={track.icon} size={22} color="#008060" />
+                  <Ionicons name={track.icon} size={22} color="#477047" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.trackTitle}>{track.title}</Text>
+                  <Text accessibilityRole="heading" style={s.trackTitle}>{track.title}</Text>
                   <Text style={s.trackSubtitle}>{track.subtitle}</Text>
                 </View>
               </View>
@@ -72,7 +73,7 @@ export default function Partners({ onNavigate }) {
               <View style={s.benefitList}>
                 {track.benefits.map((benefit, bIdx) => (
                   <View key={bIdx} style={s.benefitRow}>
-                    <Ionicons name="checkmark-circle" size={16} color="#008060" />
+                    <Ionicons name="checkmark-circle" size={16} color="#477047" />
                     <Text style={s.benefitText}>{benefit}</Text>
                   </View>
                 ))}
@@ -89,12 +90,12 @@ export default function Partners({ onNavigate }) {
               Send us your company profile, and preferred partnership track. Our partnerships team responds within 24 hours.
             </Text>
             <View style={s.emailBadge}>
-              <Ionicons name="mail-open" size={14} color="#008060" />
-              <Text style={s.emailBadgeText}>support@servon.cloud</Text>
+              <Ionicons name="mail-open" size={14} color="#477047" />
+              <Text accessibilityRole="link" onPress={() => Linking.openURL("mailto:support@servon.cloud")} style={s.emailBadgeText}>support@servon.cloud</Text>
             </View>
           </View>
 
-          
+
         </View>
       </View>
     </WebPageLayout>
@@ -111,8 +112,8 @@ const s = StyleSheet.create({
   heroCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderRadius: 20,
+    backgroundColor: '#193A2C',
+    borderRadius: 12,
     padding: 28,
     marginBottom: 32,
     gap: 20,
@@ -121,35 +122,35 @@ const s = StyleSheet.create({
   heroIconWrap: {
     width: 60,
     height: 60,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: 'rgba(0, 128, 96, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#008060',
+    borderColor: '#477047',
   },
   heroTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: '#FFFEF8',
     marginBottom: 6,
   },
   heroText: {
     fontSize: 14,
     lineHeight: 22,
-    color: '#94A3B8',
+    color: '#B7C5AC',
     maxWidth: 720,
   },
   tracksGrid: {
     gap: 20,
   },
   trackCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    backgroundColor: '#FFFEF8',
+    borderRadius: 12,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+    borderColor: '#DEE5D5',
+    shadowColor: '#193A2C',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.03,
     shadowRadius: 12,
@@ -164,24 +165,24 @@ const s = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 12,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#EAF1DF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   trackTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
   },
   trackSubtitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#6C7D63',
     marginTop: 2,
   },
   divider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#EDF2E5',
     marginVertical: 16,
   },
   benefitList: {
@@ -201,7 +202,7 @@ const s = StyleSheet.create({
   partnerCTA: {
     marginTop: 36,
     backgroundColor: '#F0FDF4',
-    borderRadius: 20,
+    borderRadius: 12,
     padding: 28,
     borderWidth: 1.5,
     borderColor: '#DCFCE7',
@@ -213,13 +214,13 @@ const s = StyleSheet.create({
   },
   ctaHeading: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '600',
+    color: '#193A2C',
     marginBottom: 4,
   },
   ctaSubtext: {
     fontSize: 13,
-    color: '#475569',
+    color: '#52664D',
     maxWidth: 580,
     lineHeight: 20,
     marginBottom: 12,
@@ -227,7 +228,7 @@ const s = StyleSheet.create({
   emailBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFEF8',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -238,11 +239,11 @@ const s = StyleSheet.create({
   },
   emailBadgeText: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#008060',
+    fontWeight: '600',
+    color: '#477047',
   },
   applyBtn: {
-    backgroundColor: '#008060',
+    backgroundColor: '#477047',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 22,
@@ -252,8 +253,8 @@ const s = StyleSheet.create({
     cursor: isWeb ? 'pointer' : 'default',
   },
   applyBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: '#FFFEF8',
+    fontWeight: '600',
     fontSize: 14,
   },
 });

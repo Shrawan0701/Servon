@@ -36,11 +36,11 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { API_BASE_URL } from '../config/api';
 
 const IS_WEB = Platform.OS === "web";
 const toDateStr = (d) => d.toISOString().split("T")[0];
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 const isLikelyUnreachableHost = !IS_WEB && /localhost|127\.0\.0\.1/i.test(API_BASE_URL);
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────

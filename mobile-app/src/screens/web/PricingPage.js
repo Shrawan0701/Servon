@@ -16,7 +16,7 @@ const isWeb = Platform.OS === "web";
 export default function PricingPage({ onNavigate }) {
   const { width } = useWindowDimensions();
   const isMobile = width < 900;
-  
+
   const [openFaq, setOpenFaq] = useState(null);
 
   const toggleFaq = (index) => {
@@ -48,16 +48,15 @@ export default function PricingPage({ onNavigate }) {
       id: "yearly",
       kicker: "MAXIMUM SAVINGS",
       planName: "Yearly",
-      price: "₹6,000",
+      price: "₹8,999",
       period: "/ year",
-      savingsNote: "Effective ₹500/mo · Save 50%",
-      badgeText: "50% OFF",
+      savingsNote: "Effective ~₹750/mo · Save 25%",
+      badgeText: "25% OFF",
       isPopular: false,
     },
   ];
 
   const featuresList = [
-    "3-Day Full Access Free Trial",
     "Offline Mode (Works Without Internet)",
     "Voice AI Assistance & Smart Commands",
     "Real-time AI Alerts & Daily Summaries",
@@ -71,8 +70,8 @@ export default function PricingPage({ onNavigate }) {
 
   const faqs = [
     {
-      q: "Can I try Servon before committing to a paid plan?",
-      a: "Yes! Every account starts with a 3-day unlimited free trial. No credit card or upfront deposit is required.",
+      q: "Can I see Servon before choosing a plan?",
+      a: "Book a product demo with our team to explore ordering, kitchen operations, inventory and reports before choosing a plan.",
     },
     {
       q: "Does Servon work if my restaurant internet goes down?",
@@ -109,7 +108,7 @@ export default function PricingPage({ onNavigate }) {
               {/* Popular Badge */}
               {plan.isPopular && (
                 <View style={s.popularBadge}>
-                  <Ionicons name="sparkles" size={12} color="#FFFFFF" />
+                  <Ionicons name="sparkles" size={12} color="#FFFEF8" />
                   <Text style={s.popularBadgeText}>MOST POPULAR</Text>
                 </View>
               )}
@@ -142,16 +141,16 @@ export default function PricingPage({ onNavigate }) {
               {/* CTA Button */}
               <TouchableOpacity
                 style={[s.ctaButton, plan.isPopular && s.ctaButtonPopular]}
-                onPress={() => onNavigate?.("login")}
+                onPress={() => onNavigate?.("landing", { openDemo: true })}
                 activeOpacity={0.88}
               >
-                <Text style={s.ctaText}>Start 3-Day Free Trial</Text>
-                <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                <Text style={s.ctaText}>Book a Demo</Text>
+                <Ionicons name="arrow-forward" size={16} color="#FFFEF8" />
               </TouchableOpacity>
 
               <View style={s.subBadge}>
-                <Ionicons name="shield-checkmark-outline" size={14} color="#008060" />
-                <Text style={s.subBadgeText}>No credit card required</Text>
+                <Ionicons name="shield-checkmark-outline" size={14} color="#477047" />
+                <Text style={s.subBadgeText}>Product walkthrough with our team</Text>
               </View>
 
               <View style={s.divider} />
@@ -162,7 +161,7 @@ export default function PricingPage({ onNavigate }) {
                 {featuresList.map((feature, idx) => (
                   <View key={idx} style={s.featureRow}>
                     <View style={s.checkBadge}>
-                      <Ionicons name="checkmark" size={13} color="#008060" />
+                      <Ionicons name="checkmark" size={13} color="#477047" />
                     </View>
                     <Text style={s.featureText}>{feature}</Text>
                   </View>
@@ -191,7 +190,7 @@ export default function PricingPage({ onNavigate }) {
                     <Ionicons
                       name={isOpen ? "chevron-up" : "chevron-down"}
                       size={20}
-                      color="#0F172A"
+                      color="#193A2C"
                     />
                   </TouchableOpacity>
                   {isOpen && <Text style={s.faqAnswer}>{item.a}</Text>}
@@ -202,7 +201,7 @@ export default function PricingPage({ onNavigate }) {
         </View>
 
         {/* ENTERPRISE / DEMO BANNER */}
-       
+
       </View>
     </WebPageLayout>
   );
@@ -229,13 +228,13 @@ const s = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: 300,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: "#FFFEF8",
+    borderRadius: 12,
     padding: 28,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#DEE5D5",
     position: "relative",
-    shadowColor: "#0F172A",
+    shadowColor: "#193A2C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 12,
@@ -245,7 +244,7 @@ const s = StyleSheet.create({
     width: "100%",
   },
   cardPopular: {
-    borderColor: "#008060",
+    borderColor: "#477047",
     borderWidth: 2,
     shadowOpacity: 0.1,
     shadowRadius: 20,
@@ -254,18 +253,18 @@ const s = StyleSheet.create({
     position: "absolute",
     top: -14,
     alignSelf: "center",
-    backgroundColor: "#008060",
+    backgroundColor: "#477047",
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 20,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
   popularBadgeText: {
-    color: "#FFFFFF",
+    color: "#FFFEF8",
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
   cardHeader: {
@@ -276,29 +275,29 @@ const s = StyleSheet.create({
   },
   kicker: {
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: '600',
     letterSpacing: 1,
-    color: "#64748B",
+    color: "#6C7D63",
     marginBottom: 4,
   },
   kickerPopular: {
-    color: "#008060",
+    color: "#477047",
   },
   planName: {
     fontSize: 22,
-    fontWeight: "800",
-    color: "#0F172A",
+    fontWeight: '600',
+    color: "#193A2C",
   },
   savingsTag: {
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#EAF1DF",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   savingsTagText: {
     fontSize: 11,
-    fontWeight: "800",
-    color: "#008060",
+    fontWeight: '600',
+    color: "#477047",
   },
   priceContainer: {
     marginVertical: 20,
@@ -309,24 +308,24 @@ const s = StyleSheet.create({
   },
   priceAmount: {
     fontSize: 38,
-    fontWeight: "900",
-    color: "#0F172A",
+    fontWeight: '600',
+    color: "#193A2C",
     letterSpacing: -1,
   },
   pricePeriod: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#64748B",
+    color: "#6C7D63",
     marginLeft: 6,
   },
   savingsNote: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#008060",
+    color: "#477047",
     marginTop: 4,
   },
   ctaButton: {
-    backgroundColor: "#0F172A",
+    backgroundColor: "#193A2C",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -336,10 +335,10 @@ const s = StyleSheet.create({
     cursor: isWeb ? "pointer" : "default",
   },
   ctaButtonPopular: {
-    backgroundColor: "#008060",
+    backgroundColor: "#477047",
   },
   ctaText: {
-    color: "#FFFFFF",
+    color: "#FFFEF8",
     fontWeight: "700",
     fontSize: 14,
   },
@@ -353,17 +352,17 @@ const s = StyleSheet.create({
   subBadgeText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#64748B",
+    color: "#6C7D63",
   },
   divider: {
     height: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#EDF2E5",
     marginVertical: 20,
   },
   featureHeaderText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#193A2C",
     marginBottom: 12,
   },
   featureList: {
@@ -378,7 +377,7 @@ const s = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#EAF1DF",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -398,13 +397,13 @@ const s = StyleSheet.create({
   },
   faqSectionTitle: {
     fontSize: 26,
-    fontWeight: "800",
-    color: "#0F172A",
+    fontWeight: '600',
+    color: "#193A2C",
     textAlign: "center",
   },
   faqSectionSub: {
     fontSize: 15,
-    color: "#64748B",
+    color: "#6C7D63",
     marginTop: 6,
     marginBottom: 32,
     textAlign: "center",
@@ -414,10 +413,10 @@ const s = StyleSheet.create({
     gap: 12,
   },
   faqCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFFEF8",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#DEE5D5",
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
@@ -429,13 +428,13 @@ const s = StyleSheet.create({
   faqQuestion: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#193A2C",
     flex: 1,
     marginRight: 12,
   },
   faqAnswer: {
     fontSize: 14,
-    color: "#475569",
+    color: "#52664D",
     marginTop: 12,
     lineHeight: 22,
   },
@@ -445,8 +444,8 @@ const s = StyleSheet.create({
     marginTop: 50,
     maxWidth: 1140,
     width: "100%",
-    backgroundColor: "#0F172A",
-    borderRadius: 18,
+    backgroundColor: "#193A2C",
+    borderRadius: 12,
     padding: 32,
     flexDirection: "row",
     alignItems: "center",
@@ -460,23 +459,23 @@ const s = StyleSheet.create({
   },
   contactTitle: {
     fontSize: 20,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: '600',
+    color: "#FFFEF8",
     marginBottom: 6,
   },
   contactSub: {
     fontSize: 14,
-    color: "#94A3B8",
+    color: "#B7C5AC",
     lineHeight: 20,
   },
   contactBtn: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFFEF8",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
   },
   contactBtnText: {
-    color: "#0F172A",
+    color: "#193A2C",
     fontWeight: "700",
     fontSize: 14,
   },
