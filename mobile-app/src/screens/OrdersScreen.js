@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text as NativeText,
@@ -12,28 +12,27 @@ import {
   SectionList,
   ScrollView,
   Dimensions,
-  TextInput,
-  Modal,
-  Pressable,
 } from "react-native";
 import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { getOrders, updateOrderStatus, getProfile, getTables, saveCustomerOutstanding, removeOrderItem } from "../api";
+
 import { localizedItemName } from "../utils/localizedItemName";
 import * as Print from "expo-print";
+import DiscountModal from "../components/DiscountModal";
+import useBillOptions from "../hooks/useBillOptions";
 import { useAuth } from "../context/AuthContext";
 
 // ===== OFFLINE SERVICES =====
 import localDB from "../services/LocalDB";
-import networkMonitor from "../services/NetworkMonitor";
-import syncManager from "../services/SyncManager";
+import { refreshPOSData } from "../services/refreshPOSData";
+import { paymentQR } from "../utils/paymentQR";
+import { billTotals } from "../utils/billTotals";
 
 // ─── CONSTANTS ──────────────────────────────────────────────────────────
 
-const LOCAL_UPDATE_TRUST_WINDOW_MS = 20000;
 const BILL_PRINT_TITLE = "Powered by Servon Labs";
 
 const statusColor = (s) =>
@@ -113,22 +112,7 @@ const CHEF_STATUSES = {
 const getChefStatusConfig = (status) => CHEF_STATUSES[status] || CHEF_STATUSES.EDITABLE;
 const CHEF_PRIORITY_ORDER = ["EDITABLE", "CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"];
 const isLiveOrderStatus = (status) => ["CONFIRMED", "PREPARING", "SERVED", "TABLE_ACTIVE"].includes(status);
-const withOfflineFallbackTimeout = (promise, ms = 2500) =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("offline_fallback_timeout")), ms)),
-  ]);
 
-const parseMoneyToCents = (value) => {
-  if (value === null || value === undefined || String(value).trim() === "") return null;
-  const normalized = String(value).trim();
-  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return NaN;
-  const [rupees, paise = ""] = normalized.split(".");
-  return Number(rupees) * 100 + Number((paise + "00").slice(0, 2));
-};
-
-const numberToCents = (value) => Math.round(Number(value || 0) * 100);
-const formatCents = (cents) => (Number(cents || 0) / 100).toFixed(2);
 
 const CHEF_FILTERS = [
   { key: "all", label: "All" },
@@ -439,126 +423,6 @@ const gateStyles = StyleSheet.create({
   footerNote: { fontSize: 11, color: "#9CA3AF", marginTop: 16, fontWeight: "500" },
 });
 
-// ─── DISCOUNT MODAL ────────────────────────────────────────────────────
-const DiscountModal = ({
-  visible,
-  onClose,
-  discountType,
-  setDiscountType,
-  discountValue,
-  setDiscountValue,
-  onApply,
-  modalSubtotal,
-  modalDiscountAmount,
-  outstandingForm,
-  setOutstandingForm,
-  outstandingTotalCents,
-  outstandingRemainingCents,
-}) => {
-  const updateOutstanding = (field, value) => setOutstandingForm((prev) => ({ ...prev, [field]: value }));
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.discountModalOverlay} onPress={onClose}>
-        <Pressable style={styles.discountModal} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.discountModalHeader}>
-            <LocalizedText translate style={styles.discountModalTitle}>Apply Discount</LocalizedText>
-            <TouchableOpacity onPress={onClose} hitSlop={12} activeOpacity={0.6}>
-              <Ionicons name="close" size={22} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.discountSegment}>
-            {[
-              { key: "outstanding", label: "Outstanding", icon: "person-outline" },
-              { key: "none", label: "None", icon: "close-circle-outline" },
-              { key: "percentage", label: "% Off", icon: "pricetag-outline" },
-              { key: "flat", label: "₹ Off", icon: "cash-outline" },
-            ].map((item) => (
-              <TouchableOpacity
-                key={item.key}
-                activeOpacity={0.75}
-                style={[styles.segmentBtn, discountType === item.key && styles.segmentBtnActive]}
-                onPress={() => { setDiscountType(item.key); setDiscountValue(""); }}
-              >
-                <Ionicons name={item.icon} size={16} color={discountType === item.key ? "#fff" : "#6B7280"} />
-                <LocalizedText style={[styles.segmentText, discountType === item.key && styles.segmentTextActive]}>{item.label}</LocalizedText>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {discountType === "outstanding" ? (
-            <View style={styles.outstandingFields}>
-              <TextInput style={styles.outstandingInput} placeholder="Customer Name" placeholderTextColor="#9CA3AF" value={outstandingForm.customerName} onChangeText={(v) => updateOutstanding("customerName", v)} />
-              <TextInput style={styles.outstandingInput} placeholder="Phone Number" placeholderTextColor="#9CA3AF" keyboardType="number-pad" maxLength={10} value={outstandingForm.phoneNumber} onChangeText={(v) => updateOutstanding("phoneNumber", v.replace(/\D/g, ""))} />
-              <View style={styles.outstandingReadonly}>
-                <LocalizedText style={styles.previewLabel}>Total Amount</LocalizedText>
-                <LocalizedText style={styles.previewValue}>Rs. {formatCents(outstandingTotalCents)}</LocalizedText>
-              </View>
-              <TextInput
-                style={styles.outstandingInput}
-                placeholder="Paid Amount (optional, default 0.00)"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                value={outstandingForm.paidAmount}
-                onChangeText={(v) => updateOutstanding("paidAmount", v.replace(/[^0-9.]/g, ""))}
-                selectTextOnFocus
-              />
-              <TextInput
-                style={styles.outstandingInput}
-                placeholder={`Remaining Amount (default ${formatCents(outstandingRemainingCents)})`}
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                value={outstandingForm.remainingAmount}
-                onChangeText={(v) => updateOutstanding("remainingAmount", v.replace(/[^0-9.]/g, ""))}
-                selectTextOnFocus
-              />
-            </View>
-          ) : discountType !== "none" && (
-            <>
-              <View style={styles.discountInputWrap}>
-                <LocalizedText style={styles.discountPrefix}>{discountType === "percentage" ? "%" : "₹"}</LocalizedText>
-                <TextInput style={styles.discountInputField} placeholder="0" keyboardType="numeric" value={discountValue} onChangeText={setDiscountValue} autoFocus />
-              </View>
-              {discountType === "percentage" && (
-                <View style={styles.presetRow}>
-                  {[5, 10, 15, 20].map((p) => (
-                    <TouchableOpacity key={p} activeOpacity={0.7} style={styles.presetChip} onPress={() => setDiscountValue(String(p))}>
-                      <LocalizedText style={styles.presetChipText}>{p}%</LocalizedText>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </>
-          )}
-          <View style={styles.previewBox}>
-            <View style={styles.previewRow}>
-              <LocalizedText translate style={styles.previewLabel}>Subtotal</LocalizedText>
-              <LocalizedText style={styles.previewValue}>₹{Math.round(modalSubtotal)}</LocalizedText>
-            </View>
-            {modalDiscountAmount > 0 && (
-              <View style={styles.previewRow}>
-                <LocalizedText translate style={[styles.previewLabel, { color: "#EF4444" }]}>Discount</LocalizedText>
-                <LocalizedText style={[styles.previewValue, { color: "#EF4444" }]}>-₹{Math.round(modalDiscountAmount)}</LocalizedText>
-              </View>
-            )}
-            <View style={[styles.previewRow, { borderTopWidth: 1, borderTopColor: "#E5E7EB", paddingTop: 8, marginTop: 4 }]}>
-              <LocalizedText translate style={styles.previewTotalLabel}>Payable</LocalizedText>
-              <LocalizedText style={styles.previewTotalValue}>₹{Math.round(modalSubtotal - modalDiscountAmount)}</LocalizedText>
-            </View>
-          </View>
-          <View style={styles.discountModalButtons}>
-            <TouchableOpacity activeOpacity={0.8} style={[styles.discountModalBtn, { backgroundColor: "#F3F4F6" }]} onPress={onClose}>
-              <LocalizedText translate style={[styles.discountModalBtnText, { color: "#374151" }]}>Cancel</LocalizedText>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.8} style={[styles.discountModalBtn, { backgroundColor: "#111827" }]} onPress={onApply}>
-              <Ionicons name="print-outline" size={16} color="#fff" />
-              <LocalizedText translate style={styles.discountModalBtnText}>Apply & Print</LocalizedText>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-};
-
 // ─── MAIN SCREEN ──────────────────────────────────────────────────────
 export default function OrdersScreen() {
   const { language } = useLocale();
@@ -581,59 +445,13 @@ export default function OrdersScreen() {
   // ─── PRINT LOCK STATE ──────────────────────────────────────────────
   const [isPrinting, setIsPrinting] = useState(false);
 
-  const [isOffline, setIsOffline] = useState(false);
-  const [pendingSyncCount, setPendingSyncCount] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
 
-  const [showDiscountModal, setShowDiscountModal] = useState(false);
-  const [selectedOrderForDiscount, setSelectedOrderForDiscount] = useState(null);
-  const [discountType, setDiscountType] = useState("none");
-  const [discountValue, setDiscountValue] = useState("");
-  const [outstandingForm, setOutstandingForm] = useState({
-    customerName: "",
-    phoneNumber: "",
-    paidAmount: "",
-    remainingAmount: "",
-  });
-
-  const localUpdateTimestamps = useRef({});
 
   const isWeb = Platform.OS === "web";
   let DateTimePicker;
   if (!isWeb) {
     DateTimePicker = require("@react-native-community/datetimepicker").default;
   }
-
-  useEffect(() => {
-    const unsubscribe = networkMonitor.subscribe((online) => {
-      setIsOffline(!online);
-      if (online) {
-        loadData();
-        syncManager.startSync();
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const updatePendingCount = async () => {
-      try {
-        const count = await localDB.getPendingActionsCount();
-        setPendingSyncCount(count);
-      } catch (error) {
-        console.log('Pending count error:', error);
-      }
-    };
-    updatePendingCount();
-
-    syncManager.setStatusCallback((status) => {
-      setIsSyncing(status.isSyncing);
-      updatePendingCount();
-    });
-
-    const interval = setInterval(updatePendingCount, 10000);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (isWeb) {
@@ -663,78 +481,20 @@ export default function OrdersScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      setLoading(true);
-
-      let localOrders = [];
-      try {
-        if (filter === 'PREVIOUS') {
-          localOrders = await localDB.getOrdersByDate(selectedDate);
-        } else {
-          localOrders = await localDB.getOrders(filter === 'all' ? null : filter);
-        }
-        if (localOrders && localOrders.length > 0) {
-          setOrders(localOrders);
-        }
-      } catch (dbError) {
-        console.log('Local DB read error:', dbError);
-      }
-
-      const isOnline = await networkMonitor.checkConnectivity();
-
-      if (isOnline) {
-        const [ordersRes, profileRes, tablesRes] = await Promise.all([
-          getOrders(),
-          getProfile(),
-          getTables()
-        ]);
-
-        const freshOrders = ordersRes.data || [];
-        const now = Date.now();
-
-        setOrders((prev) => {
-          const prevById = new Map(prev.map((o) => [o.id, o]));
-          return freshOrders.map((fresh) => {
-            const updatedAt = localUpdateTimestamps.current[fresh.id];
-            if (updatedAt && now - updatedAt < LOCAL_UPDATE_TRUST_WINDOW_MS) {
-              const local = prevById.get(fresh.id);
-              if (local) return local;
-            }
-            return fresh;
-          });
-        });
-
-        await localDB.saveOrders(freshOrders);
-        setProfile(profileRes.data);
-        await localDB.saveProfile(profileRes.data);
-        setTables(Array.isArray(tablesRes.data) ? tablesRes.data : []);
-        await localDB.saveTables(Array.isArray(tablesRes.data) ? tablesRes.data : []);
-        setIsOffline(false);
-      } else {
-        setIsOffline(true);
-        setProfile(await localDB.getProfile());
-        setTables(await localDB.getTables());
-        if (!localOrders || localOrders.length === 0) {
-          const fallbackOrders = await localDB.getOrders();
-          if (fallbackOrders && fallbackOrders.length > 0) {
-            setOrders(fallbackOrders);
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Data load error:", err);
-      try {
-        const fallbackOrders = await localDB.getOrders();
-        if (fallbackOrders && fallbackOrders.length > 0) {
-          setOrders(fallbackOrders);
-        }
-      } catch (fallbackError) {
-        console.error('Fallback load failed:', fallbackError);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+      const [cachedOrders, cachedProfile, cachedTables] = await Promise.all([
+        filter === 'PREVIOUS' ? localDB.getOrdersByDate(selectedDate) : localDB.getOrders(),
+        localDB.getProfile(), localDB.getTables(),
+      ]);
+      setOrders(cachedOrders); setProfile(cachedProfile); setTables(cachedTables);
+    } catch (err) { console.error('Local orders could not load:', err); }
+    finally { setLoading(false); setRefreshing(false); }
   }, [filter, selectedDate]);
+  useEffect(() => {
+    loadData();
+    const unsubscribe = localDB.subscribe(() => { loadData().catch(() => {}); });
+    refreshPOSData(['orders', 'profile', 'tables']).catch(() => {});
+    return unsubscribe;
+  }, [loadData]);
 
   const isToday = (date) => {
     const today = new Date();
@@ -756,25 +516,12 @@ export default function OrdersScreen() {
     try {
       await localDB.updateOrderStatus(orderId, status);
 
-      localUpdateTimestamps.current[orderId] = Date.now();
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
 
-      const isOnline = await networkMonitor.checkConnectivity();
-      if (isOnline && !String(orderId).startsWith("local_order_")) {
-        try {
-          await updateOrderStatus(orderId, status);
-          await localDB.markAsSynced(orderId);
-        } catch (apiError) {
-          console.log('Server update failed, will sync later:', apiError);
-        }
-      }
-
-      const count = await localDB.getPendingActionsCount();
-      setPendingSyncCount(count);
 
     } catch (err) {
       console.error("Update error:", err);
-      Alert.alert('Error', 'Failed to update order status. Will retry when online.');
+      Alert.alert('Error', 'Could not save the order status. Please try again.');
     }
   }, []);
 
@@ -813,19 +560,9 @@ export default function OrdersScreen() {
     async (order, orderItem) => {
       try {
         const itemId = orderItem.id || orderItem.menu_item_id || orderItem.menuItemId;
-        const isOnline = await networkMonitor.checkConnectivity();
-        if (isOnline && !String(order.id).startsWith("local_order_")) {
-          const res = await removeOrderItem(order.id, itemId);
-          if (res?.data?.id) {
-            await localDB.saveOrders([res.data]);
-            setOrders((prev) => prev.map((o) => (o.id === res.data.id ? { ...o, ...res.data } : o)));
-          } else {
-            loadData();
-          }
-        } else {
-          const updated = await localDB.removeOrderItem(order.id, itemId);
-          if (updated?.id) setOrders((prev) => prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o)));
-        }
+        const updated = await localDB.removeOrderItem(order.id, itemId);
+        if (updated?.id) setOrders((prev) => prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o)));
+
       } catch (err) {
         Alert.alert(localizeText("Remove Item", language), err.response?.data?.error || localizeText("Could not remove item.", language));
       }
@@ -862,22 +599,14 @@ export default function OrdersScreen() {
       const foodSubtotal = foodItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const liquorSubtotal = liquorItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-      let discountAmount = 0;
-      if (discount && discount.type !== "none" && discount.value > 0) {
-        if (discount.type === "percentage") discountAmount = (combinedSubtotal * discount.value) / 100;
-        else if (discount.type === "flat") discountAmount = Math.min(discount.value, combinedSubtotal);
-      }
-
-const amountAfterDiscount = combinedSubtotal - discountAmount;
-const cgstPercent = parseFloat(profile?.cgst_percentage || 0);
-const sgstPercent = parseFloat(profile?.sgst_percentage || 0);
-const cgstAmount = (amountAfterDiscount * cgstPercent) / 100;
-const sgstAmount = (amountAfterDiscount * sgstPercent) / 100;
-
-// Round grand total cleanly to exact integer or 2 decimal places
-const grandTotal = Math.round(
-  amountAfterDiscount + cgstAmount + sgstAmount
-);
+      const bill = billTotals(tableOrders, discount, profile);
+      const discountAmount = bill.discountAmount;
+      const amountAfterDiscount = combinedSubtotal - discountAmount;
+      const cgstPercent = Number(profile?.cgst_percentage || 0);
+      const sgstPercent = Number(profile?.sgst_percentage || 0);
+      const cgstAmount = bill.cgstAmount;
+      const sgstAmount = bill.sgstAmount;
+      const grandTotal = bill.grandTotal;
 
 let itemsHtml = "";
 finalItemsList.forEach((i) => {
@@ -936,13 +665,8 @@ const upiString = upiId
   ? `upi://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR&tn=Payment`
   : "";
 
-const qrCodeUrl = upiId
-  ? `https://quickchart.io/qr?text=${encodeURIComponent(upiString)}&size=200&margin=2`
-  : null;
-
-const qrCodeUrlFallback = upiId
-  ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiString)}`
-  : null;
+const qrCodeUrl = paymentQR(upiString);
+const qrCodeUrlFallback = qrCodeUrl;
 
 return `
   <html>
@@ -1310,57 +1034,8 @@ return `
 
         const htmlContent = buildBillHtml(tableOrders, discount);
 
-        if (outstandingPayload) {
-          const outstandingRecord = {
-            ...outstandingPayload,
-            orderId: currentOrder.id,
-          };
-          const isOnlineForOutstanding = await networkMonitor.checkConnectivity();
-          if (isOnlineForOutstanding && !String(currentOrder.id).startsWith("local_order_")) {
-            try {
-              await withOfflineFallbackTimeout(saveCustomerOutstanding(outstandingRecord));
-            } catch (apiErr) {
-              await localDB.saveCustomerOutstanding(outstandingRecord);
-            }
-          } else {
-            await localDB.saveCustomerOutstanding(outstandingRecord);
-          }
-        }
-
-        const now = Date.now();
-        await Promise.all(
-          tableOrders.map(async (o) => {
-            try {
-              await localDB.updateOrderStatus(o.id, "PAID");
-            } catch (dbErr) {
-              console.log("Local DB PAID update error:", dbErr);
-            }
-          })
-        );
-        tableOrders.forEach((o) => {
-          localUpdateTimestamps.current[o.id] = now;
-        });
-        setOrders((prev) =>
-          prev.map((o) => (tableOrders.some((to) => to.id === o.id) ? { ...o, status: "PAID" } : o))
-        );
-
-        const isOnline = await networkMonitor.checkConnectivity();
-        if (isOnline) {
-          await Promise.all(
-            tableOrders.map(async (o) => {
-              try {
-                if (!String(o.id).startsWith("local_order_")) {
-                  await updateOrderStatus(o.id, "PAID");
-                  await localDB.markAsSynced(o.id);
-                }
-              } catch (apiError) {
-                console.log("Server PAID update failed, will sync later:", apiError);
-              }
-            })
-          );
-        }
-        const count = await localDB.getPendingActionsCount();
-        setPendingSyncCount(count);
+        await localDB.checkout(tableOrders.map((o) => o.id), discount, outstandingPayload, htmlContent);
+        await loadData();
 
         await printHtml(htmlContent);
 
@@ -1372,7 +1047,7 @@ return `
         setIsPrinting(false);
       }
     },
-    [orders, buildBillHtml, printHtml, isPrinting]
+    [orders, buildBillHtml, printHtml, isPrinting, loadData]
   );
 
   // ─── HANDLE REPRINT ──────────────────────────────────────────────
@@ -1392,7 +1067,8 @@ return `
           setIsPrinting(false);
           return;
         }
-        const htmlContent = buildBillHtml([currentOrder], { type: "none", value: 0 });
+        const savedReceipt = await localDB.getReceipt(currentOrder.id);
+        const htmlContent = savedReceipt?.html || buildBillHtml([currentOrder], { type: currentOrder.discount_type || "none", value: Number(currentOrder.discount_value || 0) });
         await printHtml(htmlContent);
       } catch (err) {
         console.error("Reprint Error", err);
@@ -1405,93 +1081,7 @@ return `
     [buildBillHtml, printHtml, isPrinting]
   );
 
-  const openDiscountModal = useCallback((order) => {
-    setSelectedOrderForDiscount(order);
-    setDiscountType("none");
-    setDiscountValue("");
-    setOutstandingForm({ customerName: "", phoneNumber: "", paidAmount: "", remainingAmount: "" });
-    setShowDiscountModal(true);
-  }, []);
-
-  const modalSubtotal = useMemo(() => {
-    if (!selectedOrderForDiscount) return 0;
-    return orders
-      .filter((o) => o.table_number === selectedOrderForDiscount.table_number && o.status !== "PAID" && o.status !== "REJECTED" && isToday(o.created_at))
-      .reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
-  }, [selectedOrderForDiscount, orders]);
-
-  const modalDiscountAmount = useMemo(() => {
-    if (!selectedOrderForDiscount) return 0;
-    const value = parseFloat(discountValue) || 0;
-    if (discountType === "percentage") return (modalSubtotal * value) / 100;
-    if (discountType === "flat") return Math.min(value, modalSubtotal);
-    return 0;
-  }, [discountType, discountValue, modalSubtotal, selectedOrderForDiscount]);
-
-  const outstandingTotalCents = useMemo(() => numberToCents(modalSubtotal), [modalSubtotal]);
-  const outstandingRemainingCents = useMemo(() => {
-    const paid = parseMoneyToCents(outstandingForm.paidAmount);
-    const remaining = parseMoneyToCents(outstandingForm.remainingAmount);
-    if (remaining !== null && !Number.isNaN(remaining)) return remaining;
-    if (paid !== null && !Number.isNaN(paid)) return Math.max(0, outstandingTotalCents - paid);
-    return outstandingTotalCents;
-  }, [outstandingForm.paidAmount, outstandingForm.remainingAmount, outstandingTotalCents]);
-
-  const applyDiscount = useCallback(() => {
-    if (discountType === "outstanding") {
-      const name = outstandingForm.customerName.trim();
-      const phone = outstandingForm.phoneNumber.trim();
-      const totalCents = numberToCents(modalSubtotal);
-      let paidCents = parseMoneyToCents(outstandingForm.paidAmount);
-      let remainingCents = parseMoneyToCents(outstandingForm.remainingAmount);
-
-      if (!name) {
-        Alert.alert(localizeText("Invalid", language), "Customer name is required.");
-        return;
-      }
-      if (!/^\d{10}$/.test(phone)) {
-        Alert.alert(localizeText("Invalid", language), "Phone number must be exactly 10 digits.");
-        return;
-      }
-      if (Number.isNaN(paidCents) || Number.isNaN(remainingCents)) {
-        Alert.alert(localizeText("Invalid", language), "Enter valid rupee amounts with up to 2 decimals.");
-        return;
-      }
-      if (paidCents === null && remainingCents === null) {
-        paidCents = 0;
-        remainingCents = totalCents;
-      } else if (paidCents !== null && remainingCents === null) {
-        remainingCents = totalCents - paidCents;
-      } else if (paidCents === null && remainingCents !== null) {
-        paidCents = totalCents - remainingCents;
-      }
-      if (paidCents < 0 || remainingCents < 0 || remainingCents > totalCents || paidCents + remainingCents !== totalCents) {
-        Alert.alert(localizeText("Invalid", language), "Paid and remaining amounts must add up to the total.");
-        return;
-      }
-
-      handlePrintAndCheckout(selectedOrderForDiscount, { type: "none", value: 0 }, {
-        customerName: name,
-        phoneNumber: phone,
-        totalAmount: formatCents(totalCents),
-        paidAmount: formatCents(paidCents),
-        remainingAmount: formatCents(remainingCents),
-      });
-      setShowDiscountModal(false);
-      setSelectedOrderForDiscount(null);
-      return;
-    }
-
-    const value = parseFloat(discountValue);
-    if (discountType !== "none" && (!value || value <= 0)) {
-      Alert.alert(localizeText("Invalid", language), localizeText("Please enter a valid discount amount.", language));
-      return;
-    }
-    const discount = { type: discountType, value: value || 0 };
-    handlePrintAndCheckout(selectedOrderForDiscount, discount);
-    setShowDiscountModal(false);
-    setSelectedOrderForDiscount(null);
-  }, [discountType, discountValue, outstandingForm, modalSubtotal, selectedOrderForDiscount, handlePrintAndCheckout, language]);
+  const { openDiscountModal, billOptionsModalProps } = useBillOptions(orders, handlePrintAndCheckout, profile);
 
   const onDateChange = (event, selected) => {
     if (event.type === "dismissed") {
@@ -1905,7 +1495,7 @@ return `
                 <View style={{ alignItems: "center", marginTop: 60 }}>
                   <Ionicons name="archive-outline" size={48} color="#D1D5DB" />
                   <LocalizedText style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
-                    {isOffline ? '📡 Offline - No cached data for this date' : 'No archived orders for this date'}
+                    {'No archived orders for this date'}
                   </LocalizedText>
                 </View>
               }
@@ -1966,13 +1556,9 @@ return `
               <View style={styles.tableEmptyState}>
                 <View style={styles.tableEmptyIcon}><Ionicons name="receipt-outline" size={32} color="#55755D" /></View>
                 <LocalizedText style={styles.tableEmptyTitle}>
-                  {isOffline ? '📡 Offline - No cached orders' : 'No orders found for today'}
+                  {'No orders found for today'}
                 </LocalizedText>
-                {isOffline && (
-                  <LocalizedText translate style={styles.tableEmptySub}>
-                    Connect to internet to sync orders
-                  </LocalizedText>
-                )}
+
               </View>
             }
                 renderItem={isChefMode ? renderOrderItemChef : renderOrderItemOld}
@@ -1982,25 +1568,7 @@ return `
         )}
       </View>
 
-      <DiscountModal
-        visible={showDiscountModal}
-        onClose={() => {
-          setShowDiscountModal(false);
-          setSelectedOrderForDiscount(null);
-          setOutstandingForm({ customerName: "", phoneNumber: "", paidAmount: "", remainingAmount: "" });
-        }}
-        discountType={discountType}
-        setDiscountType={setDiscountType}
-        discountValue={discountValue}
-        setDiscountValue={setDiscountValue}
-        onApply={applyDiscount}
-        modalSubtotal={modalSubtotal}
-        modalDiscountAmount={modalDiscountAmount}
-        outstandingForm={outstandingForm}
-        setOutstandingForm={setOutstandingForm}
-        outstandingTotalCents={outstandingTotalCents}
-        outstandingRemainingCents={outstandingRemainingCents}
-      />
+      <DiscountModal {...billOptionsModalProps} />
     </SafeAreaView>
   );
 }
@@ -2109,32 +1677,4 @@ const styles = StyleSheet.create({
   webDateInput: { padding: 10, borderRadius: 7, border: '1px solid #D9E1D5', fontFamily: 'inherit', fontSize: '14px', outlineColor: '#7EA583', cursor: 'pointer', backgroundColor: '#F8FAF6', color: '#344E3E' },
   mobileDateBtn: { backgroundColor: '#F0F4ED', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#DFE5DF', flexDirection: 'row', alignItems: 'center', gap: 6 },
   mobileDateText: { fontSize: 14, fontWeight: '600', color: '#344E3E' },
-
-  discountModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-  discountModal: { backgroundColor: "#fff", borderRadius: 22, padding: 22, width: "100%", maxWidth: 480 },
-  discountModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
-  discountModalTitle: { fontSize: 18, fontWeight: "800", color: "#111827" },
-  discountSegment: { flexDirection: "row", backgroundColor: "#F3F4F6", borderRadius: 12, padding: 4, gap: 4, marginBottom: 16 },
-  segmentBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 9, borderRadius: 9 },
-  segmentBtnActive: { backgroundColor: "#111827" },
-  segmentText: { fontSize: 12, fontWeight: "700", color: "#6B7280" },
-  segmentTextActive: { color: "#fff" },
-  discountInputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, marginBottom: 10 },
-  discountPrefix: { fontSize: 18, fontWeight: "800", color: "#9CA3AF", marginRight: 8 },
-  discountInputField: { flex: 1, fontSize: 20, fontWeight: "700", paddingVertical: 12, color: "#111827" },
-  outstandingFields: { gap: 10, marginBottom: 12 },
-  outstandingInput: { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: "700", color: "#111827" },
-  outstandingReadonly: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
-  presetRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  presetChip: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: "#ECFDF5", alignItems: "center" },
-  presetChipText: { fontSize: 13, fontWeight: "700", color: "#10B981" },
-  previewBox: { backgroundColor: "#FAF8F5", borderRadius: 14, padding: 14, marginBottom: 18, marginTop: 4 },
-  previewRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
-  previewLabel: { fontSize: 13, color: "#6B7280", fontWeight: "600" },
-  previewValue: { fontSize: 13, color: "#111827", fontWeight: "700" },
-  previewTotalLabel: { fontSize: 15, color: "#111827", fontWeight: "800" },
-  previewTotalValue: { fontSize: 18, color: "#111827", fontWeight: "900" },
-  discountModalButtons: { flexDirection: "row", gap: 10 },
-  discountModalBtn: { flex: 1, flexDirection: "row", paddingVertical: 13, borderRadius: 12, alignItems: "center", justifyContent: "center", gap: 6 },
-  discountModalBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
 });

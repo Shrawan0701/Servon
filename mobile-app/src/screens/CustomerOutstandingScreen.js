@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,14 +16,15 @@ import {
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
+
+
 import * as Print from "expo-print";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { clearCustomerOutstanding, getCustomerOutstandingPDFUrl, getCustomerOutstandings, saveCustomerOutstanding } from "../api";
+
 import localDB from "../services/LocalDB";
-import networkMonitor from "../services/NetworkMonitor";
+import { refreshPOSData } from "../services/refreshPOSData";
+
 
 const rs = (value) =>
   `Rs. ${Number(value || 0).toLocaleString("en-IN", {
@@ -40,11 +41,7 @@ const fmtDate = (value) =>
       })
     : "-";
 
-const withOfflineFallbackTimeout = (promise, ms = 2500) =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("offline_fallback_timeout")), ms)),
-  ]);
+
 
 const parseAmount = (value) => {
   const trimmed = String(value ?? "").trim();
@@ -94,6 +91,8 @@ export default function CustomerOutstandingScreen() {
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const saveLock = useRef(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [manualForm, setManualForm] = useState({
@@ -134,33 +133,21 @@ export default function CustomerOutstandingScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      setLoading(true);
-      const online = await networkMonitor.checkConnectivity();
-      if (online) {
-        const res = await withOfflineFallbackTimeout(getCustomerOutstandings());
-        const remoteRecords = res.data?.records || [];
-        await localDB.cacheCustomerOutstandings(remoteRecords);
-        setRecords(remoteRecords);
-        setTotalRemaining(res.data?.totalRemaining || "0.00");
-      } else {
-        const localRecords = await localDB.getCustomerOutstandings();
-        setRecords(localRecords);
-        setTotalRemaining(localRecords.reduce((sum, record) => sum + Number(record.remaining_amount || 0), 0).toFixed(2));
-      }
-    } catch (err) {
-      const localRecords = await localDB.getCustomerOutstandings();
-      setRecords(localRecords);
-      setTotalRemaining(localRecords.reduce((sum, record) => sum + Number(record.remaining_amount || 0), 0).toFixed(2));
-    } finally {
-      setLoading(false);
-    }
+      const cached = await localDB.getCustomerOutstandings();
+      setRecords(cached);
+      setTotalRemaining(cached.reduce((sum, row) => sum + Number(row.remaining_amount || 0), 0).toFixed(2));
+    } finally { setLoading(false); }
   }, []);
-
   useEffect(() => {
     loadData();
+    const unsubscribe = localDB.subscribe(() => { loadData().catch(() => {}); });
+    refreshPOSData(['dues', 'profile']).catch(() => {});
+    return unsubscribe;
   }, [loadData]);
 
   const addManualOutstanding = async () => {
+    if (saveLock.current) return;
+    setSaveError("");
     const name = manualForm.customerName.trim();
     const phone = manualForm.phoneNumber.trim();
     const totalAmount = parseAmount(manualForm.totalAmount);
@@ -170,7 +157,7 @@ export default function CustomerOutstandingScreen() {
       Alert.alert("Invalid", "Customer name is required.");
       return;
     }
-    if (!/^\d{10}$/.test(phone)) {
+    if (phone && !/^\d{10}$/.test(phone)) {
       Alert.alert("Invalid", "Phone number must be exactly 10 digits.");
       return;
     }
@@ -191,31 +178,17 @@ export default function CustomerOutstandingScreen() {
       remainingAmount: Math.max(0, totalAmount - paidAmount).toFixed(2),
     };
 
+    saveLock.current = true;
     setSaving(true);
     try {
-      let savedLocalRecord = null;
-      const online = await networkMonitor.checkConnectivity();
-      if (online) {
-        try {
-          await withOfflineFallbackTimeout(saveCustomerOutstanding(payload));
-        } catch (err) {
-          savedLocalRecord = await localDB.saveCustomerOutstanding(payload);
-        }
-      } else {
-        savedLocalRecord = await localDB.saveCustomerOutstanding(payload);
-      }
-      resetManualForm();
-      setShowAddModal(false);
-      if (savedLocalRecord) {
-        const localRecords = await localDB.getCustomerOutstandings();
-        setRecords(localRecords);
-        setTotalRemaining(localRecords.reduce((sum, record) => sum + Number(record.remaining_amount || 0), 0).toFixed(2));
-      } else {
-        await loadData();
-      }
+      await localDB.saveCustomerOutstanding(payload);
+      resetManualForm(); setShowAddModal(false);
+      await loadData();
     } catch (err) {
+      setSaveError(err.message || "Could not save on this device.");
       Alert.alert("Save Failed", "Could not save customer outstanding.");
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   };
@@ -244,28 +217,7 @@ export default function CustomerOutstandingScreen() {
         return;
       }
 
-      const online = await networkMonitor.checkConnectivity();
-      if (!online) {
-        await Print.printAsync({ html });
-        return;
-      }
-      const url = getCustomerOutstandingPDFUrl(token);
-      if (Platform.OS === "web") {
-        window.open(url, "_blank");
-      } else {
-        const fileUri = FileSystem.cacheDirectory + `customer-outstanding-${Date.now()}.pdf`;
-        const res = await FileSystem.downloadAsync(url, fileUri, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.status !== 200) throw new Error(`Server responded with status ${res.status}`);
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(res.uri, {
-            mimeType: "application/pdf",
-            dialogTitle: "Customer Outstanding Report",
-            UTI: "com.adobe.pdf",
-          });
-        }
-      }
+      await Print.printAsync({ html });
     } catch (err) {
       Alert.alert("Print Failed", "Could not generate the outstanding report.");
     } finally {
@@ -285,14 +237,7 @@ export default function CustomerOutstandingScreen() {
 
     try {
       await localDB.clearCustomerOutstanding?.(item.id);
-      if (!String(item.id).startsWith("local_outstanding_")) {
-        const online = await networkMonitor.checkConnectivity();
-        if (online) {
-          await withOfflineFallbackTimeout(clearCustomerOutstanding(item.id));
-        } else {
-          await localDB.queueAction?.("CLEAR", "customer_outstandings", item.id, { id: item.id }, 1);
-        }
-      }
+
     } catch (err) {
       setRecords(previousRecords);
       setTotalRemaining(recalcTotal(previousRecords));
@@ -447,12 +392,12 @@ export default function CustomerOutstandingScreen() {
                 />
               </View>
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>Phone Number</Text>
+                <Text style={styles.fieldLabel}>Phone Number (optional)</Text>
                 <TextInput
                   style={styles.fieldInput}
                   value={manualForm.phoneNumber}
                   onChangeText={(value) => updateManualForm("phoneNumber", value)}
-                  placeholder="10 digit number"
+                  placeholder="10 digit number (optional)"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="number-pad"
                   maxLength={10}
@@ -497,6 +442,7 @@ export default function CustomerOutstandingScreen() {
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
+              {!!saveError && <Text accessibilityRole="alert" style={{ color: "#B91C1C", marginBottom: 8 }}>{saveError}</Text>}
               <TouchableOpacity style={[styles.modalBtn, styles.saveBtn, saving && styles.disabledBtn]} onPress={addManualOutstanding} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save Outstanding</Text>}
               </TouchableOpacity>

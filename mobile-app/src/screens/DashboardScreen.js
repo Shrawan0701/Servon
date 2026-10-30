@@ -22,37 +22,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import { useAudioPlayer } from "expo-audio";
 import * as Print from "expo-print";
+import DiscountModal from "../components/DiscountModal";
+import useBillOptions from "../hooks/useBillOptions";
 import { useAuth } from "../context/AuthContext";
-import {
-  getAnalytics,
-  getOrders,
-  getNotifications,
-  updateOrderStatus,
-  getSubscriptionDetails,
-  markAllNotificationsRead,
-  getDailySummary,
-  deleteConversation,
-  clearAllConversations,
-  getTrialStatus,
-  getTrialNotifications,
-  markTrialNotificationRead,
-  getInventoryAlertsCount,
-  getBusinessSummary,
-  generateBusinessSummary,
-  getBusinessAlerts,
-  markAlertRead,
-  markAllAlertsRead,
-  removeOrderItem,
-  getMenu,
-  getTables,
-  getProfile,
-} from "../api";
+import { getAnalytics, getNotifications, getSubscriptionDetails, markAllNotificationsRead, getDailySummary, getTrialStatus, getTrialNotifications, getInventoryAlertsCount, getBusinessSummary, generateBusinessSummary, getBusinessAlerts, markAlertRead } from "../api";
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import { dashboardWebCss } from "./DashboardTheme";
 import ServonAssistantModal from "../components/ServonAssistantModal";
 import { localizedItemName } from "../utils/localizedItemName";
 import localDB from "../services/LocalDB";
+import { refreshPOSData } from "../services/refreshPOSData";
+import { paymentQR } from "../utils/paymentQR";
+import { billTotals } from "../utils/billTotals";
 import networkMonitor from "../services/NetworkMonitor";
 import io from "socket.io-client";
 import { API_BASE_URL } from '../config/api';
@@ -695,6 +677,7 @@ export default function DashboardScreen() {
 
   const [analytics, setAnalytics] = useState(null);
   const [liveOrders, setLiveOrders] = useState([]);
+  const [billingProfile, setBillingProfile] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -788,48 +771,45 @@ export default function DashboardScreen() {
     }
   };
 
+  const loadDashboardCache = useCallback(async () => {
+    const [localOrders, profile] = await Promise.all([localDB.getOrders(), localDB.getProfile()]);
+    setBillingProfile(profile);
+    const today = localOrders.filter((o) => isToday(o.created_at));
+    setLiveOrders(today.filter((o) => !['PAID', 'REJECTED'].includes(o.status)));
+    const quantities = new Map();
+    for (const order of today.filter((o) => o.status !== 'REJECTED')) {
+      for (const item of order.items || []) {
+        const key = item.id || item.name;
+        const current = quantities.get(key) || { name: localizedItemName(item, languageRef.current), quantity: 0 };
+        current.quantity += Number(item.quantity || 0);
+        quantities.set(key, current);
+      }
+    }
+    const topItem = [...quantities.values()].sort((a, b) => b.quantity - a.quantity)[0];
+    setAnalytics((prev) => ({ ...prev, today: { ...prev?.today,
+      totalOrders: today.length,
+      totalRevenue: today.filter((o) => o.status === 'PAID').reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
+      mostOrderedItem: topItem || null,
+    } }));
+    setLoading(false); setRefreshing(false); setTrialLoading(false);
+  }, []);
+  useEffect(() => {
+    const unsubscribe = localDB.subscribe(() => { loadDashboardCache().catch(() => {}); });
+    return unsubscribe;
+  }, [loadDashboardCache]);
   const loadData = async () => {
     try {
-      const online = await networkMonitor.checkConnectivity();
-      if (!online) {
-        const localOrders = await localDB.getOrders();
-        setLiveOrders(localOrders.filter(o =>
-          isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
-        ));
-        setAnalytics((prev) => prev || {
-          ordersToday: localOrders.filter(o => isToday(o.created_at)).length,
-          revenueToday: localOrders.filter(o => isToday(o.created_at) && o.status === "PAID").reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
-          activeTables: new Set(localOrders.filter(o => isToday(o.created_at) && !["PAID", "REJECTED"].includes(o.status)).map(o => o.table_number)).size,
-          topItem: "-",
-        });
-        setNotifications([]);
-        setTrialLoading(false);
-        return;
-      }
-
-      const [analyticsRes, ordersRes, notifRes, subRes] = await Promise.all([
-        getAnalytics(), getOrders(), getNotifications(), getSubscriptionDetails()
+      await loadDashboardCache();
+      refreshPOSData(['orders', 'menu', 'tables', 'profile', 'dues']).catch(() => {});
+      if (!networkMonitor.isOnline) return;
+      const [analyticsRes, notifRes, subRes] = await Promise.all([
+        getAnalytics(), getNotifications(), getSubscriptionDetails()
       ]);
-
+      // Remote analytics remain available; visible orders always come from the
+      // repository, which protects pending local changes from stale downloads.
       setAnalytics(analyticsRes.data);
-      await localDB.saveOrders(ordersRes.data || []);
-      setLiveOrders(ordersRes.data.filter(o => 
-        isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
-      ));
+      await loadDashboardCache();
       setNotifications(notifRes.data);
-
-      try {
-        const [menuRes, tablesRes, profileRes] = await Promise.all([
-          getMenu(),
-          getTables(),
-          getProfile().catch(() => null),
-        ]);
-        await localDB.saveMenu(menuRes.data || []);
-        await localDB.saveTables(tablesRes.data || []);
-        if (profileRes?.data) await localDB.saveProfile(profileRes.data);
-      } catch (cacheErr) {
-        console.log("POS cache preload skipped:", cacheErr?.message || cacheErr);
-      }
 
       if (subRes?.data) {
         const subData = subRes.data;
@@ -889,9 +869,6 @@ export default function DashboardScreen() {
         const summaryRes = await getBusinessSummary();
         if (summaryRes?.data?.hasSummary) {
           setBusinessSummary(summaryRes.data);
-          if (summaryRes.data.is_new) {
-            setShowBusinessSummaryModal(true);
-          }
         }
       } catch (summaryErr) {
         console.error("Business summary fetch error:", summaryErr);
@@ -911,7 +888,7 @@ export default function DashboardScreen() {
       try {
         const localOrders = await localDB.getOrders();
         setLiveOrders(localOrders.filter(o =>
-          isToday(o.created_at) && !["PAID", "REJECTED", "SERVED"].includes(o.status)
+          isToday(o.created_at) && !["PAID", "REJECTED"].includes(o.status)
         ));
       } catch (localErr) {
         console.error("Dashboard local fallback error:", localErr);
@@ -950,16 +927,8 @@ export default function DashboardScreen() {
   };
 
   const handleStatusUpdate = async (orderId, status) => {
-    try {
-      await updateOrderStatus(orderId, status);
-      if (["SERVED", "REJECTED"].includes(status)) {
-        setLiveOrders(prev => prev.filter(o => o.id !== orderId));
-      } else {
-        setLiveOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-      }
-    } catch (err) {
-      console.error("Status update error:", err);
-    }
+    try { await localDB.updateOrderStatus(orderId, status); await loadDashboardCache(); }
+    catch (err) { Alert.alert('Could not save order', err.message); }
   };
 
   const openAddItems = (order) => {
@@ -987,21 +956,14 @@ export default function DashboardScreen() {
   const handleRemoveOrderItem = async (order, item) => {
     try {
       const itemId = item.id || item.menu_item_id || item.menuItemId;
-      const online = await networkMonitor.checkConnectivity();
-      if (online && !String(order.id).startsWith("local_order_")) {
-        const res = await removeOrderItem(order.id, itemId);
-        await localDB.saveOrders([res.data]);
-        handleOrderSaved(res.data);
-      } else {
-        const updated = await localDB.removeOrderItem(order.id, itemId);
-        handleOrderSaved(updated);
-      }
+      const updated = await localDB.removeOrderItem(order.id, itemId);
+      handleOrderSaved(updated);
     } catch (err) {
       Alert.alert("Remove Item", err.response?.data?.error || "Could not remove item.");
     }
   };
 
-  const buildDashboardBillHtml = useCallback(async (tableOrders) => {
+  const buildDashboardBillHtml = useCallback(async (tableOrders, discount) => {
     let profile = null;
     try {
       profile = await localDB.getProfile();
@@ -1036,9 +998,11 @@ export default function DashboardScreen() {
     const liquorSubtotal = liquorItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const cgstPercent = Number(profile?.cgst_percentage || 0);
     const sgstPercent = Number(profile?.sgst_percentage || 0);
-    const cgstAmount = (combinedSubtotal * cgstPercent) / 100;
-    const sgstAmount = (combinedSubtotal * sgstPercent) / 100;
-    const grandTotal = Math.round(combinedSubtotal + cgstAmount + sgstAmount);
+    const bill = billTotals(tableOrders, discount, profile);
+    const discountAmount = bill.discountAmount;
+    const cgstAmount = bill.cgstAmount;
+    const sgstAmount = bill.sgstAmount;
+    const grandTotal = bill.grandTotal;
 
     const buildItemsRows = (list) => list.map((i) => `
       <tr>
@@ -1072,8 +1036,8 @@ export default function DashboardScreen() {
     const merchantName = encodeURIComponent(profile?.business_name || businessName || "Restaurant");
     const amount = grandTotal.toFixed(2);
     const upiString = upiId ? `upi://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR&tn=Payment` : "";
-    const qrCodeUrl = upiId ? `https://quickchart.io/qr?text=${encodeURIComponent(upiString)}&size=200&margin=2` : null;
-    const qrCodeUrlFallback = upiId ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiString)}` : null;
+    const qrCodeUrl = paymentQR(upiString);
+    const qrCodeUrlFallback = qrCodeUrl;
 
     return `
       <html>
@@ -1112,6 +1076,7 @@ export default function DashboardScreen() {
           <div class="divider"></div>
           <table>
             <tr><td>Subtotal:</td><td class="right">&#8377;${combinedSubtotal.toFixed(2)}</td></tr>
+            ${discountAmount > 0 ? `<tr><td>Discount:</td><td class="right">-&#8377;${discountAmount.toFixed(2)}</td></tr>` : ""}
             ${cgstPercent > 0 ? `<tr><td>CGST (${cgstPercent}%):</td><td class="right">&#8377;${cgstAmount.toFixed(2)}</td></tr>` : ""}
             ${sgstPercent > 0 ? `<tr><td>SGST (${sgstPercent}%):</td><td class="right">&#8377;${sgstAmount.toFixed(2)}</td></tr>` : ""}
             <tr class="bold"><td style="font-size: 18px; padding-top: 10px;">GRAND TOTAL:</td><td class="right" style="font-size: 18px; padding-top: 10px;">&#8377;${grandTotal.toFixed(2)}</td></tr>
@@ -1222,7 +1187,7 @@ export default function DashboardScreen() {
     }
   }, []);
 
-  const handleDashboardBill = useCallback(async (currentOrder) => {
+  const handleDashboardBill = useCallback(async (currentOrder, discount, outstandingPayload = null) => {
     if (dashboardPrinting || !currentOrder) return;
     setDashboardPrinting(true);
     try {
@@ -1234,23 +1199,9 @@ export default function DashboardScreen() {
       );
       if (!tableOrders.length) return;
 
-      const htmlContent = await buildDashboardBillHtml(tableOrders);
-      await Promise.all(tableOrders.map((o) => localDB.updateOrderStatus(o.id, "PAID").catch(() => null)));
-      setLiveOrders((prev) => prev.filter((o) => !tableOrders.some((to) => to.id === o.id)));
-
-      const online = await networkMonitor.checkConnectivity();
-      if (online) {
-        await Promise.all(tableOrders.map(async (o) => {
-          try {
-            if (!String(o.id).startsWith("local_order_")) {
-              await updateOrderStatus(o.id, "PAID");
-              await localDB.markAsSynced(o.id);
-            }
-          } catch (err) {
-            console.log("Dashboard bill sync failed, pending local sync:", err?.message || err);
-          }
-        }));
-      }
+      const htmlContent = await buildDashboardBillHtml(tableOrders, discount);
+      await localDB.checkout(tableOrders.map((o) => o.id), discount, outstandingPayload, htmlContent);
+      await loadDashboardCache();
 
       await printDashboardHtml(htmlContent);
     } catch (err) {
@@ -1259,7 +1210,9 @@ export default function DashboardScreen() {
     } finally {
       setDashboardPrinting(false);
     }
-  }, [buildDashboardBillHtml, dashboardPrinting, language, liveOrders, printDashboardHtml]);
+  }, [buildDashboardBillHtml, dashboardPrinting, language, liveOrders, printDashboardHtml, loadDashboardCache]);
+
+  const { openDiscountModal, billOptionsModalProps } = useBillOptions(liveOrders, handleDashboardBill, billingProfile);
 
   const handleOpenNotifications = async () => {
     setShowNotifications(true);
@@ -1282,7 +1235,7 @@ export default function DashboardScreen() {
       });
       socket.on("connect", () => business?.id && socket.emit("join_business", business.id));
       socket.on("new_order", ({ order, notification, tableNumber }) => {
-        if (isToday(order.created_at)) setLiveOrders(prev => [{ ...order, table_number: tableNumber }, ...prev]);
+        localDB.saveOrders([{ ...order, table_number: tableNumber }]).catch(() => {});
         const finalNotification = notification && notification.id
           ? notification
           : {
@@ -1299,11 +1252,10 @@ export default function DashboardScreen() {
         announceNewOrder(order, tableNumber ?? order?.table_number, languageRef.current, playAnnouncement);
       });
       socket.on("order_updated", (updatedOrder) => {
-        setLiveOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
+        localDB.saveOrders([updatedOrder]).catch(() => {});
       });
       socket.on("new_summary", (summaryRow) => {
         setBusinessSummary(summaryRow);
-        setShowBusinessSummaryModal(true);
       });
       socket.on("new_alert", (alertRow) => {
         setAiAlerts(prev => [alertRow, ...prev]);
@@ -1409,6 +1361,7 @@ export default function DashboardScreen() {
 
     return (
       <div className="servon-dashboard">
+        <DiscountModal {...billOptionsModalProps} />
         <div className="servon-web-header">
           <div className="servon-dashboard-header-inner">
             <div className="servon-restaurant-brand">
@@ -1561,7 +1514,7 @@ export default function DashboardScreen() {
               </div>
             ) : (
               <div className="servon-dashboard-order-grid">
-                {liveOrders.map(order => <WebOrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onBill={handleDashboardBill} onRemoveItem={handleRemoveOrderItem} />)}
+                {liveOrders.map(order => <WebOrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onBill={openDiscountModal} onRemoveItem={handleRemoveOrderItem} />)}
               </div>
             )}
           </section>
@@ -1841,6 +1794,7 @@ export default function DashboardScreen() {
   }
   return (
     <View style={styles.container}>
+      <DiscountModal {...billOptionsModalProps} />
       <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 15 }]}>
         <View style={styles.headerInner}>
           <LocalizedText translate={false} style={styles.brandText} numberOfLines={1}>{businessName}</LocalizedText>
@@ -1989,7 +1943,7 @@ export default function DashboardScreen() {
                 <LocalizedText translate style={styles.emptySubText}>Scan a table QR or create an order to get started.</LocalizedText>
               </View>
             ) : (
-              liveOrders.map(order => <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onBill={handleDashboardBill} onRemoveItem={handleRemoveOrderItem} />)
+              liveOrders.map(order => <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onBill={openDiscountModal} onRemoveItem={handleRemoveOrderItem} />)
             )}
           </View>
         </View>

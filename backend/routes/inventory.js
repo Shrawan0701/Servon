@@ -892,6 +892,34 @@ router.patch(
   ),
 );
 router.patch(
+  "/:id/reduce",
+  owner,
+  route(async (req, res) =>
+    res.json(
+      await transaction(req.businessId, async (db) => {
+        const amount = round(number(req.body.amount, "Reduction amount"));
+        if (amount <= 0) fail("Reduction amount must be at least 0.000001");
+        const existing = await db.query(
+          "SELECT * FROM inventory_items WHERE id=$1 AND business_id=$2 AND NOT archived FOR UPDATE",
+          [req.params.id, req.businessId],
+        );
+        if (!existing.rowCount) fail("Item not found", 404);
+        if (amount > Number(existing.rows[0].current_stock))
+          fail("You cannot reduce more than the available stock.");
+        const result = await db.query(
+          "UPDATE inventory_items SET current_stock=current_stock-$1,updated_at=NOW() WHERE id=$2 AND business_id=$3 RETURNING *",
+          [amount, req.params.id, req.businessId],
+        );
+        await log(db, req, result.rows[0].id, -amount, "manual_adjustment", {
+          unit: result.rows[0].unit,
+          note: "Manual stock reduction",
+        });
+        return result.rows[0];
+      }),
+    ),
+  ),
+);
+router.patch(
   "/:id/adjust",
   owner,
   route(async (req, res) =>

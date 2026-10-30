@@ -13,7 +13,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  getInventory, addInventoryItem, updateInventoryItem, restockInventoryItem,
+  getInventory, addInventoryItem, updateInventoryItem, restockInventoryItem, reduceInventoryItem,
   deleteInventoryItem, getMenuRecipes,
 } from "../api";
 
@@ -90,6 +90,7 @@ export default function InventoryScreen() {
   const [items, setItems] = useState([]);
   const [recipeMenu, setRecipeMenu] = useState([]);
   const [recipeSearch, setRecipeSearch] = useState("");
+  const [stockSearch, setStockSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [numColumns, setNumColumns] = useState(isWeb ? 3 : 1);
@@ -105,6 +106,8 @@ export default function InventoryScreen() {
   const [restockBottleCount, setRestockBottleCount] = useState("");
   const [restockBottleSize, setRestockBottleSize] = useState("");
   const [restocking, setRestocking] = useState(false);
+  const [reducingStock, setReducingStock] = useState(false);
+  const [stockChangeError, setStockChangeError] = useState("");
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -205,7 +208,9 @@ export default function InventoryScreen() {
     }
   };
 
-  const openRestock = (item) => {
+  const openRestock = (item, reduce = false) => {
+    setStockChangeError("");
+    setReducingStock(reduce);
     setRestockTarget(item);
     setRestockAmount("");
     setRestockBottleCount("");
@@ -214,6 +219,8 @@ export default function InventoryScreen() {
   };
 
   const handleRestock = async (presetAmount) => {
+    if (restocking) return;
+    setStockChangeError("");
     const bottleCount = parseFloat(restockBottleCount) || 0;
     const bottleSize = parseFloat(restockBottleSize) || 0;
     const amount = presetAmount ?? (
@@ -221,19 +228,30 @@ export default function InventoryScreen() {
         ? bottleCount * bottleSize
         : parseFloat(restockAmount)
     );
-    if (!amount || amount <= 0) {
-      Alert.alert(localizeText("Enter an amount", language), localizeText("Please enter how much stock you're adding.", language));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setStockChangeError(tr(reducingStock ? "Please enter how much stock you want to reduce." : "Please enter how much stock you're adding."));
+      Alert.alert(localizeText("Enter an amount", language), localizeText(reducingStock ? "Please enter how much stock you want to reduce." : "Please enter how much stock you're adding.", language));
+      return;
+    }
+    if (reducingStock && amount > Number(restockTarget.current_stock)) {
+      setStockChangeError(tr("You cannot reduce more than the available stock."));
+      Alert.alert(tr("Not enough stock"), tr("You cannot reduce more than the available stock."));
       return;
     }
     setRestocking(true);
     try {
-      await restockInventoryItem(restockTarget.id, amount, {
-        bottle_size: isVolumeUnit(restockTarget?.unit) && bottleSize > 0 ? bottleSize : undefined,
-      });
+      if (reducingStock) {
+        await reduceInventoryItem(restockTarget.id, amount);
+      } else {
+        await restockInventoryItem(restockTarget.id, amount, {
+          bottle_size: isVolumeUnit(restockTarget?.unit) && bottleSize > 0 ? bottleSize : undefined,
+        });
+      }
       setShowRestockModal(false);
       await loadData();
     } catch (err) {
-      Alert.alert(localizeText("Could not restock", language), localizeText("Something went wrong. Please try again.", language));
+      setStockChangeError(err.response?.data?.error || tr("Something went wrong. Please try again."));
+      Alert.alert(localizeText(reducingStock ? "Could not reduce stock" : "Could not restock", language), err.response?.data?.error || localizeText("Something went wrong. Please try again.", language));
     } finally {
       setRestocking(false);
     }
@@ -308,6 +326,32 @@ export default function InventoryScreen() {
     });
   }, [recipeMenuForDisplay, recipeSearch]);
 
+  const filteredStock = useMemo(() => {
+    const query = stockSearch.trim().toLocaleLowerCase();
+    return query ? items.filter((item) => String(item.name || "").toLocaleLowerCase().includes(query)) : items;
+  }, [items, stockSearch]);
+  const renderStockSearch = () => (
+    <View style={[styles.recipeSearchWrap, styles.stockSearchWrap]}>
+      <Ionicons name="search" size={17} color="#9CA3AF" />
+      <TextInput
+        style={styles.recipeSearchInput}
+        value={stockSearch}
+        onChangeText={setStockSearch}
+        placeholder={tr("Search stock items...")}
+        accessibilityLabel={tr("Search stock items...")}
+        placeholderTextColor="#A8A29E"
+        returnKeyType="search"
+        autoCorrect={false}
+      />
+      {!!stockSearch && <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Clear search")} style={styles.recipeSearchClear} onPress={() => setStockSearch("")}>
+        <Ionicons name="close" size={16} color="#6B7280" />
+      </TouchableOpacity>}
+    </View>
+  );
+  const stockEmptyState = items.length === 0 ? <EmptyStockState onAdd={openAddItem} /> : (
+    <View style={styles.emptyContainer}><Ionicons name="search-outline" size={36} color="#627166" /><NativeText style={styles.emptyTitle}>{tr("No stock items found")}</NativeText></View>
+  );
+
   const renderRecipeSearch = () => (
     <View style={styles.recipeSearchWrap}>
       <Ionicons name="search" size={18} color="#9CA3AF" />
@@ -335,9 +379,7 @@ export default function InventoryScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F5F2" }}>
-      {/* ─── HEADER ─── */}
+  const inventoryHeader = (
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -398,22 +440,31 @@ export default function InventoryScreen() {
         </View>
         {!!loadError && <View style={{ padding: 12 }}><NativeText accessibilityRole="alert" style={{ color: "#B91C1C" }}>{tr(loadError)}</NativeText><TouchableOpacity accessibilityRole="button" onPress={loadData}><NativeText>{tr("Retry loading inventory")}</NativeText></TouchableOpacity></View>}
       </View>
+  );
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F5F2" }}>
+      {!isWeb && !compactLayout && inventoryHeader}
 
       {/* ─── STOCK TAB ─── */}
       {activeTab === "stock" ? (
         isWeb ? (
           <ScrollView
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
+            keyboardShouldPersistTaps="handled"
           >
-            {items.length === 0 ? (
-              <EmptyStockState onAdd={openAddItem} />
+            {inventoryHeader}
+            {renderStockSearch()}
+            {filteredStock.length === 0 ? (
+              stockEmptyState
             ) : (
               <div className="inv-stock-grid">
-                {items.map((item) => (
+                {filteredStock.map((item) => (
                   <StockCardWeb
                     key={item.id}
                     item={item}
                     onRestock={() => openRestock(item)}
+                    onReduce={() => openRestock(item, true)}
                     onLink={() => setLinkItem(item)}
                     onEdit={() => openEditItem(item)}
                     onDelete={() => openDelete(item)}
@@ -424,16 +475,19 @@ export default function InventoryScreen() {
           </ScrollView>
         ) : (
           <FlatList
-            data={items}
+            data={filteredStock}
             keyExtractor={(i) => String(i.id)}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
             contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<EmptyStockState onAdd={openAddItem} />}
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={<View>{compactLayout && <View style={styles.mobileListHeader}>{inventoryHeader}</View>}{renderStockSearch()}</View>}
+            ListEmptyComponent={stockEmptyState}
             renderItem={({ item }) => (
               <StockCardNative
                 item={item}
                 onRestock={() => openRestock(item)}
-                    onLink={() => setLinkItem(item)}
+                onReduce={() => openRestock(item, true)}
+                onLink={() => setLinkItem(item)}
                 onEdit={() => openEditItem(item)}
                 onDelete={() => openDelete(item)}
               />
@@ -443,7 +497,9 @@ export default function InventoryScreen() {
       ) : isWeb ? (
         <ScrollView
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
+          keyboardShouldPersistTaps="handled"
         >
+          {inventoryHeader}
           {renderRecipeSearch()}
           {recipeMenuForDisplay.length === 0 ? (
             <EmptyRecipeState />
@@ -468,7 +524,8 @@ export default function InventoryScreen() {
           keyExtractor={(i) => String(i.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
           contentContainerStyle={styles.listContent}
-          ListHeaderComponent={renderRecipeSearch}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={<View>{compactLayout && <View style={styles.mobileListHeader}>{inventoryHeader}</View>}{renderRecipeSearch()}</View>}
           ListEmptyComponent={recipeMenuForDisplay.length === 0 ? <EmptyRecipeState /> : (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
@@ -609,82 +666,85 @@ export default function InventoryScreen() {
       </Modal>
 
       {/* ─── RESTOCK MODAL ─── */}
-      <Modal visible={showRestockModal} transparent animationType="fade">
+      <Modal visible={showRestockModal} transparent animationType="fade" onRequestClose={() => !restocking && setShowRestockModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.formModal}>
             <View style={styles.formModalHeader}>
-              <LocalizedText translate style={styles.formModalTitle}>Add Stock</LocalizedText>
-              <TouchableOpacity style={styles.closeIconBtn} onPress={() => setShowRestockModal(false)}>
+              <LocalizedText translate style={styles.formModalTitle}>{reducingStock ? "Reduce Stock" : "Add Stock"}</LocalizedText>
+              <TouchableOpacity style={styles.closeIconBtn} disabled={restocking} onPress={() => setShowRestockModal(false)}>
                 <Ionicons name="close" size={22} color="#6B7280" />
               </TouchableOpacity>
             </View>
-            <View style={styles.restockItemBanner}>
-              <View style={styles.restockItemIconWrap}>
-                <Ionicons name="cube" size={20} color="#111827" />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={styles.restockItemBanner}>
+                <View style={styles.restockItemIconWrap}>
+                  <Ionicons name="cube" size={20} color="#111827" />
+                </View>
+                <View>
+                  <LocalizedText style={styles.restockItemName}>{restockTarget?.name}</LocalizedText>
+                  <LocalizedText translate={false} style={styles.restockItemCurrent}>
+                    {tr("You currently have {stock}", { stock: restockTarget ? formatStockDisplay(restockTarget, tr) : 0 })}
+                  </LocalizedText>
+                </View>
               </View>
-              <View>
-                <LocalizedText style={styles.restockItemName}>{restockTarget?.name}</LocalizedText>
-                <LocalizedText translate={false} style={styles.restockItemCurrent}>
-                  {tr("You currently have {stock}", { stock: restockTarget ? formatStockDisplay(restockTarget, tr) : 0 })}
-                </LocalizedText>
-              </View>
-            </View>
 
-            {isVolumeUnit(restockTarget?.unit) && (
-              <>
-                <LocalizedText translate style={styles.fieldLabel}>How many bottles are you adding?</LocalizedText>
-                <TextInput
-                  style={styles.input}
-                  value={restockBottleCount}
-                  onChangeText={setRestockBottleCount}
-                  keyboardType="decimal-pad"
-                  placeholder={localizeText("For example: 50", language)}
-                  placeholderTextColor="#A8A29E"
-                />
-                <LocalizedText translate style={styles.fieldLabel}>How much is one bottle?</LocalizedText>
-                <View style={styles.restockInputWrap}>
+              {isVolumeUnit(restockTarget?.unit) && (
+                <>
+                  <LocalizedText translate style={styles.fieldLabel}>{reducingStock ? "How many bottles do you want to reduce?" : "How many bottles are you adding?"}</LocalizedText>
                   <TextInput
-                    style={styles.restockInput}
-                    value={restockBottleSize}
-                    onChangeText={setRestockBottleSize}
+                    style={styles.input}
+                    value={restockBottleCount}
+                    onChangeText={(value) => { setRestockBottleCount(value); setRestockAmount(""); }}
                     keyboardType="decimal-pad"
-                    placeholder={restockTarget?.unit === "ml" ? "180" : "0.18"}
+                    placeholder={localizeText("For example: 50", language)}
                     placeholderTextColor="#A8A29E"
                   />
-                  <LocalizedText style={styles.restockInputUnit}>{restockTarget?.unit}</LocalizedText>
-                </View>
-                <LocalizedText translate style={styles.fieldSubLabel}>
-                  Or enter a direct stock amount below.
-                </LocalizedText>
-              </>
-            )}
+                  <LocalizedText translate style={styles.fieldLabel}>How much is one bottle?</LocalizedText>
+                  <View style={styles.restockInputWrap}>
+                    <TextInput
+                      style={styles.restockInput}
+                      value={restockBottleSize}
+                      onChangeText={setRestockBottleSize}
+                      keyboardType="decimal-pad"
+                      placeholder={restockTarget?.unit === "ml" ? "180" : "0.18"}
+                      placeholderTextColor="#A8A29E"
+                    />
+                    <LocalizedText style={styles.restockInputUnit}>{restockTarget?.unit}</LocalizedText>
+                  </View>
+                  <LocalizedText translate style={styles.fieldSubLabel}>
+                    Or enter a direct stock amount below.
+                  </LocalizedText>
+                </>
+              )}
 
-            <LocalizedText translate style={styles.fieldLabel}>How much are you adding?</LocalizedText>
-            <View style={styles.restockInputWrap}>
-              <TextInput
-                style={styles.restockInput}
-                value={restockAmount}
-                onChangeText={setRestockAmount}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor="#A8A29E"
-                autoFocus
-              />
-              <LocalizedText style={styles.restockInputUnit}>{restockTarget?.unit}</LocalizedText>
-            </View>
+              <LocalizedText translate style={styles.fieldLabel}>{reducingStock ? "How much stock do you want to reduce?" : "How much are you adding?"}</LocalizedText>
+              <View style={styles.restockInputWrap}>
+                <TextInput
+                  style={styles.restockInput}
+                  value={restockAmount}
+                  onChangeText={(value) => { setRestockAmount(value); setRestockBottleCount(""); }}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor="#A8A29E"
+                  autoFocus
+                />
+                <LocalizedText style={styles.restockInputUnit}>{restockTarget?.unit}</LocalizedText>
+              </View>
 
-            <LocalizedText translate style={styles.quickAddLabel}>Or tap a quick amount</LocalizedText>
-            <View style={styles.presetRow}>
-              {[1, 5, 10, 25].map((p) => (
-                <TouchableOpacity key={p} style={styles.presetChip} onPress={() => handleRestock(p)} activeOpacity={0.8}>
-                  <LocalizedText style={styles.presetChipText}>+{p} {restockTarget?.unit}</LocalizedText>
-                </TouchableOpacity>
-              ))}
-            </View>
+              <LocalizedText translate style={styles.quickAddLabel}>Or tap a quick amount</LocalizedText>
+              <View style={styles.presetRow}>
+                {[1, 5, 10, 25].map((p) => (
+                  <TouchableOpacity key={p} style={styles.presetChip} disabled={restocking} onPress={() => { setRestockBottleCount(""); setRestockAmount(String(p)); }} activeOpacity={0.8}>
+                    <LocalizedText style={styles.presetChipText}>{reducingStock ? "-" : "+"}{p} {restockTarget?.unit}</LocalizedText>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-            <TouchableOpacity style={styles.formSaveBtn} onPress={() => handleRestock()} disabled={restocking} activeOpacity={0.85}>
-              {restocking ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.formSaveBtnText}>Add to Stock</LocalizedText>}
-            </TouchableOpacity>
+              {!!stockChangeError && <NativeText accessibilityRole="alert" style={{ color: "#B91C1C", marginBottom: 12 }}>{stockChangeError}</NativeText>}
+              <TouchableOpacity style={styles.formSaveBtn} onPress={() => handleRestock()} disabled={restocking} activeOpacity={0.85}>
+                {restocking ? <ActivityIndicator color="#fff" /> : <LocalizedText translate style={styles.formSaveBtnText}>{reducingStock ? "Reduce Stock" : "Add to Stock"}</LocalizedText>}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -770,7 +830,7 @@ function EmptyRecipeState() {
 }
 
 // ─── WEB CARDS ───────────────────────────────────────────────────────
-function StockActions({ item, onRestock, onEdit, onDelete }) {
+function StockActions({ item, onRestock, onReduce, onEdit, onDelete }) {
   const tr = useLocalizeText();
   const [open, setOpen] = useState(false);
   return <View>
@@ -778,6 +838,10 @@ function StockActions({ item, onRestock, onEdit, onDelete }) {
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Add stock to {name}", { name: item.name })} style={styles.restockBtn} onPress={onRestock}><Ionicons name="add-circle-outline" size={18} color="#fff" /><LocalizedText translate style={styles.restockBtnText}>Add Stock</LocalizedText></TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Options for {name}", { name: item.name })} accessibilityState={{ expanded: open }} style={[styles.iconActionBtn, { width: 46, height: 46 }]} onPress={() => setOpen(!open)}><Ionicons name="ellipsis-horizontal" size={22} color="#334155" /></TouchableOpacity>
     </View>
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Reduce stock for {name}", { name: item.name })} style={[styles.itemOption, { marginTop: 8, justifyContent: "center" }]} onPress={onReduce}>
+      <Ionicons name="remove-circle-outline" size={18} color="#AD4A40" />
+      <NativeText style={{ color: "#AD4A40", fontWeight: "600", fontSize: 14 }}>{tr("Reduce Stock")}</NativeText>
+    </TouchableOpacity>
     {open && <View style={{ paddingTop: 8, gap: 6 }}>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Edit item")} style={styles.itemOption} onPress={() => { setOpen(false); onEdit(); }}><Ionicons name="create-outline" size={18} color="#334155" /><NativeText style={styles.secondaryActionText}>{tr("Edit item")}</NativeText></TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("Remove item")} style={styles.itemOption} onPress={() => { setOpen(false); onDelete(); }}><Ionicons name="trash-outline" size={18} color="#B91C1C" /><NativeText style={{ color: "#B91C1C", fontWeight: "600", fontSize: 14 }}>{tr("Remove item")}</NativeText></TouchableOpacity>
@@ -785,7 +849,7 @@ function StockActions({ item, onRestock, onEdit, onDelete }) {
   </View>;
 }
 
-function StockCardWeb({ item, onRestock, onEdit, onDelete, onLink }) {
+function StockCardWeb({ item, onRestock, onReduce, onEdit, onDelete, onLink }) {
   const tr = useLocalizeText();
   return (
     <div className="inv-stock-card">
@@ -810,7 +874,7 @@ function StockCardWeb({ item, onRestock, onEdit, onDelete, onLink }) {
       </div>
 
       <TouchableOpacity accessibilityRole="button" onPress={onLink} style={styles.menuLinkButton}><Ionicons name="link-outline" size={16} color="#42604E" /><NativeText style={styles.menuLinkText}>{Number(item.menu_link_count) > 0 ? tr("{count} menu links", { count: item.menu_link_count }) : tr("Link to menu")}</NativeText><Ionicons name="chevron-forward" size={14} color="#627166" /></TouchableOpacity>
-      <StockActions item={item} onRestock={onRestock} onEdit={onEdit} onDelete={onDelete} />
+      <StockActions item={item} onReduce={onReduce} onRestock={onRestock} onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
 }
@@ -849,7 +913,7 @@ function RecipeCardWeb({ item, onPress }) {
 }
 
 // ─── NATIVE CARDS ────────────────────────────────────────────────────
-function StockCardNative({ item, onRestock, onEdit, onDelete, onLink }) {
+function StockCardNative({ item, onRestock, onReduce, onEdit, onDelete, onLink }) {
   const tr = useLocalizeText();
   return (
     <View style={styles.stockCard}>
@@ -873,7 +937,7 @@ function StockCardNative({ item, onRestock, onEdit, onDelete, onLink }) {
       <LocalizedText translate={false} style={styles.thresholdText}>{tr("Alert below {quantity} {unit}", { quantity: formatQty(item.low_stock_threshold), unit: item.unit })}</LocalizedText>
 
       <TouchableOpacity accessibilityRole="button" onPress={onLink} style={styles.menuLinkButton}><Ionicons name="link-outline" size={16} color="#42604E" /><NativeText style={styles.menuLinkText}>{Number(item.menu_link_count) > 0 ? tr("{count} menu links", { count: item.menu_link_count }) : tr("Link to menu")}</NativeText><Ionicons name="chevron-forward" size={14} color="#627166" /></TouchableOpacity>
-      <StockActions item={item} onRestock={onRestock} onEdit={onEdit} onDelete={onDelete} />
+      <StockActions item={item} onReduce={onReduce} onRestock={onRestock} onEdit={onEdit} onDelete={onDelete} />
     </View>
   );
 }
@@ -992,6 +1056,8 @@ const styles = StyleSheet.create({
 
   recipeCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderRadius: 12, padding: 13, marginBottom: 9, borderWidth: 1, borderColor: "#DFE5DF" },
   recipeSearchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#DFE5DF", borderRadius: 12, paddingHorizontal: 14, marginHorizontal: 20, marginTop: 14, maxWidth: 1160, alignSelf: "center", width: "92%" },
+  mobileListHeader: { marginHorizontal: -14, marginTop: -14 },
+  stockSearchWrap: { maxWidth: 420, marginHorizontal: 16, width: "90%" },
   recipeSearchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: "#20332A", fontWeight: "600" },
   recipeSearchClear: { width: 28, height: 28, borderRadius: 9, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center" },
   recipeIconWrap: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },

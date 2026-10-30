@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS customer_outstandings (
   business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
   customer_name VARCHAR(255) NOT NULL,
-  phone_number VARCHAR(10) NOT NULL CHECK (phone_number ~ '^[0-9]{10}$'),
+  phone_number VARCHAR(10) CHECK (phone_number ~ '^[0-9]{10}$'),
   original_total_amount NUMERIC(10,2) NOT NULL CHECK (original_total_amount >= 0),
   final_total_amount NUMERIC(10,2) NOT NULL CHECK (final_total_amount >= 0),
   total_amount NUMERIC(10,2) NOT NULL CHECK (total_amount >= 0),
@@ -102,6 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_customer_outstandings_business_remaining
 ALTER TABLE customer_outstandings ADD COLUMN IF NOT EXISTS original_total_amount NUMERIC(10,2);
 ALTER TABLE customer_outstandings ADD COLUMN IF NOT EXISTS final_total_amount NUMERIC(10,2);
 ALTER TABLE customer_outstandings ALTER COLUMN order_id DROP NOT NULL;
+ALTER TABLE customer_outstandings ALTER COLUMN phone_number DROP NOT NULL;
 UPDATE customer_outstandings
 SET original_total_amount = COALESCE(original_total_amount, total_amount),
     final_total_amount = COALESCE(final_total_amount, total_amount);

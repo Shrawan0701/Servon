@@ -31,26 +31,13 @@ import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
 import { useNavigation } from "@react-navigation/native";
 import { localizedItemName } from "../utils/localizedItemName";
-import {
-  getMenu,
-  getTables,
-  getProfile,
-  placeOrder,
-  appendOrderItems,
-  servonVoice,
-  checkInRoom,
-  updateRoom,
-  checkOutRoom,
-} from "../api";
+import { placeOrder, servonVoice, checkInRoom, updateRoom, checkOutRoom } from "../api";
 import localDB from "../services/LocalDB";
-import networkMonitor from "../services/NetworkMonitor";
+import { refreshPOSData } from "../services/refreshPOSData";
+
 
 const isWeb = Platform.OS === "web";
-const withOfflineFallbackTimeout = (promise, ms = 2500) =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("offline_fallback_timeout")), ms)),
-  ]);
+
 
 const COLORS = {
   bg: "#F3F5F2",
@@ -123,6 +110,8 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const [selectedTable, setSelectedTable] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
   const [placing, setPlacing] = useState(false);
+  const [manualError, setManualError] = useState("");
+  const manualSaving = useRef(false);
 
   // Voice state
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -135,34 +124,15 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const voiceInProgress = useRef(false);
 
   const loadData = useCallback(async () => {
-    try {
-      const online = await networkMonitor.checkConnectivity();
-      if (online) {
-        const [menuRes, tableRes, profileRes] = await Promise.all([getMenu(), getTables(), getProfile()]);
-        const menuData = menuRes.data || [];
-        const tableData = tableRes.data || [];
-        const profileData = profileRes.data || null;
-        setMenu([]);
-        setAllMenu(menuData);
-        setTables(tableData);
-        setProfile(profileData);
-        await localDB.saveMenu(menuData);
-        await localDB.saveTables(tableData);
-        await localDB.saveProfile(profileData);
-      } else {
-        setMenu([]);
-        setAllMenu(await localDB.getMenu());
-        setTables(await localDB.getTables());
-        setProfile(await localDB.getProfile());
-      }
-    } catch (err) {
-      console.error("Assistant load data error:", err);
-      setMenu([]);
-      setAllMenu(await localDB.getMenu());
-      setTables(await localDB.getTables());
-      setProfile(await localDB.getProfile());
-    }
+    const [menuData, tableData, profileData] = await Promise.all([localDB.getMenu(), localDB.getTables(), localDB.getProfile()]);
+    setAllMenu(menuData); setTables(tableData); setProfile(profileData);
   }, []);
+  useEffect(() => {
+    if (!visible) return;
+    const unsubscribe = localDB.subscribe(() => { loadData().catch(() => {}); });
+    refreshPOSData(['menu', 'tables', 'profile']).catch(() => {});
+    return unsubscribe;
+  }, [visible, loadData]);
 
   useEffect(() => {
     if (visible) {
@@ -173,6 +143,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       setCodeTouched(false);
       setSelectedTable(null);
       setSelectedItems([]);
+      setManualError("");
       setCartExpanded(false);
       setResult(null);
       setVError("");
@@ -337,8 +308,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
     if (clean === "8") return;
     setCodeLoading(true);
     try {
-      const res = await getMenu({ category_code: clean });
-      setMenu(res.data || []);
+      setMenu(await localDB.getMenu({ category_code: clean }));
     } catch (err) {
       console.error("Category code menu load error:", err);
       setMenu(await localDB.getMenu({ category_code: clean }));
@@ -354,8 +324,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
     if (!liquorBrandLabel(clean)) return;
     setCodeLoading(true);
     try {
-      const res = await getMenu({ liquor_brand_code: clean });
-      setMenu(res.data || []);
+      setMenu(await localDB.getMenu({ liquor_brand_code: clean }));
     } catch (err) {
       console.error("Liquor brand menu load error:", err);
       setMenu(await localDB.getMenu({ liquor_brand_code: clean }));
@@ -371,19 +340,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
     setCodeTouched(true);
     let cancelled = false;
     setCodeLoading(true);
-    getMenu({ liquor_brand_code: searchBrandCode })
-      .then((res) => {
-        if (!cancelled) setMenu(res.data || []);
-      })
-      .catch((err) => {
-        console.error("Liquor brand search load error:", err);
-        localDB.getMenu({ liquor_brand_code: searchBrandCode }).then((cached) => {
-          if (!cancelled) setMenu(cached);
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setCodeLoading(false);
-      });
+    localDB.getMenu({ liquor_brand_code: searchBrandCode })
+      .then((cached) => { if (!cancelled) setMenu(cached); })
+      .finally(() => { if (!cancelled) setCodeLoading(false); });
     return () => { cancelled = true; };
   }, [searchBrandCode]);
 
@@ -395,9 +354,12 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const mGrand = manualSubtotal + mCgst + mSgst;
 
   const confirmManualOrder = async () => {
+    if (manualSaving.current) return;
+    setManualError("");
     const actionTitle = appendOrder ? "Add Items" : "Create Order";
-    if (!selectedTable) { Alert.alert(actionTitle, "Please select a table."); return; }
+    if (!selectedTable) { setManualError("Please select a table."); return; }
     if (selectedItems.length === 0) { Alert.alert(actionTitle, "Please add at least one item."); return; }
+    manualSaving.current = true;
     setPlacing(true);
     try {
       const items = selectedItems.map((i) => ({
@@ -416,60 +378,19 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         thali_includes: i.thali_includes || [],
         thali_custom: i.thali_custom || "",
       }));
-      const isOnline = await networkMonitor.checkConnectivity();
       const selectedTableNumber = selectedTable.table_number || selectedTable.tableNumber || selectedTable.id;
-      let savedOrder;
-      if (appendOrder) {
-        if (isOnline && !String(appendOrder.id).startsWith("local_order_")) {
-          try {
-            const res = await withOfflineFallbackTimeout(appendOrderItems(appendOrder.id, items));
-            savedOrder = res?.data;
-            await localDB.saveOrders([savedOrder]);
-          } catch (apiErr) {
-            savedOrder = await localDB.appendOrderItems(appendOrder.id, items);
-          }
-        } else {
-          savedOrder = await localDB.appendOrderItems(appendOrder.id, items);
-        }
-      } else if (isOnline) {
-        try {
-          const res = await withOfflineFallbackTimeout(placeOrder({
-            businessId: business?.id,
-            tableId: selectedTable.id,
-            items,
-            totalAmount: manualSubtotal,
-            orderSource: "staff",
-            initialStatus: "CONFIRMED",
-          }));
-          savedOrder = res?.data;
-          await localDB.saveOrders([savedOrder]);
-        } catch (apiErr) {
-          savedOrder = await localDB.createLocalOrder({
-            tableId: selectedTable.id,
-            tableNumber: selectedTableNumber,
-            items,
-            totalAmount: manualSubtotal,
-            orderSource: "staff",
-            initialStatus: "CONFIRMED",
-          });
-        }
-      } else {
-        savedOrder = await localDB.createLocalOrder({
-          tableId: selectedTable.id,
-          tableNumber: selectedTableNumber,
-          items,
-          totalAmount: manualSubtotal,
-          orderSource: "staff",
-          initialStatus: "CONFIRMED",
-        });
-      }
+      const savedOrder = appendOrder
+        ? await localDB.appendOrderItems(appendOrder.id, items)
+        : await localDB.createLocalOrder({ tableId: selectedTable.id, tableNumber: selectedTableNumber, items, totalAmount: manualSubtotal, orderSource: "staff", initialStatus: "CONFIRMED" });
       Alert.alert(appendOrder ? "Items Added" : "Order Created", appendOrder ? `Items added to Table ${selectedTable.table_number}.` : `Order placed for ${selectedTable.table_number}.`);
       onOrderSaved?.(savedOrder);
       onClose?.();
       return savedOrder;
     } catch (err) {
+      setManualError(err.message || "Could not save on this device. Please try again.");
       Alert.alert("Error", err.response?.data?.error || (appendOrder ? "Could not add items." : "Could not place order."));
     } finally {
+      manualSaving.current = false;
       setPlacing(false);
     }
   };
@@ -700,7 +621,15 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       {codeLoading && <ActivityIndicator color={COLORS.text} style={{ marginVertical: 12 }} />}
 
       {!codeLoading && (searchTerm || categoryCode !== "8" || liquorBrandCode) && displayMenu.map((item) => (
-        <View key={item.id} style={styles.menuRow}>
+        <TouchableOpacity
+          key={item.id}
+          style={styles.menuRow}
+          onPress={() => addMenuItem(item)}
+          disabled={!item.is_available}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`${localizeText("Add", language)} ${menuLabel(item)}`}
+        >
           <View style={{ flex: 1 }}>
             <LocalizedText style={styles.menuName}>{menuLabel(item)}</LocalizedText>
             <LocalizedText style={styles.menuPrice}>
@@ -713,14 +642,12 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           {!!selectedItems.find((selected) => selected.id === item.id)?.quantity && (
             <View style={styles.menuSelectedCount}><NativeText style={styles.menuSelectedCountText}>{selectedItems.find((selected) => selected.id === item.id).quantity}×</NativeText></View>
           )}
-          <TouchableOpacity
+          <View
             style={[styles.addItemBtn, !item.is_available && { opacity: 0.4 }]}
-            onPress={() => item.is_available && addMenuItem(item)}
-            disabled={!item.is_available}
           >
             <Ionicons name="add" size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
+          </View>
+        </TouchableOpacity>
       ))}
       {!codeLoading && searchTerm && displayMenu.length === 0 && (
         <LocalizedText style={styles.emptyText}>No menu items match "{search}".</LocalizedText>
@@ -775,6 +702,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           </ScrollView>
         )}
         <View style={styles.manualFooter}>
+          {!!manualError && <LocalizedText accessibilityRole="alert" style={styles.errorText}>{manualError}</LocalizedText>}
           <View style={styles.bill}>
             <BillRow label="Subtotal" value={money(manualSubtotal)} />
             {mCgstP > 0 && <BillRow label={`CGST (${mCgstP}%)`} value={money(mCgst)} />}

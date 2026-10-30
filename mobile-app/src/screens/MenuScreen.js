@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, Alert, RefreshControl,
   ActivityIndicator, Modal, TextInput, Image, ScrollView, Platform, Dimensions
@@ -8,6 +8,7 @@ import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { getMenu, getProfile, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../api";
 import localDB from "../services/LocalDB";
+import { refreshPOSData } from "../services/refreshPOSData";
 import networkMonitor from "../services/NetworkMonitor";
 import { localizedItemName } from "../utils/localizedItemName";
 import { useAuth } from "../context/AuthContext";
@@ -52,6 +53,11 @@ const EMPTY_FORM = {
 
 const itemFoodType = (item) => (item?.food_type === "non_veg" ? "non_veg" : "veg");
 const itemParentType = (item) => item?.menu_type === "liquor" ? "liquor" : itemFoodType(item);
+const normalizeCachedItem = (item) => {
+  let includes = item.thali_includes;
+  if (typeof includes === 'string') { try { includes = JSON.parse(includes); } catch (_) { includes = []; } }
+  return { ...item, food_type: itemFoodType(item), menu_type: item.menu_type === 'liquor' ? 'liquor' : 'food', category_code: item.category_code ? Number(item.category_code) : null, liquor_brand_code: item.liquor_brand_code ? Number(item.liquor_brand_code) : null, thali_includes: Array.isArray(includes) ? includes.map(String) : [], thali_custom: typeof item.thali_custom === 'string' ? item.thali_custom : '' };
+};
 const itemDisplayName = (item, language) => {
   return localizedItemName(item, language);
 };
@@ -112,71 +118,20 @@ export default function MenuScreen() {
   useFocusEffect(useCallback(() => { loadMenu(); }, []));
 
   const loadMenu = async () => {
-  try {
-    const online = await networkMonitor.checkConnectivity();
-    if (!online) {
-      const cachedMenu = await localDB.getMenu();
-      const cachedProfile = await localDB.getProfile();
-      setProfileLiquorEnabled(cachedProfile?.liquor_available === true);
-      setItems(cachedMenu.map(item => ({
-        ...item,
-        food_type: itemFoodType(item),
-        menu_type: item.menu_type === "liquor" ? "liquor" : "food",
-        category_code: item.category_code ? Number(item.category_code) : null,
-        liquor_brand_code: item.liquor_brand_code ? Number(item.liquor_brand_code) : null,
-      })));
-      return;
-    }
-    const [res, profileRes] = await Promise.all([
-      getMenu(),
-      getProfile().catch(() => null),
-    ]);
-    if (profileRes?.data) {
-      setProfileLiquorEnabled(profileRes.data.liquor_available === true);
-    }
-
-    // ✅ FIX: Normalize thali_includes + thali_custom
-    const normalized = res.data.map(item => ({
-      ...item,
-      food_type: itemFoodType(item),
-      menu_type: item.menu_type === "liquor" ? "liquor" : "food",
-      category_code: item.category_code ? Number(item.category_code) : null,
-      liquor_brand_code: item.liquor_brand_code ? Number(item.liquor_brand_code) : null,
-    thali_includes: (() => {
-  if (Array.isArray(item.thali_includes)) {
-    return item.thali_includes.map(String);
-  }
-
-  if (typeof item.thali_includes === "string") {
     try {
-      return JSON.parse(item.thali_includes).map(String);
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
-})(),
-      thali_custom: typeof item.thali_custom === "string"
-        ? item.thali_custom
-        : "",
-    }));
-
-   
-    setItems(normalized);
-    await localDB.saveMenu(normalized);
-    if (profileRes?.data) await localDB.saveProfile(profileRes.data);
-
-  } catch (err) {
-    console.error(err);
-    const cachedMenu = await localDB.getMenu();
-    setItems(cachedMenu);
-  } finally {
-    setLoading(false);
-    setRefreshing(false);
-  }
-};
-
+      const [cachedMenu, cachedProfile] = await Promise.all([localDB.getMenu(), localDB.getProfile()]);
+      setProfileLiquorEnabled(cachedProfile?.liquor_available === true);
+      setItems(cachedMenu.map(normalizeCachedItem));
+    } finally { setLoading(false); setRefreshing(false); }
+    refreshPOSData(['menu', 'profile']).catch(() => {});
+  };
+  useEffect(() => {
+    const update = async () => {
+      const [menu, profile] = await Promise.all([localDB.getMenu(), localDB.getProfile()]);
+      setItems(menu.map(normalizeCachedItem)); setProfileLiquorEnabled(profile?.liquor_available === true);
+    };
+    return localDB.subscribe(() => { update().catch(() => {}); });
+  }, []);
 
   const filteredItems = items.filter((item) => {
     if (itemParentType(item) !== selectedFoodType) return false;

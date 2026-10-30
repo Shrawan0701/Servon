@@ -59,7 +59,7 @@ async function calculateOrderTotals(businessId, items, discountType = "none", di
     subtotal,
     discountAmount,
     gstTotal,
-    finalTotal: amountAfterDiscount + gstTotal,
+    finalTotal: Math.round((amountAfterDiscount + gstTotal + Number.EPSILON) * 100) / 100,
   };
 }
 
@@ -232,14 +232,21 @@ router.post("/place", orderTransaction(async (req, res, db) => {
     if (orderId) return res.status(409).json({ error: "Order cannot be edited" });
 
     // ─── NEW ORDER FLOW ──────────────────────────────────────────────
+    let createdAt = new Date();
+    if (isStaffOrder && req.body.clientCreatedAt) {
+      const parsed = new Date(req.body.clientCreatedAt);
+      if (!Number.isFinite(parsed.getTime()) || parsed.getTime() > Date.now() + 300000)
+        return res.status(400).json({ error: "Invalid offline order time" });
+      createdAt = parsed;
+    }
     const result = await db.query(
       `INSERT INTO orders 
        (
          business_id, table_id, items, total_amount, 
          special_instructions, status, order_source, updated_at,
-         discount_type, discount_value, discount_amount, subtotal_before_discount, gst_amount
+         discount_type, discount_value, discount_amount, subtotal_before_discount, gst_amount, created_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         businessId,
@@ -253,7 +260,8 @@ router.post("/place", orderTransaction(async (req, res, db) => {
         discountValue,
         discountAmount,
         subtotalBeforeDiscount,
-        gstTotal
+        gstTotal,
+        createdAt
       ]
     );
 
@@ -579,7 +587,40 @@ router.delete("/:id/items/:itemId", auth, orderTransaction(async (req, res, db) 
   }
 }));
 
-router.post("/outstanding", auth, async (req, res) => {
+router.post("/checkout", auth, orderTransaction(async (req, res, db) => {
+  const entries = req.body.orders;
+  if (!Array.isArray(entries) || !entries.length || entries.length > 100 || entries.some((e) => !e || typeof e.id !== "string" || (e.expected_items !== undefined && !Array.isArray(e.expected_items)) || (e.expected_total !== undefined && !Number.isFinite(Number(e.expected_total)))) || new Set(entries.map((e) => e.id)).size !== entries.length)
+    return res.status(400).json({ error: "Choose unique orders for this bill" });
+  const result = [];
+  for (const entry of entries) {
+    const type = entry.discount_type || "none", value = Number(entry.discount_value || 0);
+    if (!["none", "percentage", "flat"].includes(type) || !Number.isFinite(value) || value < 0 || (type === "percentage" && value > 100))
+      return res.status(400).json({ error: "Invalid bill discount" });
+    const found = await db.query("SELECT * FROM orders WHERE id=$1 AND business_id=$2 FOR UPDATE", [entry.id, req.businessId]);
+    const order = found.rows[0];
+    if (!order) return res.status(404).json({ error: "An order on this bill was not found" });
+    if (["PAID", "REJECTED"].includes(order.status)) return res.status(409).json({ error: "An order on this bill has already been closed on another device" });
+    const items = typeof order.items === "string" ? JSON.parse(order.items) : order.items;
+    if (entry.expected_items) {
+      const signature = (list) => JSON.stringify(list.map((i) => ({ id: String(i.id || i.menu_item_id || i.menuItemId), price: Number(i.price), quantity: Number(i.quantity) })).sort((a, b) => a.id.localeCompare(b.id)));
+      if (signature(entry.expected_items) !== signature(items))
+        return res.status(409).json({ error: "Items on this bill changed on another device. Review the saved bill before syncing." });
+    }
+    await deductInventoryForOrder(req.businessId, order.id, items, { client: db });
+    const totals = await calculateOrderTotals(req.businessId, items, type, value, db);
+    if (entry.expected_total !== undefined && Math.abs(Number(entry.expected_total) - totals.finalTotal) > 0.005)
+      return res.status(409).json({ error: "Bill tax or totals changed. Review the saved bill before syncing." });
+    const updated = await db.query(
+      `UPDATE orders SET status='PAID',discount_type=$1,discount_value=$2,discount_amount=$3,subtotal_before_discount=$4,gst_amount=$5,total_amount=$6,updated_at=NOW() WHERE id=$7 AND business_id=$8 RETURNING *`,
+      [type,value,totals.discountAmount,totals.subtotal,totals.gstTotal,totals.finalTotal,order.id,req.businessId],
+    );
+    result.push(updated.rows[0]);
+  }
+  req.afterCommit.push(() => { const io = getIO(); for (const order of result) io.to(`business_${req.businessId}`).emit("order_updated", order); });
+  return res.json({ orders: result });
+}));
+
+router.post("/outstanding", auth, orderTransaction(async (req, res, db = pool) => {
   const {
     orderId,
     customerName,
@@ -592,8 +633,8 @@ router.post("/outstanding", auth, async (req, res) => {
   const cleanName = String(customerName || "").trim();
   const cleanPhone = String(phoneNumber || "").trim();
   const cleanOrderId = orderId ? String(orderId).trim() : null;
-  if (!cleanName || !/^\d{10}$/.test(cleanPhone)) {
-    return res.status(400).json({ error: "Valid customer name and phone number are required" });
+  if (!cleanName || (cleanPhone && !/^\d{10}$/.test(cleanPhone))) {
+    return res.status(400).json({ error: "Customer name is required; phone number must be 10 digits if provided" });
   }
 
   const totalCents = toCents(totalAmount);
@@ -620,14 +661,14 @@ router.post("/outstanding", auth, async (req, res) => {
 
   try {
     if (cleanOrderId) {
-      const orderResult = await pool.query(
+      const orderResult = await db.query(
         "SELECT id FROM orders WHERE id = $1 AND business_id = $2",
         [cleanOrderId, req.businessId]
       );
       if (orderResult.rows.length === 0) return res.status(404).json({ error: "Order not found" });
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `INSERT INTO customer_outstandings
        (business_id, order_id, customer_name, phone_number, original_total_amount, final_total_amount, total_amount, paid_amount, remaining_amount, updated_at)
        VALUES ($1, $2, $3, $4, $5, $5, $5, $6, $7, NOW())
@@ -646,7 +687,7 @@ router.post("/outstanding", auth, async (req, res) => {
         req.businessId,
         cleanOrderId,
         cleanName,
-        cleanPhone,
+        cleanPhone || null,
         centsToAmount(totalCents),
         centsToAmount(paidCents),
         centsToAmount(remainingCents),
@@ -658,7 +699,7 @@ router.post("/outstanding", auth, async (req, res) => {
     console.error("Save outstanding error:", err);
     res.status(500).json({ error: "Server error" });
   }
-});
+}));
 
 router.get("/outstanding", auth, async (req, res) => {
   try {

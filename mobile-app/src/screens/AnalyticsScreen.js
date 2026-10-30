@@ -989,6 +989,8 @@ function ExpensesTab() {
   const { language } = useLocale();
   const { width: screenWidth } = useWindowDimensions();
   const isDesktop = screenWidth >= 900;
+  const Workspace = isDesktop ? View : ScrollView;
+  const Records = isDesktop ? ScrollView : View;
   const H_PAD = screenWidth < 768 ? 16 : 32;
 
   useFocusEffect(useCallback(() => { load(); }, [period]));
@@ -1391,7 +1393,15 @@ function ExpensesTab() {
 
   return (
     <View style={[FL.container, { paddingHorizontal: H_PAD }]}>
-      <View style={[isDesktop ? FL.desktopSplitLayout : { flexDirection: "column", flex: 1 }]}>
+      <Workspace
+        style={isDesktop ? FL.desktopSplitLayout : { flex: 1 }}
+        {...(!isDesktop ? {
+          contentContainerStyle: { paddingBottom: 120 },
+          keyboardShouldPersistTaps: "handled",
+          showsVerticalScrollIndicator: false,
+          refreshControl: <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={FL_DARK} />,
+        } : {})}
+      >
         
         <View style={[isDesktop ? { width: 310, marginRight: 24 } : { width: "100%", marginBottom: 16 }]}>
           <View style={FL.totalsBanner}>
@@ -1437,7 +1447,7 @@ function ExpensesTab() {
           </View>
         </View>
 
-        <View style={FL.listStreamContainer}>
+        <View style={[FL.listStreamContainer, !isDesktop && { flex: 0 }]}>
           <View style={FL.ledgerHeaderRow}>
             <LocalizedText style={FL.sectionTitleLabel}>{ledgerTab} Records</LocalizedText>
             {ledgerTab === "Expenses" && (
@@ -1470,11 +1480,14 @@ function ExpensesTab() {
             )}
           </View>
 
-          <ScrollView 
-            showsVerticalScrollIndicator={false} 
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 120 }} 
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={FL_DARK} />}
+          <Records
+            {...(isDesktop ? {
+              showsVerticalScrollIndicator: false,
+              style: { flex: 1 },
+              contentContainerStyle: { paddingBottom: 120 },
+              keyboardShouldPersistTaps: "handled",
+              refreshControl: <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={FL_DARK} />,
+            } : {})}
           >
             {ledgerTab === "Sales" ? (
               !salesList.length ? (
@@ -1583,10 +1596,10 @@ function ExpensesTab() {
                 );
               })
             )}
-          </ScrollView>
+          </Records>
         </View>
 
-      </View>
+      </Workspace>
 
       <TouchableOpacity style={FL.fab} onPress={handleAddNew} activeOpacity={0.85}>
         <Ionicons name="add" size={20} color="#fff" />

@@ -31,13 +31,18 @@ test(
     let server;
     try {
       await pool.query(`CREATE TABLE businesses(id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),business_name TEXT DEFAULT 'Test',subscription_status TEXT DEFAULT 'ACTIVE',subscription_end_date TIMESTAMPTZ DEFAULT NOW()+INTERVAL '1 year',trial_end_date TIMESTAMPTZ,push_token TEXT,cgst_percentage NUMERIC DEFAULT 0,sgst_percentage NUMERIC DEFAULT 0);
-      CREATE TABLE tables(id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),business_id UUID REFERENCES businesses(id),table_number TEXT);
+      CREATE TABLE tables(id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),business_id UUID REFERENCES businesses(id),table_number TEXT,qr_code_url TEXT);
       CREATE TABLE menu_items(id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),business_id UUID REFERENCES businesses(id),name TEXT,category TEXT,menu_type TEXT DEFAULT 'food',liquor_brand_code TEXT,size_ml NUMERIC,name_mr TEXT,name_hi TEXT);
       CREATE TABLE orders(id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),business_id UUID REFERENCES businesses(id),table_id UUID REFERENCES tables(id),items JSONB NOT NULL,total_amount NUMERIC DEFAULT 0,status TEXT DEFAULT 'CONFIRMED',special_instructions TEXT,discount_type TEXT,discount_value NUMERIC,discount_amount NUMERIC,subtotal_before_discount NUMERIC,gst_amount NUMERIC,order_source TEXT,created_at TIMESTAMPTZ DEFAULT NOW(),updated_at TIMESTAMPTZ DEFAULT NOW());
       CREATE TABLE notifications(id SERIAL PRIMARY KEY,business_id UUID,order_id UUID,message TEXT,type TEXT);
       CREATE TABLE inventory_items(id SERIAL PRIMARY KEY,business_id UUID REFERENCES businesses(id),name TEXT,unit TEXT,current_stock NUMERIC(12,2) DEFAULT 0,low_stock_threshold NUMERIC(12,2) DEFAULT 0,bottle_size NUMERIC,created_at TIMESTAMPTZ DEFAULT NOW(),updated_at TIMESTAMPTZ DEFAULT NOW());
       CREATE TABLE menu_item_ingredients(id SERIAL PRIMARY KEY,business_id UUID,menu_item_id UUID REFERENCES menu_items(id),inventory_item_id INTEGER REFERENCES inventory_items(id),quantity_required NUMERIC(12,3));
       CREATE TABLE inventory_stock_logs(id SERIAL PRIMARY KEY,business_id UUID,inventory_item_id INTEGER REFERENCES inventory_items(id),change_amount NUMERIC(12,2),reason TEXT,order_id UUID REFERENCES orders(id),created_at TIMESTAMPTZ DEFAULT NOW());`);
+      await pool.query(`CREATE TABLE customer_outstandings (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),business_id UUID REFERENCES businesses(id),order_id UUID UNIQUE REFERENCES orders(id),
+        customer_name TEXT NOT NULL,phone_number VARCHAR(10) CHECK (phone_number ~ '^[0-9]{10}$'),
+        original_total_amount NUMERIC(10,2),final_total_amount NUMERIC(10,2),total_amount NUMERIC(10,2),paid_amount NUMERIC(10,2),remaining_amount NUMERIC(10,2),
+        created_at TIMESTAMPTZ DEFAULT NOW(),updated_at TIMESTAMPTZ DEFAULT NOW());`);
       const business = (
         await pool.query("INSERT INTO businesses DEFAULT VALUES RETURNING id")
       ).rows[0].id;
@@ -152,6 +157,7 @@ test(
       app.use(fileUpload({ limits: { fileSize: 5 * 1024 * 1024 } }));
       app.use("/api/inventory", require("../routes/inventory"));
       app.use("/api/orders", require("../routes/orders"));
+      app.use("/api/tables", require("../routes/tables"));
       server = app.listen(0, "127.0.0.1");
       await new Promise((r) => server.once("listening", r));
       const base = `http://127.0.0.1:${server.address().port}/api`;
@@ -526,6 +532,14 @@ test(
               )
             ).status,
             403,
+          );
+          assert.equal(
+            (await request("PATCH", `/inventory/${tomato}/reduce`, { amount: 1 }, { token: staffToken })).status,
+            403,
+          );
+          assert.equal(
+            (await request("PATCH", `/inventory/${tomato}/reduce`, { amount: 1 }, { token: foreignToken })).status,
+            404,
           );
           assert.equal(
             (
@@ -1806,6 +1820,16 @@ test(
           );
           assert.equal(await balance(tomato), 10);
           assert.equal(
+            (await request("PATCH", `/inventory/${tomato}/reduce`, { amount: 3 })).status,
+            200,
+          );
+          assert.equal(await balance(tomato), 7);
+          assert.equal(
+            (await request("PATCH", `/inventory/${tomato}/reduce`, { amount: 8 })).status,
+            400,
+          );
+          assert.equal(await balance(tomato), 7);
+          assert.equal(
             (await request("GET", "/inventory/history")).status,
             200,
           );
@@ -1834,6 +1858,41 @@ test(
           );
         },
       );
+      await t.test("offline table/order/dues retries are idempotent and discounted checkout closes only its exact orders", async () => {
+        const tableOptions = { headers: { 'Idempotency-Key': 'offline-create-table' } };
+        const firstTable = await request('POST', '/tables', { tableNumber: 'Offline-99' }, tableOptions);
+        assert.equal(firstTable.status, 201, JSON.stringify(firstTable.data));
+        const retryTable = await request('POST', '/tables', { tableNumber: 'Offline-99' }, tableOptions);
+        assert.equal(retryTable.data.id, firstTable.data.id);
+        const testMenu = (await pool.query("INSERT INTO menu_items(business_id,name) VALUES($1,'Offline test item') RETURNING id", [business])).rows[0].id;
+        const createdAt = '2026-10-01T10:00:00.000Z';
+        const body = { businessId: business,tableId: firstTable.data.id,orderSource:'staff',items:[{id:testMenu,name:'Offline test item',price:100,quantity:1}],clientCreatedAt:createdAt };
+        const orderOptions = { headers: { 'Idempotency-Key': 'offline-create-order' } };
+        const firstOrder = await request('POST', '/orders/place', body, orderOptions);
+        assert.equal(firstOrder.status, 201, JSON.stringify(firstOrder.data));
+        assert.equal(firstOrder.data.created_at, createdAt);
+        assert.equal((await request('POST', '/orders/place', body, orderOptions)).data.id, firstOrder.data.id);
+        const laterOrder = await request('POST', '/orders/place', body, { headers: { 'Idempotency-Key': 'offline-later-order' } });
+        const checkout = { orders: [{id:firstOrder.data.id,discount_type:'percentage',discount_value:10,expected_total:90,expected_items:[{id:testMenu,price:100,quantity:1}]}] };
+        const checkoutOptions = { headers: { 'Idempotency-Key': 'offline-checkout' } };
+        const closed = await request('POST', '/orders/checkout', checkout, checkoutOptions);
+        assert.equal(closed.status, 200, JSON.stringify(closed.data));
+        assert.equal(Number(closed.data.orders[0].total_amount), 90);
+        assert.equal((await request('POST', '/orders/checkout', checkout, checkoutOptions)).status, 200);
+        assert.equal((await pool.query('SELECT status FROM orders WHERE id=$1',[laterOrder.data.id])).rows[0].status,'CONFIRMED');
+        const dueBody = {customerName:'Offline customer',phoneNumber:'',totalAmount:'90.00',paidAmount:'10.00',remainingAmount:'80.00'};
+        const dueOptions = { headers: { 'Idempotency-Key': 'offline-manual-dues' } };
+        const due = await request('POST', '/orders/outstanding', dueBody, dueOptions);
+        assert.equal(due.status, 201, JSON.stringify(due.data));
+        assert.equal(due.data.phone_number, null);
+        assert.equal((await request('POST', '/orders/outstanding', dueBody, dueOptions)).data.id, due.data.id);
+        assert.equal(Number((await pool.query("SELECT COUNT(*) AS count FROM customer_outstandings WHERE customer_name='Offline customer'")).rows[0].count),1);
+        const stale = {orders:[{id:laterOrder.data.id,discount_type:'none',discount_value:0,expected_items:[{id:testMenu,price:100,quantity:2}]}]};
+        assert.equal((await request('POST','/orders/checkout',stale)).status,409);
+        assert.equal((await pool.query('SELECT status FROM orders WHERE id=$1',[laterOrder.data.id])).rows[0].status,'CONFIRMED');
+        const foreign = await request('POST','/orders/checkout',{orders:[{id:laterOrder.data.id}]},{token:foreignToken});
+        assert.equal(foreign.status,404);
+      });
     } finally {
       if (server) await new Promise((resolve) => server.close(resolve));
       await pool.end();

@@ -51,6 +51,9 @@ const getBusinessId = async () => {
 
 // Main API Interceptor
 const attachToken = async (config) => {
+  if (config.posBusinessId && String(await getBusinessId()) !== String(config.posBusinessId)) {
+    throw new axios.CanceledError("Account changed while syncing");
+  }
   const token = await AsyncStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -86,7 +89,7 @@ AdvisorAPI.interceptors.request.use(
 // ─── RESPONSE INTERCEPTORS ──────────────────────────────────────────────────
 
 const handle401 = async (error) => {
-  if (error.response?.status === 401) {
+  if (error.response?.status === 401 && !error.config?.posBusinessId) {
     await AsyncStorage.multiRemove(["token", "business"]);
     return Promise.reject(error);
   }
@@ -138,6 +141,7 @@ export const getInventoryAlertsCount = () => API.get("/inventory/alerts/count");
 export const addInventoryItem = (data) => API.post("/inventory", data);
 export const updateInventoryItem = (id, data) => API.put(`/inventory/${id}`, data);
 export const restockInventoryItem = (id, amount, extra = {}) => API.patch(`/inventory/${id}/restock`, { amount, ...extra });
+export const reduceInventoryItem = (id, amount) => API.patch(`/inventory/${id}/reduce`, { amount });
 export const adjustInventoryItem = (id, new_stock) => API.patch(`/inventory/${id}/adjust`, { new_stock });
 export const deleteInventoryItem = (id) => API.delete(`/inventory/${id}`);
 

@@ -175,6 +175,17 @@ const phrases = {
 };
 
 Object.assign(phrases.mr, {
+  "Search stock items...": "स्टॉकमधील वस्तू शोधा...",
+  "No stock items found": "स्टॉकमधील वस्तू सापडल्या नाहीत",
+  "Clear search": "शोध साफ करा",
+  "Reduce Stock": "स्टॉक कमी करा",
+  "Reduce stock for {name}": "{name} चा स्टॉक कमी करा",
+  "How many bottles do you want to reduce?": "किती बाटल्या कमी करायच्या आहेत?",
+  "How much stock do you want to reduce?": "किती स्टॉक कमी करायचा आहे?",
+  "Please enter how much stock you want to reduce.": "किती स्टॉक कमी करायचा आहे ते टाका.",
+  "Not enough stock": "पुरेसा स्टॉक नाही",
+  "You cannot reduce more than the available stock.": "उपलब्ध स्टॉकपेक्षा जास्त स्टॉक कमी करता येणार नाही.",
+  "Could not reduce stock": "स्टॉक कमी करता आला नाही",
   "Saving…": "जतन होत आहे…",
   "Retry": "पुन्हा प्रयत्न करा",
   "Previous": "मागील",
@@ -220,6 +231,17 @@ Object.assign(phrases.mr, {
 });
 
 Object.assign(phrases.hi, {
+  "Search stock items...": "स्टॉक में आइटम खोजें...",
+  "No stock items found": "स्टॉक में कोई आइटम नहीं मिला",
+  "Clear search": "खोज साफ करें",
+  "Reduce Stock": "स्टॉक कम करें",
+  "Reduce stock for {name}": "{name} का स्टॉक कम करें",
+  "How many bottles do you want to reduce?": "कितनी बोतलें कम करनी हैं?",
+  "How much stock do you want to reduce?": "कितना स्टॉक कम करना है?",
+  "Please enter how much stock you want to reduce.": "कितना स्टॉक कम करना है वह दर्ज करें।",
+  "Not enough stock": "पर्याप्त स्टॉक नहीं है",
+  "You cannot reduce more than the available stock.": "उपलब्ध स्टॉक से अधिक कम नहीं कर सकते।",
+  "Could not reduce stock": "स्टॉक कम नहीं हो सका",
   "Saving…": "सेव हो रहा है…",
   "Retry": "फिर कोशिश करें",
   "Previous": "पिछला",

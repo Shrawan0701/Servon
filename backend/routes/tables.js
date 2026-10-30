@@ -4,6 +4,7 @@ const pool = require("../db");
 const auth = require("../middleware/auth");
 const subscription = require("../middleware/subscription");
 const QRCode = require("qrcode");
+const orderTransaction = require("../middleware/orderTransaction");
 const { generateQRPDF } = require("../utils/pdf");
 
 // ─── 1. PUBLIC ENDPOINTS (MUST BE AT THE TOP) ───────────────────────────
@@ -46,7 +47,7 @@ router.get("/", auth, async (req, res) => {
 });
 
 // Add table
-router.post("/", auth, subscription, async (req, res) => {
+router.post("/", auth, subscription, orderTransaction(async (req, res, db) => {
   const { tableNumber } = req.body;
 
   if (!tableNumber) {
@@ -54,7 +55,7 @@ router.post("/", auth, subscription, async (req, res) => {
   }
 
   try {
-    const existing = await pool.query(
+    const existing = await db.query(
       "SELECT id FROM tables WHERE business_id = $1 AND table_number = $2",
       [req.businessId, tableNumber]
     );
@@ -63,7 +64,7 @@ router.post("/", auth, subscription, async (req, res) => {
       return res.status(409).json({ error: "Table number already exists" });
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       "INSERT INTO tables (business_id, table_number) VALUES ($1, $2) RETURNING *",
       [req.businessId, tableNumber]
     );
@@ -80,7 +81,7 @@ router.post("/", auth, subscription, async (req, res) => {
       margin: 2,
     });
 
-    const updated = await pool.query(
+    const updated = await db.query(
       "UPDATE tables SET qr_code_url = $1 WHERE id = $2 RETURNING *",
       [qrDataUrl, tableId]
     );
@@ -91,7 +92,7 @@ router.post("/", auth, subscription, async (req, res) => {
     console.error("Add table error:", err);
     res.status(500).json({ error: "Server error" });
   }
-});
+}));
 
 // Download QR as PDF
 // Download QR as PDF
@@ -144,9 +145,9 @@ router.get("/:id/qr-pdf", auth, subscription, async (req, res) => {
 });
 
 // Delete table
-router.delete("/:id", auth, subscription, async (req, res) => {
+router.delete("/:id", auth, subscription, orderTransaction(async (req, res, db) => {
   try {
-    const result = await pool.query(
+    const result = await db.query(
       "DELETE FROM tables WHERE id = $1 AND business_id = $2 RETURNING id",
       [req.params.id, req.businessId]
     );
@@ -160,6 +161,6 @@ router.delete("/:id", auth, subscription, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
-});
+}));
 
 module.exports = router;

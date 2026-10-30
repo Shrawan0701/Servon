@@ -1,8 +1,8 @@
-const CACHE_NAME = "servon-pos-shell-v3";
+const CACHE_NAME = "servon-pos-shell-v4";
 const APP_SHELL = ["/", "/index.html"];
-const DEVELOPMENT = ["localhost", "127.0.0.1", "[::1]"].includes(
-  self.location.hostname,
-);
+// Metro unregisters its worker in App.js. A production build hosted on the
+// same computer still needs caching; hostname alone cannot identify Metro.
+const DEVELOPMENT = new URL(self.location.href).searchParams.get("development") === "1";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

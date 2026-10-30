@@ -103,6 +103,9 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(fileUpload({ limits: { fileSize: 5 * 1024 * 1024 } }));
 
+pool.query("ALTER TABLE customer_outstandings ALTER COLUMN phone_number DROP NOT NULL")
+  .catch((err) => console.error("Outstanding phone migration failed:", err.message));
+
 pool.query("ALTER TABLE customer_outstandings ALTER COLUMN order_id DROP NOT NULL")
   .catch((err) => console.warn("Customer outstanding manual migration skipped:", err.message));
 

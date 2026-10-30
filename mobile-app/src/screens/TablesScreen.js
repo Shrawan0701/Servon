@@ -3,9 +3,10 @@ import { View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, Alert
 import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect } from "@react-navigation/native";
-import { getTables, addTable, deleteTable } from "../api";
+
 import localDB from "../services/LocalDB";
-import networkMonitor from "../services/NetworkMonitor";
+import { refreshPOSData } from "../services/refreshPOSData";
+
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -48,28 +49,17 @@ export default function TablesScreen() {
   useFocusEffect(useCallback(() => { loadTables(); }, []));
 
   const loadTables = async () => {
-    try {
-      const online = await networkMonitor.checkConnectivity();
-      if (online) {
-        const res = await getTables();
-        setTables(res.data);
-        await localDB.saveTables(res.data || []);
-      } else {
-        setTables(await localDB.getTables());
-      }
-    } catch (err) {
-      console.error(err);
-      setTables(await localDB.getTables());
-    }
+    try { setTables(await localDB.getTables()); }
     finally { setLoading(false); setRefreshing(false); }
+    refreshPOSData(['tables']).catch(() => {});
   };
+  useEffect(() => localDB.subscribe(() => { localDB.getTables().then(setTables).catch(() => {}); }), []);
 
   const handleAddTable = async () => {
     if (!tableNumber.trim()) { Alert.alert(localizeText("Required", language), localizeText("Enter a table number", language)); return; }
     setAdding(true);
     try {
-      const online = await networkMonitor.checkConnectivity();
-      const table = online ? (await addTable(tableNumber.trim())).data : await localDB.addLocalTable(tableNumber.trim());
+      const table = await localDB.addLocalTable(tableNumber.trim());
       setTables((prev) => [...prev, table]);
       setTableNumber("");
       setShowAddModal(false);
@@ -94,9 +84,7 @@ export default function TablesScreen() {
   const confirmDelete = async (id) => {
     setDeleting(true);
     try {
-      const online = await networkMonitor.checkConnectivity();
-      if (online && !String(id).startsWith("local_table_")) await deleteTable(id);
-      else await localDB.deleteLocalTable(id);
+      await localDB.deleteLocalTable(id);
       setTables((prev) => prev.filter((t) => t.id !== id));
       setShowDeleteModal(false);
       setTableToDelete(null);

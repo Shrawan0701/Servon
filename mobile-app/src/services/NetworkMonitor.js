@@ -38,6 +38,7 @@ class NetworkMonitor {
     }
 
     setupWebListener() {
+        if (typeof window === "undefined" || typeof navigator === "undefined") { this.isOnline = false; return; }
         this.isOnline = navigator.onLine;
         this.connectionType = 'web';
 
@@ -70,7 +71,7 @@ class NetworkMonitor {
                 this.isOnline = state.isConnected && state.isInternetReachable !== false;
                 return this.isOnline;
             } catch (error) {
-                return navigator.onLine;
+                return this.isOnline;
             }
         }
         this.isOnline = navigator.onLine;
