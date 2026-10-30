@@ -16,6 +16,8 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  useWindowDimensions,
+  KeyboardAvoidingView,
 } from "react-native";
 import LocalizedText, { localizeText } from "./LocalizedText";
 import { Ionicons } from "@expo/vector-icons";
@@ -51,15 +53,15 @@ const withOfflineFallbackTimeout = (promise, ms = 2500) =>
   ]);
 
 const COLORS = {
-  bg: "#F5F3EF",
+  bg: "#F3F5F2",
   card: "#fff",
-  border: "#E8E2D9",
-  text: "#111827",
-  subtext: "#6B7280",
-  muted: "#9CA3AF",
-  navy: "#0F172A",
-  green: "#10B981",
-  greenBg: "#ECFDF5",
+  border: "#DFE5DF",
+  text: "#20332A",
+  subtext: "#627166",
+  muted: "#7B897F",
+  navy: "#244F3B",
+  green: "#39805A",
+  greenBg: "#EDF4E8",
   red: "#EF4444",
   redBg: "#FEF2F2",
   amber: "#F59E0B",
@@ -101,6 +103,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const navigation = useNavigation();
   const { business } = useAuth();
   const { language } = useLocale();
+  const { width: viewWidth, height: viewHeight } = useWindowDimensions();
+  const isWideOrder = isWeb && viewWidth >= 900;
+  const [cartExpanded, setCartExpanded] = useState(false);
 
   // Data loaded for MANUAL order mode (also the authoritative price source).
   const [menu, setMenu] = useState([]);
@@ -168,6 +173,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
       setCodeTouched(false);
       setSelectedTable(null);
       setSelectedItems([]);
+      setCartExpanded(false);
       setResult(null);
       setVError("");
       setResolvedAmbiguities({});
@@ -580,12 +586,12 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   };
 
   // ── Manual Order body ─────────────────────────────────────────────────
-  const manualOrderBody = (
-    <View>
+  const manualMenuControls = (
+    <View style={styles.manualControls}>
       <LocalizedText translate style={styles.sectionLabel}>TABLE</LocalizedText>
       <View style={styles.tableWrap}>
         <Ionicons name="restaurant-outline" size={16} color={COLORS.subtext} style={{ marginRight: 6 }} />
-        <View style={styles.picker}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.picker}>
           {tables.length === 0 ? (
             <LocalizedText translate style={styles.pickerEmpty}>No tables yet. Manage tables in the Tables tab.</LocalizedText>
           ) : (
@@ -605,7 +611,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
               );
             })
           )}
-        </View>
+        </ScrollView>
       </View>
 
       <LocalizedText translate style={styles.sectionLabel}>ADD ITEMS</LocalizedText>
@@ -615,6 +621,7 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           return (
             <TouchableOpacity
               key={option.code}
+              accessibilityLabel={localizeText(option.label, language)}
               style={[styles.codeBtn, active && styles.codeBtnActive]}
               onPress={() => loadCategoryCode(option.code)}
             >
@@ -623,7 +630,8 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           );
         })}
       </View>
-      <View style={styles.searchBox}>
+      <View style={styles.searchFields}>
+      <View style={[styles.searchBox, styles.codeSearchBox]}>
         <Ionicons name="keypad-outline" size={16} color={COLORS.muted} />
         <TextInput
           style={styles.searchInput}
@@ -651,7 +659,12 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           </TouchableOpacity>
         )}
       </View>
+      </View>
+    </View>
+  );
 
+  const manualMenuList = (
+    <ScrollView style={styles.menuScroll} contentContainerStyle={styles.menuScrollContent} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
       {!searchTerm && !categoryCode && (
         <LocalizedText translate style={styles.hint}>Enter a category code to view items.</LocalizedText>
       )}
@@ -697,6 +710,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
             </LocalizedText>
             <LocalizedText style={styles.menuPrice}>{money(item.price)}</LocalizedText>
           </View>
+          {!!selectedItems.find((selected) => selected.id === item.id)?.quantity && (
+            <View style={styles.menuSelectedCount}><NativeText style={styles.menuSelectedCountText}>{selectedItems.find((selected) => selected.id === item.id).quantity}×</NativeText></View>
+          )}
           <TouchableOpacity
             style={[styles.addItemBtn, !item.is_available && { opacity: 0.4 }]}
             onPress={() => item.is_available && addMenuItem(item)}
@@ -716,9 +732,30 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
         <LocalizedText translate style={styles.emptyText}>Category code not found</LocalizedText>
       )}
 
-      {selectedItems.length > 0 && (
-        <>
-          <LocalizedText translate style={styles.sectionLabel}>SELECTED ITEMS</LocalizedText>
+    </ScrollView>
+  );
+
+  const manualOrderBody = (
+    <View style={[styles.manualWorkspace, isWideOrder && styles.manualWorkspaceWide]}>
+      <View style={styles.catalogPane}>
+        {manualMenuControls}
+        {manualMenuList}
+      </View>
+      <View style={[styles.cartPane, isWideOrder && styles.cartPaneWide]}>
+        <TouchableOpacity
+          style={styles.cartHeading}
+          onPress={() => setCartExpanded((current) => !current)}
+          disabled={isWideOrder || !selectedItems.length}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isWideOrder || cartExpanded }}
+        >
+          <Ionicons name="receipt-outline" size={18} color={COLORS.navy} />
+          <LocalizedText style={styles.cartHeadingText}>SELECTED ITEMS</LocalizedText>
+          <View style={styles.cartCount}><NativeText style={styles.cartCountText}>{selectedItems.length}</NativeText></View>
+          {!isWideOrder && !!selectedItems.length && <Ionicons name={cartExpanded ? "chevron-down" : "chevron-up"} size={17} color={COLORS.subtext} />}
+        </TouchableOpacity>
+        {(isWideOrder || cartExpanded) && (
+          <ScrollView style={[styles.cartScroll, !isWideOrder && styles.cartScrollMobile]} contentContainerStyle={styles.cartScrollContent} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
           {selectedItems.map((i) => (
             <View key={i.id} style={styles.selRow}>
               <LocalizedText style={styles.selName}>{menuLabel(i)} × {i.quantity}</LocalizedText>
@@ -734,6 +771,10 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
             </View>
           ))}
 
+            {!selectedItems.length && <View style={styles.cartEmpty}><Ionicons name="receipt-outline" size={38} color="#A4B79E" /></View>}
+          </ScrollView>
+        )}
+        <View style={styles.manualFooter}>
           <View style={styles.bill}>
             <BillRow label="Subtotal" value={money(manualSubtotal)} />
             {mCgstP > 0 && <BillRow label={`CGST (${mCgstP}%)`} value={money(mCgst)} />}
@@ -743,9 +784,9 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
           </View>
 
           <TouchableOpacity
-            style={[styles.primaryBtn, placing && { opacity: 0.6 }]}
+            style={[styles.primaryBtn, styles.manualCreateBtn, (placing || !selectedItems.length) && { opacity: 0.6 }]}
             onPress={confirmManualOrder}
-            disabled={placing}
+            disabled={placing || !selectedItems.length}
           >
             {placing ? <ActivityIndicator color="#fff" /> : (
               <>
@@ -754,8 +795,8 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
               </>
             )}
           </TouchableOpacity>
-        </>
-      )}
+        </View>
+      </View>
     </View>
   );
 
@@ -955,11 +996,12 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   else if (result && isRoomKind) body = roomConfirmBody;
   else if (mode === "voice") body = voicePromptBody;
   else body = manualOrderBody;
+  const manualView = body === manualOrderBody;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={[styles.modal, manualView && { maxWidth: isWideOrder ? 1060 : 600, height: Math.min(800, viewHeight - 36) }]}>
           <View style={styles.header}>
             <LocalizedText style={styles.title}>{appendOrder ? "Add Items" : mode === "voice" ? "Servon Assistant" : "Create Order"}</LocalizedText>
             <TouchableOpacity style={styles.closeBtn} onPress={close}>
@@ -984,11 +1026,11 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
             </TouchableOpacity>
           </View>}
 
-          <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+          {manualView ? body : <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
             {body}
-          </ScrollView>
+          </ScrollView>}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1013,27 +1055,49 @@ function GuestStatBox({ label, value }) {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 16 },
-  modal: { width: "100%", maxWidth: 520, maxHeight: "92%", backgroundColor: "#fff", borderRadius: 18 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingTop: 18, paddingBottom: 12 },
-  title: { fontSize: 19, fontWeight: "800", color: COLORS.text },
-  closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.bg, alignItems: "center", justifyContent: "center" },
-  tabs: { flexDirection: "row", gap: 10, paddingHorizontal: 18, paddingBottom: 14 },
-  tab: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: COLORS.bg },
+  modal: { width: "100%", maxWidth: 520, maxHeight: "94%", backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: COLORS.border },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12, flexShrink: 0 },
+  title: { fontSize: 21, fontWeight: "700", color: COLORS.text, letterSpacing: -.4 },
+  closeBtn: { width: 40, height: 40, borderRadius: 9, backgroundColor: COLORS.bg, alignItems: "center", justifyContent: "center" },
+  tabs: { flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexShrink: 0 },
+  tab: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 8, backgroundColor: COLORS.bg },
   tabActive: { backgroundColor: COLORS.greenBg, borderWidth: 1, borderColor: COLORS.green },
   tabText: { color: COLORS.subtext, fontSize: 13, fontWeight: "700" },
   tabTextActive: { color: COLORS.green },
   body: { flexShrink: 1 },
   bodyContent: { padding: 18, paddingTop: 4 },
-  sectionLabel: { fontSize: 11, fontWeight: "800", color: COLORS.muted, letterSpacing: 0.6, marginBottom: 8, marginTop: 8, textTransform: "uppercase" },
+  manualWorkspace: { flex: 1, minHeight: 0, flexDirection: "column" },
+  manualWorkspaceWide: { flexDirection: "row" },
+  catalogPane: { flex: 1, minHeight: 0, minWidth: 0 },
+  manualControls: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: "#FAFCF8", flexShrink: 0 },
+  searchFields: { flexDirection: "row", gap: 8 },
+  codeSearchBox: { flex: 0, width: 88 },
+  menuScroll: { flex: 1, minHeight: 0 },
+  menuScrollContent: { paddingHorizontal: 18, paddingVertical: 10 },
+  cartPane: { borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: "#FAFCF8", flexShrink: 0 },
+  cartPaneWide: { width: 360, borderTopWidth: 0, borderLeftWidth: 1, borderLeftColor: COLORS.border },
+  cartHeading: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, minHeight: 44, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  cartHeadingText: { flex: 1, fontSize: 12, fontWeight: "700", color: COLORS.navy },
+  cartCount: { minWidth: 25, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: "#E1ECD9", alignItems: "center" },
+  cartCountText: { color: COLORS.navy, fontSize: 12, fontWeight: "700" },
+  cartScroll: { flex: 1, minHeight: 0 },
+  cartScrollMobile: { flex: 0, maxHeight: 150 },
+  cartScrollContent: { paddingHorizontal: 16, paddingBottom: 6 },
+  cartEmpty: { alignItems: "center", justifyContent: "center", paddingVertical: 60 },
+  manualFooter: { borderTopWidth: 1, borderTopColor: COLORS.border, padding: 14, backgroundColor: "#fff", flexShrink: 0 },
+  manualCreateBtn: { backgroundColor: COLORS.navy, minHeight: 48, marginTop: 10, borderRadius: 8 },
+  menuSelectedCount: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 6, marginRight: 10, backgroundColor: "#E7F0DF" },
+  menuSelectedCountText: { color: COLORS.navy, fontSize: 13, fontWeight: "700" },
+  sectionLabel: { fontSize: 11, fontWeight: "600", color: COLORS.subtext, letterSpacing: 0.3, marginBottom: 7, marginTop: 8, textTransform: "uppercase" },
   tableWrap: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  picker: { flexDirection: "row", flexWrap: "wrap", gap: 8, flex: 1 },
+  picker: { flexDirection: "row", gap: 8, paddingRight: 8 },
   pickerEmpty: { fontSize: 12, color: COLORS.muted },
-  tableChip: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg, alignItems: "center", justifyContent: "center" },
+  tableChip: { width: 44, height: 40, borderRadius: 7, borderWidth: 1, borderColor: COLORS.border, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   tableChipActive: { borderColor: COLORS.green, backgroundColor: COLORS.greenBg },
   tableChipText: { fontSize: 15, fontWeight: "700", color: COLORS.text },
   tableChipTextActive: { color: COLORS.green },
-  codeButtons: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-  codeBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg, alignItems: "center", justifyContent: "center" },
+  codeButtons: { flexDirection: "row", gap: 6, marginBottom: 10 },
+  codeBtn: { flex: 1, maxWidth: 58, minWidth: 25, height: 40, borderRadius: 7, borderWidth: 1, borderColor: COLORS.border, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   codeBtnActive: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   codeBtnText: { fontSize: 15, fontWeight: "800", color: COLORS.text },
   codeBtnTextActive: { color: "#fff" },
@@ -1045,20 +1109,20 @@ const styles = StyleSheet.create({
   brandHeaderRow: { marginBottom: 8 },
   backBrandBtn: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, backgroundColor: COLORS.bg, marginBottom: 6 },
   backBrandText: { fontSize: 12, fontWeight: "800", color: COLORS.text },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, backgroundColor: COLORS.bg, paddingHorizontal: 12, marginBottom: 10 },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.text },
+  searchBox: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, backgroundColor: "#fff", paddingHorizontal: 10, marginBottom: 8 },
+  searchInput: { flex: 1, minWidth: 0, paddingVertical: 11, fontSize: 14, color: COLORS.text },
   hint: { fontSize: 12, color: COLORS.muted, marginBottom: 10 },
-  menuRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  menuName: { fontSize: 14, fontWeight: "600", color: COLORS.text },
+  menuRow: { flexDirection: "row", alignItems: "center", minHeight: 76, paddingVertical: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  menuName: { fontSize: 15, fontWeight: "600", color: COLORS.text },
   menuPrice: { fontSize: 12, color: COLORS.subtext, marginTop: 2 },
-  addItemBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.text, alignItems: "center", justifyContent: "center" },
+  addItemBtn: { width: 42, height: 42, borderRadius: 8, backgroundColor: COLORS.navy, alignItems: "center", justifyContent: "center" },
   emptyText: { fontSize: 13, color: COLORS.muted, textAlign: "center", marginVertical: 12 },
-  selRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 8 },
+  selRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 8 },
   selName: { flex: 1, fontSize: 13, fontWeight: "600", color: COLORS.text },
   selPrice: { fontSize: 13, fontWeight: "700", color: COLORS.text },
   qtyBtns: { flexDirection: "row", gap: 6 },
-  qtyBtn: { width: 26, height: 26, borderRadius: 8, backgroundColor: COLORS.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: COLORS.border },
-  bill: { backgroundColor: COLORS.bg, borderRadius: 12, padding: 12, marginTop: 12, gap: 4 },
+  qtyBtn: { width: 38, height: 38, borderRadius: 7, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: COLORS.border },
+  bill: { backgroundColor: COLORS.bg, borderRadius: 8, padding: 10, marginTop: 0, gap: 4 },
   billRow: { flexDirection: "row", justifyContent: "space-between" },
   billLabel: { fontSize: 13, color: COLORS.subtext },
   billLabelStrong: { fontSize: 15, fontWeight: "800", color: COLORS.text },

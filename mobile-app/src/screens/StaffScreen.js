@@ -11,6 +11,7 @@ import {
     Alert,
     ActivityIndicator,
     Platform,
+    useWindowDimensions,
 } from "react-native";
 import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
@@ -27,6 +28,9 @@ import {
 
 const StaffScreen = ({ navigation }) => {
     const { language } = useLocale();
+    const { width } = useWindowDimensions();
+    const wideLayout = width >= 1000;
+    const compactLayout = width < 600;
     const [staff, setStaff] = useState([]);
     const [filteredStaff, setFilteredStaff] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -209,14 +213,14 @@ const StaffScreen = ({ navigation }) => {
         return (
             <TouchableOpacity
                 key={item.id}
-                style={styles.card}
+                style={[styles.card, { width: wideLayout ? '49.3%' : '100%' }]}
                 activeOpacity={0.85}
                 onPress={() => navigateToProfile(item)}
             >
                 <View style={styles.cardHeader}>
                     <View style={styles.cardHeaderLeft}>
                         <LinearGradient
-                            colors={['#34D399', '#059669']}
+                            colors={['#EAF2EC', '#EAF2EC']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={styles.avatarRing}
@@ -254,21 +258,21 @@ const StaffScreen = ({ navigation }) => {
                 <View style={styles.cardDetails}>
                     <View style={styles.detailRow}>
                         <View style={styles.detailIconChip}>
-                            <Ionicons name="call-outline" size={14} color="#059669" />
+                            <Ionicons name="call-outline" size={14} color="#39805A" />
                         </View>
                         <LocalizedText style={styles.detailText}>{item.phone}</LocalizedText>
                     </View>
                     <View style={styles.detailRow}>
                         <View style={styles.detailIconChip}>
-                            <Ionicons name="calendar-outline" size={14} color="#059669" />
+                            <Ionicons name="calendar-outline" size={14} color="#39805A" />
                         </View>
-                        <LocalizedText style={styles.detailText}>Joined {item.joining_date}</LocalizedText>
+                        <LocalizedText style={styles.detailText}>Joined {item.joining_date && Number.isFinite(new Date(item.joining_date).getTime()) ? new Date(item.joining_date).toLocaleDateString(language === 'mr' ? 'mr-IN' : language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : item.joining_date}</LocalizedText>
                     </View>
-                    <View style={styles.detailRow}>
+                    <View style={[styles.detailRow, styles.salaryRow]}>
                         <View style={styles.detailIconChip}>
-                            <Ionicons name="cash-outline" size={14} color="#059669" />
+                            <Ionicons name="cash-outline" size={14} color="#39805A" />
                         </View>
-                        <LocalizedText style={styles.detailText}>₹{item.monthly_salary.toLocaleString()} / mo</LocalizedText>
+                        <LocalizedText style={[styles.detailText, styles.salaryText]}>₹{item.monthly_salary.toLocaleString()} / mo</LocalizedText>
                     </View>
                 </View>
 
@@ -294,7 +298,7 @@ const StaffScreen = ({ navigation }) => {
                             handleEditStaff(item);
                         }}
                     >
-                        <Ionicons name="create-outline" size={16} color="#059669" />
+                        <Ionicons name="create-outline" size={16} color="#39805A" />
                         <LocalizedText translate style={styles.editButtonText}>Edit</LocalizedText>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -323,7 +327,7 @@ const StaffScreen = ({ navigation }) => {
     if (loading && !refreshing) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#059669" />
+                <ActivityIndicator size="large" color="#39805A" />
             </View>
         );
     }
@@ -332,12 +336,13 @@ const StaffScreen = ({ navigation }) => {
         <View style={styles.container}>
             {/* Search Bar */}
             <View style={styles.searchContainer}>
+                <View style={styles.toolbar}>
                 <View style={styles.searchBar}>
-                    <Ionicons name="search-outline" size={20} color="#94A3B8" />
+                    <Ionicons name="search-outline" size={20} color="#7B897F" />
                     <TextInput
                         style={styles.searchInput}
                         placeholder={localizeText("Search by name, role, or phone...", language)}
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor="#7B897F"
                         value={searchQuery}
                         onChangeText={handleSearch}
                     />
@@ -346,9 +351,14 @@ const StaffScreen = ({ navigation }) => {
                             onPress={() => handleSearch('')}
                             style={styles.clearButton}
                         >
-                            <Ionicons name="close-circle" size={20} color="#94A3B8" />
+                            <Ionicons name="close-circle" size={20} color="#7B897F" />
                         </TouchableOpacity>
                     )}
+                </View>
+                <TouchableOpacity style={styles.addButton} activeOpacity={0.85} onPress={handleAddStaff}>
+                    <Ionicons name="add" size={21} color="#fff" />
+                    <LocalizedText translate style={styles.addButtonText}>Add Staff</LocalizedText>
+                </TouchableOpacity>
                 </View>
                 <LocalizedText style={styles.searchResultText}>
                     {filteredStaff.length} {filteredStaff.length === 1 ? 'staff member' : 'staff members'}
@@ -356,24 +366,25 @@ const StaffScreen = ({ navigation }) => {
             </View>
 
             <ScrollView
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#059669" />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#39805A" />
                 }
             >
                 {/* Stats Section */}
-                <View style={styles.statsContainer}>
+                <View style={[styles.statsContainer, compactLayout && styles.statsCompact]}>
                     <View style={styles.statCard}>
-                        <View style={[styles.statIconChip, { backgroundColor: '#ECFDF5' }]}>
-                            <Ionicons name="people-outline" size={18} color="#059669" />
+                        <View style={[styles.statIconChip, { backgroundColor: '#EAF2EC' }, compactLayout && { display: 'none' }]}>
+                            <Ionicons name="people-outline" size={18} color="#39805A" />
                         </View>
                         <LocalizedText style={styles.statNumber}>{stats.total_staff}</LocalizedText>
                         <LocalizedText translate style={styles.statLabel}>TOTAL STAFF</LocalizedText>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statCard}>
-                        <View style={[styles.statIconChip, { backgroundColor: '#ECFDF5' }]}>
-                            <Ionicons name="checkmark-circle-outline" size={18} color="#059669" />
+                        <View style={[styles.statIconChip, { backgroundColor: '#EAF2EC' }, compactLayout && { display: 'none' }]}>
+                            <Ionicons name="checkmark-circle-outline" size={18} color="#39805A" />
                         </View>
                         <LocalizedText style={[styles.statNumber, styles.paidStat]}>
                             {stats.paid_this_month}
@@ -382,7 +393,7 @@ const StaffScreen = ({ navigation }) => {
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statCard}>
-                        <View style={[styles.statIconChip, { backgroundColor: '#FFFBEB' }]}>
+                        <View style={[styles.statIconChip, { backgroundColor: '#FFFBEB' }, compactLayout && { display: 'none' }]}>
                             <Ionicons name="time-outline" size={18} color="#F59E0B" />
                         </View>
                         <LocalizedText style={[styles.statNumber, styles.pendingStat]}>
@@ -399,7 +410,7 @@ const StaffScreen = ({ navigation }) => {
                             {searchQuery.length > 0 ? (
                                 <>
                                     <View style={styles.emptyIconWrap}>
-                                        <Ionicons name="search-outline" size={48} color="#94A3B8" />
+                                        <Ionicons name="search-outline" size={48} color="#7B897F" />
                                     </View>
                                     <LocalizedText translate style={styles.emptyText}>No results found</LocalizedText>
                                     <LocalizedText translate style={styles.emptySubtext}>
@@ -416,7 +427,7 @@ const StaffScreen = ({ navigation }) => {
                             ) : (
                                 <>
                                     <View style={styles.emptyIconWrap}>
-                                        <Ionicons name="people-outline" size={48} color="#059669" />
+                                        <Ionicons name="people-outline" size={48} color="#39805A" />
                                     </View>
                                     <LocalizedText translate style={styles.emptyText}>No staff members yet</LocalizedText>
                                     <LocalizedText translate style={styles.emptySubtext}>
@@ -439,20 +450,8 @@ const StaffScreen = ({ navigation }) => {
                         filteredStaff.map(renderStaffCard)
                     )}
                 </View>
-                <View style={{ height: 100 }} />
+                <View style={{ height: 24 }} />
             </ScrollView>
-
-            {/* Add Staff FAB */}
-            <TouchableOpacity style={styles.fabWrap} activeOpacity={0.85} onPress={handleAddStaff}>
-                <LinearGradient
-                    colors={['#34D399', '#059669']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.fab}
-                >
-                    <Ionicons name="add" size={28} color="#fff" />
-                </LinearGradient>
-            </TouchableOpacity>
 
             {/* Add/Edit Staff Modal */}
             <Modal
@@ -461,8 +460,8 @@ const StaffScreen = ({ navigation }) => {
                 visible={modalVisible}
                 onRequestClose={() => setModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <View style={[styles.modalOverlay, compactLayout && styles.modalOverlayCompact]}>
+                    <View style={[styles.modalContent, compactLayout && styles.modalContentCompact]}>
                         <View style={styles.modalHandle} />
                         <View style={styles.modalHeader}>
                             <LocalizedText style={styles.modalTitle}>
@@ -476,10 +475,10 @@ const StaffScreen = ({ navigation }) => {
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false}>
+                        <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                             <LocalizedText translate style={styles.inputLabel}>Full Name</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Ionicons name="person-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
+                                <Ionicons name="person-outline" size={18} color="#7B897F" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder={localizeText("e.g. Rahul Sharma", language)}
@@ -491,7 +490,7 @@ const StaffScreen = ({ navigation }) => {
 
                             <LocalizedText translate style={styles.inputLabel}>Phone</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Ionicons name="call-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
+                                <Ionicons name="call-outline" size={18} color="#7B897F" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="10-digit number"
@@ -504,7 +503,7 @@ const StaffScreen = ({ navigation }) => {
 
                             <LocalizedText translate style={styles.inputLabel}>Role</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Ionicons name="briefcase-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
+                                <Ionicons name="briefcase-outline" size={18} color="#7B897F" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder={localizeText("e.g. Chef, Waiter", language)}
@@ -516,7 +515,7 @@ const StaffScreen = ({ navigation }) => {
 
                             <LocalizedText translate style={styles.inputLabel}>Joining Date</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Ionicons name="calendar-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
+                                <Ionicons name="calendar-outline" size={18} color="#7B897F" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="YYYY-MM-DD"
@@ -539,13 +538,14 @@ const StaffScreen = ({ navigation }) => {
                                 />
                             </View>
 
+                        </ScrollView>
                             <TouchableOpacity
                                 style={styles.submitButtonWrap}
                                 activeOpacity={0.9}
                                 onPress={handleSubmitStaff}
                             >
                                 <LinearGradient
-                                    colors={['#34D399', '#059669']}
+                                    colors={['#2E503C', '#2E503C']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
                                     style={styles.submitButton}
@@ -555,8 +555,6 @@ const StaffScreen = ({ navigation }) => {
                                     </LocalizedText>
                                 </LinearGradient>
                             </TouchableOpacity>
-                            <View style={{ height: 12 }} />
-                        </ScrollView>
                     </View>
                 </View>
             </Modal>
@@ -568,8 +566,8 @@ const StaffScreen = ({ navigation }) => {
                 visible={paymentModalVisible}
                 onRequestClose={() => setPaymentModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <View style={[styles.modalOverlay, compactLayout && styles.modalOverlayCompact]}>
+                    <View style={[styles.modalContent, compactLayout && styles.modalContentCompact]}>
                         <View style={styles.modalHandle} />
                         <View style={styles.modalHeader}>
                             <LocalizedText translate style={styles.modalTitle}>Pay Salary</LocalizedText>
@@ -581,6 +579,7 @@ const StaffScreen = ({ navigation }) => {
                             </TouchableOpacity>
                         </View>
 
+                        <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                         <View style={styles.paymentInfoCard}>
                             <View style={styles.paymentInfoRow}>
                                 <LocalizedText translate style={styles.paymentInfoLabel}>Staff</LocalizedText>
@@ -619,13 +618,14 @@ const StaffScreen = ({ navigation }) => {
                             />
                         </View>
 
+                        </ScrollView>
                         <TouchableOpacity
                             style={styles.submitButtonWrap}
                             activeOpacity={0.9}
                             onPress={handleSubmitPayment}
                         >
                             <LinearGradient
-                                colors={['#34D399', '#059669']}
+                                colors={['#2E503C', '#2E503C']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={styles.submitButton}
@@ -655,7 +655,7 @@ const StaffScreen = ({ navigation }) => {
                         <LocalizedText translate style={styles.confirmTitle}>Delete Staff Member</LocalizedText>
                         <LocalizedText style={styles.confirmMessage}>
                             Are you sure you want to delete{' '}
-                            <LocalizedText style={{ fontWeight: '700', color: '#0B1120' }}>
+                            <LocalizedText style={{ fontWeight: '700', color: '#20332A' }}>
                                 {staffPendingDelete?.name}
                             </LocalizedText>
                             ? This can't be undone.
@@ -693,181 +693,53 @@ const StaffScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F6F7FB',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F6F7FB',
-    },
-    searchContainer: {
-        paddingHorizontal: 16,
-        paddingTop: 12,
-        paddingBottom: 8,
-    },
-    searchBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        paddingVertical: 2,
-        borderWidth: 1,
-        borderColor: '#E5E9F0',
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    searchInput: {
-        flex: 1,
-        paddingVertical: 12,
-        fontSize: 15,
-        color: '#0B1120',
-        marginLeft: 10,
-        fontWeight: '500',
-    },
+    toolbar: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#2E503C', minHeight: 48, paddingHorizontal: 16, borderRadius: 10 },
+    addButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+    scrollContent: { width: '100%', maxWidth: 1320, alignSelf: 'center' },
+    statsCompact: { paddingVertical: 10, paddingHorizontal: 0 },
+    salaryRow: { marginTop: 4, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#F3F5F2' },
+    salaryText: { fontSize: 17, fontWeight: '600', color: '#20332A' },
+    modalOverlayCompact: { justifyContent: 'flex-end', padding: 0 },
+    modalContentCompact: { maxWidth: '100%', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: 20, paddingBottom: Platform.OS === 'ios' ? 32 : 20 },
+    formScroll: { flexShrink: 1 },
+
+    container: { flex: 1, backgroundColor: '#F3F5F2' },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F5F2' },
+    searchContainer: { width: '100%', maxWidth: 1320, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 22, paddingBottom: 12 },
+    searchBar: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 14, minHeight: 48, borderWidth: 1, borderColor: '#DFE5DF' },
+    searchInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontSize: 14, color: '#20332A', marginLeft: 10, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) },
     clearButton: {
         padding: 4,
     },
-    searchResultText: {
-        fontSize: 12,
-        color: '#94A3B8',
-        marginTop: 8,
-        marginLeft: 4,
-        fontWeight: '500',
-    },
-    statsContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 20,
-        backgroundColor: '#FFFFFF',
-        margin: 16,
-        marginBottom: 8,
-        borderRadius: 20,
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.06,
-        shadowRadius: 16,
-        elevation: 3,
-        borderWidth: 1,
-        borderColor: 'rgba(15,23,42,0.04)',
-    },
-    statCard: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    statDivider: {
-        width: 1,
-        height: 44,
-        backgroundColor: '#EEF1F6',
-        marginHorizontal: 4,
-    },
-    statIconChip: {
-        width: 34,
-        height: 34,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    statNumber: {
-        fontSize: 22,
-        fontWeight: '800',
-        color: '#0B1120',
-        letterSpacing: -0.5,
-    },
+    searchResultText: { fontSize: 12, color: '#627166', marginTop: 12, fontWeight: '500' },
+    statsContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 6, backgroundColor: '#FFFFFF', marginHorizontal: 20, marginTop: 4, marginBottom: 20, borderRadius: 12, borderWidth: 1, borderColor: '#DFE5DF' },
+    statCard: { flex: 1, minWidth: 0, paddingHorizontal: 18, paddingVertical: 4, minHeight: 76, justifyContent: 'center' },
+    statDivider: { width: 1, height: 46, backgroundColor: '#DFE5DF' },
+    statIconChip: { position: 'absolute', right: 18, top: 6, width: 32, height: 32, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+    statNumber: { fontSize: 28, fontWeight: '700', color: '#20332A', letterSpacing: -0.6 },
     paidStat: {
-        color: '#059669',
+        color: '#39805A',
     },
     pendingStat: {
         color: '#D97706',
     },
-    statLabel: {
-        fontSize: 10,
-        color: '#94A3B8',
-        marginTop: 4,
-        fontWeight: '700',
-        letterSpacing: 0.6,
-    },
-    listContainer: {
-        paddingHorizontal: 16,
-        paddingTop: 8,
-        paddingBottom: 20,
-    },
-    card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 18,
-        marginBottom: 14,
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.05,
-        shadowRadius: 14,
-        elevation: 2,
-        borderWidth: 1,
-        borderColor: 'rgba(15,23,42,0.04)',
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    cardHeaderLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        marginRight: 8,
-    },
-    avatarRing: {
-        width: 46,
-        height: 46,
-        borderRadius: 23,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFFFFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarText: {
-        color: '#059669',
-        fontSize: 16,
-        fontWeight: '800',
-    },
+    statLabel: { fontSize: 10, color: '#627166', marginTop: 7, fontWeight: '600' },
+    listContainer: { paddingHorizontal: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', rowGap: 16, paddingBottom: 16 },
+    card: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 20, borderWidth: 1, borderColor: '#DFE5DF' },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+    cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
+    avatarRing: { width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    avatar: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#EAF2EC', justifyContent: 'center', alignItems: 'center' },
+    avatarText: { color: '#2E503C', fontSize: 19, fontWeight: '700' },
     cardHeaderText: {
         flex: 1,
     },
-    cardName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#0B1120',
-        letterSpacing: -0.2,
-    },
-    cardRole: {
-        fontSize: 13,
-        color: '#94A3B8',
-        marginTop: 1,
-        fontWeight: '500',
-    },
-    paymentBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 20,
-    },
+    cardName: { fontSize: 17, fontWeight: '700', color: '#20332A', letterSpacing: -0.2 },
+    cardRole: { fontSize: 13, color: '#627166', marginTop: 4 },
+    paymentBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 7, flexShrink: 0 },
     paidBadge: {
-        backgroundColor: '#ECFDF5',
+        backgroundColor: '#EAF2EC',
     },
     pendingBadge: {
         backgroundColor: '#FFFBEB',
@@ -879,107 +751,43 @@ const styles = StyleSheet.create({
         marginRight: 6,
     },
     paidDot: {
-        backgroundColor: '#059669',
+        backgroundColor: '#39805A',
     },
     pendingDot: {
         backgroundColor: '#D97706',
     },
-    paymentBadgeText: {
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 0.2,
-    },
+    paymentBadgeText: { fontSize: 12, fontWeight: '600' },
     paidBadgeText: {
-        color: '#059669',
+        color: '#39805A',
     },
     pendingBadgeText: {
         color: '#D97706',
     },
-    divider: {
-        height: 1,
-        backgroundColor: '#F1F3F8',
-        marginVertical: 14,
-    },
-    cardDetails: {
-        marginBottom: 4,
-    },
-    detailRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    detailIconChip: {
-        width: 26,
-        height: 26,
-        borderRadius: 9,
-        backgroundColor: '#ECFDF5',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 10,
-    },
-    detailText: {
-        fontSize: 13.5,
-        color: '#475569',
-        fontWeight: '500',
-    },
-    cardActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        marginTop: 10,
-        gap: 8,
-    },
-    actionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 13,
-        paddingVertical: 8,
-        borderRadius: 10,
-        minWidth: 60,
-        justifyContent: 'center',
-    },
-    payButton: {
-        backgroundColor: '#059669',
-    },
+    divider: { height: 1, backgroundColor: '#E8EDE8', marginVertical: 16 },
+    cardDetails: { gap: 10 },
+    detailRow: { flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+    detailIconChip: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#F3F5F2', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+    detailText: { fontSize: 13, color: '#627166', lineHeight: 20, flexShrink: 1 },
+    cardActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', paddingTop: 16, marginTop: 16, borderTopWidth: 1, borderTopColor: '#E8EDE8', gap: 8 },
+    actionButton: { flexDirection: 'row', alignItems: 'center', minHeight: 42, paddingHorizontal: 14, borderRadius: 8, minWidth: 78, justifyContent: 'center' },
+    payButton: { backgroundColor: '#2E503C' },
     payButtonText: {
         color: '#fff',
         fontSize: 12.5,
         fontWeight: '700',
         marginLeft: 5,
     },
-    editButton: {
-        backgroundColor: '#ECFDF5',
-        borderWidth: 1,
-        borderColor: '#D1FAE5',
-    },
-    editButtonText: {
-        color: '#059669',
-        fontSize: 12.5,
-        fontWeight: '700',
-        marginLeft: 5,
-    },
-    deleteButton: {
-        backgroundColor: '#FEF2F2',
-        borderWidth: 1,
-        borderColor: '#FEE2E2',
-    },
-    deleteButtonText: {
-        color: '#EF4444',
-        fontSize: 12.5,
-        fontWeight: '700',
-        marginLeft: 5,
-    },
-    actionButtonText: {
-        color: '#fff',
-        fontSize: 12.5,
-        fontWeight: '700',
-        marginLeft: 5,
-    },
+    editButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DFE5DF' },
+    editButtonText: { color: '#2E503C', fontSize: 13, fontWeight: '600', marginLeft: 6 },
+    deleteButton: { backgroundColor: '#FDF3F2', borderWidth: 1, borderColor: '#F5E2DF' },
+    deleteButtonText: { color: '#BB4B40', fontSize: 13, fontWeight: '600', marginLeft: 6 },
+    actionButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600', marginLeft: 6 },
     fabWrap: {
         position: 'absolute',
         right: 22,
         bottom: 24,
         borderRadius: 30,
-        shadowColor: '#059669',
+        shadowColor: '#39805A',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.35,
         shadowRadius: 12,
@@ -992,162 +800,43 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(11,17,32,0.55)',
-        justifyContent: 'flex-end',
-    },
-    modalContent: {
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
-        paddingHorizontal: 24,
-        paddingTop: 12,
-        paddingBottom: Platform.OS === 'ios' ? 32 : 24,
-        maxHeight: '88%',
-    },
-    modalHandle: {
-        width: 40,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: '#E2E8F0',
-        alignSelf: 'center',
-        marginBottom: 16,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#0B1120',
-        letterSpacing: -0.3,
-    },
-    modalCloseBtn: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#F1F5F9',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    inputLabel: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#64748B',
-        marginBottom: 6,
-        marginLeft: 2,
-        letterSpacing: 0.2,
-    },
-    inputWrap: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: '#E5E9F0',
-        borderRadius: 14,
-        backgroundColor: '#F8FAFC',
-        marginBottom: 14,
-        paddingHorizontal: 14,
-    },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(23,38,30,0.48)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    modalContent: { width: '100%', maxWidth: 520, flexShrink: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, maxHeight: '92%' },
+    modalHandle: { display: 'none' },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 18, marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#DFE5DF' },
+    modalTitle: { fontSize: 21, fontWeight: '700', color: '#20332A', letterSpacing: -0.4 },
+    modalCloseBtn: { width: 36, height: 36, borderRadius: 9, backgroundColor: '#F3F5F2', justifyContent: 'center', alignItems: 'center' },
+    inputLabel: { fontSize: 13, fontWeight: '600', color: '#405448', marginBottom: 8 },
+    inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 9, backgroundColor: '#FFFFFF', marginBottom: 18, paddingHorizontal: 12, minHeight: 46, flexShrink: 0 },
     inputIcon: {
         marginRight: 8,
     },
-    inputPrefix: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#94A3B8',
-        marginRight: 6,
-    },
-    input: {
-        flex: 1,
-        paddingVertical: 13,
-        fontSize: 15.5,
-        color: '#0B1120',
-        fontWeight: '500',
-    },
+    inputPrefix: { fontSize: 16, fontWeight: '600', color: '#627166', marginRight: 6 },
+    input: { flex: 1, minWidth: 0, paddingVertical: 12, fontSize: 15, color: '#20332A', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) },
     textArea: {
         height: 76,
         textAlignVertical: 'top',
         paddingTop: 13,
     },
-    submitButtonWrap: {
-        borderRadius: 14,
-        overflow: 'hidden',
-        marginTop: 6,
-        shadowColor: '#059669',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        elevation: 4,
-    },
-    submitButton: {
-        paddingVertical: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    submitButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
-        letterSpacing: 0.2,
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 48,
-        paddingHorizontal: 32,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(15,23,42,0.04)',
-    },
-    emptyIconWrap: {
-        width: 84,
-        height: 84,
-        borderRadius: 42,
-        backgroundColor: '#ECFDF5',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
+    submitButtonWrap: { borderRadius: 10, overflow: 'hidden', marginTop: 10, flexShrink: 0 },
+    submitButton: { minHeight: 48, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+    submitButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+    emptyContainer: { width: '100%', alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 24, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#DFE5DF' },
+    emptyIconWrap: { width: 64, height: 64, borderRadius: 16, backgroundColor: '#EAF2EC', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
     emptyText: {
         fontSize: 17,
         fontWeight: '700',
-        color: '#0B1120',
+        color: '#20332A',
     },
-    emptySubtext: {
-        fontSize: 13,
-        color: '#94A3B8',
-        marginTop: 6,
-        textAlign: 'center',
-        lineHeight: 18,
-    },
-    emptyButton: {
-        flexDirection: 'row',
-        marginTop: 20,
-        backgroundColor: '#059669',
-        paddingHorizontal: 20,
-        paddingVertical: 13,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
+    emptySubtext: { fontSize: 13, color: '#627166', marginTop: 8, textAlign: 'center', lineHeight: 21 },
+    emptyButton: { flexDirection: 'row', marginTop: 22, backgroundColor: '#2E503C', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 9, alignItems: 'center' },
     emptyButtonText: {
         color: '#fff',
         fontSize: 14.5,
         fontWeight: '700',
         marginLeft: 6,
     },
-    paymentInfoCard: {
-        backgroundColor: '#F8FAFC',
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 18,
-        borderWidth: 1,
-        borderColor: '#EEF1F6',
-    },
+    paymentInfoCard: { backgroundColor: '#F3F5F2', borderRadius: 10, padding: 14, marginBottom: 22, borderWidth: 1, borderColor: '#DFE5DF' },
     paymentInfoRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -1158,16 +847,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#E5E9F0',
         marginVertical: 6,
     },
-    paymentInfoLabel: {
-        fontSize: 13,
-        color: '#94A3B8',
-        fontWeight: '600',
-    },
-    paymentInfoValue: {
-        fontSize: 14,
-        color: '#0B1120',
-        fontWeight: '700',
-    },
+    paymentInfoLabel: { fontSize: 13, color: '#627166' },
+    paymentInfoValue: { fontSize: 14, color: '#20332A', fontWeight: '600', flexShrink: 1, marginLeft: 16 },
     confirmOverlay: {
         flex: 1,
         backgroundColor: 'rgba(11,17,32,0.55)',
@@ -1175,14 +856,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 24,
     },
-    confirmCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 22,
-        padding: 24,
-        width: '100%',
-        maxWidth: 360,
-        alignItems: 'center',
-    },
+    confirmCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, alignItems: 'center' },
     confirmIconWrap: {
         width: 56,
         height: 56,
@@ -1192,13 +866,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 16,
     },
-    confirmTitle: {
-        fontSize: 17,
-        fontWeight: '800',
-        color: '#0B1120',
-        marginBottom: 8,
-        textAlign: 'center',
-    },
+    confirmTitle: { fontSize: 18, fontWeight: '700', color: '#20332A', marginBottom: 10, textAlign: 'center' },
     confirmMessage: {
         fontSize: 14,
         color: '#64748B',
@@ -1211,16 +879,8 @@ const styles = StyleSheet.create({
         width: '100%',
         gap: 10,
     },
-    confirmButton: {
-        flex: 1,
-        paddingVertical: 13,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    confirmCancelButton: {
-        backgroundColor: '#F1F5F9',
-    },
+    confirmButton: { flex: 1, paddingVertical: 14, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+    confirmCancelButton: { backgroundColor: '#F3F5F2' },
     confirmCancelText: {
         color: '#475569',
         fontSize: 14.5,

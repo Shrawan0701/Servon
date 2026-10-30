@@ -5,6 +5,7 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
   ActivityIndicator, Modal, TextInput, ScrollView, Platform, Alert,
+  useWindowDimensions,
 } from "react-native";
 import LocalizedText, { localizeText, useLocalizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
@@ -27,28 +28,32 @@ if (isWeb && typeof document !== "undefined") {
     document.head.appendChild(style);
   }
   style.textContent = `
-    .inv-stock-card {
-      background: #fff; border: 1px solid #EAE6E0; border-radius: 14px;
-      padding: 14px 16px; display: flex; flex-direction: column;
-      transition: box-shadow 0.18s ease, transform 0.18s ease;
+    .inv-stock-card, .inv-recipe-card {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      box-sizing: border-box; background: #fff; border: 1px solid #DFE5DF;
+      border-radius: 12px; color: #20332A;
     }
-    .inv-stock-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.07); transform: translateY(-1px); }
-    .inv-stock-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
-      gap: 12px; padding: 16px 24px 32px; max-width: 1200px; margin: 0 auto; width: 100%;
+    .inv-stock-card { padding: 20px; display: flex; flex-direction: column; box-shadow: 0 2px 4px #20332A03; }
+    .inv-stock-grid, .inv-recipe-grid {
+      box-sizing: border-box; display: grid; gap: 16px; padding: 22px 24px 36px;
+      max-width: 1400px; margin: 0 auto; width: 100%; align-items: start;
     }
-    .inv-recipe-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-      gap: 12px; padding: 16px 24px 32px; max-width: 1200px; margin: 0 auto; width: 100%;
+    .inv-stock-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+    .inv-recipe-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+    .inv-stock-heading { display: flex; gap: 12px; align-items: center; }
+    .inv-stock-symbol { width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center; background: #EDF3E8; flex-shrink: 0; }
+    .inv-stock-name { font-size: 17px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+    .inv-stock-measure { font-size: 12px; color: #627166; line-height: 1.4; margin-top: 3px; }
+    .inv-stock-quantity { font-size: 27px; font-weight: 700; letter-spacing: -.6px; line-height: 1.3; margin-top: 22px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .inv-stock-threshold { font-size: 13px; line-height: 1.5; color: #627166; margin-top: 5px; margin-bottom: 14px; }
+    .inv-recipe-card { padding: 17px; cursor: pointer; display: flex; align-items: center; gap: 12px; min-height: 88px; transition: border-color .15s, background .15s; }
+    .inv-recipe-card:hover { border-color: #9FB697; background: #FBFDF8; }
+    .inv-recipe-card:focus-visible { outline: 3px solid #8BAF84; outline-offset: 3px; }
+    @media (max-width: 650px) {
+      .inv-stock-grid, .inv-recipe-grid { padding: 16px 16px 28px; gap: 12px; }
+      .inv-stock-card { padding: 18px; }
+      .inv-stock-quantity { margin-top: 18px; font-size: 26px; }
     }
-    .inv-recipe-card {
-      background: #fff; border: 1px solid #EAE6E0; border-radius: 14px;
-      padding: 13px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px;
-      transition: box-shadow 0.18s ease, transform 0.18s ease;
-    }
-    .inv-recipe-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.07); transform: translateY(-1px); }
-    .inv-btn-restock:hover { background: #0EA371 !important; }
-    .inv-fab-web:hover { background: #1F2937 !important; }
   `;
 }
 
@@ -74,6 +79,8 @@ export default function InventoryScreen() {
   const tr = useLocalizeText();
   const navigation = useNavigation();
   const { language } = useLocale();
+  const { width: screenWidth } = useWindowDimensions();
+  const compactLayout = screenWidth < 900;
   const [toolsTab, setToolsTab] = useState(null);
   const [linkItem, setLinkItem] = useState(null);
   const openMenu = () => { setToolsTab(null); setLinkItem(null); navigation.navigate("Tabs", { screen: "Menu" }); };
@@ -329,7 +336,7 @@ export default function InventoryScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F5F2" }}>
       {/* ─── HEADER ─── */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -347,11 +354,13 @@ export default function InventoryScreen() {
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("More inventory options")} style={styles.moreButton} onPress={() => setShowMore(true)}><Ionicons name="ellipsis-horizontal" size={22} color="#334155" /><NativeText style={styles.moreLabel}>{tr("More")}</NativeText></TouchableOpacity>
         </View>
 
-        {/* Big, clear tab switcher */}
-        <View style={styles.tabRow}>
+        <View style={[styles.workspaceToolbar, compactLayout && styles.workspaceToolbarCompact]}>
+        <View style={[styles.tabRow, !compactLayout && styles.tabRowDesktop]}>
           <TouchableOpacity
             style={[styles.tabBtn, activeTab === "stock" && styles.tabBtnActive]}
             onPress={() => setActiveTab("stock")}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === "stock" }}
             activeOpacity={0.8}
           >
             <Ionicons name="cube" size={16} color={activeTab === "stock" ? "#fff" : "#6B7280"} />
@@ -362,6 +371,8 @@ export default function InventoryScreen() {
           <TouchableOpacity
             style={[styles.tabBtn, activeTab === "recipes" && styles.tabBtnActive]}
             onPress={() => setActiveTab("recipes")}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === "recipes" }}
             activeOpacity={0.8}
           >
             <Ionicons name="link" size={16} color={activeTab === "recipes" ? "#fff" : "#6B7280"} />
@@ -371,7 +382,7 @@ export default function InventoryScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.mainActions}>
+        <View style={[styles.mainActions, !compactLayout && styles.mainActionsDesktop]}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={activeTab === "stock" ? tr("Scan stock") : tr("Set up several dishes")} style={styles.primaryAction} onPress={() => setToolsTab(activeTab === "stock" ? "scan" : "bulk")}>
             <Ionicons name={activeTab === "stock" ? "camera-outline" : "layers-outline"} size={21} color="#fff" />
             <NativeText style={styles.primaryActionText}>{activeTab === "stock" ? tr("Scan stock") : tr("Set up several dishes")}</NativeText>
@@ -379,6 +390,7 @@ export default function InventoryScreen() {
           {activeTab === "stock" && <TouchableOpacity accessibilityRole="button" accessibilityLabel={tr("New item")} style={styles.secondaryAction} onPress={openAddItem}>
             <Ionicons name="add" size={21} color="#243A30" /><NativeText style={styles.secondaryActionText}>{tr("New item")}</NativeText>
           </TouchableOpacity>}
+        </View>
         </View>
         <View style={styles.sectionIntro}>
           <NativeText style={styles.sectionTitle}>{activeTab === "stock" ? tr("Your stock: {count} items", { count: items.length }) : tr("Choose a dish to add its ingredients")}</NativeText>
@@ -777,28 +789,27 @@ function StockCardWeb({ item, onRestock, onEdit, onDelete, onLink }) {
   const tr = useLocalizeText();
   return (
     <div className="inv-stock-card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="inv-stock-heading">
+        <div className="inv-stock-symbol"><Ionicons name="cube-outline" size={21} color="#42604E" /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{item.name}</div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#64756C", textTransform: "uppercase", letterSpacing: 0.4, marginTop: 2 }}>
+          <div className="inv-stock-name">{item.name}</div>
+          <div className="inv-stock-measure">
             {tr(unitLabel(item.unit))}
           </div>
         </div>
         {item.is_low && (
           <div style={{ display: "flex", alignItems: "center", gap: 3, background: "#FEF2F2", borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>
             <Ionicons name="alert-circle" size={11} color="#EF4444" />
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#EF4444" }}>{tr("Low")}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#A4473B" }}>{tr("Low")}</span>
           </div>
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 10 }}>
-        <span style={{ fontSize: 24, fontWeight: 800, color: "#111827", lineHeight: 1 }}>{formatStockDisplay(item, tr)}</span>
-      </div>
-      <div style={{ fontSize: 13, color: "#64756C", marginTop: 4 }}>{tr("Alert below {quantity} {unit}", { quantity: formatQty(item.low_stock_threshold), unit: item.unit })}
+      <div className="inv-stock-quantity">{formatStockDisplay(item, tr)}</div>
+      <div className="inv-stock-threshold">{tr("Alert below {quantity} {unit}", { quantity: formatQty(item.low_stock_threshold), unit: item.unit })}
       </div>
 
-      <TouchableOpacity accessibilityRole="button" onPress={onLink} style={{ paddingTop: 10, paddingBottom: 6 }}><NativeText style={{ color: "#36794F", fontSize: 12, fontWeight: "600" }}>{Number(item.menu_link_count) > 0 ? tr("{count} menu links", { count: item.menu_link_count }) : tr("Link to menu")}</NativeText></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={onLink} style={styles.menuLinkButton}><Ionicons name="link-outline" size={16} color="#42604E" /><NativeText style={styles.menuLinkText}>{Number(item.menu_link_count) > 0 ? tr("{count} menu links", { count: item.menu_link_count }) : tr("Link to menu")}</NativeText><Ionicons name="chevron-forward" size={14} color="#627166" /></TouchableOpacity>
       <StockActions item={item} onRestock={onRestock} onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
@@ -812,19 +823,19 @@ function RecipeCardWeb({ item, onPress }) {
       <div
         style={{
           width: 38, height: 38, borderRadius: 11, flexShrink: 0,
-          background: linked ? "#ECFDF5" : "#F3F4F6",
+          background: linked ? "#EDF4E8" : "#F3F4F6",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}
       >
-        <Ionicons name="restaurant-outline" size={17} color={linked ? "#10B981" : "#9CA3AF"} />
+        <Ionicons name="restaurant-outline" size={17} color={linked ? "#39805A" : "#7B897F"} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{item.name}</div>
-        <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600, marginTop: 1 }}>{tr(item.category)}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#20332A" }}>{item.name}</div>
+        <div style={{ fontSize: 11, color: "#7B897F", fontWeight: 600, marginTop: 1 }}>{tr(item.category)}</div>
       </div>
       {linked ? (
-        <div style={{ background: "#ECFDF5", borderRadius: 9, padding: "5px 9px", flexShrink: 0 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#10B981" }}>
+        <div style={{ background: "#EDF4E8", borderRadius: 9, padding: "5px 9px", flexShrink: 0 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#39805A" }}>
             {tr("{count} linked", { count: item.ingredient_count })}</span>
         </div>
       ) : (
@@ -832,7 +843,7 @@ function RecipeCardWeb({ item, onPress }) {
           <span style={{ fontSize: 10, fontWeight: 700, color: "#B45309" }}>{tr("Set up now")}</span>
         </div>
       )}
-      <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+      <Ionicons name="chevron-forward" size={16} color="#7B897F" />
     </div>
   );
 }
@@ -843,8 +854,9 @@ function StockCardNative({ item, onRestock, onEdit, onDelete, onLink }) {
   return (
     <View style={styles.stockCard}>
       <View style={styles.stockCardTop}>
+        <View style={styles.stockSymbol}><Ionicons name="cube-outline" size={21} color="#42604E" /></View>
         <View style={{ flex: 1 }}>
-          <LocalizedText style={styles.stockName}>{item.name}</LocalizedText>
+          <LocalizedText translate={false} style={styles.stockName}>{item.name}</LocalizedText>
           <LocalizedText translate={false} style={styles.stockUnitLabel}>{tr(unitLabel(item.unit))}</LocalizedText>
         </View>
         {item.is_low && (
@@ -860,7 +872,7 @@ function StockCardNative({ item, onRestock, onEdit, onDelete, onLink }) {
       </View>
       <LocalizedText translate={false} style={styles.thresholdText}>{tr("Alert below {quantity} {unit}", { quantity: formatQty(item.low_stock_threshold), unit: item.unit })}</LocalizedText>
 
-      <TouchableOpacity accessibilityRole="button" onPress={onLink} style={{ paddingTop: 10, paddingBottom: 6 }}><NativeText style={{ color: "#36794F", fontSize: 12, fontWeight: "600" }}>{Number(item.menu_link_count) > 0 ? tr("{count} menu links", { count: item.menu_link_count }) : tr("Link to menu")}</NativeText></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={onLink} style={styles.menuLinkButton}><Ionicons name="link-outline" size={16} color="#42604E" /><NativeText style={styles.menuLinkText}>{Number(item.menu_link_count) > 0 ? tr("{count} menu links", { count: item.menu_link_count }) : tr("Link to menu")}</NativeText><Ionicons name="chevron-forward" size={14} color="#627166" /></TouchableOpacity>
       <StockActions item={item} onRestock={onRestock} onEdit={onEdit} onDelete={onDelete} />
     </View>
   );
@@ -871,8 +883,8 @@ function RecipeCardNative({ item, onPress }) {
   const linked = item.ingredient_count > 0;
   return (
     <TouchableOpacity style={styles.recipeCard} onPress={onPress} activeOpacity={0.8}>
-      <View style={[styles.recipeIconWrap, { backgroundColor: linked ? "#ECFDF5" : "#F3F4F6" }]}>
-        <Ionicons name="restaurant-outline" size={18} color={linked ? "#10B981" : "#9CA3AF"} />
+      <View style={[styles.recipeIconWrap, { backgroundColor: linked ? "#EDF4E8" : "#F3F4F6" }]}>
+        <Ionicons name="restaurant-outline" size={18} color={linked ? "#39805A" : "#7B897F"} />
       </View>
       <View style={{ flex: 1 }}>
         <LocalizedText style={styles.recipeName}>{item.name}</LocalizedText>
@@ -887,7 +899,7 @@ function RecipeCardNative({ item, onPress }) {
           <LocalizedText translate style={styles.notConfiguredBadgeText}>Set up now</LocalizedText>
         </View>
       )}
-      <Ionicons name="chevron-forward" size={17} color="#9CA3AF" />
+      <Ionicons name="chevron-forward" size={17} color="#7B897F" />
     </TouchableOpacity>
   );
 }
@@ -916,133 +928,140 @@ function formatStockDisplay(item, tr) {
 }
 
 const styles = StyleSheet.create({
+  workspaceToolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20, paddingHorizontal: 24, paddingVertical: 20, width: "100%", maxWidth: 1400, alignSelf: "center" },
+  workspaceToolbarCompact: { flexDirection: "column", gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
+  tabRowDesktop: { flex: 1, maxWidth: 440, width: "auto" },
+  mainActionsDesktop: { width: 300 },
+  stockSymbol: { width: 42, height: 42, borderRadius: 10, backgroundColor: "#EDF3E8", alignItems: "center", justifyContent: "center" },
+  menuLinkButton: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#F5F8F0", borderRadius: 7, paddingHorizontal: 10, minHeight: 40, paddingVertical: 9 },
+  menuLinkText: { flex: 1, fontSize: 12, fontWeight: "600", color: "#42604E" },
   center: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12 },
-  loadingText: { fontSize: 14, color: "#9CA3AF", fontWeight: "600" },
+  loadingText: { fontSize: 14, color: "#7B897F", fontWeight: "600" },
 
-  header: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E8E2D9", paddingBottom: 12 },
-  headerTop: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 20, paddingTop: 14, gap: 14, maxWidth: 1200, alignSelf: "center", width: "100%" },
-  backBtn: { width: 38, height: 38, borderRadius: 11, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
-  headerHint: { fontSize: 12.5, color: "#6B7280", marginTop: 3, lineHeight: 17 },
+  header: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#DFE5DF", paddingBottom: 12 },
+  headerTop: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingTop: 20, gap: 14, maxWidth: 1400, alignSelf: "center", width: "100%" },
+  backBtn: { width: 42, height: 42, borderRadius: 11, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 24, fontWeight: "700", color: "#20332A" },
+  headerHint: { fontSize: 12.5, color: "#627166", marginTop: 3, lineHeight: 17 },
 
-  tabRow: { flexDirection: "row", gap: 8, paddingHorizontal: 20, marginTop: 14, maxWidth: 1200, alignSelf: "center", width: "100%" },
-  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 11, borderRadius: 12, backgroundColor: "#F3F4F6" },
+  tabRow: { flexDirection: "row", gap: 6, width: "100%", backgroundColor: "#F0F4ED", padding: 4, borderRadius: 9 },
+  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 42, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 7, backgroundColor: "transparent" },
   tabBtnActive: { backgroundColor: "#173D2D" },
-  tabBtnText: { fontSize: 13, fontWeight: "700", color: "#6B7280" },
+  tabBtnText: { fontSize: 13, fontWeight: "700", color: "#627166" },
   tabBtnTextActive: { color: "#fff" },
 
   moreButton: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", padding: 5, borderRadius: 12, backgroundColor: "#EDF2EF" },
   moreLabel: { fontSize: 11, fontWeight: "600", color: "#334155" },
-  mainActions: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 16, maxWidth: 1200, width: "100%", alignSelf: "center" },
-  primaryAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, backgroundColor: "#008060", borderRadius: 13, paddingHorizontal: 12, paddingVertical: 15, minHeight: 52 },
+  mainActions: { flexDirection: "row", gap: 8, width: "100%" },
+  primaryAction: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, backgroundColor: "#244F3B", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11, minHeight: 46 },
   primaryActionText: { fontSize: 15, fontWeight: "700", color: "#fff", flexShrink: 1 },
-  secondaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#EDF2EF", borderRadius: 13, paddingHorizontal: 18, minHeight: 52 },
+  secondaryAction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#EDF2EF", borderRadius: 8, paddingHorizontal: 16, minHeight: 46, borderWidth: 1, borderColor: "#D5E0D1" },
   secondaryActionText: { fontSize: 14, fontWeight: "700", color: "#243A30" },
-  sectionIntro: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4, maxWidth: 1200, width: "100%", alignSelf: "center" },
-  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#243A30" },
-  sectionHint: { fontSize: 13, color: "#52645D", lineHeight: 20, marginTop: 4 },
+  sectionIntro: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 6, maxWidth: 1400, width: "100%", alignSelf: "center" },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: "#243A30" },
+  sectionHint: { fontSize: 12, color: "#52645D", lineHeight: 20, marginTop: 4 },
   toolOption: { flexDirection: "row", alignItems: "center", gap: 12, borderTopWidth: 1, borderColor: "#E6ECE8", paddingVertical: 18 },
-  toolIcon: { width: 44, height: 44, backgroundColor: "#E6F3EC", borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  toolIcon: { width: 44, height: 44, backgroundColor: "#E6F3EC", borderRadius: 8, alignItems: "center", justifyContent: "center" },
   itemOption: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, minHeight: 44, backgroundColor: "#F7F9F8", borderRadius: 10 },
   headerAddBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
-    backgroundColor: "#10B981", borderRadius: 12, paddingVertical: 12,
+    backgroundColor: "#39805A", borderRadius: 12, paddingVertical: 12,
     marginHorizontal: 20, marginTop: 10, maxWidth: 1160, alignSelf: "center", width: "auto",
   },
-  headerAddBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  headerAddBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
   listContent: { padding: 14, flexGrow: 1 },
 
-  stockCard: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E8E2D9" },
-  stockCardTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  stockName: { fontSize: 15, fontWeight: "800", color: "#111827" },
-  stockUnitLabel: { fontSize: 11, color: "#64756C", fontWeight: "700", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.3 },
+  stockCard: { backgroundColor: "#fff", borderRadius: 12, padding: 18, marginBottom: 10, borderWidth: 1, borderColor: "#DFE5DF" },
+  stockCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  stockName: { fontSize: 17, fontWeight: "600", color: "#20332A" },
+  stockUnitLabel: { fontSize: 12, color: "#627166", fontWeight: "400", marginTop: 3 },
   lowBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF2F2", borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
   lowBadgeText: { fontSize: 10, fontWeight: "700", color: "#EF4444" },
 
-  stockValueRow: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginTop: 10 },
-  stockValue: { fontSize: 24, fontWeight: "800", color: "#111827", lineHeight: 26 },
-  stockValueUnit: { fontSize: 13, color: "#6B7280", fontWeight: "700", marginBottom: 3 },
-  thresholdText: { fontSize: 13, color: "#64756C", marginTop: 4 },
+  stockValueRow: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginTop: 20 },
+  stockValue: { flexShrink: 1, fontSize: 27, fontWeight: "700", color: "#20332A", lineHeight: 36, letterSpacing: -.5 },
+  stockValueUnit: { fontSize: 13, color: "#627166", fontWeight: "700", marginBottom: 3 },
+  thresholdText: { fontSize: 13, color: "#627166", marginTop: 5, marginBottom: 14 },
 
-  stockCardActions: { flexDirection: "row", gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 12 },
-  restockBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#008060", borderRadius: 10, paddingVertical: 12 },
+  stockCardActions: { flexDirection: "row", gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: "#F0F4ED", paddingTop: 12 },
+  restockBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#244F3B", minHeight: 46, borderRadius: 8, paddingVertical: 11 },
   restockBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  iconActionBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  iconActionBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center" },
   iconActionBtnDanger: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
 
-  recipeCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderRadius: 14, padding: 13, marginBottom: 9, borderWidth: 1, borderColor: "#E8E2D9" },
-  recipeSearchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 14, paddingHorizontal: 14, marginHorizontal: 20, marginTop: 14, maxWidth: 1160, alignSelf: "center", width: "92%" },
-  recipeSearchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: "#111827", fontWeight: "600" },
-  recipeSearchClear: { width: 28, height: 28, borderRadius: 9, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  recipeCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderRadius: 12, padding: 13, marginBottom: 9, borderWidth: 1, borderColor: "#DFE5DF" },
+  recipeSearchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#DFE5DF", borderRadius: 12, paddingHorizontal: 14, marginHorizontal: 20, marginTop: 14, maxWidth: 1160, alignSelf: "center", width: "92%" },
+  recipeSearchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: "#20332A", fontWeight: "600" },
+  recipeSearchClear: { width: 28, height: 28, borderRadius: 9, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center" },
   recipeIconWrap: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  recipeName: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  recipeCategory: { fontSize: 11, color: "#9CA3AF", fontWeight: "600", marginTop: 2 },
-  configuredBadge: { backgroundColor: "#ECFDF5", borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
-  configuredBadgeText: { fontSize: 10, fontWeight: "700", color: "#10B981" },
+  recipeName: { fontSize: 14, fontWeight: "700", color: "#20332A" },
+  recipeCategory: { fontSize: 12, color: "#7B897F", fontWeight: "600", marginTop: 2 },
+  configuredBadge: { backgroundColor: "#EDF4E8", borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
+  configuredBadgeText: { fontSize: 10, fontWeight: "700", color: "#39805A" },
   notConfiguredBadge: { backgroundColor: "#FFFBEB", borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
   notConfiguredBadgeText: { fontSize: 10, fontWeight: "700", color: "#B45309" },
 
   emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, paddingTop: 60, alignSelf: "center", maxWidth: 480 },
-  emptyIconCircle: { width: 78, height: 78, borderRadius: 39, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", marginBottom: 20 },
-  emptyTitle: { fontSize: 21, fontWeight: "800", color: "#111827" },
-  emptySub: { fontSize: 14, color: "#6B7280", textAlign: "center", marginTop: 10, lineHeight: 21 },
-  bigAddBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#111827", borderRadius: 100, paddingVertical: 16, paddingHorizontal: 30, marginTop: 26 },
-  bigAddBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  recipeEmptyNotice: { flexDirection: "row", gap: 10, backgroundColor: "#F9FAFB", borderRadius: 14, padding: 16, alignItems: "flex-start" },
+  emptyIconCircle: { width: 78, height: 78, borderRadius: 39, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  emptyTitle: { fontSize: 21, fontWeight: "700", color: "#20332A" },
+  emptySub: { fontSize: 14, color: "#627166", textAlign: "center", marginTop: 10, lineHeight: 21 },
+  bigAddBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#20332A", borderRadius: 9, paddingVertical: 14, paddingHorizontal: 30, marginTop: 26 },
+  bigAddBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  recipeEmptyNotice: { flexDirection: "row", gap: 10, backgroundColor: "#F9FAFB", borderRadius: 12, padding: 16, alignItems: "flex-start" },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(28,25,23,0.6)", justifyContent: "center", padding: 20 },
-  formModal: { backgroundColor: "#fff", borderRadius: 22, padding: 24, width: "100%", maxWidth: 440, alignSelf: "center", maxHeight: "88%" },
+  formModal: { backgroundColor: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 440, alignSelf: "center", maxHeight: "88%" },
   formModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 },
-  formModalTitle: { fontSize: 19, fontWeight: "800", color: "#111827" },
-  closeIconBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  recipeModalSub: { fontSize: 12, color: "#9CA3AF", marginTop: 4, lineHeight: 17 },
-  recipeModalHeaderBar: { flexDirection: "row", alignItems: "flex-start", padding: 20, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  formModalTitle: { fontSize: 19, fontWeight: "700", color: "#20332A" },
+  closeIconBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center" },
+  recipeModalSub: { fontSize: 12, color: "#7B897F", marginTop: 4, lineHeight: 17 },
+  recipeModalHeaderBar: { flexDirection: "row", alignItems: "flex-start", padding: 20, borderBottomWidth: 1, borderBottomColor: "#F0F4ED" },
 
-  fieldLabel: { fontSize: 13, fontWeight: "800", color: "#111827", marginBottom: 4, marginTop: 18 },
-  fieldSubLabel: { fontSize: 12, color: "#9CA3AF", marginBottom: 8, lineHeight: 16 },
-  input: { borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 13, padding: 15, fontSize: 16, color: "#111", backgroundColor: "#F9FAFB", marginTop: 6 },
+  fieldLabel: { fontSize: 13, fontWeight: "700", color: "#20332A", marginBottom: 4, marginTop: 18 },
+  fieldSubLabel: { fontSize: 12, color: "#7B897F", marginBottom: 8, lineHeight: 16 },
+  input: { borderWidth: 1.5, borderColor: "#DFE5DF", borderRadius: 8, padding: 15, fontSize: 16, color: "#111", backgroundColor: "#F9FAFB", marginTop: 6 },
 
   unitRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  unitChip: { paddingHorizontal: 15, paddingVertical: 11, borderRadius: 11, borderWidth: 1.5, borderColor: "#E8E2D9", backgroundColor: "#fff" },
-  unitChipActive: { backgroundColor: "#111827", borderColor: "#111827" },
-  unitChipText: { fontSize: 13.5, fontWeight: "700", color: "#6B7280" },
+  unitChip: { paddingHorizontal: 15, paddingVertical: 11, borderRadius: 11, borderWidth: 1.5, borderColor: "#DFE5DF", backgroundColor: "#fff" },
+  unitChipActive: { backgroundColor: "#20332A", borderColor: "#20332A" },
+  unitChipText: { fontSize: 13.5, fontWeight: "700", color: "#627166" },
   unitChipTextActive: { color: "#fff" },
 
-  formSaveBtn: { backgroundColor: "#111827", borderRadius: 14, paddingVertical: 16, alignItems: "center", marginTop: 22 },
-  formSaveBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  formSaveBtn: { backgroundColor: "#20332A", borderRadius: 12, paddingVertical: 16, alignItems: "center", marginTop: 22 },
+  formSaveBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 
-  restockItemBanner: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F9FAFB", borderRadius: 14, padding: 14, marginBottom: 6 },
-  restockItemIconWrap: { width: 42, height: 42, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  restockItemName: { fontSize: 15, fontWeight: "800", color: "#111827" },
-  restockItemCurrent: { fontSize: 12.5, color: "#6B7280", marginTop: 2 },
+  restockItemBanner: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F9FAFB", borderRadius: 12, padding: 14, marginBottom: 6 },
+  restockItemIconWrap: { width: 42, height: 42, borderRadius: 12, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center" },
+  restockItemName: { fontSize: 15, fontWeight: "700", color: "#20332A" },
+  restockItemCurrent: { fontSize: 12.5, color: "#627166", marginTop: 2 },
 
-  restockInputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 13, paddingHorizontal: 16, marginTop: 6, backgroundColor: "#F9FAFB" },
-  restockInput: { flex: 1, fontSize: 24, fontWeight: "800", paddingVertical: 15, color: "#111827" },
-  restockInputUnit: { fontSize: 15, fontWeight: "700", color: "#9CA3AF" },
-  quickAddLabel: { fontSize: 12.5, color: "#9CA3AF", fontWeight: "600", marginTop: 16, marginBottom: 8 },
+  restockInputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 16, marginTop: 6, backgroundColor: "#F9FAFB" },
+  restockInput: { flex: 1, fontSize: 24, fontWeight: "700", paddingVertical: 15, color: "#20332A" },
+  restockInputUnit: { fontSize: 15, fontWeight: "700", color: "#7B897F" },
+  quickAddLabel: { fontSize: 12.5, color: "#7B897F", fontWeight: "600", marginTop: 16, marginBottom: 8 },
   presetRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  presetChip: { flexGrow: 1, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 12, backgroundColor: "#ECFDF5", alignItems: "center" },
-  presetChipText: { fontSize: 13.5, fontWeight: "800", color: "#10B981" },
+  presetChip: { flexGrow: 1, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 12, backgroundColor: "#EDF4E8", alignItems: "center" },
+  presetChipText: { fontSize: 13.5, fontWeight: "700", color: "#39805A" },
 
-  deleteModalBox: { backgroundColor: "#fff", borderRadius: 22, padding: 28, width: "100%", maxWidth: 380, alignSelf: "center", alignItems: "center" },
+  deleteModalBox: { backgroundColor: "#fff", borderRadius: 12, padding: 28, width: "100%", maxWidth: 380, alignSelf: "center", alignItems: "center" },
   deleteIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  deleteTitle: { fontSize: 18, fontWeight: "800", color: "#111827", marginBottom: 8, textAlign: "center" },
+  deleteTitle: { fontSize: 18, fontWeight: "700", color: "#20332A", marginBottom: 8, textAlign: "center" },
   deleteSub: { fontSize: 13.5, color: "#78716C", textAlign: "center", lineHeight: 20, marginBottom: 24 },
   deleteActions: { flexDirection: "row", gap: 10, width: "100%" },
-  cancelBtn: { flex: 1, borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 13, paddingVertical: 15, alignItems: "center" },
+  cancelBtn: { flex: 1, borderWidth: 1.5, borderColor: "#DFE5DF", borderRadius: 8, paddingVertical: 15, alignItems: "center" },
   cancelBtnText: { fontSize: 14.5, fontWeight: "700", color: "#374151" },
-  deleteConfirmBtn: { flex: 1, backgroundColor: "#EF4444", borderRadius: 13, paddingVertical: 15, alignItems: "center" },
+  deleteConfirmBtn: { flex: 1, backgroundColor: "#EF4444", borderRadius: 8, paddingVertical: 15, alignItems: "center" },
   deleteConfirmBtnText: { fontSize: 14.5, fontWeight: "700", color: "#fff" },
 
-  ingredientRow: { borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 16, padding: 16, marginBottom: 10, backgroundColor: "#fff" },
+  ingredientRow: { borderWidth: 1.5, borderColor: "#DFE5DF", borderRadius: 16, padding: 16, marginBottom: 10, backgroundColor: "#fff" },
   ingredientRowActive: { borderColor: "#BBF7D0", backgroundColor: "#F3FDF6" },
   ingredientToggle: { flexDirection: "row", alignItems: "center" },
-  ingredientName: { fontSize: 16, fontWeight: "700", color: "#111827" },
-  ingredientStock: { fontSize: 12.5, color: "#9CA3AF", marginTop: 2 },
+  ingredientName: { fontSize: 16, fontWeight: "700", color: "#20332A" },
+  ingredientStock: { fontSize: 12.5, color: "#7B897F", marginTop: 2 },
   ingredientQtyWrap: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#E5F5EA" },
-  ingredientQtyLabel: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
-  ingredientQtyInput: { flex: 1, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 11, padding: 11, fontSize: 16, fontWeight: "700", color: "#111827", backgroundColor: "#fff" },
-  ingredientQtyUnit: { fontSize: 13, color: "#6B7280", fontWeight: "700" },
-  recipeModalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  ingredientQtyLabel: { fontSize: 13, fontWeight: "600", color: "#627166" },
+  ingredientQtyInput: { flex: 1, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 11, padding: 11, fontSize: 16, fontWeight: "700", color: "#20332A", backgroundColor: "#fff" },
+  ingredientQtyUnit: { fontSize: 13, color: "#627166", fontWeight: "700" },
+  recipeModalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: "#F0F4ED" },
 });

@@ -8,7 +8,7 @@ const { instance, verifySignature } = require("../utils/razorpay");
 const PLANS = {
     monthly: { amount: 99900, days: 30, label: 'Monthly' },
     quarterly: { amount: 250000, days: 90, label: 'Quarterly' },
-    yearly: { amount: 600000, days: 365, label: 'Yearly' },
+    yearly: { amount: 899900, days: 365, label: 'Yearly' },
 };
 
 function getPlanDetails(planType) {

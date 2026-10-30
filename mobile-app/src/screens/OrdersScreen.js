@@ -39,12 +39,12 @@ const BILL_PRINT_TITLE = "Powered by Servon Labs";
 const statusColor = (s) =>
   ({
     EDITABLE: "#6B7280",
-    CONFIRMED: "#3B82F6",
-    PREPARING: "#F59E0B",
-    SERVED: "#10B981",
-    TABLE_ACTIVE: "#8B5CF6",
-    PAID: "#9CA3AF",
-    REJECTED: "#EF4444",
+    CONFIRMED: "#315F9E",
+    PREPARING: "#8A5A15",
+    SERVED: "#28704C",
+    TABLE_ACTIVE: "#63738E",
+    PAID: "#627166",
+    REJECTED: "#AD4A40",
   }[s] || "#888");
 
 const STATUS_FILTERS = [
@@ -68,42 +68,42 @@ const CHEF_STATUSES = {
   },
   CONFIRMED: {
     label: "CONFIRMED",
-    color: "#3B82F6",
+    color: "#315F9E",
     bg: "#EFF6FF",
     icon: "checkmark-circle-outline",
     priority: 3,
   },
   PREPARING: {
     label: "PREPARING",
-    color: "#F59E0B",
+    color: "#8A5A15",
     bg: "#FFFBEB",
     icon: "flame-outline",
     priority: 2,
   },
   SERVED: {
     label: "SERVED",
-    color: "#10B981",
+    color: "#28704C",
     bg: "#ECFDF5",
     icon: "checkmark-done-outline",
     priority: 1,
   },
   TABLE_ACTIVE: {
     label: "TABLE ACTIVE",
-    color: "#8B5CF6",
+    color: "#63738E",
     bg: "#F5F3FF",
     icon: "people-outline",
     priority: 0,
   },
   PAID: {
     label: "PAID",
-    color: "#9CA3AF",
+    color: "#627166",
     bg: "#F1F5F9",
     icon: "cash-outline",
     priority: -1,
   },
   REJECTED: {
     label: "REJECTED",
-    color: "#EF4444",
+    color: "#AD4A40",
     bg: "#FEF2F2",
     icon: "close-circle-outline",
     priority: -1,
@@ -196,7 +196,7 @@ const ChefOrderCard = React.memo((props) => {
       <View style={styles.chefCardHeader}>
         <View style={styles.chefTableRow}>
           <View style={styles.chefTableIconWrap}>
-            <Ionicons name="restaurant-outline" size={18} color="#111" />
+            <Ionicons name="grid-outline" size={19} color="#42604E" />
           </View>
           <LocalizedText style={styles.chefTableNumber}>Table {order.table_number}</LocalizedText>
         </View>
@@ -1226,7 +1226,18 @@ return `
         ${styleMatch?.[1] || ""}
         @media screen { #servon-print-root { display: none !important; } }
         @media print {
+          html, body {
+            display: block !important; position: static !important;
+            height: auto !important; min-height: 0 !important; max-height: none !important;
+            overflow: visible !important; width: auto !important;
+            margin: 0 !important; padding: 0 !important; background: #fff !important;
+          }
           body > *:not(#servon-print-root) { display: none !important; }
+          #servon-print-root {
+            height: auto !important; min-height: 0 !important; max-height: none !important;
+            position: static !important; overflow: visible !important;
+            box-sizing: border-box; break-after: auto; page-break-after: auto;
+          }
           #servon-print-root {
             display: block !important;
             font-family: monospace;
@@ -1508,7 +1519,10 @@ return `
     return (
       <View style={styles.orderCardOld}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <LocalizedText style={{ fontSize: 18, fontWeight: "800", color: "#111" }}>Table {item.table_number}</LocalizedText>
+          <View style={styles.chefTableRow}>
+            <View style={styles.chefTableIconWrap}><Ionicons name="grid-outline" size={19} color="#42604E" /></View>
+            <LocalizedText style={styles.chefTableNumber}>Table {item.table_number}</LocalizedText>
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {canReprint && (
               <TouchableOpacity
@@ -1528,7 +1542,7 @@ return `
                 onPress={() => confirmDeleteOrder(item)}
                 disabled={isProcessing}
               >
-                <Ionicons name="trash-outline" size={13} color="#EF4444" />
+                <Ionicons name="trash-outline" size={13} color="#AD4A40" />
               </TouchableOpacity>
             )}
             <View style={[styles.badgeOld, { backgroundColor: statusColor(item.status) }]}>
@@ -1538,14 +1552,14 @@ return `
         </View>
         {items.map((i, idx) => (
           <View key={idx} style={styles.oldItemRow}>
+            <NativeText style={styles.itemQuantity}>{i.quantity}×</NativeText>
+            <LocalizedText translate={false} style={styles.itemName}>{localizedItemName(i, language)}</LocalizedText>
+            <NativeText style={styles.itemAmount}>₹{(i.price * i.quantity).toFixed(0)}</NativeText>
             {!isChefMode && (
               <TouchableOpacity style={styles.itemTrashBtn} onPress={() => handleRemoveOrderItem(item, i)} activeOpacity={0.75}>
-                <Ionicons name="trash-outline" size={13} color="#EF4444" />
+                <Ionicons name="trash-outline" size={16} color="#AB5C52" />
               </TouchableOpacity>
             )}
-          <LocalizedText style={{ fontSize: 15, color: "#374151", fontWeight: "500", lineHeight: 20, flex: 1 }}>
-            • {localizedItemName(i, language)} × {i.quantity} - <LocalizedText style={{ fontWeight: "700" }}>₹{(i.price * i.quantity).toFixed(0)}</LocalizedText>
-          </LocalizedText>
           </View>
         ))}
         {item.special_instructions && (
@@ -1555,8 +1569,8 @@ return `
           </View>
         )}
         <View style={styles.totalRowOld}>
-          <LocalizedText translate style={{ fontWeight: "600", fontSize: 14, color: "#6B7280" }}>Subtotal:</LocalizedText>
-          <LocalizedText style={{ fontWeight: "800", fontSize: 18, color: "#111" }}>
+          <LocalizedText translate style={{ fontWeight: "500", fontSize: 13, color: "#627166" }}>Subtotal:</LocalizedText>
+          <LocalizedText style={{ fontWeight: "700", fontSize: 22, color: "#20332A" }}>
             ₹{Math.round(parseFloat(item.total_amount))}
           </LocalizedText>
         </View>
@@ -1571,7 +1585,7 @@ return `
             {showDirectBillingActions ? (
               item.status === "TABLE_ACTIVE" ? (
                 !isChefMode && (
-                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
+                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#244F3B", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
                     {isProcessing ? (
                       <>
                         <ActivityIndicator color="#fff" size="small" />
@@ -1587,11 +1601,11 @@ return `
                 )
               ) : (
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#8B5CF6" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
+                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#63738E" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
                     <LocalizedText translate style={styles.actionBtnTextOld}>Active Table</LocalizedText>
                   </TouchableOpacity>
                   {!isChefMode && (
-                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#244F3B" }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
                       {isProcessing ? <ActivityIndicator color="#fff" size="small" /> : <LocalizedText translate style={styles.actionBtnTextOld}>Print</LocalizedText>}
                     </TouchableOpacity>
                   )}
@@ -1608,10 +1622,10 @@ return `
                   </View>
                 ) : (
                   <>
-                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#10B981" }]} onPress={() => handleStatusUpdate(item.id, "PREPARING")}>
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#33714C" }]} onPress={() => handleStatusUpdate(item.id, "PREPARING")}>
                       <LocalizedText translate style={styles.actionBtnTextOld}>Accept</LocalizedText>
                     </TouchableOpacity>
-                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#EF4444", flex: 0.4 }]} onPress={() => handleStatusUpdate(item.id, "REJECTED")}>
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#AD4A40", flex: 0.4 }]} onPress={() => handleStatusUpdate(item.id, "REJECTED")}>
                       <LocalizedText translate style={styles.actionBtnTextOld}>Reject</LocalizedText>
                     </TouchableOpacity>
                   </>
@@ -1619,24 +1633,24 @@ return `
               </View>
                 )}
                 {item.status === "PREPARING" && (
-              <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#F59E0B", marginTop: 16 }]} onPress={() => handleStatusUpdate(item.id, "SERVED")}>
+              <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#9A6A25", marginTop: 16 }]} onPress={() => handleStatusUpdate(item.id, "SERVED")}>
                 <LocalizedText translate style={[styles.actionBtnTextOld, { color: "#fff" }]}>Mark Served</LocalizedText>
               </TouchableOpacity>
                 )}
                 {item.status === "SERVED" && (
               <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-                <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#8B5CF6" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
+                <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: "#63738E" }]} onPress={() => handleStatusUpdate(item.id, "TABLE_ACTIVE")}>
                   <LocalizedText translate style={styles.actionBtnTextOld}>Active Table</LocalizedText>
                 </TouchableOpacity>
                 {!isChefMode && (
-                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827" }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
+                  <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#244F3B" }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
                     {isProcessing ? <ActivityIndicator color="#fff" size="small" /> : <LocalizedText translate style={styles.actionBtnTextOld}>Print</LocalizedText>}
                   </TouchableOpacity>
                 )}
               </View>
                 )}
                 {item.status === "TABLE_ACTIVE" && !isChefMode && (
-              <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#111827", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
+              <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtnOld, { backgroundColor: isProcessing ? "#4B5563" : "#244F3B", marginTop: 16, flexDirection: "row", justifyContent: "center", gap: 8 }]} onPress={() => openDiscountModal(item)} disabled={isProcessing}>
                 {isProcessing ? (
                   <>
                     <ActivityIndicator color="#fff" size="small" />
@@ -1802,21 +1816,24 @@ return `
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
-      <View style={isWeb ? { maxWidth: 1200, alignSelf: "center", width: "100%" } : null}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F5F2" }}>
+      <View style={[styles.filterBar, isWeb && { maxWidth: 1400, alignSelf: "center", width: "100%" }]}>
         {isChefMode ? (
           <FlatList
             horizontal
             data={CHEF_FILTERS}
             keyExtractor={(i) => i.key}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 8 }}
+            contentContainerStyle={styles.filterRail}
             renderItem={({ item }) => (
               <TouchableOpacity
                 activeOpacity={0.75}
                 style={[styles.filterTab, filter === item.key && styles.filterTabActive]}
                 onPress={() => setFilter(item.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: filter === item.key }}
               >
+                {item.key !== "all" && <View style={[styles.filterDot, { backgroundColor: filter === item.key ? "#D3E7D3" : statusColor(item.key) }]} />}
                 <LocalizedText style={[styles.filterTabText, filter === item.key && { color: "#fff" }]}>{item.label}</LocalizedText>
               </TouchableOpacity>
             )}
@@ -1827,13 +1844,16 @@ return `
             data={STATUS_FILTERS}
             keyExtractor={(i) => i.key}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, gap: 8 }}
+            contentContainerStyle={styles.filterRail}
             renderItem={({ item }) => (
               <TouchableOpacity
                 activeOpacity={0.75}
                 style={[styles.filterTab, filter === item.key && styles.filterTabActive]}
                 onPress={() => setFilter(item.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: filter === item.key }}
               >
+                {item.key !== "all" && <Ionicons name={item.key === "PREVIOUS" ? "time-outline" : "ellipse"} size={item.key === "PREVIOUS" ? 15 : 7} color={filter === item.key ? "#D3E7D3" : statusColor(item.key)} />}
                 <LocalizedText style={[styles.filterTabText, filter === item.key && { color: "#fff" }]}>
                   {item.label.replace("_", " ")}
                 </LocalizedText>
@@ -1843,7 +1863,7 @@ return `
         )}
       </View>
 
-      <View style={[{ flex: 1 }, isWeb && { maxWidth: 1200, alignSelf: "center", width: "100%" }]}>
+      <View style={[{ flex: 1 }, isWeb && { maxWidth: 1400, alignSelf: "center", width: "100%" }]}>
         {filter === "PREVIOUS" ? (
           <>
             <View style={styles.datePickerContainer}>
@@ -1895,6 +1915,7 @@ return `
           <View style={[styles.tableOrderShell, isCompactTableLayout && styles.tableOrderShellMobile]}>
             <View style={[styles.tableSidebar, isCompactTableLayout && styles.tableSidebarMobile]}>
               <View style={styles.tableSidebarHeader}>
+                <Ionicons name="grid-outline" size={18} color="#42604E" />
                 <LocalizedText translate style={styles.tableSidebarTitle}>Tables</LocalizedText>
                 <View style={styles.tableSidebarCount}>
                   <NativeText style={styles.tableSidebarCountText}>{tableTabs.length}</NativeText>
@@ -1904,7 +1925,7 @@ return `
                 {tableTabs.map((table) => {
                   const active = table.key === selectedTableKey;
                   return (
-                    <TouchableOpacity key={table.key} activeOpacity={0.78} style={[styles.tableTab, active && styles.tableTabActive, isCompactTableLayout && styles.tableTabMobile]} onPress={() => setSelectedTableKey(table.key)}>
+                    <TouchableOpacity key={table.key} activeOpacity={0.78} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.tableTab, active && styles.tableTabActive, isCompactTableLayout && styles.tableTabMobile]} onPress={() => setSelectedTableKey(table.key)}>
                       <View style={styles.tableTabTop}>
                         <LocalizedText style={[styles.tableTabLabel, active && styles.tableTabLabelActive]}>{table.label}</LocalizedText>
                         <View style={[styles.tableTabBadge, active && styles.tableTabBadgeActive]}>
@@ -1942,13 +1963,13 @@ return `
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
             contentContainerStyle={[styles.tableOrdersList, isCompactTableLayout && styles.tableOrdersListMobile]}
             ListEmptyComponent={
-              <View style={{ alignItems: "center", marginTop: 60 }}>
-                <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
-                <LocalizedText style={{ color: "#888", marginTop: 12, fontSize: 16, fontWeight: "500" }}>
+              <View style={styles.tableEmptyState}>
+                <View style={styles.tableEmptyIcon}><Ionicons name="receipt-outline" size={32} color="#55755D" /></View>
+                <LocalizedText style={styles.tableEmptyTitle}>
                   {isOffline ? '📡 Offline - No cached orders' : 'No orders found for today'}
                 </LocalizedText>
                 {isOffline && (
-                  <LocalizedText translate style={{ color: "#6B7280", fontSize: 12, marginTop: 4 }}>
+                  <LocalizedText translate style={styles.tableEmptySub}>
                     Connect to internet to sync orders
                   </LocalizedText>
                 )}
@@ -1987,173 +2008,107 @@ return `
 // ─── STYLES ──────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  filterBar: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#DFE5DF' },
+  filterRail: { paddingHorizontal: 20, paddingVertical: 14, gap: 8 },
+  filterTab: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#E1E7DE', backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  filterTabActive: { backgroundColor: '#244F3B', borderColor: '#244F3B' },
+  filterTabText: { fontSize: 12, fontWeight: '600', color: '#4A5E50', letterSpacing: .2 },
+  filterDot: { width: 7, height: 7, borderRadius: 4 },
   orderCardOld: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E8E2D9",
-    ...Platform.select({
-      web: { flex: 1, margin: 8, minWidth: 300, shadowColor: "#A89880", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12 },
-      default: { elevation: 2 },
-    }),
+    backgroundColor: '#fff', borderRadius: 12, padding: 20, marginBottom: 14,
+    borderWidth: 1, borderColor: '#DDE4DC',
+    ...Platform.select({ web: { flex: 1, margin: 7, minWidth: 280, boxShadow: '0 2px 4px rgba(32,51,42,0.03)' }, default: { elevation: 1 } }),
   },
-  badgeOld: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  totalRowOld: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  actionBtnOld: { flex: 1, borderRadius: 12, padding: 14, alignItems: "center" },
-  actionBtnTextOld: { color: "#fff", fontWeight: "800", fontSize: 15, textAlign: "center" },
-  reprintBtnOld: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: "#F3F4F6", borderRadius: 8,
-    paddingHorizontal: 9, paddingVertical: 5,
-  },
-  reprintBtnTextOld: { fontSize: 11, fontWeight: "700", color: "#6B7280" },
-  oldItemRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 5 },
-  itemTrashBtn: { width: 24, height: 24, borderRadius: 7, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
-
-  chefBadge: { flexDirection: "row", alignItems: "center", borderRadius: 12, gap: 4 },
-  chefBadgeLabel: { fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-
+  badgeOld: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
+  totalRowOld: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#E9EDE7' },
+  actionBtnOld: { flex: 1, minHeight: 46, borderRadius: 8, padding: 13, alignItems: 'center', justifyContent: 'center' },
+  actionBtnTextOld: { color: '#fff', fontWeight: '700', fontSize: 14, textAlign: 'center' },
+  reprintBtnOld: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minWidth: 40, minHeight: 40, backgroundColor: '#F0F4ED', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  reprintBtnTextOld: { fontSize: 12, fontWeight: '600', color: '#4A5E50' },
+  oldItemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, minHeight: 50, borderBottomWidth: 1, borderBottomColor: '#F0F3ED' },
+  itemQuantity: { minWidth: 30, paddingHorizontal: 7, paddingVertical: 5, borderRadius: 5, backgroundColor: '#EDF3E9', textAlign: 'center', fontSize: 13, fontWeight: '700', color: '#36543F' },
+  itemName: { flex: 1, fontSize: 15, color: '#283B30', fontWeight: '500', lineHeight: 22 },
+  itemAmount: { fontSize: 14, fontWeight: '700', color: '#20332A' },
+  itemTrashBtn: { width: 40, height: 40, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  chefBadge: { flexDirection: 'row', alignItems: 'center', borderRadius: 6, gap: 5 },
+  chefBadgeLabel: { fontWeight: '600', textTransform: 'uppercase', letterSpacing: .2 },
   chefOrderCard: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E8E2D9",
-    ...Platform.select({
-      web: { flex: 1, margin: 8, minWidth: 280, boxShadow: "0 4px 14px rgba(168,152,128,0.07)" },
-      default: { elevation: 2 },
-    }),
+    backgroundColor: '#fff', borderRadius: 12, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: '#DDE4DC',
+    ...Platform.select({ web: { flex: 1, margin: 7, minWidth: 280, boxShadow: '0 2px 4px rgba(32,51,42,0.03)' }, default: { elevation: 1 } }),
   },
-  chefCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  chefTableRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  chefTableIconWrap: { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F9FAFB", alignItems: "center", justifyContent: "center" },
-  chefTableNumber: { fontSize: 19, fontWeight: "900", color: "#111" },
-  chefReprintBtn: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center",
-  },
-  chefItemsContainer: { marginBottom: 8 },
-  chefItemRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5 },
-  chefItemRowDivider: { borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
-  chefItemName: { fontSize: 15, fontWeight: "500", color: "#374151", flex: 1, paddingRight: 8 },
-  chefItemMeta: { flexDirection: "row", gap: 12 },
-  chefItemQty: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
-  chefItemPrice: { fontSize: 14, fontWeight: "700", color: "#111" },
-  chefInstructions: { flexDirection: "row", alignItems: "flex-start", backgroundColor: "#FEF3C7", padding: 10, borderRadius: 10, marginTop: 8, gap: 6 },
-  chefInstructionsText: { fontSize: 13, color: "#92400E", fontWeight: "600", flex: 1 },
-  chefCardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  chefTimestampRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  chefTimestamp: { fontSize: 12, color: "#9CA3AF", fontWeight: "500" },
-  chefTotalRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  chefTotalLabel: { fontSize: 14, fontWeight: "600", color: "#6B7280" },
-  chefTotalValue: { fontSize: 16, fontWeight: "800", color: "#111" },
-  chefActions: { flexDirection: "row", gap: 8, marginTop: 10 },
-  chefActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, gap: 5 },
-  chefActionText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  chefAcceptBtn: { backgroundColor: "#10B981" },
-  chefRejectBtn: { backgroundColor: "#EF4444" },
-  chefCompleteBtn: { backgroundColor: "#F59E0B" },
-  chefActiveBtn: { backgroundColor: "#8B5CF6" },
-  chefPrintBtn: { backgroundColor: "#111827" },
-  chefWaitingBadge: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, gap: 8 },
-  chefWaitingText: { color: "#6B7280", fontWeight: "600", fontSize: 13 },
-
-  filterTab: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1, borderColor: "#E8E2D9", backgroundColor: "#fff" },
-  filterTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
-  filterTabText: { fontSize: 13, fontWeight: "700", color: "#4B5563" },
-
-  tableOrderShell: { flex: 1, flexDirection: "row", gap: 14, paddingHorizontal: 12, paddingBottom: 12, minWidth: 0 },
-  tableOrderShellMobile: { flexDirection: "column", gap: 10, paddingHorizontal: 10 },
-  tableSidebar: {
-    width: 230,
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E8E2D9",
-    padding: 12,
-    ...Platform.select({ web: { boxShadow: "0 6px 18px rgba(17,24,39,0.05)" }, default: { elevation: 1 } }),
-  },
-  tableSidebarMobile: { width: "100%", maxHeight: 118, padding: 10, flexShrink: 0 },
-  tableSidebarHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  tableSidebarTitle: { fontSize: 14, fontWeight: "900", color: "#111827", textTransform: "uppercase", letterSpacing: 0.6 },
-  tableSidebarCount: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  tableSidebarCountText: { fontSize: 12, fontWeight: "900", color: "#111827" },
+  chefCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8 },
+  chefTableRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  chefTableIconWrap: { width: 38, height: 38, borderRadius: 9, backgroundColor: '#EDF3E9', alignItems: 'center', justifyContent: 'center' },
+  chefTableNumber: { fontSize: 19, fontWeight: '700', color: '#20332A' },
+  chefReprintBtn: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#F0F4ED', alignItems: 'center', justifyContent: 'center' },
+  chefItemsContainer: { marginBottom: 8, borderTopWidth: 1, borderTopColor: '#E9EDE7', paddingTop: 6 },
+  chefItemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 9, minHeight: 46 },
+  chefItemRowDivider: { borderBottomWidth: 1, borderBottomColor: '#F0F3ED' },
+  chefItemName: { fontSize: 15, fontWeight: '500', color: '#283B30', flex: 1, paddingRight: 8, lineHeight: 22 },
+  chefItemMeta: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  chefItemQty: { fontSize: 14, color: '#42604E', fontWeight: '600' },
+  chefItemPrice: { fontSize: 14, fontWeight: '700', color: '#20332A' },
+  chefInstructions: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#FFF7E5', padding: 10, borderRadius: 8, marginTop: 8, gap: 6 },
+  chefInstructionsText: { fontSize: 13, color: '#825A1E', fontWeight: '500', flex: 1, lineHeight: 20 },
+  chefCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#E9EDE7' },
+  chefTimestampRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chefTimestamp: { fontSize: 12, color: '#627166', fontWeight: '500' },
+  chefTotalRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  chefTotalLabel: { fontSize: 13, fontWeight: '500', color: '#627166' },
+  chefTotalValue: { fontSize: 20, fontWeight: '700', color: '#20332A' },
+  chefActions: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  chefActionBtn: { flex: 1, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 8, gap: 6 },
+  chefActionText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  chefAcceptBtn: { backgroundColor: '#33714C' },
+  chefRejectBtn: { backgroundColor: '#AD4A40' },
+  chefCompleteBtn: { backgroundColor: '#9A6A25' },
+  chefActiveBtn: { backgroundColor: '#63738E' },
+  chefPrintBtn: { backgroundColor: '#244F3B' },
+  chefWaitingBadge: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0F4ED', paddingHorizontal: 12, paddingVertical: 12, borderRadius: 8, gap: 8 },
+  chefWaitingText: { color: '#627166', fontWeight: '600', fontSize: 13 },
+  tableOrderShell: { flex: 1, flexDirection: 'row', gap: 20, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18, minWidth: 0 },
+  tableOrderShellMobile: { flexDirection: 'column', gap: 12, paddingHorizontal: 12, paddingTop: 12 },
+  tableSidebar: { width: 220, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#DFE5DF', padding: 12 },
+  tableSidebarMobile: { width: '100%', maxHeight: 130, padding: 10, flexShrink: 0 },
+  tableSidebarHeader: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 14, paddingHorizontal: 4, paddingTop: 4 },
+  tableSidebarTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: '#344E3E' },
+  tableSidebarCount: { minWidth: 26, height: 26, paddingHorizontal: 7, borderRadius: 6, backgroundColor: '#F0F4ED', alignItems: 'center', justifyContent: 'center' },
+  tableSidebarCountText: { fontSize: 12, fontWeight: '700', color: '#42604E' },
   tableRailMobile: { gap: 8, paddingRight: 4 },
-  tableTab: { borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FAFAFA", padding: 12, marginBottom: 8 },
-  tableTabMobile: { width: 142, marginBottom: 0, padding: 10 },
-  tableTabActive: { backgroundColor: "#111827", borderColor: "#111827" },
-  tableTabTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  tableTabLabel: { color: "#111827", fontSize: 15, fontWeight: "900" },
-  tableTabLabelActive: { color: "#fff" },
-  tableTabBadge: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" },
-  tableTabBadgeActive: { backgroundColor: "#fff" },
-  tableTabBadgeText: { color: "#4F46E5", fontSize: 12, fontWeight: "900" },
-  tableTabBadgeTextActive: { color: "#111827" },
-  tableTabMeta: { marginTop: 6, color: "#6B7280", fontSize: 12, fontWeight: "700" },
-  tableTabMetaActive: { color: "#D1D5DB" },
+  tableTab: { borderRadius: 8, borderWidth: 1, borderColor: '#E7ECE3', backgroundColor: '#fff', padding: 13, marginBottom: 8 },
+  tableTabMobile: { width: 140, marginBottom: 0, padding: 10 },
+  tableTabActive: { backgroundColor: '#E9F1E5', borderColor: '#7EA583', borderLeftWidth: 3 },
+  tableTabTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  tableTabLabel: { color: '#344E3E', fontSize: 15, fontWeight: '600' },
+  tableTabLabelActive: { color: '#244F3B', fontWeight: '700' },
+  tableTabBadge: { minWidth: 25, height: 25, paddingHorizontal: 7, borderRadius: 6, backgroundColor: '#F0F4ED', alignItems: 'center', justifyContent: 'center' },
+  tableTabBadgeActive: { backgroundColor: '#365E40' },
+  tableTabBadgeText: { color: '#627166', fontSize: 12, fontWeight: '700' },
+  tableTabBadgeTextActive: { color: '#fff' },
+  tableTabMeta: { marginTop: 6, color: '#778176', fontSize: 12, fontWeight: '500' },
+  tableTabMetaActive: { color: '#4A6B50' },
   tableOrdersPane: { flex: 1, minWidth: 0 },
-  tableOrdersPaneMobile: { width: "100%" },
-  tablePaneHeader: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E8E2D9",
-    padding: 16,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  tablePaneHeaderMobile: { padding: 12, marginBottom: 8 },
-  tablePaneTitle: { color: "#111827", fontSize: 22, fontWeight: "900" },
-  tablePaneSub: { color: "#6B7280", fontSize: 13, fontWeight: "600", marginTop: 3 },
-  tablePaneMetric: { minWidth: 72, borderRadius: 14, backgroundColor: "#ECFDF5", paddingVertical: 8, paddingHorizontal: 12, alignItems: "center" },
-  tablePaneMetricValue: { color: "#047857", fontSize: 20, fontWeight: "900" },
-  tablePaneMetricLabel: { color: "#047857", fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  tableOrdersPaneMobile: { width: '100%' },
+  tablePaneHeader: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#DFE5DF', padding: 20, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  tablePaneHeaderMobile: { padding: 14, marginBottom: 10 },
+  tablePaneTitle: { color: '#20332A', fontSize: 23, fontWeight: '700', letterSpacing: -.4 },
+  tablePaneSub: { color: '#627166', fontSize: 13, fontWeight: '400', marginTop: 5 },
+  tablePaneMetric: { minWidth: 68, borderRadius: 8, backgroundColor: '#EFF4EB', paddingVertical: 9, paddingHorizontal: 14, alignItems: 'center' },
+  tablePaneMetricValue: { color: '#365E40', fontSize: 24, fontWeight: '700' },
+  tablePaneMetricLabel: { color: '#627166', fontSize: 11, fontWeight: '500', marginTop: 2 },
   tableOrdersList: { paddingBottom: 24 },
   tableOrdersListMobile: { paddingBottom: 24, paddingHorizontal: 0 },
-  tableEmptyState: { alignItems: "center", marginTop: 60, backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#E8E2D9", padding: 28 },
-  tableEmptyTitle: { color: "#6B7280", marginTop: 12, fontSize: 16, fontWeight: "800", textAlign: "center" },
-  tableEmptySub: { color: "#6B7280", fontSize: 12, marginTop: 4, textAlign: "center" },
-
-  sectionHeader: { fontSize: 14, fontWeight: "800", color: "#6B7280", paddingVertical: 8, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 },
-
-  datePickerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    marginHorizontal: 12,
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E8E2D9",
-  },
-  dateInfo: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dateLabel: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  webDateInput: { padding: 8, borderRadius: 8, border: "1px solid #E8E2D9", fontFamily: "inherit", fontSize: "14px", outlineStyle: "none", cursor: "pointer", backgroundColor: "#FAF8F5" },
-  mobileDateBtn: { backgroundColor: "#FAF8F5", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#E8E2D9", flexDirection: "row", alignItems: "center", gap: 6 },
-  mobileDateText: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  tableEmptyState: { alignItems: 'center', justifyContent: 'center', minHeight: 300, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#DFE5DF', padding: 28 },
+  tableEmptyIcon: { width: 66, height: 66, borderRadius: 18, backgroundColor: '#EFF4EB', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  tableEmptyTitle: { color: '#546B58', marginTop: 12, fontSize: 15, fontWeight: '500', textAlign: 'center' },
+  tableEmptySub: { color: '#627166', fontSize: 12, marginTop: 6, textAlign: 'center' },
+  sectionHeader: { fontSize: 14, fontWeight: '600', color: '#546B58', paddingVertical: 10, marginBottom: 8 },
+  datePickerContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', marginHorizontal: 20, marginTop: 20, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: '#DFE5DF' },
+  dateInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dateLabel: { fontSize: 14, fontWeight: '600', color: '#344E3E' },
+  webDateInput: { padding: 10, borderRadius: 7, border: '1px solid #D9E1D5', fontFamily: 'inherit', fontSize: '14px', outlineColor: '#7EA583', cursor: 'pointer', backgroundColor: '#F8FAF6', color: '#344E3E' },
+  mobileDateBtn: { backgroundColor: '#F0F4ED', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#DFE5DF', flexDirection: 'row', alignItems: 'center', gap: 6 },
+  mobileDateText: { fontSize: 14, fontWeight: '600', color: '#344E3E' },
 
   discountModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
   discountModal: { backgroundColor: "#fff", borderRadius: 22, padding: 22, width: "100%", maxWidth: 480 },

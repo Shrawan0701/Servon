@@ -20,6 +20,8 @@ import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { getAnalytics, getExpenses, addExpense, deleteExpense, updateExpense, askAdvisor, getSupplierSuggestions } from "../api";
+import API from "../api";
+import { useAuth } from "../context/AuthContext";
 import {
   VictoryArea,
   VictoryLine,
@@ -39,27 +41,29 @@ import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from '../config/api';
 
 const IS_WEB = Platform.OS === "web";
+const escapeReportText = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 const toDateStr = (d) => d.toISOString().split("T")[0];
 
 const isLikelyUnreachableHost = !IS_WEB && /localhost|127\.0\.0\.1/i.test(API_BASE_URL);
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
-const PRIMARY      = "#0F172A";
-const ACCENT       = "#10B981";
-const DANGER       = "#EF4444";
-const BG           = "#F8FAFC";
+const PRIMARY      = "#244F3B";
+const ACCENT       = "#39805A";
+const DANGER       = "#AD4A40";
+const BG           = "#F3F5F2";
 const CARD_BG      = "#FFFFFF";
-const BORDER       = "#E2E8F0";
-const TEXT_MAIN    = "#1E293B";
-const TEXT_MUTED   = "#64748B";
-const TEXT_FAINT   = "#94A3B8";
+const BORDER       = "#DFE5DF";
+const TEXT_MAIN    = "#20332A";
+const TEXT_MUTED   = "#627166";
+const TEXT_FAINT   = "#7B897F";
 const CONTENT_MAX  = 1200;
 
-const FL_BG    = "#F8FAFC";
-const FL_DARK  = "#0F172A";
-const FL_GREEN = "#10B981";
-const FL_RED   = "#EF4444";
-const FL_BORD  = "#E2E8F0";
+const FL_BG    = "#F3F5F2";
+const FL_DARK  = "#244F3B";
+const FL_GREEN = "#39805A";
+const FL_RED   = "#AD4A40";
+const FL_BORD  = "#DFE5DF";
 
 // ── Categories ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -881,26 +885,26 @@ const styles = StyleSheet.create({
 
   mainTabBar:       { borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD_BG, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2 },
   tabBarInner:      { flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
-  mainTab:          { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  mainTab:          { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingVertical: 11, minHeight: 44, borderRadius: 8 },
   mainTabActive:    { backgroundColor: PRIMARY },
   mainTabText:      { fontSize: 14, fontWeight: "600", color: TEXT_MUTED },
   mainTabTextActive:{ color: "#fff" },
 
   header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 24 },
   greeting:  { fontSize: 11, fontWeight: "700", color: ACCENT, letterSpacing: 1 },
-  headerTitle:{ fontSize: 28, fontWeight: "800", color: PRIMARY, marginTop: 2 },
+  headerTitle:{ fontSize: 28, fontWeight: "700", color: PRIMARY, marginTop: 2 },
   headerSub: { fontSize: 13, color: TEXT_MUTED, marginTop: 4 },
-  refreshBtn:{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
+  refreshBtn:{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 4 },
 
   kpiGrid:      { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
-  kpiCard:      { backgroundColor: CARD_BG, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
+  kpiCard:      { backgroundColor: CARD_BG, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: BORDER, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8, elevation: 1 },
   kpiCardWeb:   { width: "23.5%" },
   kpiCardMobile:{ width: "48%", marginBottom: 4 },
 
   kpiTopRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   kpiIconBox:   { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   kpiLabel:     { fontSize: 12.5, color: TEXT_MUTED, fontWeight: "600", flex: 1, marginRight: 4 },
-  kpiValue:     { fontSize: 24, fontWeight: "800", color: PRIMARY, letterSpacing: -0.5 },
+  kpiValue:     { fontSize: 24, fontWeight: "700", color: PRIMARY, letterSpacing: -0.5 },
 
   trendRow:  { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
   trendText: { fontSize: 11.5, fontWeight: "700" },
@@ -917,7 +921,7 @@ const styles = StyleSheet.create({
   periodTabTextActive: { color: "#fff" },
 
   splitWorkspace: { flexDirection: "row", gap: 24, marginTop: 12 },
-  chartSection:   { backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER, alignItems: "center", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1 },
+  chartSection:   { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: BORDER, alignItems: "center", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 10, elevation: 1 },
   chartWrapper:   { paddingRight: 8 },
   chartEmpty:    { position: "absolute", top: 90, alignItems: "center", gap: 6 },
   chartEmptyText:{ fontSize: 13, color: TEXT_FAINT },
@@ -930,9 +934,9 @@ const styles = StyleSheet.create({
   chartInfoCard:  { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingVertical: 10, paddingHorizontal: 14, marginTop: 10, width: "100%" },
   chartInfoDate:  { fontSize: 13, fontWeight: "700", color: PRIMARY },
   chartInfoSub:   { fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
-  chartInfoValue: { fontSize: 16, fontWeight: "800", color: ACCENT },
+  chartInfoValue: { fontSize: 16, fontWeight: "700", color: ACCENT },
 
-  premiumCard:{ backgroundColor: "#fff", borderRadius: 16, padding: 20, borderWidth: 1, borderColor: BORDER, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1 },
+  premiumCard:{ backgroundColor: "#fff", borderRadius: 12, padding: 20, borderWidth: 1, borderColor: BORDER, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 10, elevation: 1 },
 
   itemRow:      { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 },
   itemRank:     { fontSize: 13, fontWeight: "600", color: TEXT_MUTED, width: 16 },
@@ -977,6 +981,10 @@ function ExpensesTab() {
   const [ledgerTab,     setLedgerTab]     = useState("Expenses");
   const [exporting,     setExporting]     = useState(false);
   const [vendorSearch,  setVendorSearch]  = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
+  const { business } = useAuth();
+  const businessName = business?.business_name || business?.businessName || "Servon";
 
   const { language } = useLocale();
   const { width: screenWidth } = useWindowDimensions();
@@ -1008,21 +1016,14 @@ function ExpensesTab() {
   };
 
   const handleDelete = (exp) => {
-    const msg = `Delete "${exp.category}" — ${fmt(exp.amount)}?`;
-    if (Platform.OS === "web") {
-      if (window.confirm(msg)) confirmDelete(exp.id);
-    } else {
-      Alert.alert(localizeText("Delete Expense", language), msg, [
-        { text: localizeText("Cancel", language), style: "cancel" },
-        { text: localizeText("Delete", language), style: "destructive", onPress: () => confirmDelete(exp.id) },
-      ]);
-    }
+    setDeleteError("");
+    setDeleteTarget(exp);
   };
 
   const confirmDelete = async (id) => {
     setDeleting(id);
-    try { await deleteExpense(id); load(); }
-    catch { Alert.alert(localizeText("Error", language), localizeText("Could not delete expense. Try again.", language)); }
+    try { await deleteExpense(id); setDeleteTarget(null); load(); }
+    catch { setDeleteError(localizeText("Could not delete expense. Try again.", language)); }
     finally { setDeleting(null); }
   };
 
@@ -1039,11 +1040,7 @@ function ExpensesTab() {
     try {
       const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
 
-      const hotelDisplayName = (
-        typeof businessName !== "undefined" ? businessName :
-        typeof user !== "undefined" ? user?.business_name :
-        "HOTEL ANALYTICS"
-      ).toUpperCase();
+      const hotelDisplayName = businessName;
 
       const todayIST = new Date().toLocaleString("en-IN", {
         timeZone: "Asia/Kolkata",
@@ -1141,11 +1138,7 @@ function ExpensesTab() {
     try {
       const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
 
-      const hotelDisplayName = (
-        typeof businessName !== "undefined" ? businessName :
-        typeof user !== "undefined" ? user?.business_name :
-        "HOTEL ANALYTICS"
-      ).toUpperCase();
+      const hotelDisplayName = businessName;
 
       const todayIST = new Date().toLocaleString("en-IN", {
         timeZone: "Asia/Kolkata",
@@ -1163,6 +1156,28 @@ function ExpensesTab() {
       const parsedExpenses = parseFloat(grandTotal || 0);
       const netProfit = parsedSales - parsedExpenses;
 
+      const mobileBrowser = IS_WEB && typeof navigator !== "undefined" && (
+        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ||
+        navigator.userAgentData?.mobile
+      );
+      if (mobileBrowser) {
+        const response = await API.post("/expenses/report/pdf", {
+          expenses, totalSales: parsedSales, grandTotal: parsedExpenses, period,
+        }, { responseType: "blob" });
+        const blob = new Blob([response.data], { type: "application/pdf" });
+        const href = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = `expenses-${period}-${new Date().toISOString().split("T")[0]}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 60000);
+        return;
+      }
+
+
       const catTotals = {};
       expenses.forEach((e) => {
         catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount || 0);
@@ -1174,7 +1189,7 @@ function ExpensesTab() {
           const pct = parsedExpenses ? ((amt / parsedExpenses) * 100).toFixed(1) : "0.0";
           return `
             <tr>
-              <td style="font-weight:600;color:#111827">${cat}</td>
+              <td style="font-weight:600;color:#111827">${escapeReportText(cat)}</td>
               <td style="text-align:right;font-weight:700;color:#111827">${fmtCurr(amt)}</td>
               <td style="text-align:right;color:#6B7280">${pct}%</td>
             </tr>`;
@@ -1185,18 +1200,18 @@ function ExpensesTab() {
         .map((e, i) => {
           const dateStr = e.expense_date ? e.expense_date.split("T")[0] : "—";
           const rowBg = i % 2 === 0 ? "#FFFFFF" : "#FAFAFA";
-          const supplierInfo = e.supplier ? `<span style="color:#6B7280;font-weight:500;font-size:11px;display:block">${e.supplier}</span>` : '';
-          const statusInfo = e.payment_status ? `<span style="font-size:10px;color:${e.payment_status === 'paid' ? '#10B981' : e.payment_status === 'partially_paid' ? '#F59E0B' : '#EF4444'};font-weight:600;display:block">${e.payment_status.replace('_', ' ').toUpperCase()}</span>` : '';
+          const supplierInfo = e.supplier ? `<span style="color:#6B7280;font-weight:500;font-size:11px;display:block">${escapeReportText(e.supplier)}</span>` : '';
+          const statusInfo = e.payment_status ? `<span style="font-size:10px;color:${e.payment_status === 'paid' ? '#365E40' : e.payment_status === 'partially_paid' ? '#825A1E' : '#943F32'};font-weight:600;display:block">${e.payment_status.replace('_', ' ').toUpperCase()}</span>` : '';
           return `
             <tr style="background:${rowBg}">
               <td style="color:#374151;white-space:nowrap">${dateStr}</td>
-              <td style="font-weight:600;color:#111827">${e.category || "General"}${e.sub_category ? `<br/><span style="font-size:10px;color:#6B7280">${e.sub_category}</span>` : ''}</td>
-              <td style="color:#4B5563">${e.description || "—"}${supplierInfo}</td>
-              <td style="text-align:right;font-weight:700;color:#EF4444">
+              <td style="font-weight:600;color:#111827">${escapeReportText(e.category || "General")}${e.sub_category ? `<br/><span style="font-size:10px;color:#6B7280">${escapeReportText(e.sub_category)}</span>` : ''}</td>
+              <td style="color:#4B5563">${escapeReportText(e.description || "—")}${supplierInfo}</td>
+              <td style="text-align:right;font-weight:700;color:#943F32">
                 ${fmtCurr(e.amount)}
                 ${statusInfo}
                 ${e.amount_paid ? `<span style="font-size:9px;color:#6B7280;display:block">Paid: ${fmtCurr(e.amount_paid)}</span>` : ''}
-                ${e.amount_paid && (e.amount - e.amount_paid) > 0 ? `<span style="font-size:9px;color:#EF4444;display:block">Remaining: ${fmtCurr(e.amount - e.amount_paid)}</span>` : ''}
+                ${e.amount_paid && (e.amount - e.amount_paid) > 0 ? `<span style="font-size:9px;color:#943F32;display:block">Remaining: ${fmtCurr(e.amount - e.amount_paid)}</span>` : ''}
               </td>
             </tr>`;
         })
@@ -1206,32 +1221,30 @@ function ExpensesTab() {
 <html>
 <head>
   <meta charset="utf-8"/>
+  <title>${escapeReportText(hotelDisplayName)} Report</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 36px; color: #111827; background: #FFF; }
-    @media print {
-      body { padding: 20px; }
-      .no-print { display: none !important; }
-    }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 2px solid #1E3A5F; margin-bottom: 24px; }
-    .hotel-name { font-size: 22px; font-weight: 900; color: #1E3A5F; letter-spacing: 0.5px; text-transform: uppercase; }
-    .report-title { font-size: 13px; font-weight: 700; color: #6B7280; margin-top: 4px; letter-spacing: 1px; }
-    .badge { display: inline-block; background: #1E3A5F; color: #FFFFFF; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px; }
-    .gen-date { font-size: 11px; color: #9CA3AF; margin-top: 6px; text-align: right; }
-    .summary { display: flex; gap: 16px; margin-bottom: 28px; }
-    .card { flex: 1; border-radius: 8px; padding: 14px 16px; border: 1px solid #E5E7EB; background: #F9FAFB; }
-    .card-label { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
-    .card-value { font-size: 20px; font-weight: 900; }
-    .card-green { background: #F0FDF4; border-color: #BBF7D0; } .card-green .card-label, .card-green .card-value { color: #059669; }
-    .card-red { background: #FEF2F2; border-color: #FECACA; } .card-red .card-label, .card-red .card-value { color: #EF4444; }
-    .card-blue { background: #EFF6FF; border-color: #BFDBFE; }
-    .section-title { font-size: 12px; font-weight: 800; color: #1E3A5F; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px; margin-top: 24px; border-left: 3px solid #059669; padding-left: 8px; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
-    th { background: #F7F7F6; color: #1E3A5F; padding: 10px 12px; text-align: left; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; border-top: 1px solid #D1D5DB; border-bottom: 1px solid #D1D5DB; text-transform: uppercase; }
-    td { padding: 9px 12px; border-bottom: 1px solid #E5E7EB; }
-    .total-row td { font-weight: 900; background: #F7F7F6; color: #1E3A5F; border-top: 1.5px solid #1E3A5F; border-bottom: 1.5px solid #1E3A5F; font-size: 12px; }
-    .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #E5E7EB; font-size: 10px; color: #9CA3AF; display: flex; justify-content: space-between; }
-    .print-hint { text-align: center; padding: 12px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; font-size: 12px; color: #059669; font-weight: 700; margin-bottom: 20px; }
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 28px; color: #20332A; background: #fff; font-size: 12px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 20px; border-bottom: 1px solid #CED8CD; margin-bottom: 22px; }
+    .hotel-name { font-size: 23px; font-weight: 700; line-height: 1.25; }
+    .report-title { font-size: 12px; color: #627166; margin-top: 7px; }
+    .badge { display: inline-block; color: #36543F; border: 1px solid #DDE4DC; font-size: 11px; padding: 6px 10px; border-radius: 4px; }
+    .gen-date { font-size: 10px; color: #627166; margin-top: 8px; }
+    .summary { display: flex; gap: 14px; margin-bottom: 26px; }
+    .card { flex: 1; padding: 14px; border: 1px solid #DDE4DC; border-radius: 5px; background: #fff; }
+    .card-label { font-size: 10px; color: #627166; margin-bottom: 9px; }
+    .card-value { font-size: 19px; font-weight: 700; color: #20332A; }
+    .section-title { font-size: 14px; font-weight: 700; margin: 24px 0 10px; break-after: avoid; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 14px; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+    th { background: #F0F4ED; color: #36543F; padding: 10px; text-align: left; font-size: 10px; font-weight: 700; border-bottom: 1px solid #CED8CD; }
+    td { padding: 10px; line-height: 1.5; border-bottom: 1px solid #E5EBE2; vertical-align: top; }
+    .total-row td { font-weight: 700; background: #F8FAF5; border-top: 1px solid #ABBFAA; }
+    .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #DDE4DC; font-size: 9px; color: #627166; display: flex; justify-content: space-between; gap: 16px; }
+    .print-hint { text-align: center; padding: 12px; background: #F0F4ED; font-size: 12px; color: #42604E; margin-bottom: 20px; }
+    @media print { body { padding: 0; } .no-print { display: none !important; } }
   </style>
 </head>
 <body>
@@ -1240,7 +1253,7 @@ function ExpensesTab() {
 
   <div class="header">
     <div>
-      <div class="hotel-name">${hotelDisplayName}</div>
+      <div class="hotel-name">${escapeReportText(hotelDisplayName)} Report</div>
       <div class="report-title">EXPENSE & FINANCIAL REPORT</div>
     </div>
     <div style="text-align:right">
@@ -1260,7 +1273,7 @@ function ExpensesTab() {
     </div>
     <div class="card card-blue">
       <div class="card-label">Net Operating Profit</div>
-      <div class="card-value" style="color: ${netProfit >= 0 ? "#059669" : "#EF4444"}">
+      <div class="card-value" style="color: ${netProfit >= 0 ? "#365E40" : "#943F32"}">
         ${netProfit >= 0 ? "" : "-"}${fmtCurr(Math.abs(netProfit))}
       </div>
     </div>
@@ -1279,7 +1292,7 @@ function ExpensesTab() {
       ${catRows}
       <tr class="total-row">
         <td>TOTAL EXPENSES</td>
-        <td style="text-align:right;color:#EF4444">${fmtCurr(parsedExpenses)}</td>
+        <td style="text-align:right;color:#943F32">${fmtCurr(parsedExpenses)}</td>
         <td style="text-align:right">100.0%</td>
       </tr>
     </tbody>
@@ -1299,13 +1312,13 @@ function ExpensesTab() {
       ${expRows}
       <tr class="total-row">
         <td colspan="3">TOTAL EXPENSES (${expenses.length} records)</td>
-        <td style="text-align:right;color:#EF4444">${fmtCurr(parsedExpenses)}</td>
+        <td style="text-align:right;color:#943F32">${fmtCurr(parsedExpenses)}</td>
       </tr>
     </tbody>
   </table>
 
   <div class="footer">
-    <div>© ${new Date().getFullYear()} ${hotelDisplayName} • Confidential Financial Report</div>
+    <div>© ${new Date().getFullYear()} ${escapeReportText(hotelDisplayName)} • Confidential Financial Report</div>
     <div>Generated: ${todayIST}</div>
   </div>
 
@@ -1338,7 +1351,14 @@ function ExpensesTab() {
         }
       } else {
         const { uri } = await Print.printToFileAsync({ html, base64: false });
-        await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Export Expenses PDF" });
+        const filename = `expenses-${period}-${Date.now()}.pdf`;
+        const downloadUri = FileSystem.cacheDirectory + filename;
+        await FileSystem.moveAsync({ from: uri, to: downloadUri });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(downloadUri, { mimeType: "application/pdf", UTI: "com.adobe.pdf", dialogTitle: "Export Expenses PDF" });
+        } else {
+          throw new Error("File sharing is unavailable on this device");
+        }
       }
     } catch (err) {
       console.error("PDF error:", err);
@@ -1373,19 +1393,19 @@ function ExpensesTab() {
     <View style={[FL.container, { paddingHorizontal: H_PAD }]}>
       <View style={[isDesktop ? FL.desktopSplitLayout : { flexDirection: "column", flex: 1 }]}>
         
-        <View style={[isDesktop ? { width: 360, marginRight: 24 } : { width: "100%" }]}>
+        <View style={[isDesktop ? { width: 310, marginRight: 24 } : { width: "100%", marginBottom: 16 }]}>
           <View style={FL.totalsBanner}>
             <LocalizedText translate style={FL.panelHeaderTitle}>Financial Summary</LocalizedText>
             
             <View style={FL.totalsRow}>
               <View style={[FL.totalsIcon, { backgroundColor: "#ECFDF5" }]}><Ionicons name="trending-up" size={14} color={FL_GREEN} /></View>
-              <LocalizedText translate style={FL.totalsLabel}>TOTAL REVENUE</LocalizedText>
+              <LocalizedText translate style={FL.totalsLabel}>Revenue</LocalizedText>
               <LocalizedText style={[FL.totalsValue, { color: FL_GREEN }]}>{fmt(totalSales)}</LocalizedText>
             </View>
             
             <View style={FL.totalsRow}>
               <View style={[FL.totalsIcon, { backgroundColor: "#FEF2F2" }]}><Ionicons name="trending-down" size={14} color={FL_RED} /></View>
-              <LocalizedText translate style={FL.totalsLabel}>ACCUMULATED EXPENSES</LocalizedText>
+              <LocalizedText translate style={FL.totalsLabel}>Expenses</LocalizedText>
               <LocalizedText style={[FL.totalsValue, { color: FL_RED }]}>{fmt(grandTotal)}</LocalizedText>
             </View>
             
@@ -1393,13 +1413,13 @@ function ExpensesTab() {
               <View style={[FL.totalsIcon, { backgroundColor: netProfit >= 0 ? "#ECFDF5" : "#FEF2F2" }]}>
                 <Ionicons name={netProfit >= 0 ? "checkmark-circle" : "alert-circle"} size={14} color={netProfit >= 0 ? FL_GREEN : FL_RED} />
               </View>
-              <LocalizedText translate style={FL.totalsLabel}>NET OPERATION PROFIT</LocalizedText>
+              <LocalizedText translate style={FL.totalsLabel}>Net Profit</LocalizedText>
               <LocalizedText style={[FL.totalsValue, { color: netProfit >= 0 ? FL_GREEN : FL_RED }]}>{netProfit >= 0 ? "" : "-"}{fmt(Math.abs(netProfit))}</LocalizedText>
             </View>
           </View>
 
           <View style={FL.controlContainerCard}>
-            <LocalizedText translate style={FL.panelHeaderTitle}>Filter Horizon</LocalizedText>
+            <LocalizedText translate style={FL.panelHeaderTitle}>Filters</LocalizedText>
             <View style={FL.tabRow}>
               {["Sales", "Expenses"].map((t) => (
                 <TouchableOpacity key={t} style={[FL.tabBtn, ledgerTab === t && FL.tabBtnActive]} onPress={() => setLedgerTab(t)}>
@@ -1570,7 +1590,7 @@ function ExpensesTab() {
 
       <TouchableOpacity style={FL.fab} onPress={handleAddNew} activeOpacity={0.85}>
         <Ionicons name="add" size={20} color="#fff" />
-        <LocalizedText translate style={FL.fabText}>LOG EXPENSE</LocalizedText>
+        <LocalizedText translate style={FL.fabText}>Log Expense</LocalizedText>
       </TouchableOpacity>
 
       <ExpenseModal
@@ -1579,6 +1599,22 @@ function ExpensesTab() {
         onClose={() => { setShowModal(false); setEditingExp(null); }}
         onSaved={() => { setShowModal(false); setEditingExp(null); load(); }}
       />
+      <Modal visible={!!deleteTarget} transparent animationType="fade" onRequestClose={() => { if (!deleting) setDeleteTarget(null); }}>
+        <View style={MD.deleteOverlay}>
+          <View style={MD.deleteDialog}>
+            <View style={MD.deleteIcon}><Ionicons name="trash-outline" size={25} color={FL_RED} /></View>
+            <LocalizedText style={MD.deleteTitle}>Delete Expense</LocalizedText>
+            <LocalizedText translate={false} style={MD.deleteDetail}>{deleteTarget ? `${localizeText(deleteTarget.category, language)} · ${fmt(deleteTarget.amount)}` : ""}</LocalizedText>
+            {!!deleteError && <LocalizedText translate={false} style={MD.deleteError}>{deleteError}</LocalizedText>}
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 22 }}>
+              <TouchableOpacity style={MD.cancelBtn} disabled={!!deleting} onPress={() => setDeleteTarget(null)}><LocalizedText style={MD.cancelText}>Cancel</LocalizedText></TouchableOpacity>
+              <TouchableOpacity style={[MD.confirmBtn, { backgroundColor: FL_RED }]} disabled={!!deleting} onPress={() => confirmDelete(deleteTarget.id)}>
+                {deleting ? <ActivityIndicator color="#fff" /> : <LocalizedText style={MD.confirmText}>Delete</LocalizedText>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1827,17 +1863,18 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
     <>
       <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
         <View style={MD.overlay}>
-          <View style={[MD.sheet, IS_WEB && { maxWidth: 460, alignSelf: "center", width: "100%", marginBottom: "4vh", borderRadius: 16 }]}>
+          <View style={[MD.sheet, IS_WEB && { maxWidth: 600, alignSelf: "center", width: "100%", borderRadius: 14 }]}>
 
-            <View style={[MD.titleBar, IS_WEB && { borderTopLeftRadius: 16, borderTopRightRadius: 16 }]}>
-              <Ionicons name={isEdit ? "pencil" : "add-circle"} size={18} color="#fff" />
-              <LocalizedText style={MD.titleText}>{isEdit ? "EDIT EXPENSE LOG" : "LOG SYSTEM EXPENSE"}</LocalizedText>
+            <View style={MD.titleBar}>
+              <View style={MD.titleIcon}><Ionicons name={isEdit ? "pencil-outline" : "receipt-outline"} size={21} color={FL_DARK} /></View>
+              <LocalizedText style={MD.titleText}>{isEdit ? "Edit Expense" : "Log Expense"}</LocalizedText>
+              <TouchableOpacity accessibilityLabel={localizeText("Close", language)} style={MD.closeBtn} onPress={handleClose}><Ionicons name="close" size={21} color={FL_DARK} /></TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ paddingHorizontal: 20 }}>
+            <ScrollView showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }} contentContainerStyle={MD.formContent}>
 
-              <View style={{ marginTop: 20 }}>
-                <LocalizedText translate style={MD.fieldLabel}>EXPENSE CATEGORY</LocalizedText>
+              <View>
+                <LocalizedText translate style={MD.fieldLabel}>Category</LocalizedText>
                 <TouchableOpacity style={MD.dropdown} onPress={() => setDropOpen(!dropOpen)} activeOpacity={0.8}>
                   <View style={[MD.dropIconBox, { backgroundColor: selectedCat.bg }]}>
                     <Ionicons name={selectedCat.icon} size={16} color={selectedCat.color} />
@@ -1891,8 +1928,9 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                 </View>
               )}
 
-              <View style={{ marginTop: 20 }}>
-                <LocalizedText translate style={MD.fieldLabel}>TOTAL AMOUNT (INR)</LocalizedText>
+              <View style={MD.formRow}>
+              <View style={MD.amountField}>
+                <LocalizedText translate style={MD.fieldLabel}>Amount (INR)</LocalizedText>
                 <TextInput
                   style={MD.amountInput}
                   value={amount}
@@ -1901,11 +1939,10 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                   placeholder="0.00"
                   placeholderTextColor="#94A3B8"
                 />
-                <View style={MD.underline} />
               </View>
 
-              <View style={{ marginTop: 16 }}>
-                <LocalizedText translate style={MD.fieldLabel}>AMOUNT PAID (INR)</LocalizedText>
+              <View style={MD.amountField}>
+                <LocalizedText translate style={MD.fieldLabel}>Paid (INR)</LocalizedText>
                 <TextInput
                   style={MD.amountInput}
                   value={amountPaid}
@@ -1914,12 +1951,12 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                   placeholder="0.00"
                   placeholderTextColor="#94A3B8"
                 />
-                <View style={MD.underline} />
+              </View>
               </View>
 
               {amount && parseFloat(amount) > 0 && (
                 <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <LocalizedText translate style={MD.fieldLabel}>PAYMENT STATUS</LocalizedText>
+                  <LocalizedText translate style={MD.fieldLabel}>Payment Status</LocalizedText>
                   <View style={{ 
                     backgroundColor: getPaymentStatusBg(paymentStatus),
                     paddingHorizontal: 12,
@@ -1945,8 +1982,9 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                 </View>
               )}
 
-              <View style={{ marginTop: 16 }}>
-                <LocalizedText translate style={MD.fieldLabel}>SUPPLIER / VENDOR</LocalizedText>
+              <View style={MD.formRow}>
+              <View style={MD.detailField}>
+                <LocalizedText translate style={MD.fieldLabel}>Supplier / Vendor</LocalizedText>
                 <TextInput
                   style={MD.input}
                   value={supplier}
@@ -1970,8 +2008,8 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                 )}
               </View>
 
-              <View style={{ marginTop: 12 }}>
-                <LocalizedText translate style={MD.fieldLabel}>INVOICE NUMBER (OPTIONAL)</LocalizedText>
+              <View style={MD.detailField}>
+                <LocalizedText translate style={MD.fieldLabel}>Invoice number (optional)</LocalizedText>
                 <TextInput
                   style={MD.input}
                   value={invoiceNumber}
@@ -1980,24 +2018,25 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                   placeholderTextColor="#94A3B8"
                 />
               </View>
+              </View>
 
               <View style={{ marginTop: 16 }}>
-                <LocalizedText translate style={MD.fieldLabel}>TRANSACTION MEMO / NOTE</LocalizedText>
+                <LocalizedText translate style={MD.fieldLabel}>Note</LocalizedText>
                 <TextInput
                   style={MD.noteInput}
                   value={note}
                   onChangeText={setNote}
-                  placeholder={localizeText("Provide transaction contexts...", language)}
+                  placeholder={localizeText("Add a note...", language)}
                   placeholderTextColor="#94A3B8"
                   multiline
                 />
-                <View style={MD.underline} />
               </View>
 
+              <View style={MD.formRow}>
               <View style={MD.dateRow}>
                 <View style={MD.dateIconBox}><Ionicons name="calendar" size={16} color={FL_DARK} /></View>
                 <View style={{ flex: 1 }}>
-                  <LocalizedText translate style={MD.datePre}>EXPENSE DATE</LocalizedText>
+                  <LocalizedText translate style={MD.datePre}>Expense date</LocalizedText>
                   <TextInput
                     style={MD.dateInput}
                     value={date}
@@ -2010,10 +2049,10 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                 <LocalizedText style={MD.dateLabelSmall}>{dateLabel}</LocalizedText>
               </View>
 
-              <View style={[MD.dateRow, { borderTopWidth: 0 }]}>
+              <View style={MD.dateRow}>
                 <View style={MD.dateIconBox}><Ionicons name="calendar-outline" size={16} color={FL_DARK} /></View>
                 <View style={{ flex: 1 }}>
-                  <LocalizedText translate style={MD.datePre}>PURCHASE DATE (OPTIONAL)</LocalizedText>
+                  <LocalizedText translate style={MD.datePre}>Purchase date (optional)</LocalizedText>
                   <TextInput
                     style={MD.dateInput}
                     value={purchaseDate}
@@ -2024,9 +2063,10 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                   />
                 </View>
               </View>
+              </View>
 
-              <View style={{ marginBottom: 24 }}>
-                <LocalizedText translate style={MD.fieldLabel}>SUPPORTING INVOICE SLIP (OPTIONAL)</LocalizedText>
+              <View style={{ marginTop: 16 }}>
+                <LocalizedText translate style={MD.fieldLabel}>Receipt (optional)</LocalizedText>
                 {thumbUri ? (
                   <View style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
                     <Image source={{ uri: thumbUri }} style={{ width: "100%", height: 140 }} resizeMode="cover" />
@@ -2044,29 +2084,27 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
                   </View>
                 ) : (
                   <TouchableOpacity style={MD.receiptBtn} onPress={pickReceipt} activeOpacity={0.8}>
-                    <View style={MD.receiptIconBox}><Ionicons name="camera" size={18} color="#fff" /></View>
+                    <View style={MD.receiptIconBox}><Ionicons name="attach-outline" size={21} color={FL_DARK} /></View>
                     <View style={{ flex: 1 }}>
-                      <LocalizedText translate style={MD.receiptTitle}>ATTACH INVOICE RECEIPT</LocalizedText>
-                      <LocalizedText translate style={MD.receiptSub}>Click to deploy visual validation file</LocalizedText>
+                      <LocalizedText translate style={MD.receiptTitle}>Attach receipt</LocalizedText>
                     </View>
                   </TouchableOpacity>
                 )}
               </View>
 
+            </ScrollView>
               <View style={MD.actionRow}>
                 <TouchableOpacity style={MD.cancelBtn} onPress={handleClose}>
-                  <LocalizedText translate style={MD.cancelText}>Dismiss</LocalizedText>
+                  <LocalizedText translate style={MD.cancelText}>Cancel</LocalizedText>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[MD.confirmBtn, (!amount || saving) && { opacity: 0.5 }]}
                   onPress={handleSave}
                   disabled={!amount || saving}
                 >
-                  {saving ? <ActivityIndicator color="#fff" /> : <LocalizedText style={MD.confirmText}>{isEdit ? "Update" : "Confirm Entry"}</LocalizedText>}
+                  {saving ? <ActivityIndicator color="#fff" /> : <LocalizedText style={MD.confirmText}>{isEdit ? "Update" : "Save Expense"}</LocalizedText>}
                 </TouchableOpacity>
               </View>
-              <View style={{ height: 20 }} />
-            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2085,26 +2123,26 @@ function ExpenseModal({ visible, expense, onClose, onSaved }) {
 
 // ─── FL / MD STYLES ──────────────────────────────────────────────────────────
 const FL = StyleSheet.create({
-  container:    { flex: 1, paddingTop: 16 },
-  desktopSplitLayout: { flexDirection: "row", alignItems: "flex-start", flex: 1 },
+  container:    { flex: 1, paddingTop: 22, maxWidth: 1400, alignSelf: "center", width: "100%" },
+  desktopSplitLayout: { flexDirection: "row", alignItems: "stretch", flex: 1 },
   listStreamContainer: { flex: 1, width: "100%" },
   panelHeaderTitle: { fontSize: 14, fontWeight: "700", color: PRIMARY, marginBottom: 14 },
-  totalsBanner: { backgroundColor: "#fff", padding: 18, borderRadius: 16, borderWidth: 1, borderColor: FL_BORD, marginBottom: 20, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
+  totalsBanner: { backgroundColor: "#fff", padding: 18, borderRadius: 12, borderWidth: 1, borderColor: FL_BORD, marginBottom: 20, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8, elevation: 1 },
   totalsRow:    { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   totalsIcon:   { width: 22, height: 22, borderRadius: 6, alignItems: "center", justifyContent: "center", marginRight: 10 },
   totalsLabel:  { flex: 1, fontSize: 12, fontWeight: "600", color: TEXT_MUTED },
   totalsValue:  { fontSize: 15, fontWeight: "700" },
   netProfitContainer: { flexDirection: "row", alignItems: "center", marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: FL_BORD },
 
-  controlContainerCard: { backgroundColor: "#fff", padding: 18, borderRadius: 16, borderWidth: 1, borderColor: FL_BORD, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
+  controlContainerCard: { backgroundColor: "#fff", padding: 18, borderRadius: 12, borderWidth: 1, borderColor: FL_BORD, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8, elevation: 1 },
   tabRow:       { flexDirection: "row", backgroundColor: "#F1F5F9", padding: 4, borderRadius: 10, marginBottom: 12 },
-  tabBtn:       { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 6 },
+  tabBtn:       { flex: 1, minHeight: 44, justifyContent: "center", paddingVertical: 10, alignItems: "center", borderRadius: 7 },
   tabBtnActive: { backgroundColor: "#fff" },
   tabBtnText:   { fontSize: 13, fontWeight: "600", color: TEXT_MUTED },
   tabBtnTextActive:{ color: FL_DARK, fontWeight: "700" },
 
   periodRow:           { flexDirection: "row", gap: 6 },
-  periodChip:          { flex: 1, paddingVertical: 6, alignItems: "center", borderRadius: 8, backgroundColor: "#fff", borderWidth: 1, borderColor: FL_BORD },
+  periodChip:          { flex: 1, minHeight: 42, justifyContent: "center", paddingVertical: 10, alignItems: "center", borderRadius: 7, backgroundColor: "#fff", borderWidth: 1, borderColor: FL_BORD },
   periodChipActive:    { backgroundColor: FL_DARK, borderColor: FL_DARK },
   periodChipText:      { fontSize: 12, fontWeight: "600", color: TEXT_MUTED },
   periodChipTextActive:{ color: "#fff" },
@@ -2112,40 +2150,40 @@ const FL = StyleSheet.create({
   ledgerHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", borderBottomWidth: 1, borderBottomColor: BORDER, paddingBottom: 10, marginBottom: 12, marginTop: 4 },
   sectionTitleLabel: { fontSize: 15, fontWeight: "700", color: PRIMARY },
   expenseHeaderTools: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap", flex: 1, minWidth: 260 },
-  vendorSearchWrap: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 220, flexGrow: 1, maxWidth: 360, height: 36, borderWidth: 1, borderColor: FL_BORD, backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 10 },
+  vendorSearchWrap: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 160, flexGrow: 1, maxWidth: 360, height: 44, borderWidth: 1, borderColor: FL_BORD, backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 10 },
   vendorSearchInput: { flex: 1, minWidth: 0, color: FL_DARK, fontSize: 13, fontWeight: "600", paddingVertical: 0 },
   vendorSearchClear: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
   exportRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  exportBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  exportBtn:    { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, justifyContent: "center", paddingHorizontal: 13, paddingVertical: 10, borderRadius: 8 },
   exportBtnText:{ fontSize: 12, fontWeight: "600", color: "#fff" },
 
   expRow: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#fff", marginBottom: 8,
-    borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14,
+    borderRadius: 10, minHeight: 96, paddingVertical: 15, paddingHorizontal: 16,
     borderWidth: 1, borderColor: FL_BORD,
     shadowColor: "#0F172A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 4,
   },
-  dateBlock:  { width: 34, alignItems: "center", marginRight: 10 },
-  dateDay:    { fontSize: 18, fontWeight: "800", color: FL_DARK },
+  dateBlock:  { width: 42, alignItems: "center", marginRight: 10 },
+  dateDay:    { fontSize: 22, fontWeight: "700", color: FL_DARK },
   dateMon:    { fontSize: 10, fontWeight: "600", color: TEXT_MUTED },
-  catIconBox: { width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center", marginRight: 12, borderWidth: 1, borderColor: FL_BORD },
+  catIconBox: { width: 38, height: 38, borderRadius: 9, alignItems: "center", justifyContent: "center", marginRight: 12, borderWidth: 1, borderColor: FL_BORD },
   expCat:     { fontSize: 14, fontWeight: "700", color: FL_DARK },
   expDesc:    { fontSize: 12, color: TEXT_MUTED, marginTop: 1 },
-  expAmt:     { fontSize: 14, fontWeight: "700", color: FL_RED },
+  expAmt:     { fontSize: 17, fontWeight: "700", color: FL_RED },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 4 },
   statusDot:   { width: 6, height: 6, borderRadius: 3 },
   statusText:  { fontSize: 10, fontWeight: "600" },
   receiptBadge:    { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4, backgroundColor: "#EFF6FF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: "flex-start" },
   receiptBadgeText:{ fontSize: 9, color: "#3B82F6", fontWeight: "600" },
   rowActions: { flexDirection: "row", gap: 6, marginTop: 4 },
-  editBtn:    { width: 26, height: 26, borderRadius: 6, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
-  deleteBtn:  { width: 26, height: 26, borderRadius: 6, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
+  editBtn:    { width: 38, height: 38, borderRadius: 8, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
+  deleteBtn:  { width: 38, height: 38, borderRadius: 8, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
   fab: {
     position: "absolute", bottom: 20, right: 20,
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: FL_GREEN, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12,
-    shadowColor: "#059669", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4,
+    backgroundColor: FL_DARK, minHeight: 48, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 12,
+    shadowColor: "#059669", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 4,
     zIndex: 99,
   },
   fabText:     { color: "#fff", fontWeight: "700", fontSize: 13 },
@@ -2156,12 +2194,24 @@ const FL = StyleSheet.create({
 });
 
 const MD = StyleSheet.create({
-  overlay:{ flex: 1, backgroundColor: "rgba(15, 23, 42, 0.4)", justifyContent: "flex-end" },
-  sheet:  { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 20, maxHeight: "85%" },
-  titleBar:{ backgroundColor: FL_DARK, paddingVertical: 16, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
-  titleText:{ fontSize: 12, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
+  deleteOverlay: { flex: 1, backgroundColor: "rgba(25,42,32,0.4)", justifyContent: "center", alignItems: "center", padding: 24 },
+  deleteDialog: { width: "100%", maxWidth: 370, backgroundColor: "#fff", borderRadius: 14, padding: 24 },
+  deleteIcon: { width: 52, height: 52, borderRadius: 14, backgroundColor: "#FDF0ED", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  deleteTitle: { fontSize: 21, fontWeight: "700", color: TEXT_MAIN },
+  deleteDetail: { fontSize: 15, color: TEXT_MUTED, marginTop: 10, lineHeight: 22 },
+  deleteError: { fontSize: 13, color: FL_RED, marginTop: 12 },
+  overlay:{ flex: 1, backgroundColor: "rgba(25,42,32,0.42)", justifyContent: IS_WEB ? "center" : "flex-end", padding: IS_WEB ? 20 : 0 },
+  sheet:  { backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "90%", flexShrink: 1, overflow: "hidden", borderWidth: 1, borderColor: FL_BORD },
+  titleBar:{ backgroundColor: "#fff", paddingVertical: 16, paddingHorizontal: 22, alignItems: "center", flexDirection: "row", gap: 12, borderBottomWidth: 1, borderBottomColor: FL_BORD, flexShrink: 0 },
+  titleText:{ flex: 1, fontSize: 21, fontWeight: "700", color: TEXT_MAIN, letterSpacing: -.4 },
 
-  fieldLabel:  { fontSize: 11, fontWeight: "700", color: TEXT_MUTED, marginBottom: 6, letterSpacing: 0.3 },
+  titleIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#EDF3E9", alignItems: "center", justifyContent: "center" },
+  closeBtn: { width: 40, height: 40, borderRadius: 8, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center" },
+  formContent: { padding: 22 },
+  formRow: { flexDirection: "row", flexWrap: "wrap", gap: 14, marginTop: 16 },
+  amountField: { flex: 1, minWidth: 110 },
+  detailField: { flex: 1, minWidth: 220 },
+  fieldLabel:  { fontSize: 13, fontWeight: "600", color: "#46604E", marginBottom: 7 },
   dropdown:    { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: FL_BORD, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   dropIconBox: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", marginRight: 10 },
   dropText:    { flex: 1, fontSize: 14, fontWeight: "600", color: FL_DARK },
@@ -2171,16 +2221,16 @@ const MD = StyleSheet.create({
   dropItemText:{ fontSize: 14, fontWeight: "600", color: TEXT_MAIN },
   dropItemDesc:{ fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
 
-  amountInput:  { fontSize: 28, fontWeight: "700", color: FL_DARK, padding: 0 },
+  amountInput:  { minHeight: 54, fontSize: 24, fontWeight: "600", color: TEXT_MAIN, paddingHorizontal: 13, paddingVertical: 9, borderWidth: 1, borderColor: "#CEDDCB", borderRadius: 8, backgroundColor: "#F7FAF4" },
   underline:    { height: 1, backgroundColor: BORDER, marginTop: 4, marginBottom: 4 },
-  noteInput:    { fontSize: 14, fontWeight: "500", color: FL_DARK, padding: 0, minHeight: 32 },
-  input:        { fontSize: 14, fontWeight: "500", color: FL_DARK, paddingVertical: 8, paddingHorizontal: 0 },
+  noteInput:    { fontSize: 14, fontWeight: "400", color: TEXT_MAIN, padding: 12, minHeight: 72, textAlignVertical: "top", borderWidth: 1, borderColor: FL_BORD, borderRadius: 8, backgroundColor: "#FAFCF8" },
+  input:        { fontSize: 14, fontWeight: "400", color: TEXT_MAIN, minHeight: 46, paddingVertical: 11, paddingHorizontal: 12, borderWidth: 1, borderColor: FL_BORD, borderRadius: 8, backgroundColor: "#FAFCF8" },
 
-  dateRow:       { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14, marginBottom: 18, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  dateRow:       { flex: 1, minWidth: 230, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, padding: 12, borderWidth: 1, borderColor: FL_BORD, borderRadius: 8, backgroundColor: "#FAFCF8" },
   dateIconBox:   { width: 26, height: 26, borderRadius: 6, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  datePre:       { fontSize: 10, fontWeight: "600", color: TEXT_MUTED },
-  dateInput:     { fontSize: 14, fontWeight: "700", color: FL_DARK, padding: 0 },
-  dateLabelSmall:{ fontSize: 12, color: TEXT_MUTED, fontWeight: "500" },
+  datePre:       { fontSize: 12, fontWeight: "600", color: TEXT_MUTED },
+  dateInput:     { fontSize: 14, fontWeight: "500", color: TEXT_MAIN, minHeight: 28, padding: 0, marginTop: 4 },
+  dateLabelSmall:{ fontSize: 10, color: TEXT_MUTED, fontWeight: "500" },
 
   suggestionsList: { marginTop: 4, borderWidth: 1, borderColor: FL_BORD, borderRadius: 8, backgroundColor: "#fff", overflow: "hidden" },
   suggestionItem:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
@@ -2191,15 +2241,15 @@ const MD = StyleSheet.create({
   imgOverlayText:  { fontSize: 11, color: "#fff", fontWeight: "600" },
   imgRemoveBtn:    { position: "absolute", top: 6, right: 6, backgroundColor: "#fff", borderRadius: 12 },
 
-  receiptBtn:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: FL_DARK, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  receiptBtn:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F5F8F0", borderWidth: 1, borderColor: "#CEDDCB", borderStyle: "dashed", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12 },
   receiptIconBox:{ width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  receiptTitle:  { fontSize: 12, fontWeight: "700", color: "#fff" },
+  receiptTitle:  { fontSize: 14, fontWeight: "600", color: FL_DARK },
   receiptSub:    { fontSize: 11, color: TEXT_MUTED, marginTop: 1 },
 
-  actionRow:  { flexDirection: "row", gap: 10, marginTop: 10 },
-  cancelBtn:  { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1, borderColor: FL_BORD, alignItems: "center" },
+  actionRow:  { flexDirection: "row", gap: 10, paddingHorizontal: 22, paddingVertical: 16, borderTopWidth: 1, borderTopColor: FL_BORD, backgroundColor: "#FAFCF8", flexShrink: 0 },
+  cancelBtn:  { flex: 1, minHeight: 46, justifyContent: "center", paddingVertical: 13, borderRadius: 8, borderWidth: 1, borderColor: FL_BORD, alignItems: "center" },
   cancelText: { fontSize: 13, fontWeight: "600", color: TEXT_MUTED },
-  confirmBtn: { flex: 1.5, paddingVertical: 13, borderRadius: 10, backgroundColor: FL_DARK, alignItems: "center" },
+  confirmBtn: { flex: 1.5, minHeight: 46, justifyContent: "center", paddingVertical: 13, borderRadius: 8, backgroundColor: FL_DARK, alignItems: "center" },
   confirmText:{ fontSize: 13, fontWeight: "600", color: "#fff" },
 
   previewOverlay:{ flex: 1, backgroundColor: "rgba(15,23,42,0.95)", alignItems: "center", justifyContent: "center" },

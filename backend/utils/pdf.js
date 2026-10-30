@@ -51,7 +51,7 @@ function getHotelName(data) {
     data?.businessName ||
     data?.hotelName ||
     data?.restaurantName ||
-    "HOTEL ANALYTICS"
+    "Servon"
   );
 }
 
@@ -66,17 +66,14 @@ function drawHeaderBanner(doc, subtitle, startDate, endDate, hotelDisplayName) {
   doc.moveTo(0, HEADER_H).lineTo(PAGE_W, HEADER_H)
      .strokeColor(C.border).lineWidth(1).stroke();
 
-  doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(22).text(hotelDisplayName.toUpperCase(), MARGIN, 28);
+  doc.fillColor(C.ink).font("Helvetica-Bold").fontSize(20)
+     .text(`${hotelDisplayName} Report`, MARGIN, 24, { width: CONTENT_W, height: 28, ellipsis: true });
   doc.fillColor(C.muted).font("Helvetica-Bold").fontSize(9)
-     .text(subtitle, MARGIN, 70, { characterSpacing: 2 });
+     .text(subtitle, MARGIN, 60, { width: CONTENT_W, characterSpacing: 0.5 });
 
   if (startDate && endDate) {
-    const bx = PAGE_W - MARGIN - 168;
-    doc.roundedRect(bx, 22, 168, 36, 6).lineWidth(1).stroke(C.border);
-    doc.fillColor(C.muted).font("Helvetica-Bold").fontSize(7)
-       .text("DATE RANGE", bx + 12, 30, { characterSpacing: 1 });
-    doc.fillColor(C.navy).font("Helvetica-Bold").fontSize(9)
-       .text(`${startDate}  ->  ${endDate}`, bx + 12, 42);
+    doc.fillColor(C.muted).font("Helvetica").fontSize(9)
+       .text(`${startDate}  to  ${endDate}`, MARGIN, 80, { width: 230 });
   }
 
   // Explicitly forced to Indian Standard Time (IST)
@@ -87,7 +84,7 @@ function drawHeaderBanner(doc, subtitle, startDate, endDate, hotelDisplayName) {
   })} IST`;
 
   doc.fillColor(C.faint).font("Helvetica").fontSize(8)
-     .text(genLabel, 0, 90, { align: "right", width: PAGE_W - MARGIN });
+     .text(genLabel, MARGIN + 230, 80, { align: "right", width: CONTENT_W - 230 });
 }
 
 function drawFooter(doc, pageNum, totalPages, hotelDisplayName) {

@@ -49,6 +49,7 @@ import {
 } from "../api";
 import API from "../api";
 import SubscriptionBanner from "../components/SubscriptionBanner";
+import { dashboardWebCss } from "./DashboardTheme";
 import ServonAssistantModal from "../components/ServonAssistantModal";
 import { localizedItemName } from "../utils/localizedItemName";
 import localDB from "../services/LocalDB";
@@ -138,61 +139,9 @@ if (isWeb && typeof document !== "undefined") {
       document.head.appendChild(style);
     }
     style.textContent = `
-      * { box-sizing: border-box; }
-      body { font-family: 'DM Sans', sans-serif !important; background: #F5F3EF !important; }
-      
-      .servon-stat-card {
-        background: #fff; border: 1px solid #EAE6E0; border-radius: 16px;
-        padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
-        transition: box-shadow 0.18s ease, transform 0.18s ease;
-        position: relative; overflow: hidden;
-      }
-      .servon-stat-card::before {
-        content: ''; position: absolute; top: 0; left: 0; right: 0;
-        height: 3px; border-radius: 16px 16px 0 0;
-        opacity: 0; transition: opacity 0.18s ease;
-      }
-      .servon-stat-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.08); transform: translateY(-2px); }
-      .servon-stat-card:hover::before { opacity: 1; }
-      .servon-stat-card.accent-blue::before { background: #3B82F6; }
-      .servon-stat-card.accent-green::before { background: #10B981; }
-      .servon-stat-card.accent-amber::before { background: #F59E0B; }
-      .servon-stat-card.accent-red::before { background: #EF4444; }
-      
-      .servon-stat-icon {
-        width: 42px; height: 42px; border-radius: 12px;
-        display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0;
-      }
-      .servon-stat-value {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 28px; font-weight: 700; color: #111827;
-        line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      }
-      .servon-stat-label {
-        font-size: 12px; font-weight: 500; color: #9CA3AF;
-        letter-spacing: 0.04em; text-transform: uppercase; margin-top: 4px;
-      }
-      
-      .servon-stats-grid {
-        display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 14px; padding: 0 24px; margin-bottom: 28px;
-      }
-      @media (max-width: 500px) { .servon-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 16px; } }
-      
-      .servon-order-card {
-        background: #fff; border: 1px solid #EAE6E0; border-radius: 16px;
-        padding: 18px 20px; margin-bottom: 14px;
-        transition: box-shadow 0.18s ease; position: relative; overflow: hidden;
-      }
-      .servon-order-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.07); }
-      
-      .servon-web-header {
-        background: rgba(255,255,255,0.85); backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-bottom: 1px solid #EAE6E0; position: sticky; top: 0; z-index: 100;
-      }
-      
+      .servon-web-header { position: sticky; top: 0; z-index: 100; }
+      ${dashboardWebCss}
+
       .servon-notif-panel {
         position: fixed; top: 0; right: 0; bottom: 0; height: 100vh;
         width: 380px; background: #fff; border-left: 1px solid #EAE6E0;
@@ -256,37 +205,6 @@ if (isWeb && typeof document !== "undefined") {
         cursor: pointer; margin: 4px 0 10px; transition: background 0.15s ease;
       }
       .servon-notif-load-more:hover { background: #F3F1EC; }
-      
-      .servon-empty {
-        display: flex; flex-direction: column;
-        align-items: center; justify-content: center;
-        padding: 60px 20px; border: 1.5px dashed #D1C9BC;
-        border-radius: 16px; background: #FAFAF8; color: #9CA3AF; gap: 10px;
-      }
-      
-      .servon-section-head {
-        display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
-      }
-      .servon-section-title { font-size: 17px; font-weight: 700; color: #111827; }
-      .servon-count-pill {
-        background: #111827; color: #fff;
-        font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
-      }
-      
-      .servon-live-dot {
-        width: 8px; height: 8px; border-radius: 50%;
-        background: #10B981; display: inline-block; margin-right: 6px;
-        animation: pulse 1.8s infinite;
-      }
-      @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
-        70% { box-shadow: 0 0 0 7px rgba(16,185,129,0); }
-        100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
-      }
-      
-      ::-webkit-scrollbar { width: 6px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #D1C9BC; border-radius: 3px; }
       
       .servon-summary-overlay, .servon-insight-overlay {
         position: fixed; inset: 0;
@@ -1246,7 +1164,18 @@ export default function DashboardScreen() {
         ${styleMatch?.[1] || ""}
         @media screen { #servon-dashboard-print-root { display: none !important; } }
         @media print {
+          html, body {
+            display: block !important; position: static !important;
+            height: auto !important; min-height: 0 !important; max-height: none !important;
+            overflow: visible !important; width: auto !important;
+            margin: 0 !important; padding: 0 !important; background: #fff !important;
+          }
           body > *:not(#servon-dashboard-print-root) { display: none !important; }
+          #servon-dashboard-print-root {
+            height: auto !important; min-height: 0 !important; max-height: none !important;
+            position: static !important; overflow: visible !important;
+            box-sizing: border-box; break-after: auto; page-break-after: auto;
+          }
           #servon-dashboard-print-root {
             display: block !important;
             font-family: monospace;
@@ -1446,15 +1375,17 @@ export default function DashboardScreen() {
   const totalUnread = unreadCount + trialUnreadCount + alertUnreadCount;
   const ownerInitial = business?.owner_name ? business.owner_name.charAt(0).toUpperCase() : "S";
   const activeTableCount = new Set(liveOrders.map(o => o.table_number)).size;
+  const todayStr = new Date().toLocaleDateString(language === "mr" ? "mr-IN" : language === "hi" ? "hi-IN" : "en-IN", { weekday: "long", day: "numeric", month: "long" });
 
   // ─── PROFILE DROPDOWN NAVIGATION ITEMS ──────────────────────────────
   // STAFF OPTION ADDED HERE
   const profileMenuItems = [
     { key: "Profile", label: "Profile", icon: "person-outline", iconColor: "#3B82F6" },
     { key: "Inventory", label: "Inventory", icon: "cube-outline", iconColor: "#F59E0B", badge: lowStockCount },
+    { key: "CustomerOutstanding", label: "Customer Outstanding", icon: "wallet-outline", iconColor: "#EF4444" },
+    ...(!isChefMode ? [{ key: "Advisor", label: "AI Business Advisor", icon: "sparkles-outline", iconColor: "#287458" }] : []),
     { key: "Staff", label: "Staff", icon: "people-outline", iconColor: "#10B981" },
     { key: "Rooms", label: "Rooms", icon: "bed-outline", iconColor: "#6366F1" },
-    { key: "CustomerOutstanding", label: "Customer Outstanding", icon: "wallet-outline", iconColor: "#EF4444" },
 
     { key: "Referrals", label: "Referrals", icon: "share-outline", iconColor: "#EAB308" },
     { key: "Support", label: "Support", icon: "help-buoy-outline", iconColor: "#10B981" },
@@ -1475,17 +1406,17 @@ export default function DashboardScreen() {
 
   // ─── WEB RENDER ─────────────────────────────────────────────────────────────
   if (isWeb) {
-    const todayStr = new Date().toLocaleDateString(language === "mr" ? "mr-IN" : language === "hi" ? "hi-IN" : "en-IN", { weekday: "long", day: "numeric", month: "long" });
 
     return (
-      <div style={{ minHeight: "100vh", background: "#F5F3EF", fontFamily: "'DM Sans', sans-serif", overflowY: "auto" }}>
+      <div className="servon-dashboard">
         <div className="servon-web-header">
-          <div style={{ maxWidth: 1160, margin: "0 auto", padding: "0 28px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 22, fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>
-              {businessName}<span style={{ color: "#22C55E" }}>.</span>
-            </span>
+          <div className="servon-dashboard-header-inner">
+            <div className="servon-restaurant-brand">
+              <span className="servon-restaurant-icon"><Ionicons name="storefront-outline" size={21} color="#285943" /></span>
+              <span>{businessName}</span>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button onClick={handleOpenNotifications} style={{
+              <button aria-label={localizeText("Notifications", language)} onClick={handleOpenNotifications} style={{
                 position: "relative", background: totalUnread > 0 ? "#F0FDF4" : "#F9F8F6",
                 border: `1px solid ${totalUnread > 0 ? "#BBF7D0" : "#EAE6E0"}`,
                 borderRadius: 10, width: 38, height: 38,
@@ -1510,9 +1441,12 @@ export default function DashboardScreen() {
               <div className="servon-profile-menu-wrap" ref={profileMenuRef}>
                 <button
                   onClick={() => setShowProfileMenu(prev => !prev)}
+                  aria-label={localizeText("Menu", language)}
+                  aria-expanded={showProfileMenu}
+                  aria-haspopup="menu"
                   style={{
-                    width: 36, height: 36, borderRadius: "50%",
-                    background: "#111827", color: "#fff",
+                    minHeight: 44, padding: "0 12px", gap: 9, borderRadius: 9,
+                    background: "#EDF2EE", color: "#243C30",
                     fontSize: 14, fontWeight: 600,
                     border: "none", cursor: "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -1520,6 +1454,8 @@ export default function DashboardScreen() {
                   }}
                 >
                   {ownerInitial}
+                  <span>{localizeText("Menu", language)}</span>
+                  <Ionicons name="chevron-down" size={14} color="#42604E" />
                   {lowStockCount > 0 && (
                     <span style={{
                       position: "absolute", top: -3, right: -3,
@@ -1561,81 +1497,75 @@ export default function DashboardScreen() {
           </div>
         </div>
 
-        <div style={{ maxWidth: 1160, margin: "0 auto", padding: "32px 28px 60px" }}>
-          <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <main className="servon-dashboard-main">
+          <div className="servon-dashboard-heading">
             <div>
-              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#111827", letterSpacing: "-0.4px" }}>
-                {localizeText(`Good ${getGreeting()}`, language)} 👋
-              </h1>
-              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9CA3AF" }}>{todayStr}</p>
+              <p className="servon-dashboard-date">{todayStr}</p>
+              <h1>{localizeText("Dashboard", language)}</h1>
+              <p className="servon-dashboard-greeting">{localizeText(`Good ${getGreeting()}`, language)}</p>
             </div>
-            <button onClick={() => { setRefreshing(true); loadData(); }} style={{
-              background: "#fff", border: "1px solid #EAE6E0", borderRadius: 10,
-              padding: "8px 16px", fontSize: 13, fontWeight: 500, color: "#374151",
-              cursor: "pointer", display: "flex", alignItems: "center", gap: 6
-            }}>
-              <Ionicons name="refresh-outline" size={14} color="#374151" />
-              {localizeText("Refresh", language)}
-            </button>
+            <div className="servon-dashboard-actions">
+              <button className="servon-dashboard-button" disabled={refreshing} onClick={() => { setRefreshing(true); loadData(); }}>
+                <Ionicons name="refresh-outline" size={17} color="#466052" />
+                {localizeText("Refresh", language)}
+              </button>
+              <button className="servon-dashboard-button servon-desktop-create" aria-label={localizeText("Voice order", language)} onClick={() => { setAppendOrder(null); setAssistantOpen("voice"); }}>
+                <Ionicons name="mic-outline" size={18} color="#466052" />
+                {localizeText("Voice order", language)}
+              </button>
+              <button className="servon-dashboard-button primary servon-desktop-create" onClick={() => { setAppendOrder(null); setAssistantOpen("manual"); }}>
+                <Ionicons name="add" size={20} color="#fff" />
+                {localizeText("Create Order", language)}
+              </button>
+            </div>
           </div>
 
-          <SubscriptionBanner />
+          <SubscriptionBanner compact />
 
-          <div className="servon-stats-grid" style={{ marginTop: 10 }}>
+          <div className="servon-stats-grid">
             <WebStatCard language={language} label="Orders Today" value={analytics?.today?.totalOrders ?? 0} icon="cube" color="#3B82F6" bg="#EFF6FF" accent="blue" />
             {!isChefMode && <WebStatCard language={language} label="Revenue Today" value={`₹${(analytics?.today?.totalRevenue ?? 0).toFixed(0)}`} icon="wallet" color="#10B981" bg="#ECFDF5" accent="green" />}
             <WebStatCard language={language} label="Active Tables" value={activeTableCount} icon="grid" color="#F59E0B" bg="#FFFBEB" accent="amber" />
             <WebStatCard language={language} label="Top Item" value={analytics?.today?.mostOrderedItem?.name || "-"} icon="flame" color="#EF4444" bg="#FEF2F2" accent="red" isText />
           </div>
 
-          {!isChefMode && (
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
-              <TouchableOpacity style={styles.advisorBtn} onPress={() => navigation.navigate("Advisor")}>
-                <Ionicons name="sparkles-outline" size={20} color="#fff" />
-                <LocalizedText translate style={styles.advisorBtnText}>AI Business Advisor</LocalizedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.advisorBtn, { backgroundColor: "#111827" }]}
-                onPress={handleGenerateSummary}
-                disabled={generatingSummary}
-              >
-                {generatingSummary ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons name="analytics-outline" size={20} color="#fff" />
-                )}
-                <LocalizedText translate style={styles.advisorBtnText}>Generate Summary</LocalizedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.advisorBtn, { backgroundColor: "#B91C1C" }]}
-                onPress={() => navigation.navigate("CustomerOutstanding")}
-              >
-                <Ionicons name="wallet-outline" size={20} color="#fff" />
-                <LocalizedText translate style={styles.advisorBtnText}>Customer Outstanding</LocalizedText>
-              </TouchableOpacity>
-            </div>
-          )}
-
-          <div style={{ marginTop: 8 }}>
-            <div className="servon-section-head">
-              <span className="servon-live-dot" />
-              <span className="servon-section-title">{localizeText("Live Orders", language)}</span>
-              <span className="servon-count-pill">{liveOrders.length}</span>
+          <section className="servon-dashboard-orders">
+            <div className="servon-dashboard-order-heading">
+              <div className="servon-dashboard-order-title">
+                <span className="servon-live-dot" />
+                <h2>{localizeText("Live Orders", language)}</h2>
+                <span className="servon-dashboard-order-count">{liveOrders.length}</span>
+              </div>
+              <div className="servon-dashboard-tools">
+                {!isChefMode && <>
+                  <button className="servon-dashboard-button quiet" disabled={generatingSummary} onClick={handleGenerateSummary}>
+                    {generatingSummary ? <ActivityIndicator size="small" color="#466052" /> : <Ionicons name="analytics-outline" size={17} color="#466052" />}
+                    {localizeText("Generate Summary", language)}
+                  </button>
+                  <button className="servon-dashboard-button quiet" onClick={() => navigation.navigate("CustomerOutstanding")}>
+                    <Ionicons name="wallet-outline" size={17} color="#466052" />
+                    {localizeText("Customer Outstanding", language)}
+                  </button>
+                </>}
+                <button className="servon-dashboard-button quiet" onClick={() => navigation.navigate("Orders")}>
+                  {localizeText("View all", language)}<Ionicons name="arrow-forward" size={16} color="#466052" />
+                </button>
+              </div>
             </div>
 
             {liveOrders.length === 0 ? (
               <div className="servon-empty">
-                <Ionicons name="restaurant-outline" size={36} color="#C4BAB0" />
-                <span style={{ fontSize: 15, fontWeight: 600, color: "#6B7280" }}>{localizeText("No active orders right now", language)}</span>
-                <span style={{ fontSize: 13, color: "#B3ACA4" }}>{localizeText("Waiting for customers to scan QR", language)}</span>
+                <span className="servon-dashboard-empty-icon"><Ionicons name="receipt-outline" size={29} color="#41624D" /></span>
+                <strong>{localizeText("No active orders right now", language)}</strong>
+                <span>{localizeText("Scan a table QR or create an order to get started.", language)}</span>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: screenWidth > 900 ? "repeat(2, 1fr)" : "1fr", gap: 14 }}>
+              <div className="servon-dashboard-order-grid">
                 {liveOrders.map(order => <WebOrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onBill={handleDashboardBill} onRemoveItem={handleRemoveOrderItem} />)}
               </div>
             )}
-          </div>
-        </div>
+          </section>
+        </main>
 
         {/* NOTIFICATION PANEL */}
         {showNotifications && typeof document !== "undefined" && ReactDOM.createPortal(
@@ -1872,14 +1802,15 @@ export default function DashboardScreen() {
           document.body
         )}
       {/* SERVON FLOATING ACTIONS (web) */}
-      <div className="servon-fab-area" style={{ position: "fixed", right: 22, bottom: 90, display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-end", zIndex: 1200 }}>
+      <div className="servon-dashboard-mobile-actions">
           <button
             onClick={() => { setAppendOrder(null); setAssistantOpen("voice"); }}
-            title="Servon Assistant"
+            title={localizeText("Voice order", language)}
+            aria-label={localizeText("Voice order", language)}
             style={{
-              width: 46, height: 46, borderRadius: 23, border: "none", cursor: "pointer",
-              background: "#10B981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 6px 18px rgba(16,185,129,0.4)",
+              width: 48, height: 48, borderRadius: 12, border: "none", cursor: "pointer",
+              background: "#426C51", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 14px rgba(32,51,42,0.14)",
             }}
           >
             <Ionicons name="mic" size={22} color="#fff" />
@@ -1888,8 +1819,8 @@ export default function DashboardScreen() {
             onClick={() => { setAppendOrder(null); setAssistantOpen("manual"); }}
             title={localizeText("Create Order", language)}
             style={{
-              height: 48, padding: "0 18px", borderRadius: 24, border: "none", cursor: "pointer",
-              background: "#111827", color: "#fff", display: "flex", alignItems: "center", gap: 6,
+              height: 48, padding: "0 18px", borderRadius: 12, border: "none", cursor: "pointer",
+              background: "#244F3B", color: "#fff", display: "flex", alignItems: "center", gap: 6,
               fontWeight: 700, fontSize: 14, boxShadow: "0 6px 18px rgba(0,0,0,0.2)",
             }}
           >
@@ -1912,9 +1843,9 @@ export default function DashboardScreen() {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top : insets.top + 15 }]}>
         <View style={styles.headerInner}>
-          <LocalizedText style={styles.brandText}>{businessName}<LocalizedText translate style={styles.brandAccent}>.</LocalizedText></LocalizedText>
+          <LocalizedText translate={false} style={styles.brandText} numberOfLines={1}>{businessName}</LocalizedText>
           <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.iconBtn} onPress={handleOpenNotifications}>
+            <TouchableOpacity accessibilityLabel={localizeText("Notifications", language)} style={styles.iconBtn} onPress={handleOpenNotifications}>
               <Ionicons name="notifications-outline" size={24} color="#374151" />
               {totalUnread > 0 && (
                 <View style={styles.badge}>
@@ -1922,8 +1853,9 @@ export default function DashboardScreen() {
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.profileAvatar} onPress={() => setShowProfileMenu(true)}>
-              <LocalizedText style={styles.profileAvatarText}>{ownerInitial}</LocalizedText>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={localizeText("Menu", language)} accessibilityState={{ expanded: showProfileMenu }} style={styles.profileAvatar} onPress={() => setShowProfileMenu(true)}>
+              <LocalizedText style={styles.profileAvatarText}>Menu</LocalizedText>
+              <Ionicons name="chevron-down" size={14} color="#42604E" />
               {lowStockCount > 0 && (
                 <View style={styles.profileAvatarBadge}>
                   <LocalizedText style={styles.profileAvatarBadgeText}>{lowStockCount > 9 ? "9+" : lowStockCount}</LocalizedText>
@@ -1958,7 +1890,17 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
       >
         <View style={[styles.responsiveContent, { maxWidth: responsiveMaxWidth }]}>
-          <SubscriptionBanner />
+          <View style={styles.dashboardHeading}>
+            <View style={{ flex: 1 }}>
+              <LocalizedText translate={false} style={styles.dashboardDate}>{todayStr}</LocalizedText>
+              <LocalizedText style={styles.dashboardTitle}>Dashboard</LocalizedText>
+              <LocalizedText style={styles.dashboardGreeting}>{`Good ${getGreeting()}`}</LocalizedText>
+            </View>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={localizeText("Refresh", language)} style={styles.refreshButton} disabled={refreshing} onPress={() => { setRefreshing(true); loadData(); }}>
+              {refreshing ? <ActivityIndicator size="small" color="#42604E" /> : <Ionicons name="refresh-outline" size={20} color="#42604E" />}
+            </TouchableOpacity>
+          </View>
+          <SubscriptionBanner compact />
 
           <View style={[styles.statsGrid, isTabletWidth && styles.statsGridSmall]}>
             <StatCard
@@ -2004,38 +1946,25 @@ export default function DashboardScreen() {
           {!isChefMode && (
             <View style={styles.quickActionsRow}>
               <TouchableOpacity
-                style={styles.advisorBtn}
-                onPress={() => navigation.navigate("Advisor")}
-              >
-                <Ionicons
-                  name="sparkles-outline"
-                  size={20}
-                  color="#fff"
-                />
-                <LocalizedText translate style={styles.advisorBtnText}>
-                  AI Business Advisor
-                </LocalizedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.advisorBtn, { backgroundColor: "#111827" }]}
+                style={styles.dashboardShortcut}
                 onPress={handleGenerateSummary}
                 disabled={generatingSummary}
               >
                 {generatingSummary ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color="#42604E" />
                 ) : (
-                  <Ionicons name="analytics-outline" size={20} color="#fff" />
+                  <Ionicons name="analytics-outline" size={18} color="#42604E" />
                 )}
-                <LocalizedText translate style={styles.advisorBtnText}>
+                <LocalizedText translate style={styles.dashboardShortcutText}>
                   Generate Summary
                 </LocalizedText>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.advisorBtn, { backgroundColor: "#B91C1C" }]}
+                style={styles.dashboardShortcut}
                 onPress={() => navigation.navigate("CustomerOutstanding")}
               >
-                <Ionicons name="wallet-outline" size={20} color="#fff" />
-                <LocalizedText translate style={styles.advisorBtnText}>
+                <Ionicons name="wallet-outline" size={18} color="#42604E" />
+                <LocalizedText translate style={styles.dashboardShortcutText}>
                   Customer Outstanding
                 </LocalizedText>
               </TouchableOpacity>
@@ -2044,15 +1973,20 @@ export default function DashboardScreen() {
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
+              <View style={styles.liveDot} />
               <LocalizedText translate style={styles.sectionTitle}>Live Orders</LocalizedText>
               <View style={styles.countBadge}><LocalizedText style={styles.countBadgeText}>{liveOrders.length}</LocalizedText></View>
+              <TouchableOpacity style={styles.viewAllButton} onPress={() => navigation.navigate("Orders")}>
+                <LocalizedText style={styles.viewAllText}>View all</LocalizedText>
+                <Ionicons name="arrow-forward" size={16} color="#42604E" />
+              </TouchableOpacity>
             </View>
 
             {liveOrders.length === 0 ? (
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIconCircle}><Ionicons name="restaurant-outline" size={32} color="#9CA3AF" /></View>
                 <LocalizedText translate style={styles.emptyText}>No active orders right now</LocalizedText>
-                <LocalizedText translate style={styles.emptySubText}>Waiting for customers to scan QR</LocalizedText>
+                <LocalizedText translate style={styles.emptySubText}>Scan a table QR or create an order to get started.</LocalizedText>
               </View>
             ) : (
               liveOrders.map(order => <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} onAddItems={openAddItems} onBill={handleDashboardBill} onRemoveItem={handleRemoveOrderItem} />)
@@ -2188,7 +2122,8 @@ export default function DashboardScreen() {
       {/* PROFILE DROPDOWN MENU (native) */}
       <Modal visible={showProfileMenu} transparent animationType="fade" onRequestClose={() => setShowProfileMenu(false)}>
         <TouchableOpacity style={styles.profileMenuOverlay} activeOpacity={1} onPress={() => setShowProfileMenu(false)}>
-          <View style={[styles.profileMenuBox, { top: insets.top + 60 }]}>
+          <View style={[styles.profileMenuBox, { top: insets.top + 60, maxHeight: '80%' }]}>
+            <ScrollView bounces={false}>
             {profileMenuItems.map((item) => (
               <TouchableOpacity
                 key={item.key}
@@ -2206,6 +2141,7 @@ export default function DashboardScreen() {
                 )}
               </TouchableOpacity>
             ))}
+            </ScrollView>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -2293,7 +2229,7 @@ export default function DashboardScreen() {
 
       {/* SERVON FLOATING ACTIONS (native) */}
       <View style={styles.servonFabWrap} pointerEvents="box-none">
-        <TouchableOpacity style={styles.servonMicFab} onPress={() => { setAppendOrder(null); setAssistantOpen("voice"); }}>
+        <TouchableOpacity accessibilityLabel={localizeText("Voice order", language)} style={styles.servonMicFab} onPress={() => { setAppendOrder(null); setAssistantOpen("voice"); }}>
           <Ionicons name="mic" size={22} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.servonCreateFab} onPress={() => { setAppendOrder(null); setAssistantOpen("manual"); }}>
@@ -2319,143 +2255,80 @@ function getGreeting() {
   return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
 }
 
-function WebStatCard({ label, value, icon, color, bg, accent, isText, language }) {
+function WebStatCard({ label, value, icon, color, bg, isText, language }) {
   return (
-    <div className={`servon-stat-card accent-${accent}`}>
-      <div className="servon-stat-icon" style={{ background: bg }}>
-        <Ionicons name={icon} size={18} color={color} />
-      </div>
-      <div>
-        <div className="servon-stat-value" style={isText ? { fontSize: 18, fontWeight: 600 } : {}} title={String(value)}>
-          {value}
-        </div>
+    <div className="servon-stat-card">
+      <div className="servon-stat-top">
         <div className="servon-stat-label">{localizeText(label, language)}</div>
+        <div className="servon-stat-icon" style={{ background: bg }}><Ionicons name={icon} size={17} color={color} /></div>
       </div>
+      <div className="servon-stat-value" style={isText ? { fontSize: 23, letterSpacing: '-.5px' } : undefined} title={String(value)}>{value}</div>
     </div>
   );
 }
 
-function WebOrderCard({ order, onStatusUpdate, onAddItems, onBill, onRemoveItem }) {
+function orderTimeLabel(createdAt, language) {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(createdAt)) / 60000));
+  return !Number.isFinite(minutes) || minutes < 1
+    ? localizeText("Just now", language)
+    : localizeText("{count} min ago", language, { count: minutes });
+}
+
+function orderStatusLabel(status) {
+  return ({ EDITABLE: "Draft", CONFIRMED: "Confirmed", PREPARING: "Preparing", SERVED: "Served", REJECTED: "Rejected" })[status] || status;
+}
+
+function WebOrderCard({ order, onAddItems, onBill, onRemoveItem }) {
   const { language } = useLocale();
   const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || "[]");
   const color = statusColor(order.status);
-  const elapsed = Math.floor((Date.now() - new Date(order.created_at)) / 60000);
-
   return (
-    <div className="servon-order-card">
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: color, borderRadius: "16px 0 0 16px" }} />
-      <div style={{ paddingLeft: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ background: "#F3F4F6", borderRadius: 8, padding: "4px 10px", fontSize: 13, fontWeight: 600, color: "#374151" }}>
-              Table {order.table_number || "?"}
-            </span>
-            <span style={{ background: `${color}18`, color, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />
-              {order.status}
-            </span>
-          </div>
-          <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>
-            {elapsed < 1 ? "Just now" : `${elapsed}m ago`}
-          </span>
-        </div>
-        <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 10, marginBottom: 10 }}>
-          {items.map((item, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <button
-                onClick={() => onRemoveItem?.(order, item)}
-                title="Remove item"
-                style={{
-                  border: "none",
-                  width: 24,
-                  height: 24,
-                  borderRadius: 7,
-                  background: "#FEF2F2",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
-              >
-                <Ionicons name="trash-outline" size={13} color="#EF4444" />
-              </button>
-              <span style={{ background: "#F3F4F6", borderRadius: 6, padding: "2px 7px", fontSize: 11, fontWeight: 700, color: "#374151" }}>
-                {item.quantity}×
-              </span>
-              <span style={{ fontSize: 13, color: "#1F2937", fontWeight: 500 }}>{localizedItemName(item, language)}</span>
-            </div>
-          ))}
-        </div>
-        {order.special_instructions && (
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, background: "#FFFBEB", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
-            <Ionicons name="information-circle" size={14} color="#F59E0B" style={{ marginTop: 1 }} />
-            <span style={{ fontSize: 12, color: "#92400E", lineHeight: 1.5 }}>{order.special_instructions}</span>
-          </div>
-        )}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #F3F4F6", paddingTop: 10 }}>
+    <article className="servon-order-card">
+      <header className="servon-order-heading">
+        <div className="servon-order-table">
+          <span className="servon-order-table-icon"><Ionicons name="grid-outline" size={20} color="#42604E" /></span>
           <div>
-            <span style={{ fontSize: 12, color: "#9CA3AF" }}>Total </span>
-            <span style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>₹{order.total_amount}</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-            <button
-              onClick={() => onBill?.(order)}
-              style={{
-                border: "1px solid #D1D5DB",
-                borderRadius: 10,
-                padding: "8px 12px",
-                background: "#fff",
-                color: "#111827",
-                fontSize: 12,
-                fontWeight: 800,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                cursor: "pointer",
-              }}
-            >
-              <Ionicons name="receipt-outline" size={15} color="#111827" />
-              Bill
-            </button>
-            <button
-              onClick={() => onAddItems?.(order)}
-              style={{
-                border: "none",
-                borderRadius: 10,
-                padding: "8px 12px",
-                background: "#111827",
-                color: "#fff",
-                fontSize: 12,
-                fontWeight: 800,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                cursor: "pointer",
-              }}
-            >
-              <Ionicons name="add" size={15} color="#fff" />
-              Add Items
-            </button>
+            <strong>{localizeText("Table {number}", language, { number: order.table_number || "?" })}</strong>
+            <span className="servon-order-time"><Ionicons name="time-outline" size={13} color="#6B786F" />{orderTimeLabel(order.created_at, language)}</span>
           </div>
         </div>
+        <span className="servon-order-status" style={{ background: `${color}12`, color }}><i />{localizeText(orderStatusLabel(order.status), language)}</span>
+      </header>
+      <div className="servon-order-items">
+        {items.map((item, i) => (
+          <div key={i} className="servon-order-item">
+            <span className="servon-order-quantity">{item.quantity}×</span>
+            <span className="servon-order-name">{localizedItemName(item, language)}</span>
+            <button className="servon-order-remove" onClick={() => onRemoveItem?.(order, item)} title={localizeText("Remove item", language)} aria-label={`${localizeText("Remove item", language)}: ${localizedItemName(item, language)}`}>
+              <Ionicons name="trash-outline" size={16} color="#AB5C52" />
+            </button>
+          </div>
+        ))}
       </div>
-    </div>
+      {order.special_instructions && <div className="servon-order-note"><Ionicons name="information-circle-outline" size={17} color="#996A22" /><span>{order.special_instructions}</span></div>}
+      <footer className="servon-order-footer">
+        <div className="servon-order-total"><span>{localizeText("Total Amount", language)}</span><strong>₹{order.total_amount}</strong></div>
+        <div className="servon-order-buttons">
+          <button className="servon-dashboard-button" onClick={() => onBill?.(order)}><Ionicons name="receipt-outline" size={17} color="#344E3E" />{localizeText("Bill", language)}</button>
+          <button className="servon-dashboard-button primary" onClick={() => onAddItems?.(order)}><Ionicons name="add" size={18} color="#fff" />{localizeText("Add Items", language)}</button>
+        </div>
+      </footer>
+    </article>
   );
 }
 
 function StatCard({ label, value, icon, color, bg, isText, extraStyle }) {
   return (
     <View style={[styles.statCard, extraStyle]}>
-      <View style={[styles.iconContainer, { backgroundColor: bg }]}>
-        <Ionicons name={icon} size={20} color={color} />
+      <View style={styles.statTop}>
+        <LocalizedText style={styles.statLabel}>{label}</LocalizedText>
+        <View style={[styles.iconContainer, { backgroundColor: bg }]}>
+          <Ionicons name={icon} size={17} color={color} />
+        </View>
       </View>
-      <View>
-        <LocalizedText style={[styles.statValue, isText && { fontSize: 17, fontWeight: "600" }]} numberOfLines={1} adjustsFontSizeToFit>
+        <LocalizedText translate={false} style={[styles.statValue, isText && { fontSize: 20, fontWeight: "600" }]} numberOfLines={isText ? 2 : 1} adjustsFontSizeToFit>
           {value}
         </LocalizedText>
-        <LocalizedText style={styles.statLabel}>{label}</LocalizedText>
-      </View>
     </View>
   );
 }
@@ -2467,22 +2340,26 @@ function OrderCard({ order, onStatusUpdate, onAddItems, onBill, onRemoveItem }) 
   return (
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
-        <View style={styles.tableIndicator}>
-          <LocalizedText style={styles.orderTable}>Table {order.table_number || "?"}</LocalizedText>
+        <View style={styles.orderTableGroup}>
+          <View style={styles.tableIndicator}><Ionicons name="grid-outline" size={21} color="#42604E" /></View>
+          <View>
+            <LocalizedText style={styles.orderTable} values={{ number: order.table_number || "?" }}>{"Table {number}"}</LocalizedText>
+            <LocalizedText translate={false} style={styles.orderTime}>{orderTimeLabel(order.created_at, language)}</LocalizedText>
+          </View>
         </View>
         <View style={[styles.statusPill, { backgroundColor: `${statusColor(order.status)}15` }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColor(order.status) }]} />
-          <LocalizedText style={[styles.statusText, { color: statusColor(order.status) }]}>{order.status}</LocalizedText>
+          <LocalizedText style={[styles.statusText, { color: statusColor(order.status) }]}>{orderStatusLabel(order.status)}</LocalizedText>
         </View>
       </View>
       <View style={styles.divider} />
       {items.map((item, i) => (
         <View key={i} style={styles.orderItemRow}>
-          <TouchableOpacity style={styles.itemTrashBtn} onPress={() => onRemoveItem?.(order, item)} activeOpacity={0.75}>
-            <Ionicons name="trash-outline" size={13} color="#EF4444" />
-          </TouchableOpacity>
           <View style={styles.qtyBadge}><LocalizedText style={styles.qtyText}>{item.quantity}x</LocalizedText></View>
-          <LocalizedText style={styles.orderItemName}>{localizedItemName(item, language)}</LocalizedText>
+          <LocalizedText translate={false} style={styles.orderItemName}>{localizedItemName(item, language)}</LocalizedText>
+          <TouchableOpacity accessibilityLabel={`${localizeText("Remove item", language)}: ${localizedItemName(item, language)}`} style={styles.itemTrashBtn} onPress={() => onRemoveItem?.(order, item)} activeOpacity={0.75}>
+            <Ionicons name="trash-outline" size={16} color="#AB5C52" />
+          </TouchableOpacity>
         </View>
       ))}
       {order.special_instructions && (
@@ -2511,43 +2388,43 @@ function OrderCard({ order, onStatusUpdate, onAddItems, onBill, onRemoveItem }) 
 }
 
 const statusColor = (s) => ({
-  EDITABLE: "#6B7280",
-  CONFIRMED: "#3B82F6",
-  PREPARING: "#F59E0B",
-  SERVED: "#10B981",
-  REJECTED: "#EF4444",
+  EDITABLE: "#56645A",
+  CONFIRMED: "#315F9E",
+  PREPARING: "#8A5A15",
+  SERVED: "#28704C",
+  REJECTED: "#AB443A",
 }[s] || "#6B7280");
 
 // ─── STYLES ───────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F3EF' },
-  servonFabWrap: { position: 'absolute', right: 18, bottom: 92, alignItems: 'flex-end', gap: 12, zIndex: 900 },
+  container: { flex: 1, backgroundColor: '#F3F5F2' },
+  servonFabWrap: { position: 'absolute', right: 16, bottom: 18, flexDirection: 'row', alignItems: 'center', gap: 10, zIndex: 90 },
   servonMicFab: {
-    width: 46, height: 46, borderRadius: 23, backgroundColor: '#10B981',
+    width: 48, height: 48, borderRadius: 12, backgroundColor: '#426C51',
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#10B981', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#20332A', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
   servonCreateFab: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#111827', borderRadius: 24, paddingHorizontal: 18, height: 48,
+    backgroundColor: '#244F3B', borderRadius: 12, paddingHorizontal: 18, height: 48,
     shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
   servonCreateLabel: { color: '#fff', fontSize: 14, fontWeight: '700' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAE6E0',
+    borderBottomColor: '#DFE5DF',
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
   headerInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  brandText: { fontSize: 20, fontWeight: '700', color: '#111827', letterSpacing: -0.5 },
+  brandText: { flex: 1, marginRight: 12, fontSize: 18, fontWeight: '700', color: '#20332A', letterSpacing: -0.5 },
   brandAccent: { color: '#22C55E' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBtn: { padding: 8, position: 'relative' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconBtn: { padding: 10, position: 'relative', minWidth: 44, minHeight: 44 },
   badge: {
     position: 'absolute', top: 2, right: 2,
     backgroundColor: '#EF4444', borderRadius: 10,
@@ -2556,8 +2433,8 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: '#fff',
   },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '700', paddingHorizontal: 4 },
-  profileAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  profileAvatarText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  profileAvatar: { minHeight: 44, paddingHorizontal: 12, gap: 7, flexDirection: 'row', borderRadius: 9, backgroundColor: '#EDF2EE', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  profileAvatarText: { color: '#344E3E', fontSize: 14, fontWeight: '600' },
   profileAvatarBadge: {
     position: 'absolute', top: -3, right: -3,
     backgroundColor: '#EF4444', borderRadius: 9,
@@ -2570,56 +2447,68 @@ const styles = StyleSheet.create({
   profileMenuBox: {
     position: 'absolute', right: 16,
     backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#EAE6E0',
-    width: 210, paddingVertical: 6,
+    width: 270, paddingVertical: 6,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 12,
   },
-  profileMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12 },
+  profileMenuItem: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12 },
   profileMenuIcon: { width: 30, height: 30, borderRadius: 9, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
   profileMenuLabel: { flex: 1, fontSize: 13.5, fontWeight: '600', color: '#374151' },
   profileMenuBadge: { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
   profileMenuBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  responsiveContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, alignSelf: 'center', width: '100%' },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16, marginBottom: 24 },
+  responsiveContent: { paddingHorizontal: 16, paddingTop: 22, paddingBottom: 110, alignSelf: 'center', width: '100%' },
+  dashboardHeading: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 22 },
+  dashboardDate: { fontSize: 12, color: '#627166', marginBottom: 5 },
+  dashboardTitle: { fontSize: 27, fontWeight: '700', color: '#20332A', letterSpacing: -0.7 },
+  dashboardGreeting: { fontSize: 14, color: '#627166', marginTop: 4 },
+  refreshButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 9 },
+  dashboardShortcut: { flex: 1, minWidth: '42%', minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, padding: 10, borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 8, backgroundColor: '#FAFCF8' },
+  dashboardShortcutText: { flexShrink: 1, fontSize: 12, fontWeight: '600', color: '#42604E' },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#43855A' },
+  viewAllButton: { marginLeft: 'auto', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 10 },
+  viewAllText: { color: '#42604E', fontSize: 12, fontWeight: '600' },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 18, marginBottom: 16 },
   statsGridSmall: { gap: 12 },
   statCard: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#EAE6E0',
-    borderRadius: 14, padding: 14, flexDirection: 'row',
-    alignItems: 'center', gap: 12,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#DFE5DF',
+    borderRadius: 12, padding: 15, gap: 12,
   },
-  iconContainer: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  statLabel: { fontSize: 11, fontWeight: '500', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 2 },
-  section: { marginTop: 8 },
+  statTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 5 },
+  iconContainer: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 28, fontWeight: '700', color: '#20332A', letterSpacing: -0.6 },
+  statLabel: { flex: 1, fontSize: 13, fontWeight: '500', color: '#54655A' },
+  section: { marginTop: 18, borderTopWidth: 1, borderTopColor: '#DDE4DC', paddingTop: 16 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#111827' },
-  countBadge: { backgroundColor: '#111827', borderRadius: 16, paddingHorizontal: 8, paddingVertical: 2 },
-  countBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  sectionTitle: { fontSize: 19, fontWeight: '700', color: '#20332A' },
+  countBadge: { backgroundColor: '#E2EBDF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  countBadgeText: { color: '#365A42', fontSize: 12, fontWeight: '700' },
   emptyCard: {
-    backgroundColor: '#FAFAF8', borderWidth: 1.5, borderColor: '#D1C9BC',
-    borderStyle: 'dashed', borderRadius: 16, padding: 40,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#DFE5DF',
+    borderRadius: 12, padding: 32,
     alignItems: 'center', justifyContent: 'center',
   },
   emptyIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   emptyText: { fontSize: 15, fontWeight: '600', color: '#6B7280' },
-  emptySubText: { fontSize: 13, color: '#B3ACA4', marginTop: 4 },
+  emptySubText: { fontSize: 13, color: '#627166', marginTop: 8, lineHeight: 20, textAlign: 'center' },
   orderCard: {
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#EAE6E0',
-    borderRadius: 16, padding: 16, marginBottom: 14,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#DFE5DF',
+    borderRadius: 12, padding: 16, marginBottom: 14,
   },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  tableIndicator: { backgroundColor: '#F3F4F6', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  orderTable: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  orderTableGroup: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  tableIndicator: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0F4ED', borderWidth: 1, borderColor: '#D8E2D5', borderRadius: 9 },
+  orderTable: { fontSize: 18, fontWeight: '700', color: '#20332A' },
+  orderTime: { fontSize: 12, color: '#6B786F', marginTop: 3 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 11, fontWeight: '600' },
   divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 10 },
-  orderItemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  itemTrashBtn: { width: 24, height: 24, borderRadius: 7, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center' },
+  orderItemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48 },
+  itemTrashBtn: { width: 44, height: 44, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   qtyBadge: { backgroundColor: '#F3F4F6', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   qtyText: { fontSize: 11, fontWeight: '700', color: '#374151' },
-  orderItemName: { fontSize: 13, fontWeight: '500', color: '#1F2937' },
+  orderItemName: { flex: 1, fontSize: 15, fontWeight: '500', color: '#283B30', lineHeight: 22 },
   noteBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: '#FFFBEB', borderRadius: 8, padding: 8, marginTop: 4 },
   orderNote: { flex: 1, fontSize: 12, color: '#92400E', lineHeight: 18 },
   orderFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -2628,8 +2517,8 @@ const styles = StyleSheet.create({
   orderActionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   billBtn: {
     flex: 1,
-    height: 42,
-    borderRadius: 12,
+    minHeight: 46,
+    borderRadius: 8,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#D1D5DB',
@@ -2639,7 +2528,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   billBtnText: { color: '#111827', fontSize: 13, fontWeight: '800' },
-  addItemsBtn: { flex: 1, height: 42, borderRadius: 12, backgroundColor: '#111827', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  addItemsBtn: { flex: 1, minHeight: 46, borderRadius: 8, backgroundColor: '#244F3B', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   addItemsBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: {

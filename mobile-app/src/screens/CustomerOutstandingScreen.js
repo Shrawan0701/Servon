@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -302,7 +303,7 @@ export default function CustomerOutstandingScreen() {
   const renderTableRow = ({ item }) => (
     <View style={styles.row}>
       <View style={styles.checkCol}>
-        <TouchableOpacity style={styles.clearCheckBtn} onPress={() => clearOutstanding(item)}>
+        <TouchableOpacity accessibilityLabel="Clear outstanding" style={styles.clearCheckBtn} onPress={() => clearOutstanding(item)}>
           <Ionicons name="checkmark" size={14} color="#059669" />
         </TouchableOpacity>
       </View>
@@ -317,12 +318,13 @@ export default function CustomerOutstandingScreen() {
   const renderCard = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardTop}>
+        <View style={styles.customerIcon}><Ionicons name="person-outline" size={20} color="#42604E" /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.cardName} numberOfLines={1}>{item.customer_name}</Text>
           <Text style={styles.cardPhone}>{item.phone_number}</Text>
         </View>
         <View style={styles.cardMeta}>
-          <TouchableOpacity style={styles.clearCheckBtn} onPress={() => clearOutstanding(item)}>
+          <TouchableOpacity accessibilityLabel="Clear outstanding" style={styles.clearCheckBtn} onPress={() => clearOutstanding(item)}>
             <Ionicons name="checkmark" size={14} color="#059669" />
           </TouchableOpacity>
           <Text style={styles.cardDate}>{fmtDate(item.created_at)}</Text>
@@ -331,11 +333,11 @@ export default function CustomerOutstandingScreen() {
       <View style={styles.cardAmounts}>
         <View style={styles.amountBox}>
           <Text style={styles.amountLabel}>Total Amount</Text>
-          <Text style={styles.amountValue}>{rs(item.total_amount)}</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit style={styles.amountValue}>{rs(item.total_amount)}</Text>
         </View>
-        <View style={styles.amountBox}>
+        <View style={[styles.amountBox, styles.remainingBox]}>
           <Text style={styles.amountLabel}>Remaining Amount</Text>
-          <Text style={[styles.amountValue, styles.remaining]}>{rs(item.remaining_amount)}</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.amountValue, styles.remaining]}>{rs(item.remaining_amount)}</Text>
         </View>
       </View>
     </View>
@@ -343,14 +345,18 @@ export default function CustomerOutstandingScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={[styles.workspace, isCompact && styles.workspaceCompact]}>
       <View style={[styles.header, isCompact && styles.headerCompact]}>
-        <View style={styles.titleRow}>
+        <View style={[styles.titleRow, isCompact && styles.titleRowCompact]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={20} color="#111827" />
           </TouchableOpacity>
           <View style={styles.titleBlock}>
             <Text style={[styles.title, isCompact && styles.titleCompact]} numberOfLines={2}>Customer Outstanding</Text>
-            <Text style={styles.subtitle}>Total outstanding: {rs(totalRemaining)}</Text>
+            <View style={styles.balanceBadge}>
+              <Ionicons name="wallet-outline" size={15} color="#627166" />
+              <Text style={styles.subtitle}>Total outstanding: <Text style={styles.balanceValue}>{rs(totalRemaining)}</Text></Text>
+            </View>
           </View>
         </View>
         <View style={[styles.headerActions, isCompact && styles.headerActionsCompact]}>
@@ -359,8 +365,8 @@ export default function CustomerOutstandingScreen() {
             <Text style={styles.printText}>Add Outstanding</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.printBtn, isCompact && styles.actionBtnCompact]} onPress={printOutstanding} disabled={printing}>
-            {printing ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name={isCompact ? "download-outline" : "print-outline"} size={18} color="#fff" />}
-            <Text style={styles.printText}>{isCompact ? "Download PDF" : "Print Outstanding"}</Text>
+            {printing ? <ActivityIndicator color="#42604E" size="small" /> : <Ionicons name={isCompact ? "download-outline" : "print-outline"} size={18} color="#42604E" />}
+            <Text style={[styles.printText, styles.printTextSecondary]}>{isCompact ? "Download PDF" : "Print Outstanding"}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -405,6 +411,7 @@ export default function CustomerOutstandingScreen() {
             contentContainerStyle={isCompact ? styles.cardList : null}
             ListEmptyComponent={
               <View style={styles.empty}>
+                <View style={styles.emptyIcon}><Ionicons name="wallet-outline" size={30} color="#55755D" /></View>
                 <Text style={styles.emptyText}>
                   {trimmedSearch ? "No customers found." : "No outstanding customers."}
                 </Text>
@@ -413,12 +420,13 @@ export default function CustomerOutstandingScreen() {
           />
         )}
       </View>
+      </View>
 
       <Modal visible={showAddModal} transparent animationType="fade" onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
           <View style={[styles.modalCard, isCompact && styles.modalCardCompact]}>
             <View style={styles.modalHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>Add Outstanding</Text>
                 <Text style={styles.modalSubtitle}>Remaining amount is calculated automatically.</Text>
               </View>
@@ -427,7 +435,7 @@ export default function CustomerOutstandingScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.formGrid}>
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.formGrid} keyboardShouldPersistTaps="handled">
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>Customer Name</Text>
                 <TextInput
@@ -450,7 +458,7 @@ export default function CustomerOutstandingScreen() {
                   maxLength={10}
                 />
               </View>
-              <View style={styles.fieldGroup}>
+              <View style={[styles.fieldGroup, styles.amountField]}>
                 <Text style={styles.fieldLabel}>Total Amount</Text>
                 <TextInput
                   style={styles.fieldInput}
@@ -461,7 +469,7 @@ export default function CustomerOutstandingScreen() {
                   keyboardType="decimal-pad"
                 />
               </View>
-              <View style={styles.fieldGroup}>
+              <View style={[styles.fieldGroup, styles.amountField]}>
                 <Text style={styles.fieldLabel}>Paid Amount Optional</Text>
                 <TextInput
                   style={styles.fieldInput}
@@ -476,7 +484,7 @@ export default function CustomerOutstandingScreen() {
                 <Text style={styles.fieldLabel}>Remaining Amount</Text>
                 <Text style={styles.remainingPreviewValue}>{rs(manualRemaining)}</Text>
               </View>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -501,70 +509,80 @@ export default function CustomerOutstandingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF8F5", padding: 18 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 },
-  headerCompact: { alignItems: "stretch", flexDirection: "column", gap: 12 },
-  titleRow: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 12 },
+  container: { flex: 1, backgroundColor: "#F3F5F2" },
+  workspace: { flex: 1, width: "100%", maxWidth: 1400, alignSelf: "center", padding: 24 },
+  workspaceCompact: { padding: 16 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 24, marginBottom: 24 },
+  headerCompact: { alignItems: "stretch", flexDirection: "column", gap: 18, marginBottom: 18 },
+  titleRow: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 14 },
+  titleRowCompact: { flexGrow: 0, flexShrink: 0, flexBasis: "auto" },
   titleBlock: { flex: 1, minWidth: 0 },
-  backBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E8E2D9" },
-  title: { fontSize: 24, fontWeight: "900", color: "#111827" },
-  titleCompact: { fontSize: 22, lineHeight: 26 },
-  subtitle: { marginTop: 2, color: "#6B7280", fontWeight: "700" },
+  backBtn: { width: 44, height: 44, borderRadius: 9, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#DFE5DF" },
+  title: { fontSize: 27, fontWeight: "700", color: "#20332A", letterSpacing: -.6 },
+  titleCompact: { fontSize: 22, lineHeight: 28 },
+  balanceBadge: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8, flexWrap: "wrap" },
+  subtitle: { color: "#627166", fontSize: 13, fontWeight: "400", lineHeight: 20 },
+  balanceValue: { color: "#943F32", fontWeight: "700", fontSize: 16 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerActionsCompact: { width: "100%", flexDirection: "column", alignItems: "stretch" },
-  addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#059669", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  printBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#111827", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  actionBtnCompact: { width: "100%" },
-  printText: { color: "#fff", fontWeight: "800" },
-  searchWrap: { width: "100%", alignItems: "center", marginBottom: 16 },
-  searchWrapCompact: { alignItems: "stretch", marginBottom: 10 },
-  searchBox: { width: "100%", maxWidth: 520, minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 14, paddingHorizontal: 14 },
-  searchInput: { flex: 1, minWidth: 0, color: "#111827", fontSize: 15, fontWeight: "700", outlineStyle: "none" },
-  searchClearBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" },
-  table: { flex: 1, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#E8E2D9", overflow: "hidden" },
+  headerActionsCompact: { width: "100%", flexDirection: "row", alignItems: "stretch", gap: 8 },
+  addBtn: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: "#244F3B", borderRadius: 8, paddingHorizontal: 15, paddingVertical: 11 },
+  printBtn: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: "#fff", borderWidth: 1, borderColor: "#D5E0D1", borderRadius: 8, paddingHorizontal: 15, paddingVertical: 11 },
+  actionBtnCompact: { flex: 1, minWidth: 0, paddingHorizontal: 10 },
+  printText: { color: "#fff", fontSize: 13, fontWeight: "600", flexShrink: 1, textAlign: "center" },
+  printTextSecondary: { color: "#42604E" },
+  searchWrap: { width: "100%", alignItems: "flex-start", marginBottom: 18 },
+  searchWrapCompact: { alignItems: "stretch", marginBottom: 14 },
+  searchBox: { width: "100%", maxWidth: 440, minHeight: 46, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: "#D5E0D1", borderRadius: 8, paddingHorizontal: 14 },
+  searchInput: { flex: 1, minWidth: 0, color: "#283B30", fontSize: 14, fontWeight: "400", paddingVertical: 12, ...Platform.select({ web: { outlineStyle: "none" } }) },
+  searchClearBtn: { width: 32, height: 32, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "#F0F4ED" },
+  table: { flex: 1, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#DFE5DF", overflow: "hidden" },
   mobileList: { backgroundColor: "transparent", borderWidth: 0, borderRadius: 0, overflow: "visible" },
-  row: { flexDirection: "row", alignItems: "center", minHeight: 48, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  headRow: { backgroundColor: "#F3F4F6" },
-  th: { fontSize: 12, fontWeight: "900", color: "#374151", textTransform: "uppercase" },
-  td: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  checkCol: { width: 36, alignItems: "center", justifyContent: "center" },
-  clearCheckBtn: { width: 26, height: 26, borderRadius: 8, borderWidth: 1.5, borderColor: "#A7F3D0", backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" },
-  dateCol: { flex: 0.9, minWidth: 92 },
-  nameCol: { flex: 1.4, minWidth: 130 },
-  phoneCol: { flex: 1, minWidth: 104 },
-  amountCol: { flex: 1, minWidth: 126, textAlign: "right" },
-  remaining: { color: "#B91C1C" },
-  cardList: { gap: 10, paddingBottom: 24 },
-  card: { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E8E2D9", padding: 14 },
-  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 12 },
-  cardMeta: { alignItems: "flex-end", gap: 6 },
-  cardName: { color: "#111827", fontSize: 16, fontWeight: "900" },
-  cardPhone: { color: "#6B7280", fontSize: 13, fontWeight: "700", marginTop: 3 },
-  cardDate: { color: "#374151", fontSize: 12, fontWeight: "800", backgroundColor: "#F3F4F6", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
-  cardAmounts: { flexDirection: "row", gap: 10 },
-  amountBox: { flex: 1, minWidth: 0, backgroundColor: "#FAFAFA", borderRadius: 10, padding: 10 },
-  amountLabel: { color: "#6B7280", fontSize: 11, fontWeight: "800", marginBottom: 4 },
-  amountValue: { color: "#111827", fontSize: 14, fontWeight: "900" },
-  empty: { padding: 36, alignItems: "center" },
-  emptyText: { color: "#6B7280", fontWeight: "700" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(17,24,39,0.48)", alignItems: "center", justifyContent: "center", padding: 18 },
-  modalCard: { width: "100%", maxWidth: 520, backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#E8E2D9", padding: 20 },
-  modalCardCompact: { maxWidth: "100%", padding: 16 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16 },
-  modalTitle: { color: "#111827", fontSize: 20, fontWeight: "900" },
-  modalSubtitle: { color: "#6B7280", fontSize: 13, fontWeight: "600", marginTop: 3 },
-  modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  formGrid: { gap: 12 },
-  fieldGroup: { gap: 7 },
-  fieldLabel: { color: "#374151", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  fieldInput: { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: "#111827", fontSize: 14, fontWeight: "700", backgroundColor: "#fff" },
-  remainingPreview: { backgroundColor: "#FAFAFA", borderWidth: 1, borderColor: "#E8E2D9", borderRadius: 12, padding: 14 },
-  remainingPreviewValue: { color: "#B91C1C", fontSize: 20, fontWeight: "900" },
-  modalActions: { flexDirection: "row", gap: 10, marginTop: 18 },
-  modalBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: "center", justifyContent: "center" },
-  cancelBtn: { backgroundColor: "#F3F4F6" },
-  cancelBtnText: { color: "#111827", fontWeight: "900" },
-  saveBtn: { backgroundColor: "#111827" },
-  saveBtnText: { color: "#fff", fontWeight: "900" },
+  row: { flexDirection: "row", alignItems: "center", minHeight: 64, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "#E9EDE7", gap: 8 },
+  headRow: { minHeight: 48, backgroundColor: "#F0F4ED" },
+  th: { fontSize: 12, fontWeight: "600", color: "#546B58" },
+  td: { fontSize: 14, fontWeight: "400", color: "#283B30" },
+  checkCol: { width: 42, alignItems: "center", justifyContent: "center" },
+  clearCheckBtn: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#B9CFB0", backgroundColor: "#F0F6E9", alignItems: "center", justifyContent: "center" },
+  dateCol: { flex: 1, minWidth: 86 },
+  nameCol: { flex: 1.5, minWidth: 112, fontWeight: "600" },
+  phoneCol: { flex: 1.1, minWidth: 102 },
+  amountCol: { flex: 1, minWidth: 108, textAlign: "right" },
+  remaining: { color: "#943F32", fontWeight: "700" },
+  cardList: { gap: 12, paddingBottom: 24 },
+  card: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#DFE5DF", padding: 16 },
+  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 16 },
+  customerIcon: { width: 36, height: 36, borderRadius: 9, backgroundColor: "#EDF3E8", alignItems: "center", justifyContent: "center" },
+  cardMeta: { alignItems: "flex-end", gap: 8 },
+  cardName: { color: "#20332A", fontSize: 17, fontWeight: "600" },
+  cardPhone: { color: "#627166", fontSize: 13, fontWeight: "400", marginTop: 5 },
+  cardDate: { color: "#627166", fontSize: 11, fontWeight: "400" },
+  cardAmounts: { flexDirection: "row", gap: 10, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#E9EDE7" },
+  amountBox: { flex: 1, minWidth: 0, backgroundColor: "#F6F9F2", borderRadius: 8, padding: 12 },
+  remainingBox: { backgroundColor: "#FCF2EE" },
+  amountLabel: { color: "#627166", fontSize: 12, fontWeight: "400", marginBottom: 7 },
+  amountValue: { color: "#20332A", fontSize: 18, fontWeight: "700" },
+  empty: { padding: 40, alignItems: "center", gap: 14 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 16, backgroundColor: "#EFF4EB", alignItems: "center", justifyContent: "center" },
+  emptyText: { color: "#627166", fontSize: 14, fontWeight: "500" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(25,42,32,0.42)", alignItems: "center", justifyContent: "center", padding: 18 },
+  modalCard: { width: "100%", maxWidth: 540, maxHeight: "90%", backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#DFE5DF", overflow: "hidden", flexShrink: 1 },
+  modalCardCompact: { maxWidth: "100%" },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, padding: 20, borderBottomWidth: 1, borderBottomColor: "#DFE5DF", flexShrink: 0 },
+  modalTitle: { color: "#20332A", fontSize: 21, fontWeight: "700", letterSpacing: -.4 },
+  modalSubtitle: { color: "#627166", fontSize: 12, fontWeight: "400", marginTop: 5, lineHeight: 18 },
+  modalCloseBtn: { width: 40, height: 40, borderRadius: 8, backgroundColor: "#F0F4ED", alignItems: "center", justifyContent: "center" },
+  formGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, padding: 20 },
+  fieldGroup: { width: "100%", gap: 7, flexShrink: 0 },
+  amountField: { width: "auto", flexGrow: 1, flexBasis: "45%", minWidth: 110 },
+  fieldLabel: { color: "#46604E", fontSize: 13, fontWeight: "600" },
+  fieldInput: { minHeight: 46, borderWidth: 1, borderColor: "#D5E0D1", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11, color: "#283B30", fontSize: 15, fontWeight: "400", backgroundColor: "#FAFCF8" },
+  remainingPreview: { backgroundColor: "#F5F8F0", borderWidth: 1, borderColor: "#DFE5DF", borderRadius: 8, padding: 14 },
+  remainingPreviewValue: { color: "#943F32", fontSize: 24, fontWeight: "700" },
+  modalActions: { flexDirection: "row", gap: 10, padding: 18, borderTopWidth: 1, borderTopColor: "#DFE5DF", backgroundColor: "#FAFCF8", flexShrink: 0 },
+  modalBtn: { flex: 1, minHeight: 46, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
+  cancelBtn: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#DFE5DF" },
+  cancelBtnText: { color: "#42604E", fontWeight: "600", fontSize: 14 },
+  saveBtn: { backgroundColor: "#244F3B" },
+  saveBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
   disabledBtn: { opacity: 0.65 },
 });

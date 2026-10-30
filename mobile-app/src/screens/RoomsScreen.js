@@ -17,6 +17,7 @@ import {
   RefreshControl,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
@@ -26,23 +27,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { getRooms, addRoom, checkInRoom, updateRoom, checkOutRoom, deleteRoom } from "../api";
 
 const COLORS = {
-  bg: "#F5F3EF",
+  bg: "#F3F5F2",
   card: "#FFFFFF",
-  border: "#EAE6E0",
-  text: "#111827",
-  subtext: "#6B7280",
-  muted: "#9CA3AF",
-  green: "#10B981",
-  greenBg: "#ECFDF5",
+  border: "#DFE5DF",
+  text: "#20332A",
+  subtext: "#627166",
+  muted: "#839087",
+  green: "#39805A",
+  greenBg: "#EAF2EC",
   red: "#EF4444",
   redBg: "#FEF2F2",
-  navy: "#0F172A",
+  navy: "#2E503C",
 };
 
 export default function RoomsScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { language } = useLocale();
+  const { width } = useWindowDimensions();
+  const roomColumns = width >= 1100 ? 3 : width >= 700 ? 2 : 1;
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -191,7 +194,7 @@ export default function RoomsScreen() {
   const renderRoom = ({ item }) => {
     const occupied = item.status === "OCCUPIED";
     return (
-      <View style={styles.roomCard}>
+      <View style={[styles.roomCard, roomColumns > 1 && { maxWidth: `${(100 - (roomColumns - 1) * 2) / roomColumns}%` }, occupied && styles.roomCardOccupied]}>
         <View style={styles.roomTopRow}>
           <View style={styles.roomIconWrap}>
             <Ionicons
@@ -276,6 +279,7 @@ export default function RoomsScreen() {
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
           <Ionicons name="add" size={22} color="#fff" />
+          <LocalizedText translate style={styles.addBtnText}>Add Room</LocalizedText>
         </TouchableOpacity>
       </View>
 
@@ -285,6 +289,9 @@ export default function RoomsScreen() {
         </View>
       ) : (
         <FlatList
+          key={`room-grid-${roomColumns}`}
+          numColumns={roomColumns}
+          columnWrapperStyle={roomColumns > 1 ? styles.roomGridRow : undefined}
           data={rooms}
           keyExtractor={(item) => item.id}
           renderItem={renderRoom}
@@ -382,108 +389,83 @@ function GuestStat({ label, value }) {
 }
 
 const styles = StyleSheet.create({
+
+  addBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
+  roomGridRow: { justifyContent: 'space-between', gap: 16 },
+  roomCardOccupied: { borderTopColor: '#39805A', borderTopWidth: 3 },
+
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: 12,
-  },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.bg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { fontSize: 19, fontWeight: "700", color: COLORS.text },
-  subtitle: { fontSize: 12, color: COLORS.subtext, marginTop: 1 },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.text,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  listContent: { padding: 16, paddingBottom: 40, gap: 12 },
+
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 18, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12 },
+
+  backBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+
+  title: { fontSize: 20, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
+
+  subtitle: { fontSize: 12, color: COLORS.subtext, marginTop: 4 },
+
+  addBtn: { flexDirection: 'row', gap: 6, minHeight: 44, paddingHorizontal: 12, borderRadius: 9, backgroundColor: COLORS.navy, alignItems: 'center', justifyContent: 'center' },
+
+  listContent: { width: '100%', maxWidth: 1320, alignSelf: 'center', padding: 20, paddingBottom: 40, gap: 16 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  roomCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
-  },
-  roomTopRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  roomIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.greenBg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  roomTitle: { fontSize: 17, fontWeight: "700", color: COLORS.text },
-  statusPill: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontSize: 12, fontWeight: "600" },
-  deleteBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: COLORS.redBg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  guestGrid: { flexDirection: "row", marginTop: 16, gap: 8 },
-  guestStat: { flex: 1, backgroundColor: COLORS.bg, borderRadius: 10, paddingVertical: 10, alignItems: "center" },
-  guestStatValue: { fontSize: 16, fontWeight: "700", color: COLORS.text },
-  guestStatLabel: { fontSize: 11, color: COLORS.subtext, marginTop: 1 },
-  availHint: { marginTop: 16, fontSize: 13, color: COLORS.subtext },
-  actionRow: { flexDirection: "row", gap: 10, marginTop: 16 },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    flex: 1,
-  },
+
+  roomCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, padding: 20 },
+
+  roomTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+
+  roomIconWrap: { width: 42, height: 42, borderRadius: 10, backgroundColor: COLORS.greenBg, alignItems: 'center', justifyContent: 'center' },
+
+  roomTitle: { fontSize: 19, fontWeight: '700', color: COLORS.text },
+
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+
+  statusText: { fontSize: 12, fontWeight: '500' },
+
+  deleteBtn: { width: 36, height: 36, borderRadius: 9, backgroundColor: COLORS.redBg, alignItems: 'center', justifyContent: 'center' },
+
+  guestGrid: { flexDirection: 'row', marginTop: 24, marginBottom: 4, gap: 6 },
+
+  guestStat: { flex: 1, backgroundColor: COLORS.bg, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+
+  guestStatValue: { fontSize: 21, fontWeight: '600', color: COLORS.text },
+
+  guestStatLabel: { fontSize: 11, color: COLORS.subtext, marginTop: 5 },
+
+  availHint: { marginTop: 26, marginBottom: 14, fontSize: 13, color: COLORS.subtext, lineHeight: 21 },
+
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: COLORS.border },
+
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 9, minHeight: 44, paddingVertical: 11, paddingHorizontal: 12, flex: 1 },
   editBtn: { backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border },
   editBtnText: { color: COLORS.navy, fontSize: 14, fontWeight: "600" },
-  checkinBtn: { backgroundColor: COLORS.green },
-  checkoutBtn: { backgroundColor: COLORS.red },
+
+  checkinBtn: { backgroundColor: COLORS.navy },
+
+  checkoutBtn: { backgroundColor: '#AA5145' },
   checkoutBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   grayBtn: { backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border },
   grayText: { color: COLORS.subtext, fontSize: 14, fontWeight: "600" },
-  emptyWrap: { alignItems: "center", paddingTop: 60 },
+
+  emptyWrap: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 20, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: COLORS.text, marginTop: 12 },
   emptySub: { fontSize: 13, color: COLORS.subtext, marginTop: 4 },
-  emptyBtn: { marginTop: 18, maxWidth: 180, alignSelf: "center" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalBox: { width: "100%", maxWidth: 420, backgroundColor: "#fff", borderRadius: 16, padding: 20 },
+
+  emptyBtn: { flex: 0, marginTop: 20, maxWidth: 180, alignSelf: 'center' },
+
+  modalOverlay: { flexGrow: 1, backgroundColor: 'rgba(23,38,30,0.48)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+
+  modalBox: { width: '100%', maxWidth: 420, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24 },
   occupancyBox: { maxWidth: 480 },
-  modalTitle: { fontSize: 17, fontWeight: "700", color: COLORS.text, marginBottom: 4 },
-  modalLabel: { fontSize: 12, fontWeight: "600", color: COLORS.subtext, marginTop: 12, marginBottom: 5 },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    backgroundColor: COLORS.bg,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: COLORS.text,
-  },
+
+  modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 16, letterSpacing: -0.3 },
+
+  modalLabel: { fontSize: 13, fontWeight: '600', color: COLORS.subtext, marginTop: 12, marginBottom: 8 },
+
+  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, backgroundColor: '#FFFFFF', paddingHorizontal: 12, minHeight: 46, paddingVertical: 12, fontSize: 15, color: COLORS.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) },
   countRow: { flexDirection: "row", gap: 10 },
   countCol: { flex: 1 },
-  modalActions: { flexDirection: "row", gap: 10, marginTop: 20 },
+
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 24 },
 });

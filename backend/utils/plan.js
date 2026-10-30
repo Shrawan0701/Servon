@@ -14,11 +14,11 @@ const PLANS = {
         description: 'Billed quarterly (Save 37%)',
     },
     yearly: {
-        amount: 600000, // in paise (₹6,000)
+        amount: 899900, // in paise (₹8,999)
         days: 365,
         label: 'Yearly',
         displayName: 'Yearly',
-        description: 'Billed yearly (Save 50%)',
+        description: 'Billed yearly (Save 25%)',
     },
 };
 

@@ -3,6 +3,27 @@ const router = express.Router();
 const pool = require("../db");
 const auth = require("../middleware/auth");
 const { uploadImage } = require("../utils/cloudinary");
+const expenseReportPdf = require("../utils/expenseReportPdf");
+
+// Read-only rendering of the currently displayed ledger snapshot for downloads.
+router.post("/report/pdf", auth, async (req, res) => {
+  const { expenses, totalSales, grandTotal, period } = req.body;
+  if (!Array.isArray(expenses) || expenses.length > 20000 ||
+      !["daily", "weekly", "monthly"].includes(period) ||
+      !Number.isFinite(totalSales) || !Number.isFinite(grandTotal) ||
+      expenses.some((e) => !e || typeof e !== "object" || !Number.isFinite(Number(e.amount)))) {
+    return res.status(400).json({ error: "Invalid expense report" });
+  }
+  try {
+    const business = await pool.query("SELECT business_name FROM businesses WHERE id = $1", [req.businessId]);
+    const pdf = await expenseReportPdf({ businessName: business.rows[0]?.business_name || "Servon", period, expenses, totalSales, grandTotal });
+    res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="expenses-${period}.pdf"` });
+    res.send(pdf);
+  } catch (error) {
+    console.error("Expense PDF error:", error);
+    res.status(500).json({ error: "Could not generate expense report" });
+  }
+});
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

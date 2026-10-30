@@ -37,7 +37,7 @@ const FAQS = [
         id: 'sub3',
         category: 'Subscription & Payment',
         question: 'What are the available plans and pricing?',
-        answer: 'Servon offers 3 plans: Monthly ₹999, Quarterly ₹2,500 (Save 15%), and Yearly ₹6,000 (Save 51%). All plans give you full access to all features. No auto-debit, manual renewal only.',
+        answer: 'Servon offers 3 plans: Monthly ₹999, Quarterly ₹2,500 (Save 17%), and Yearly ₹8,999 (Save 25%). All plans give you full access to all features. No auto-debit, manual renewal only.',
     },
 
     // ===== APP FEATURES =====
@@ -219,7 +219,8 @@ export default function SupportScreen() {
                 showsVerticalScrollIndicator={false}
                 stickyHeaderIndices={[1]}
             >
-                <View style={styles.introBlock}>
+                <View style={[styles.introBlock, !isSmallScreen && styles.introBlockWide]}>
+                  <View style={styles.searchPanel}>
                     <LocalizedText translate style={styles.introTitle}>Search for anything</LocalizedText>
                     <LocalizedText translate style={styles.introSubtitle}>
                         Or browse a topic below to find your answer
@@ -240,6 +241,22 @@ export default function SupportScreen() {
                             </TouchableOpacity>
                         )}
                     </View>
+                  </View>
+                  <View style={[styles.contactPanel, isSmallScreen && { width: "100%" }]}>
+                    <LocalizedText style={styles.contactTitle}>Contact Support</LocalizedText>
+                    <View style={styles.contactLinks}>
+                      <TouchableOpacity style={styles.contactLink} onPress={handleEmailSupport} activeOpacity={0.8} accessibilityRole="link">
+                        <View style={styles.contactIcon}><Ionicons name="mail-outline" size={20} color="#365E40" /></View>
+                        <NativeText style={styles.contactValue}>support@servon.cloud</NativeText>
+                        <Ionicons name="arrow-up-outline" size={15} color="#627166" style={{ transform: [{ rotate: '45deg' }] }} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.contactLink} onPress={() => Linking.openURL('tel:+919834386415')} activeOpacity={0.8} accessibilityRole="link">
+                        <View style={styles.contactIcon}><Ionicons name="call-outline" size={20} color="#365E40" /></View>
+                        <NativeText style={styles.contactValue}>9834386415</NativeText>
+                        <Ionicons name="arrow-up-outline" size={15} color="#627166" style={{ transform: [{ rotate: '45deg' }] }} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
 
                 {/* Sticky category pill bar */}
@@ -314,6 +331,8 @@ export default function SupportScreen() {
                                             idx === visibleFAQs.length - 1 && styles.faqRowLast,
                                         ]}
                                         onPress={() => toggleFAQ(faq.id)}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ expanded: isExpanded }}
                                         activeOpacity={0.6}
                                     >
                                         <View style={styles.faqRowTop}>
@@ -321,14 +340,14 @@ export default function SupportScreen() {
                                                 <Ionicons
                                                     name={CATEGORY_ICONS[faq.category] || 'help-circle-outline'}
                                                     size={14}
-                                                    color="#10B981"
+                                                    color="#39805A"
                                                 />
                                             </View>
                                             <LocalizedText style={styles.faqQuestion}>{faq.question}</LocalizedText>
                                             <Ionicons
                                                 name={isExpanded ? 'remove' : 'add'}
                                                 size={18}
-                                                color={isExpanded ? '#10B981' : '#9CA3AF'}
+                                                color={isExpanded ? '#39805A' : '#7B897F'}
                                             />
                                         </View>
                                         {isExpanded && (
@@ -340,24 +359,6 @@ export default function SupportScreen() {
                         </View>
                     )}
 
-                    {/* Responsive Contact Section */}
-                    <View style={[styles.contactSection, isSmallScreen && styles.contactSectionMobile]}>
-                        <View style={[styles.contactLeft, isSmallScreen && styles.contactLeftMobile]}>
-                            <LocalizedText translate style={styles.contactTitle}>Still stuck?</LocalizedText>
-                            <LocalizedText translate style={styles.contactSubtitle}>
-                                Our support team usually replies within a few hours.
-                            </LocalizedText>
-                        </View>
-                        <TouchableOpacity
-                            style={[styles.contactBtn, isSmallScreen && styles.contactBtnMobile]}
-                            onPress={handleEmailSupport}
-                            activeOpacity={0.85}
-                        >
-                            <Ionicons name="mail-outline" size={16} color="#111827" />
-                            <LocalizedText translate style={styles.contactBtnText}>Email us at support@servon.cloud</LocalizedText>
-                        </TouchableOpacity>
-                    </View>
-
                     <View style={{ height: 40 }} />
                 </View>
             </ScrollView>
@@ -366,241 +367,41 @@ export default function SupportScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FAFAF8',
-    },
-    header: {
-        backgroundColor: '#FAFAF8',
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEEBE4',
-        width: '100%',
-    },
-    headerInner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        width: '100%',
-    },
-    backBtn: {
-        width: 30,
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    headerTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111827',
-    },
-    scrollContentOuter: {
-        paddingBottom: 20,
-    },
-    introBlock: {
-        width: '100%',
-        paddingHorizontal: 20,
-        paddingTop: 24,
-        paddingBottom: 16,
-    },
-    introTitle: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#111827',
-        marginBottom: 4,
-        letterSpacing: -0.3,
-    },
-    introSubtitle: {
-        fontSize: 14,
-        color: '#6B7280',
-        marginBottom: 16,
-    },
-    searchBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#E5E1D8',
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        paddingVertical: Platform.select({ web: 12, default: 10 }),
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 4,
-        elevation: 1,
-        width: '100%',
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 14,
-        color: '#111827',
-        ...Platform.select({ web: { outlineStyle: 'none' } }),
-    },
-    pillBarOuter: {
-        backgroundColor: '#FAFAF8',
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEEBE4',
-        paddingVertical: 10,
-        width: '100%',
-    },
-    pillBar: {
-        paddingHorizontal: 20,
-        gap: 8,
-        flexDirection: 'row',
-    },
-    pill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#E5E1D8',
-        ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    pillActive: {
-        backgroundColor: '#111827',
-        borderColor: '#111827',
-    },
-    pillText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#4B5563',
-    },
-    pillTextActive: {
-        color: '#fff',
-    },
-    scrollContent: {
-        paddingHorizontal: 20,
-        paddingTop: 18,
-        width: '100%',
-    },
-    resultsLabel: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#9CA3AF',
-        textTransform: 'uppercase',
-        letterSpacing: 0.6,
-        marginBottom: 12,
-    },
-    emptyState: {
-        alignItems: 'center',
-        paddingVertical: 48,
-        gap: 8,
-    },
-    emptyTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#374151',
-    },
-    emptySubtitle: {
-        fontSize: 13,
-        color: '#9CA3AF',
-        textAlign: 'center',
-    },
-    list: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#EEEBE4',
-        overflow: 'hidden',
-        marginBottom: 20,
-        width: '100%',
-    },
-    faqRow: {
-        paddingHorizontal: 16,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F2F0EA',
-        ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    faqRowLast: {
-        borderBottomWidth: 0,
-    },
-    faqRowTop: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    faqIconDot: {
-        width: 28,
-        height: 28,
-        borderRadius: 8,
-        backgroundColor: '#ECFDF5',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    faqQuestion: {
-        flex: 1,
-        fontSize: 14.5,
-        fontWeight: '600',
-        color: '#1F2937',
-        lineHeight: 20,
-    },
-    faqAnswer: {
-        fontSize: 13.5,
-        color: '#6B7280',
-        lineHeight: 21,
-        marginTop: 10,
-        marginLeft: 40,
-    },
-    // Desktop layout defaults
-    contactSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#F4F2EC',
-        borderRadius: 16,
-        padding: 20,
-        gap: 16,
-        width: '100%',
-    },
-    contactSectionMobile: {
-        flexDirection: 'column',
-        alignItems: 'stretch',
-        gap: 14,
-        padding: 16,
-    },
-    contactLeft: {
-        flex: 1,
-    },
-    contactLeftMobile: {
-        width: '100%',
-    },
-    contactTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 2,
-    },
-    contactSubtitle: {
-        fontSize: 12.5,
-        color: '#6B7280',
-        lineHeight: 18,
-    },
-    contactBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        backgroundColor: '#fff',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E5E1D8',
-        ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    contactBtnMobile: {
-        width: '100%',
-    },
-    contactBtnText: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#111827',
-    },
+    container: { flex: 1, backgroundColor: '#F3F5F2' },
+    header: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#DFE5DF', width: '100%' },
+    headerInner: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 12, width: '100%', maxWidth: 1200, alignSelf: 'center' },
+    backBtn: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#F0F4ED', alignItems: 'center', justifyContent: 'center', ...Platform.select({ web: { cursor: 'pointer' } }) },
+    headerTitle: { flex: 1, fontSize: 19, fontWeight: '700', color: '#20332A', letterSpacing: -.3 },
+    scrollContentOuter: { paddingBottom: 24, width: '100%', maxWidth: 1200, alignSelf: 'center' },
+    introBlock: { width: '100%', paddingHorizontal: 20, paddingTop: 28, paddingBottom: 22, gap: 20 },
+    introBlockWide: { flexDirection: 'row', alignItems: 'center', gap: 36 },
+    searchPanel: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minWidth: 0 },
+    introTitle: { fontSize: 27, fontWeight: '700', color: '#20332A', marginBottom: 6, letterSpacing: -.6 },
+    introSubtitle: { fontSize: 14, color: '#627166', marginBottom: 18, lineHeight: 21 },
+    searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#D5E0D1', borderRadius: 9, paddingHorizontal: 14, minHeight: 48, width: '100%' },
+    searchInput: { flex: 1, minWidth: 0, fontSize: 14, paddingVertical: 13, color: '#20332A', ...Platform.select({ web: { outlineStyle: 'none' } }) },
+    contactPanel: { width: 310, padding: 16, borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 12, backgroundColor: '#fff', flexShrink: 0 },
+    contactTitle: { fontSize: 14, fontWeight: '700', color: '#365E40', marginBottom: 10 },
+    contactLinks: { gap: 8 },
+    contactLink: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 4, ...Platform.select({ web: { cursor: 'pointer' } }) },
+    contactIcon: { width: 34, height: 34, borderRadius: 8, backgroundColor: '#EDF3E8', alignItems: 'center', justifyContent: 'center' },
+    contactValue: { flex: 1, fontSize: 14, fontWeight: '600', color: '#283B30', flexShrink: 1 },
+    pillBarOuter: { backgroundColor: '#F3F5F2', borderBottomWidth: 1, borderBottomColor: '#DDE4DC', paddingVertical: 12, width: '100%' },
+    pillBar: { paddingHorizontal: 20, gap: 8, flexDirection: 'row' },
+    pill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 11, minHeight: 44, borderRadius: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#DFE5DF', ...Platform.select({ web: { cursor: 'pointer' } }) },
+    pillActive: { backgroundColor: '#244F3B', borderColor: '#244F3B' },
+    pillText: { fontSize: 13, fontWeight: '600', color: '#4A5E50' },
+    pillTextActive: { color: '#fff' },
+    scrollContent: { paddingHorizontal: 20, paddingTop: 20, width: '100%' },
+    resultsLabel: { fontSize: 12, fontWeight: '600', color: '#627166', marginBottom: 14 },
+    emptyState: { alignItems: 'center', paddingVertical: 48, gap: 10, borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 12, backgroundColor: '#fff' },
+    emptyTitle: { fontSize: 16, fontWeight: '600', color: '#344E3E' },
+    emptySubtitle: { fontSize: 13, color: '#627166', textAlign: 'center', paddingHorizontal: 20, lineHeight: 20 },
+    list: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#DFE5DF', overflow: 'hidden', marginBottom: 16, width: '100%' },
+    faqRow: { paddingHorizontal: 18, paddingVertical: 17, borderBottomWidth: 1, borderBottomColor: '#E9EDE7', ...Platform.select({ web: { cursor: 'pointer' } }) },
+    faqRowLast: { borderBottomWidth: 0 },
+    faqRowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    faqIconDot: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#F0F4ED', alignItems: 'center', justifyContent: 'center' },
+    faqQuestion: { flex: 1, minWidth: 0, fontSize: 15, fontWeight: '600', lineHeight: 22, color: '#283B30' },
+    faqAnswer: { fontSize: 14, color: '#627166', lineHeight: 23, marginTop: 14, paddingLeft: 44, paddingRight: 8 },
 });

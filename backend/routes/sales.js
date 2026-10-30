@@ -113,6 +113,8 @@ router.get("/pdf", auth, async (req, res) => {
 
   try {
     const data      = await getReportData(req.businessId, startDate, endDate);
+    const business = await pool.query("SELECT business_name FROM businesses WHERE id = $1", [req.businessId]);
+    data.business_name = business.rows[0]?.business_name || "Servon";
     const pdfBuffer = await generateSalesReportPDF(data);
 
     res.set({

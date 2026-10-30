@@ -11,6 +11,7 @@ import {
     TextInput,
     RefreshControl,
     Platform,
+    useWindowDimensions,
 } from "react-native";
 import LocalizedText, { localizeText } from "../components/LocalizedText";
 import { useLocale } from "../context/LocaleContext";
@@ -20,6 +21,9 @@ import { getStaffById, updateStaff, markSalaryPaid } from '../api';
 
 const StaffProfileScreen = ({ route, navigation }) => {
     const { language } = useLocale();
+    const { width } = useWindowDimensions();
+    const wideLayout = width >= 900;
+    const compactLayout = width < 600;
     const { staffId } = route.params;
     const [staff, setStaff] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -123,7 +127,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#059669" />
+                <ActivityIndicator size="large" color="#39805A" />
             </View>
         );
     }
@@ -139,14 +143,15 @@ const StaffProfileScreen = ({ route, navigation }) => {
     return (
         <ScrollView
             style={styles.container}
+            contentContainerStyle={styles.workspace}
             showsVerticalScrollIndicator={false}
             refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#059669" />
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#39805A" />
             }
         >
             {/* Header */}
             <LinearGradient
-                colors={['#059669', '#047857']}
+                colors={['#FFFFFF', '#FFFFFF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.header}
@@ -158,12 +163,23 @@ const StaffProfileScreen = ({ route, navigation }) => {
                         </LocalizedText>
                     </View>
                 </View>
+                <View style={styles.identity}>
                 <LocalizedText style={styles.name}>{staff.name}</LocalizedText>
                 <View style={styles.rolePill}>
                     <LocalizedText style={styles.role}>{staff.role}</LocalizedText>
                 </View>
+                </View>
 
-                <View style={styles.headerStatsRow}>
+                <TouchableOpacity
+                    style={styles.editButton}
+                    activeOpacity={0.85}
+                    onPress={() => setEditModalVisible(true)}
+                >
+                    <Ionicons name="create-outline" size={18} color="#39805A" />
+                    <LocalizedText translate style={styles.editButtonText}>Edit Staff</LocalizedText>
+                </TouchableOpacity>
+
+                <View style={[styles.headerStatsRow, !wideLayout && styles.headerStatsCompact]}>
                     <View style={styles.headerStat}>
                         <LocalizedText style={styles.headerStatValue}>₹{staff.monthly_salary.toLocaleString()}</LocalizedText>
                         <LocalizedText translate style={styles.headerStatLabel}>MONTHLY</LocalizedText>
@@ -176,13 +192,14 @@ const StaffProfileScreen = ({ route, navigation }) => {
                 </View>
             </LinearGradient>
 
+            <View style={[styles.detailsGrid, { flexDirection: wideLayout ? 'row' : 'column' }]}>
             {/* Contact Details */}
-            <View style={styles.section}>
+            <View style={[styles.section, { width: wideLayout ? '49.3%' : '100%' }]}>
                 <LocalizedText translate style={styles.sectionEyebrow}>CONTACT DETAILS</LocalizedText>
                
                 <View style={styles.detailItem}>
                     <View style={styles.detailIconChip}>
-                        <Ionicons name="call-outline" size={17} color="#059669" />
+                        <Ionicons name="call-outline" size={17} color="#39805A" />
                     </View>
                     <View style={styles.detailTextWrap}>
                         <LocalizedText translate style={styles.detailLabel}>Phone</LocalizedText>
@@ -191,7 +208,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                 </View>
                 <View style={styles.detailItem}>
                     <View style={styles.detailIconChip}>
-                        <Ionicons name="calendar-outline" size={17} color="#059669" />
+                        <Ionicons name="calendar-outline" size={17} color="#39805A" />
                     </View>
                     <View style={styles.detailTextWrap}>
                         <LocalizedText translate style={styles.detailLabel}>Joining Date</LocalizedText>
@@ -200,7 +217,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                 </View>
                 <View style={[styles.detailItem, { marginBottom: 0 }]}>
                     <View style={styles.detailIconChip}>
-                        <Ionicons name="cash-outline" size={17} color="#059669" />
+                        <Ionicons name="cash-outline" size={17} color="#39805A" />
                     </View>
                     <View style={styles.detailTextWrap}>
                         <LocalizedText translate style={styles.detailLabel}>Monthly Salary</LocalizedText>
@@ -210,7 +227,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
             </View>
 
             {/* Payment Status */}
-            <View style={styles.section}>
+            <View style={[styles.section, { width: wideLayout ? '49.3%' : '100%' }]}>
                 <View style={styles.sectionHeader}>
                     <LocalizedText translate style={styles.sectionEyebrow}>CURRENT MONTH PAYMENT</LocalizedText>
                     <View style={[
@@ -260,7 +277,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                         onPress={() => setPaymentModalVisible(true)}
                     >
                         <LinearGradient
-                            colors={['#34D399', '#059669']}
+                            colors={['#2E503C', '#2E503C']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={styles.payButton}
@@ -270,6 +287,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                         </LinearGradient>
                     </TouchableOpacity>
                 )}
+            </View>
             </View>
 
             {/* Salary History */}
@@ -285,7 +303,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                             ]}
                         >
                             <View style={styles.historyIconChip}>
-                                <Ionicons name="checkmark" size={15} color="#059669" />
+                                <Ionicons name="checkmark" size={15} color="#39805A" />
                             </View>
                             <View style={styles.historyLeft}>
                                 <LocalizedText style={styles.historyMonth}>
@@ -313,15 +331,6 @@ const StaffProfileScreen = ({ route, navigation }) => {
                 )}
             </View>
 
-            {/* Edit Button */}
-            <TouchableOpacity
-                style={styles.editButton}
-                activeOpacity={0.85}
-                onPress={() => setEditModalVisible(true)}
-            >
-                <Ionicons name="create-outline" size={19} color="#059669" />
-                <LocalizedText translate style={styles.editButtonText}>Edit Staff</LocalizedText>
-            </TouchableOpacity>
             <View style={{ height: 24 }} />
 
             {/* Edit Modal */}
@@ -331,8 +340,8 @@ const StaffProfileScreen = ({ route, navigation }) => {
                 visible={editModalVisible}
                 onRequestClose={() => setEditModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <View style={[styles.modalOverlay, compactLayout && styles.modalOverlayCompact]}>
+                    <View style={[styles.modalContent, compactLayout && styles.modalContentCompact]}>
                         <View style={styles.modalHandle} />
                         <View style={styles.modalHeader}>
                             <LocalizedText translate style={styles.modalTitle}>Edit Staff</LocalizedText>
@@ -344,10 +353,10 @@ const StaffProfileScreen = ({ route, navigation }) => {
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false}>
+                        <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                             <LocalizedText translate style={styles.inputLabel}>Full Name</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Ionicons name="person-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
+                                <Ionicons name="person-outline" size={18} color="#7B897F" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder={localizeText("Full Name *", language)}
@@ -361,7 +370,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
 
                             <LocalizedText translate style={styles.inputLabel}>Phone</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Ionicons name="call-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
+                                <Ionicons name="call-outline" size={18} color="#7B897F" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder={localizeText("Phone *", language)}
@@ -374,7 +383,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
 
                             <LocalizedText translate style={styles.inputLabel}>Role</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Ionicons name="briefcase-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
+                                <Ionicons name="briefcase-outline" size={18} color="#7B897F" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder={localizeText("Role *", language)}
@@ -386,7 +395,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
 
                             <LocalizedText translate style={styles.inputLabel}>Joining Date</LocalizedText>
                             <View style={styles.inputWrap}>
-                                <Ionicons name="calendar-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
+                                <Ionicons name="calendar-outline" size={18} color="#7B897F" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="YYYY-MM-DD"
@@ -409,13 +418,14 @@ const StaffProfileScreen = ({ route, navigation }) => {
                                 />
                             </View>
 
+                        </ScrollView>
                             <TouchableOpacity
                                 style={styles.submitButtonWrap}
                                 activeOpacity={0.9}
                                 onPress={handleEditStaff}
                             >
                                 <LinearGradient
-                                    colors={['#34D399', '#059669']}
+                                    colors={['#2E503C', '#2E503C']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
                                     style={styles.submitButton}
@@ -423,8 +433,6 @@ const StaffProfileScreen = ({ route, navigation }) => {
                                     <LocalizedText translate style={styles.submitButtonText}>Update Staff</LocalizedText>
                                 </LinearGradient>
                             </TouchableOpacity>
-                            <View style={{ height: 12 }} />
-                        </ScrollView>
                     </View>
                 </View>
             </Modal>
@@ -436,8 +444,8 @@ const StaffProfileScreen = ({ route, navigation }) => {
                 visible={paymentModalVisible}
                 onRequestClose={() => setPaymentModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <View style={[styles.modalOverlay, compactLayout && styles.modalOverlayCompact]}>
+                    <View style={[styles.modalContent, compactLayout && styles.modalContentCompact]}>
                         <View style={styles.modalHandle} />
                         <View style={styles.modalHeader}>
                             <LocalizedText translate style={styles.modalTitle}>Pay Salary</LocalizedText>
@@ -449,6 +457,7 @@ const StaffProfileScreen = ({ route, navigation }) => {
                             </TouchableOpacity>
                         </View>
 
+                        <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                         <View style={styles.paymentInfoCard}>
                             <View style={styles.paymentInfoRow}>
                                 <LocalizedText translate style={styles.paymentInfoLabel}>Staff</LocalizedText>
@@ -487,13 +496,14 @@ const StaffProfileScreen = ({ route, navigation }) => {
                             />
                         </View>
 
+                        </ScrollView>
                         <TouchableOpacity
                             style={styles.submitButtonWrap}
                             activeOpacity={0.9}
                             onPress={handlePaySalary}
                         >
                             <LinearGradient
-                                colors={['#34D399', '#059669']}
+                                colors={['#2E503C', '#2E503C']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={styles.submitButton}
@@ -509,172 +519,76 @@ const StaffProfileScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F6F7FB',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F6F7FB',
-    },
+
+  workspace: { width: '100%', maxWidth: 1240, alignSelf: 'center', padding: 20 },
+  identity: { flex: 1, minWidth: 80 },
+  detailsGrid: { justifyContent: 'space-between' },
+  headerStatsCompact: { paddingTop: 16 },
+  modalOverlayCompact: { justifyContent: 'flex-end', padding: 0 },
+  modalContentCompact: { maxWidth: '100%', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: 20, paddingBottom: Platform.OS === 'ios' ? 32 : 20 },
+  formScroll: { flexShrink: 1 },
+
+
+  container: {  flex: 1, backgroundColor: '#F3F5F2'  },
+
+  loadingContainer: {  flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F5F2'  },
     errorContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
-        backgroundColor: '#F6F7FB',
+        backgroundColor: '#F3F5F2',
     },
     errorText: {
         fontSize: 16,
         color: '#EF4444',
         fontWeight: '600',
     },
-    header: {
-        alignItems: 'center',
-        paddingTop: 36,
-        paddingBottom: 28,
-        paddingHorizontal: 24,
-        borderBottomLeftRadius: 28,
-        borderBottomRightRadius: 28,
-    },
-    avatarRing: {
-        width: 92,
-        height: 92,
-        borderRadius: 46,
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 14,
-    },
-    avatarLarge: {
-        width: 78,
-        height: 78,
-        borderRadius: 39,
-        backgroundColor: '#FFFFFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarLargeText: {
-        color: '#059669',
-        fontSize: 30,
-        fontWeight: '800',
-    },
-    name: {
-        fontSize: 23,
-        fontWeight: '800',
-        color: '#FFFFFF',
-        marginBottom: 8,
-        letterSpacing: -0.3,
-    },
-    rolePill: {
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        paddingHorizontal: 14,
-        paddingVertical: 5,
-        borderRadius: 20,
-        marginBottom: 22,
-    },
-    role: {
-        fontSize: 13,
-        color: '#ECFDF5',
-        fontWeight: '600',
-        letterSpacing: 0.2,
-    },
-    headerStatsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.14)',
-        borderRadius: 16,
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        width: '100%',
-    },
-    headerStat: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    headerStatDivider: {
-        width: 1,
-        height: 28,
-        backgroundColor: 'rgba(255,255,255,0.25)',
-    },
-    headerStatValue: {
-        fontSize: 15,
-        fontWeight: '800',
-        color: '#FFFFFF',
-    },
-    headerStatLabel: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: 'rgba(255,255,255,0.75)',
-        marginTop: 3,
-        letterSpacing: 0.6,
-    },
-    section: {
-        backgroundColor: '#FFFFFF',
-        marginTop: 14,
-        padding: 18,
-        marginHorizontal: 16,
-        borderRadius: 20,
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.05,
-        shadowRadius: 14,
-        elevation: 2,
-        borderWidth: 1,
-        borderColor: 'rgba(15,23,42,0.04)',
-    },
-    sectionEyebrow: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#94A3B8',
-        letterSpacing: 0.8,
-        marginBottom: 14,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 0,
-    },
-    detailItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 14,
-    },
-    detailIconChip: {
-        width: 34,
-        height: 34,
-        borderRadius: 11,
-        backgroundColor: '#ECFDF5',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
+
+  header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16, padding: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 12, marginBottom: 20 },
+
+  avatarRing: { width: 54, height: 54, borderRadius: 12, backgroundColor: '#EAF2EC', justifyContent: 'center', alignItems: 'center' },
+
+  avatarLarge: { width: 50, height: 50, borderRadius: 12, backgroundColor: '#EAF2EC', justifyContent: 'center', alignItems: 'center' },
+
+  avatarLargeText: { color: '#2E503C', fontSize: 23, fontWeight: '700' },
+
+  name: { fontSize: 23, fontWeight: '700', color: '#20332A', letterSpacing: -0.4 },
+
+  rolePill: { alignSelf: 'flex-start', marginTop: 5 },
+
+  role: { fontSize: 14, color: '#627166' },
+
+  headerStatsRow: { flexDirection: 'row', alignItems: 'center', width: '100%', borderTopWidth: 1, borderTopColor: '#E8EDE8', paddingTop: 18, marginTop: 2 },
+
+  headerStat: { flex: 1, minWidth: 0, paddingHorizontal: 8 },
+
+  headerStatDivider: { width: 1, height: 36, backgroundColor: '#DFE5DF' },
+
+  headerStatValue: { fontSize: 18, fontWeight: '600', color: '#20332A' },
+
+  headerStatLabel: { fontSize: 10, fontWeight: '500', color: '#627166', marginTop: 6 },
+
+  section: { backgroundColor: '#FFFFFF', padding: 20, marginBottom: 20, borderRadius: 12, borderWidth: 1, borderColor: '#DFE5DF' },
+
+  sectionEyebrow: { fontSize: 12, fontWeight: '600', color: '#627166', marginBottom: 20 },
+
+  sectionHeader: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 4 },
+
+  detailItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+
+  detailIconChip: { width: 34, height: 34, borderRadius: 9, backgroundColor: '#F3F5F2', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     detailTextWrap: {
         flex: 1,
     },
-    detailLabel: {
-        fontSize: 11.5,
-        color: '#94A3B8',
-        fontWeight: '600',
-        marginBottom: 2,
-    },
-    detailValue: {
-        fontSize: 15,
-        color: '#0B1120',
-        fontWeight: '600',
-    },
-    statusBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-    },
+
+  detailLabel: { fontSize: 12, color: '#627166', marginBottom: 5 },
+
+  detailValue: { fontSize: 15, color: '#20332A', fontWeight: '500' },
+
+  statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 7, marginBottom: 16 },
     paidBadge: {
-        backgroundColor: '#ECFDF5',
+        backgroundColor: '#EAF2EC',
     },
     pendingBadge: {
         backgroundColor: '#FFFBEB',
@@ -686,7 +600,7 @@ const styles = StyleSheet.create({
         marginRight: 6,
     },
     paidDot: {
-        backgroundColor: '#059669',
+        backgroundColor: '#39805A',
     },
     pendingDot: {
         backgroundColor: '#D97706',
@@ -696,236 +610,92 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     paidBadgeText: {
-        color: '#059669',
+        color: '#39805A',
     },
     pendingBadgeText: {
         color: '#D97706',
     },
-    paymentDetails: {
-        backgroundColor: '#F8FAFC',
-        padding: 14,
-        borderRadius: 14,
-        marginTop: 14,
-        borderWidth: 1,
-        borderColor: '#EEF1F6',
-    },
-    paymentDetailRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 4,
-    },
-    paymentDetailLabel: {
-        fontSize: 13,
-        color: '#94A3B8',
-        fontWeight: '600',
-    },
-    paymentDetailValue: {
-        fontSize: 13.5,
-        color: '#0B1120',
-        fontWeight: '700',
-    },
-    payButtonWrap: {
-        borderRadius: 14,
-        overflow: 'hidden',
-        marginTop: 14,
-        shadowColor: '#059669',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        elevation: 4,
-    },
-    payButton: {
-        flexDirection: 'row',
-        padding: 15,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    payButtonText: {
-        color: '#fff',
-        fontSize: 15.5,
-        fontWeight: '700',
-        marginLeft: 8,
-    },
-    historyItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 13,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F1F3F8',
-    },
-    historyIconChip: {
-        width: 30,
-        height: 30,
-        borderRadius: 10,
-        backgroundColor: '#ECFDF5',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    historyLeft: {
-        flex: 1,
-    },
-    historyMonth: {
-        fontSize: 14.5,
-        fontWeight: '700',
-        color: '#0B1120',
-        marginBottom: 2,
-    },
-    historyNotes: {
-        fontSize: 12,
-        color: '#94A3B8',
-    },
+
+  paymentDetails: { borderTopWidth: 1, borderTopColor: '#DFE5DF', paddingTop: 12 },
+
+  paymentDetailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, paddingVertical: 10 },
+
+  paymentDetailLabel: { fontSize: 13, color: '#627166' },
+
+  paymentDetailValue: { fontSize: 14, color: '#20332A', fontWeight: '600' },
+
+  payButtonWrap: { borderRadius: 9, overflow: 'hidden', marginTop: 12 },
+
+  payButton: { flexDirection: 'row', padding: 14, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+
+  payButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginLeft: 8 },
+
+  historyItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#E8EDE8', gap: 12 },
+
+  historyIconChip: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#EAF2EC', justifyContent: 'center', alignItems: 'center' },
+
+  historyLeft: { flex: 1, minWidth: 0 },
+
+  historyMonth: { fontSize: 14, fontWeight: '600', color: '#20332A', marginBottom: 5 },
+
+  historyNotes: { fontSize: 12, lineHeight: 18, color: '#627166' },
     historyRight: {
         alignItems: 'flex-end',
     },
-    historyAmount: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#059669',
-        marginBottom: 2,
-    },
-    historyDate: {
-        fontSize: 11.5,
-        color: '#94A3B8',
-    },
+
+  historyAmount: { fontSize: 15, fontWeight: '600', color: '#20332A', marginBottom: 5 },
+
+  historyDate: { fontSize: 12, color: '#627166' },
     emptyHistory: {
         alignItems: 'center',
         paddingVertical: 28,
     },
     emptyHistoryText: {
         fontSize: 13.5,
-        color: '#94A3B8',
+        color: '#627166',
         marginTop: 8,
         fontWeight: '500',
     },
-    editButton: {
-        flexDirection: 'row',
-        backgroundColor: '#FFFFFF',
-        padding: 16,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        margin: 16,
-        marginTop: 20,
-        borderWidth: 1.5,
-        borderColor: '#D1FAE5',
-    },
-    editButtonText: {
-        color: '#059669',
-        fontSize: 15.5,
-        fontWeight: '700',
-        marginLeft: 8,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(11,17,32,0.55)',
-        justifyContent: 'flex-end',
-    },
-    modalContent: {
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
-        paddingHorizontal: 24,
-        paddingTop: 12,
-        paddingBottom: Platform.OS === 'ios' ? 32 : 24,
-        maxHeight: '88%',
-    },
-    modalHandle: {
-        width: 40,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: '#E2E8F0',
-        alignSelf: 'center',
-        marginBottom: 16,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#0B1120',
-        letterSpacing: -0.3,
-    },
-    modalCloseBtn: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#F1F5F9',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    inputLabel: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#64748B',
-        marginBottom: 6,
-        marginLeft: 2,
-        letterSpacing: 0.2,
-    },
-    inputWrap: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: '#E5E9F0',
-        borderRadius: 14,
-        backgroundColor: '#F8FAFC',
-        marginBottom: 14,
-        paddingHorizontal: 14,
-    },
+
+  editButton: { flexDirection: 'row', backgroundColor: '#FFFFFF', minHeight: 42, paddingHorizontal: 14, borderRadius: 9, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DFE5DF' },
+
+  editButtonText: { color: '#2E503C', fontSize: 13, fontWeight: '600', marginLeft: 7 },
+
+  modalOverlay: {  flex: 1, backgroundColor: 'rgba(23,38,30,0.48)', justifyContent: 'center', alignItems: 'center', padding: 24  },
+
+  modalContent: {  width: '100%', maxWidth: 520, flexShrink: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, maxHeight: '92%'  },
+
+  modalHandle: {  display: 'none'  },
+
+  modalHeader: {  flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 18, marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#DFE5DF'  },
+
+  modalTitle: {  fontSize: 21, fontWeight: '700', color: '#20332A', letterSpacing: -0.4  },
+
+  modalCloseBtn: {  width: 36, height: 36, borderRadius: 9, backgroundColor: '#F3F5F2', justifyContent: 'center', alignItems: 'center'  },
+
+  inputLabel: {  fontSize: 13, fontWeight: '600', color: '#405448', marginBottom: 8  },
+
+  inputWrap: {  flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 9, backgroundColor: '#FFFFFF', marginBottom: 18, paddingHorizontal: 12, minHeight: 46, flexShrink: 0  },
     inputIcon: {
         marginRight: 8,
     },
-    inputPrefix: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#94A3B8',
-        marginRight: 6,
-    },
-    input: {
-        flex: 1,
-        paddingVertical: 13,
-        fontSize: 15.5,
-        color: '#0B1120',
-        fontWeight: '500',
-    },
+
+  inputPrefix: {  fontSize: 16, fontWeight: '600', color: '#627166', marginRight: 6  },
+
+  input: {  flex: 1, minWidth: 0, paddingVertical: 12, fontSize: 15, color: '#20332A', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {})  },
     textArea: {
         height: 76,
         textAlignVertical: 'top',
         paddingTop: 13,
     },
-    submitButtonWrap: {
-        borderRadius: 14,
-        overflow: 'hidden',
-        marginTop: 6,
-        shadowColor: '#059669',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        elevation: 4,
-    },
-    submitButton: {
-        paddingVertical: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    submitButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
-        letterSpacing: 0.2,
-    },
-    paymentInfoCard: {
-        backgroundColor: '#F8FAFC',
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 18,
-        borderWidth: 1,
-        borderColor: '#EEF1F6',
-    },
+
+  submitButtonWrap: {  borderRadius: 10, overflow: 'hidden', marginTop: 10, flexShrink: 0  },
+
+  submitButton: {  minHeight: 48, paddingVertical: 14, alignItems: 'center', justifyContent: 'center'  },
+
+  submitButtonText: {  color: '#FFFFFF', fontSize: 15, fontWeight: '600'  },
+
+  paymentInfoCard: {  backgroundColor: '#F3F5F2', borderRadius: 10, padding: 14, marginBottom: 22, borderWidth: 1, borderColor: '#DFE5DF'  },
     paymentInfoRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -936,16 +706,10 @@ const styles = StyleSheet.create({
         backgroundColor: '#E5E9F0',
         marginVertical: 6,
     },
-    paymentInfoLabel: {
-        fontSize: 13,
-        color: '#94A3B8',
-        fontWeight: '600',
-    },
-    paymentInfoValue: {
-        fontSize: 14,
-        color: '#0B1120',
-        fontWeight: '700',
-    },
+
+  paymentInfoLabel: {  fontSize: 13, color: '#627166'  },
+
+  paymentInfoValue: {  fontSize: 14, color: '#20332A', fontWeight: '600', flexShrink: 1, marginLeft: 16  },
 });
 
 export default StaffProfileScreen;

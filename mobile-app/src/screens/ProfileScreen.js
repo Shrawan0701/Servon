@@ -22,16 +22,16 @@ import RazorpayCheckout from 'react-native-razorpay';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const IS_WEB    = Platform.OS === "web";
-const H_PAD     = IS_WEB ? 0 : 20;
-const GREEN     = "#10B981";
-const BG        = "#FAF8F5";
+const H_PAD     = IS_WEB ? 0 : 16;
+const GREEN     = "#39805A";
+const BG        = "#F3F5F2";
 const CARD      = "#FFFFFF";
-const BORDER    = "#EDE9E3";
-const T_PRIMARY = "#1A1410";
-const T_MUTED   = "#6B6560";
-const T_FAINT   = "#A8A29E";
-const ACCENT    = "#10B981";
-const SIDEBAR_W = 260;
+const BORDER    = "#DFE5DF";
+const T_PRIMARY = "#20332A";
+const T_MUTED   = "#627166";
+const T_FAINT   = "#879487";
+const ACCENT    = "#365E40";
+const SIDEBAR_W = 240;
 
 // ─── Currency + savings helpers ──────────────────────────────────────────────
 const formatINR = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
@@ -82,16 +82,16 @@ export default function ProfileScreen({ onNavigate }) {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showSuccessModal, setShowSuccessModal]   = useState(false);
 
-  const LanguageSelector = () => (
-    <View style={styles.languageCard}>
-      <View style={styles.languageTitleRow}>
+  const LanguageSelector = ({ compact = false }) => (
+    <View style={[styles.languageCard, compact && styles.languageCompact]}>
+      <View style={[styles.languageTitleRow, compact && { marginBottom: 0 }]}>
         <Ionicons name="language-outline" size={18} color={T_PRIMARY} />
         <View style={{ flex: 1 }}>
           <LocalizedText style={styles.languageTitle}>{t("profile.language")}</LocalizedText>
-          <LocalizedText style={styles.languageHelp}>{t("profile.languageHelp")}</LocalizedText>
+          {!compact && <LocalizedText style={styles.languageHelp}>{t("profile.languageHelp")}</LocalizedText>}
         </View>
       </View>
-      <View style={styles.languageOptions}>
+      <View style={[styles.languageOptions, compact && { flex: 1, minWidth: 180 }]}>
         {[['en', t("language.english")], ['mr', t("language.marathi")], ['hi', t("language.hindi")]].map(([code, label]) => (
           <TouchableOpacity key={code} onPress={() => setLanguage(code)} style={[styles.languageOption, language === code && styles.languageOptionActive]}>
             <LocalizedText style={[styles.languageOptionText, language === code && styles.languageOptionTextActive]}>{label}</LocalizedText>
@@ -434,7 +434,7 @@ export default function ProfileScreen({ onNavigate }) {
   ];
 
   const renderField = ({ key, label, placeholder, editable = true, keyboardType = "default", multiline = false, autoCapitalize = "none" }) => (
-    <View key={key} style={styles.fieldRow}>
+    <View key={key} style={[styles.fieldRow, ["cgst_percentage", "sgst_percentage", "city", "state"].includes(key) && styles.fieldHalf]}>
       <View style={styles.fieldLabelRow}>
         <LocalizedText style={styles.fieldLabel}>{label}</LocalizedText>
         {!editable && (
@@ -499,6 +499,7 @@ export default function ProfileScreen({ onNavigate }) {
               key={plan.id}
               style={[
                 styles.planCard,
+                screenWidth < 600 && styles.planCardCompact,
                 isCurrent && !isSelected && styles.planCardCurrent,
                 isSelected && styles.planCardSelected,
                 isPopular && styles.planCardPopular,
@@ -525,8 +526,9 @@ export default function ProfileScreen({ onNavigate }) {
               ]}>
                 {plan.label}
               </LocalizedText>
-              <LocalizedText style={[
+              <LocalizedText numberOfLines={1} adjustsFontSizeToFit style={[
                 styles.planPrice,
+                screenWidth < 600 && { fontSize: 18 },
                 isSelected && styles.planPriceSelected,
               ]}>
                 {formatINR(plan.amount)}
@@ -592,6 +594,16 @@ export default function ProfileScreen({ onNavigate }) {
           )}
         </View>
 
+        {isSmallWeb && !isChefMode && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, backgroundColor: CARD }} contentContainerStyle={styles.mobileSectionNav}>
+            {webNavItems.map((item) => (
+              <TouchableOpacity key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeSection === item.id }} onPress={() => setActiveSection(item.id)} style={[styles.mobileSectionTab, activeSection === item.id && styles.mobileSectionTabActive]}>
+                <Ionicons name={item.icon} size={17} color={activeSection === item.id ? "#fff" : T_MUTED} />
+                <LocalizedText style={[styles.mobileSectionLabel, activeSection === item.id && styles.mobileSectionLabelActive]}>{item.label}</LocalizedText>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
         <View style={styles.webLayout}>
           {(!isSmallWeb || showMobileSidebar) && (
             <>
@@ -733,7 +745,7 @@ export default function ProfileScreen({ onNavigate }) {
                   <View>
                     <WebSectionHeader title="Billing & Taxes" subtitle="Configure your GST and tax settings" />
                     <View style={[styles.webFormGrid, isSmallWeb && { flexDirection: "column" }]}>
-                      <View style={{ flex: 1 }}><View style={styles.card}>{billingFields.map(renderField)}</View></View>
+                      <View style={[styles.profileFormColumn, isSmallWeb && styles.profileFormColumnStacked]}><View style={[styles.card, styles.profileFieldsGrid]}>{billingFields.map(renderField)}</View></View>
                       {!isSmallWeb && (
                         <View style={styles.webFormSideInfo}>
                           <View style={styles.webInfoBox}>
@@ -752,8 +764,8 @@ export default function ProfileScreen({ onNavigate }) {
                   <View>
                     <WebSectionHeader title="Business Details" subtitle="Update your restaurant information" />
                     <View style={[styles.webTwoCol, isSmallWeb && { flexDirection: "column" }]}>
-                      <View style={{ flex: 1 }}><View style={styles.card}>{basicFields.slice(0, 5).map(renderField)}</View></View>
-                      <View style={{ flex: 1 }}><View style={styles.card}>{basicFields.slice(5).map(renderField)}</View></View>
+                      <View style={[styles.profileFormColumn, isSmallWeb && styles.profileFormColumnStacked]}><View style={[styles.card, styles.profileFieldsGrid]}>{basicFields.slice(0, 5).map(renderField)}</View></View>
+                      <View style={[styles.profileFormColumn, isSmallWeb && styles.profileFormColumnStacked]}><View style={[styles.card, styles.profileFieldsGrid]}>{basicFields.slice(5).map(renderField)}</View></View>
                     </View>
                     {hasChanges && <WebSaveBar onSave={handleSave} onDiscard={handleDiscard} saving={saving} isSmall={isSmallWeb} />}
                   </View>
@@ -900,7 +912,7 @@ export default function ProfileScreen({ onNavigate }) {
 
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.inner}>
-          <LanguageSelector />
+          <LanguageSelector compact />
           {isChefMode && (
             <View style={styles.chefModeBanner}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -929,10 +941,22 @@ export default function ProfileScreen({ onNavigate }) {
                     </View>
                   )}
                 </TouchableOpacity>
-                <LocalizedText style={styles.heroName}>{profile?.business_name}</LocalizedText>
-                <LocalizedText style={styles.heroEmail}>{profile?.email}</LocalizedText>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <LocalizedText style={styles.heroName} numberOfLines={1}>{profile?.business_name}</LocalizedText>
+                  <LocalizedText style={styles.heroEmail} numberOfLines={1}>{profile?.email}</LocalizedText>
+                </View>
               </View>
 
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileSectionNav}>
+                {webNavItems.map((item) => (
+                  <TouchableOpacity key={item.id} accessibilityRole="tab" accessibilityState={{ selected: activeSection === item.id }} onPress={() => setActiveSection(item.id)} style={[styles.mobileSectionTab, activeSection === item.id && styles.mobileSectionTabActive]}>
+                    <Ionicons name={item.icon} size={17} color={activeSection === item.id ? '#fff' : T_MUTED} />
+                    <LocalizedText style={[styles.mobileSectionLabel, activeSection === item.id && styles.mobileSectionLabelActive]}>{item.label}</LocalizedText>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {activeSection === "subscription" && (<>
               <PlanSelection />
 
               <View style={styles.subCard}>
@@ -976,11 +1000,19 @@ export default function ProfileScreen({ onNavigate }) {
                 <LocalizedText translate style={styles.note}>Manual renewal only · No auto-debit</LocalizedText>
               </View>
 
-              <SectionLabel title="Billing & Taxes" icon="receipt-outline" />
-              <View style={styles.card}>{billingFields.map(renderField)}</View>
+              </>)}
 
+              {activeSection === "billing" && (<>
+              <SectionLabel title="Billing & Taxes" icon="receipt-outline" />
+              <View style={[styles.card, styles.profileFieldsGrid]}>{billingFields.map(renderField)}</View>
+
+              </>)}
+
+              {activeSection === "details" && (<>
               <SectionLabel title="Basic Details" icon="person-outline" />
-              <View style={styles.card}>{basicFields.map(renderField)}</View>
+              <View style={[styles.card, styles.profileFieldsGrid]}>{basicFields.map(renderField)}</View>
+
+              </>)}
 
               {hasChanges && (
                 <View style={styles.saveBar}>
@@ -997,6 +1029,7 @@ export default function ProfileScreen({ onNavigate }) {
                 </View>
               )}
 
+              {activeSection === "security" && (<>
               <SectionLabel title="Security & Kitchen" icon="shield-outline" />
               <View style={styles.card}>
                 <View style={styles.chefToggleRow}>
@@ -1042,6 +1075,8 @@ export default function ProfileScreen({ onNavigate }) {
                   </View>
                 )}
               </View>
+
+              </>)}
 
               <TouchableOpacity style={styles.ghostBtn} onPress={() => navigation.navigate("Support")} activeOpacity={0.8}>
                 <Ionicons name="chatbubbles-outline" size={16} color="#10B981" />
@@ -1112,15 +1147,26 @@ const slStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  languageCompact: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, padding: 10, marginTop: 12, marginBottom: 16 },
+  mobileSectionNav: { flexDirection: "row", gap: 8, paddingVertical: 12, paddingHorizontal: 2 },
+  mobileSectionTab: { flexDirection: "row", alignItems: "center", gap: 7, minHeight: 44, borderWidth: 1, borderColor: BORDER, borderRadius: 8, paddingHorizontal: 12, backgroundColor: CARD },
+  mobileSectionTabActive: { backgroundColor: "#244F3B", borderColor: "#244F3B" },
+  mobileSectionLabel: { fontSize: 13, fontWeight: "600", color: T_MUTED },
+  mobileSectionLabelActive: { color: "#fff" },
+  profileFieldsGrid: { flexDirection: "row", flexWrap: "wrap", flexShrink: 0 },
+  profileFormColumn: { flex: 1, minWidth: 0 },
+  profileFormColumnStacked: { flexGrow: 0, flexShrink: 0, flexBasis: "auto", width: "100%" },
+  fieldHalf: { width: "50%" },
+  planCardCompact: { padding: 10, paddingTop: 16, minWidth: 0 },
   safeArea: { flex: 1, backgroundColor: BG },
   webTopNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, ...Platform.select({ web: { boxShadow: "0 1px 4px rgba(0,0,0,0.04)" } }) },
   hamburgerBtn: { padding: 6, marginRight: 4 },
   webLayout: { flex: 1, flexDirection: "row" },
   webMainScroll: { flex: 1, backgroundColor: BG },
-  webMainContent: { padding: 36, paddingBottom: 60 },
+  webMainContent: { padding: 28, paddingBottom: 48, width: "100%", maxWidth: 1280, alignSelf: "center" },
   webMainContentSmall: { padding: 16, paddingBottom: 40 },
-  webSidebar: { width: SIDEBAR_W, backgroundColor: CARD, borderRightWidth: 1, borderRightColor: BORDER, paddingTop: 24, flexDirection: "column", ...Platform.select({ web: { boxShadow: "1px 0 6px rgba(0,0,0,0.03)" } }) },
-  languageCard: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: BORDER, borderRadius: 12, padding: 12, marginBottom: 16 },
+  webSidebar: { width: SIDEBAR_W, backgroundColor: CARD, borderRightWidth: 1, borderRightColor: BORDER, paddingTop: 18, flexDirection: "column", ...Platform.select({ web: { boxShadow: "1px 0 6px rgba(0,0,0,0.03)" } }) },
+  languageCard: { width: "100%", marginTop: 12, backgroundColor: "#F7FAF4", borderWidth: 1, borderColor: BORDER, borderRadius: 12, padding: 12, marginBottom: 16 },
   languageTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   languageTitle: { color: T_PRIMARY, fontWeight: "700", fontSize: 14 },
   languageHelp: { color: T_MUTED, fontSize: 11, marginTop: 2 },
@@ -1131,18 +1177,18 @@ const styles = StyleSheet.create({
   languageOptionTextActive: { color: "#fff" },
   webSidebarOverlay: { position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100, width: SIDEBAR_W, ...Platform.select({ web: { boxShadow: "2px 0 16px rgba(0,0,0,0.12)" } }) },
   sidebarOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99, backgroundColor: "rgba(0,0,0,0.3)" },
-  sidebarProfileCard: { alignItems: "center", paddingHorizontal: 20, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: BORDER, marginBottom: 12 },
+  sidebarProfileCard: { alignItems: "flex-start", paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: BORDER, marginBottom: 12 },
   sidebarLogoWrap: { position: "relative", marginBottom: 12 },
-  sidebarLogo: { width: 72, height: 72, borderRadius: 18 },
+  sidebarLogo: { width: 50, height: 50, borderRadius: 12 },
   logoPlaceholder: { backgroundColor: T_PRIMARY, alignItems: "center", justifyContent: "center" },
-  logoInitial: { color: "#fff", fontSize: 28, fontWeight: "900" },
-  sidebarName: { fontSize: 15, fontWeight: "800", color: T_PRIMARY, textAlign: "center", marginBottom: 3 },
+  logoInitial: { color: "#fff", fontSize: 28, fontWeight: "700" },
+  sidebarName: { fontSize: 15, fontWeight: "700", color: T_PRIMARY, textAlign: "center", marginBottom: 3 },
   sidebarEmail: { fontSize: 12, color: T_MUTED, textAlign: "center", marginBottom: 10 },
   sidebarStatusPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   sidebarStatusText: { fontSize: 11, fontWeight: "700" },
   sidebarNav: { flex: 1, paddingHorizontal: 12, paddingTop: 8 },
   sidebarNavItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 10, marginBottom: 2, position: "relative" },
-  sidebarNavItemActive: { backgroundColor: "#F0FDF9" },
+  sidebarNavItemActive: { backgroundColor: "#E9F1E5" },
   sidebarNavText: { fontSize: 14, fontWeight: "600", color: T_MUTED, flex: 1 },
   sidebarNavTextActive: { color: ACCENT, fontWeight: "700" },
   sidebarNavIndicator: { position: "absolute", left: 0, top: 8, bottom: 8, width: 3, borderRadius: 2, backgroundColor: ACCENT },
@@ -1151,17 +1197,17 @@ const styles = StyleSheet.create({
   sidebarFooterBtnText: { fontSize: 13, fontWeight: "600", color: T_MUTED },
   sidebarLogoutBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
   sidebarLogoutText: { fontSize: 13, fontWeight: "600", color: "#DC2626" },
-  webPlanCard: { backgroundColor: CARD, borderRadius: 18, borderWidth: 1, borderColor: BORDER, flexDirection: "row", padding: 28, gap: 24, ...Platform.select({ web: { boxShadow: "0 2px 12px rgba(0,0,0,0.06)" } }) },
+  webPlanCard: { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, flexDirection: "row", padding: 22, gap: 20, ...Platform.select({ web: { boxShadow: "0 2px 12px rgba(0,0,0,0.06)" } }) },
   webPlanCardSmall: { flexDirection: "column", padding: 20, gap: 16 },
   webPlanCardLeft: { flex: 1 },
   webPlanCardRight: { alignItems: "flex-end", minWidth: 190 },
   webPlanCardRightSmall: { alignItems: "flex-start", minWidth: 0, width: "100%" },
-  webPlanLabel: { fontSize: 11, fontWeight: "800", color: T_MUTED, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 },
-  webPlanPrice: { fontSize: 36, fontWeight: "900", color: T_PRIMARY, letterSpacing: -1, marginBottom: 16 },
+  webPlanLabel: { fontSize: 11, fontWeight: "700", color: T_MUTED, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 },
+  webPlanPrice: { fontSize: 28, fontWeight: "700", color: T_PRIMARY, letterSpacing: -1, marginBottom: 16 },
   webPlanPriceSub: { fontSize: 15, fontWeight: "500", color: T_MUTED },
   webRenewBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T_PRIMARY, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, marginBottom: 8, width: "100%" },
   webRenewBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  webReferBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#ECFDF5", borderRadius: 10, borderWidth: 1.5, borderColor: "#A7F3D0", paddingVertical: 11, paddingHorizontal: 16, marginBottom: 8, width: "100%" },
+  webReferBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#F1F6EC", borderRadius: 8, borderWidth: 1, borderColor: "#CEDDC7", paddingVertical: 11, paddingHorizontal: 16, marginBottom: 8, width: "100%" },
   webReferBtnText: { color: ACCENT, fontWeight: "700", fontSize: 13 },
   webFormGrid: { flexDirection: "row", gap: 20, alignItems: "flex-start" },
   webFormSideInfo: { width: 220 },
@@ -1173,7 +1219,7 @@ const styles = StyleSheet.create({
   webDiscardBtn: { backgroundColor: "#F1F0ED", borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, alignItems: "center", justifyContent: "center" },
   webSaveBtnInline: { backgroundColor: T_PRIMARY, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 6 },
   webSecurityLayout: { gap: 16 },
-  webSecurityCard: { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 24, ...Platform.select({ web: { boxShadow: "0 1px 6px rgba(0,0,0,0.05)" } }) },
+  webSecurityCard: { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, padding: 24, ...Platform.select({ web: { boxShadow: "0 1px 6px rgba(0,0,0,0.05)" } }) },
   webSecurityCardHeader: { flexDirection: "row", alignItems: "center", gap: 14 },
   webSecurityIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: BG, borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" },
   webSecurityTitle: { fontSize: 15, fontWeight: "700", color: T_PRIMARY },
@@ -1188,15 +1234,15 @@ const styles = StyleSheet.create({
   inner: { paddingHorizontal: H_PAD },
   chefModeBanner: { marginTop: 20, backgroundColor: "#FFFBEB", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#FCD34D", flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   chefBannerIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center" },
-  chefBannerTitle: { fontSize: 15, fontWeight: "800", color: "#92400E" },
+  chefBannerTitle: { fontSize: 15, fontWeight: "700", color: "#92400E" },
   chefBannerSub: { fontSize: 12, color: "#B45309", marginTop: 2 },
   unlockBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FEF3C7", borderWidth: 1.5, borderColor: "#F59E0B", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  unlockBtnText: { color: "#92400E", fontWeight: "800", fontSize: 13 },
-  heroSection: { alignItems: "center", paddingTop: 28, paddingBottom: 24 },
-  logoWrap: { position: "relative", marginBottom: 14 },
-  logo: { width: 88, height: 88, borderRadius: 22 },
-  heroName: { fontSize: 20, fontWeight: "900", color: T_PRIMARY, textAlign: "center" },
-  heroEmail: { fontSize: 13, color: T_MUTED, marginTop: 3, textAlign: "center" },
+  unlockBtnText: { color: "#92400E", fontWeight: "700", fontSize: 13 },
+  heroSection: { flexDirection: "row", alignItems: "center", gap: 14, paddingTop: 8, paddingBottom: 16 },
+  logoWrap: { position: "relative", marginBottom: 0 },
+  logo: { width: 52, height: 52, borderRadius: 12 },
+  heroName: { fontSize: 18, fontWeight: "700", color: T_PRIMARY },
+  heroEmail: { fontSize: 12, color: T_MUTED, marginTop: 4 },
 
   // ─── PLAN SELECTION STYLES ────────────────────────────────────────────────────
   planContainer: {
@@ -1208,7 +1254,7 @@ const styles = StyleSheet.create({
   },
   planSectionTitle: {
     fontSize: 17,
-    fontWeight: "800",
+    fontWeight: "700",
     color: T_PRIMARY,
     marginBottom: 3,
   },
@@ -1219,7 +1265,7 @@ const styles = StyleSheet.create({
   },
   planGrid: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
   },
   planCard: {
     flex: 1,
@@ -1239,14 +1285,14 @@ const styles = StyleSheet.create({
   },
   planCardSelected: {
     borderColor: GREEN,
-    backgroundColor: "#F0FDF9",
+    backgroundColor: "#EDF4E8",
   },
   planCardCurrent: {
     borderColor: "#C9C4BC",
     backgroundColor: "#FBFAF8",
   },
   planCardPopular: {
-    borderColor: "#F59E0B",
+    borderColor: "#8AA67B",
   },
   planCardDisabled: {
     opacity: 0.5,
@@ -1255,7 +1301,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -10,
     right: -5,
-    backgroundColor: "#F59E0B",
+    backgroundColor: "#648056",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -1293,7 +1339,7 @@ const styles = StyleSheet.create({
   },
   planPrice: {
     fontSize: 23,
-    fontWeight: "800",
+    fontWeight: "700",
     color: T_PRIMARY,
     marginBottom: 2,
     letterSpacing: -0.3,
@@ -1348,12 +1394,12 @@ const styles = StyleSheet.create({
 
   subCard: {
     backgroundColor: CARD,
-    borderRadius: 18,
+    borderRadius: 12,
     padding: 20,
     borderWidth: 1,
     borderColor: BORDER,
     ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8 },
       android: { elevation: 2 },
     }),
   },
@@ -1373,7 +1419,7 @@ const styles = StyleSheet.create({
   },
   planPriceOld: {
     fontSize: 28,
-    fontWeight: "900",
+    fontWeight: "700",
     color: T_PRIMARY,
     letterSpacing: -0.5,
   },
@@ -1397,7 +1443,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   planDateRow: {
     flexDirection: "row",
@@ -1449,7 +1495,7 @@ const styles = StyleSheet.create({
   },
   renewBtnText: {
     color: "#fff",
-    fontWeight: "800",
+    fontWeight: "700",
     fontSize: 15,
   },
   referBtn: {
@@ -1464,7 +1510,7 @@ const styles = StyleSheet.create({
   },
   referBtnText: {
     color: "#fff",
-    fontWeight: "800",
+    fontWeight: "700",
     fontSize: 15,
   },
   note: {
@@ -1475,7 +1521,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: CARD,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: BORDER,
     overflow: "hidden",
@@ -1485,6 +1531,8 @@ const styles = StyleSheet.create({
     }),
   },
   fieldRow: {
+    width: "100%",
+    flexShrink: 0,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
@@ -1497,11 +1545,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   fieldLabel: {
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "700",
     color: T_MUTED,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
+    letterSpacing: 0,
+    textTransform: "none",
   },
   lockedTag: {
     flexDirection: "row",
@@ -1535,13 +1583,16 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 15,
     color: T_PRIMARY,
     fontWeight: "600",
     padding: 0,
   },
   textInputMultiline: {
-    height: 72,
+    height: 76,
+    minHeight: 76,
+    flexShrink: 0,
     textAlignVertical: "top",
   },
   textInputLocked: {
@@ -1640,7 +1691,7 @@ const styles = StyleSheet.create({
   },
   pinLabel: {
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "700",
     color: T_MUTED,
     letterSpacing: 0.5,
     textTransform: "uppercase",
@@ -1665,7 +1716,7 @@ const styles = StyleSheet.create({
   },
   pinDots: {
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: "700",
     color: T_PRIMARY,
     letterSpacing: 6,
     paddingTop: 4,
@@ -1754,7 +1805,7 @@ const styles = StyleSheet.create({
   },
   successTitle: {
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: "700",
     marginTop: 16,
     color: T_PRIMARY,
     textAlign: "center",
@@ -1783,7 +1834,7 @@ const styles = StyleSheet.create({
   },
   successBtnText: {
     color: "#fff",
-    fontWeight: "800",
+    fontWeight: "700",
     fontSize: 15,
   },
 
@@ -1813,7 +1864,7 @@ const styles = StyleSheet.create({
   },
   confirmTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "700",
     color: T_PRIMARY,
     marginBottom: 8,
   },

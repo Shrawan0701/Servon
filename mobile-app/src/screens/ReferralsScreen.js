@@ -18,12 +18,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { getReferralStats, redeemReferralReward } from "../api";
 
 const IS_WEB = Platform.OS === "web";
-const CONTENT_MAX = 1100;
-const WEB_STACK_MAX = 1040;
+const CONTENT_MAX = 1280;
+const WEB_STACK_MAX = 1200;
 
-const GREEN = "#10B981";
-const GREEN_DARK = "#059669";
-const NAVY = "#0F172A";
+const GREEN = "#39805A";
+const GREEN_DARK = "#2E503C";
+const NAVY = "#20332A";
 
 export default function ReferralsScreen() {
   const navigation = useNavigation();
@@ -78,7 +78,7 @@ export default function ReferralsScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F5F6F8" }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F3F5F2" }}>
         <ActivityIndicator size="large" color={NAVY} />
       </View>
     );
@@ -213,7 +213,7 @@ const progressPct = availableRewards > 0
   );
 
   const historySection = (
-    <View style={IS_WEB && styles.historyPanel}>
+    <View style={styles.historyPanel}>
       <LocalizedText translate style={styles.historyTitle}>Referral history</LocalizedText>
 
       {!data?.history || data.history.length === 0 ? (
@@ -224,7 +224,7 @@ const progressPct = availableRewards > 0
           <LocalizedText translate style={styles.emptyText}>You haven't referred anyone yet.</LocalizedText>
         </View>
       ) : (
-        <View style={{ gap: 10 }}>
+        <View>
           {data.history.map((item, index) => (
             <View key={index} style={styles.historyCard}>
               <View style={{ flex: 1 }}>
@@ -246,7 +246,7 @@ const progressPct = availableRewards > 0
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F5F6F8" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F5F2" }}>
       {/* Header */}
       <View style={styles.navHeader}>
         <View style={styles.headerInner}>
@@ -270,10 +270,12 @@ const progressPct = availableRewards > 0
           <View style={styles.heroIconWrap}>
             <Ionicons name="gift" size={20} color={GREEN} />
           </View>
+          <View style={styles.heroHeading}>
           <LocalizedText translate style={styles.heroTitle}>Invite & earn</LocalizedText>
           <LocalizedText translate style={styles.heroSub}>
             Share Servon with fellow restaurateurs and grow together.
           </LocalizedText>
+          </View>
           <View style={styles.heroPill}>
             <LocalizedText translate style={styles.heroPillText}>2 successful referrals</LocalizedText>
             <Ionicons name="arrow-forward" size={13} color={GREEN} style={{ marginHorizontal: 6 }} />
@@ -285,11 +287,13 @@ const progressPct = availableRewards > 0
           // ─── WEB: two-column dashboard layout ──────────────────
           <View style={styles.webGrid}>
             <View style={styles.webColLeft}>
+              <View style={styles.referralPanel}>
               {codeCard}
               {statsSection}
               {cooldownNotice}
               {progressCard}
               {redeemButton}
+              </View>
             </View>
             <View style={styles.webColRight}>
               {historySection}
@@ -297,14 +301,16 @@ const progressPct = availableRewards > 0
           </View>
         ) : (
           // ─── APP: original single stacked column, unchanged ────
-          <>
+          <View style={styles.mobilePanels}>
+            <View style={styles.referralPanel}>
             {codeCard}
             {statsSection}
             {cooldownNotice}
             {progressCard}
             {redeemButton}
+            </View>
             {historySection}
-          </>
+          </View>
         )}
 
         <View style={{ height: 40 }} />
@@ -328,179 +334,125 @@ const getStatusColor = (status) => {
 };
 
 const styles = StyleSheet.create({
-  navHeader: { borderBottomWidth: 1, borderBottomColor: "#E5E7EB", backgroundColor: "#fff", paddingVertical: 14 },
-  headerInner: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, maxWidth: CONTENT_MAX, alignSelf: 'center', width: '100%' },
-  backBtn: { flexDirection: "row", alignItems: "center", width: 70 },
-  backText: { fontSize: 14, fontWeight: "500", marginLeft: 2, color: NAVY },
-  headerTitle: { fontSize: 15, fontWeight: "700", color: NAVY },
 
-  scrollContent: { padding: 20 },
-  mobileScrollContent: { paddingHorizontal: 14, paddingTop: 16 },
+  referralPanel: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 12, padding: 20 },
+  mobilePanels: { gap: 20 },
+  heroHeading: { flex: 1, minWidth: 200 },
+
+  navHeader: { borderBottomWidth: 1, borderBottomColor: '#DFE5DF', backgroundColor: '#FFFFFF', paddingVertical: 16 },
+
+  headerInner: { flexDirection: 'row', alignItems: 'center', gap: 18, paddingHorizontal: 20, maxWidth: CONTENT_MAX, alignSelf: 'center', width: '100%' },
+
+  backBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 40, paddingHorizontal: 10, borderRadius: 9, backgroundColor: '#F3F5F2', borderWidth: 1, borderColor: '#DFE5DF' },
+  backText: { fontSize: 14, fontWeight: "500", marginLeft: 2, color: NAVY },
+
+  headerTitle: { flex: 1, fontSize: 19, fontWeight: '700', color: NAVY, letterSpacing: -0.3 },
+
+  scrollContent: { padding: 24 },
+
+  mobileScrollContent: { paddingHorizontal: 16, paddingTop: 20 },
 
   // ─── WEB GRID ───────────────────────────────────────────────────
-  webGrid: { flexDirection: "row", gap: 20, alignItems: "flex-start" },
-  webColLeft: { flex: 1.3 },
-  webColRight: { flex: 1 },
-  historyPanel: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#EAECF0",
-    padding: 18,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
+
+  webGrid: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+
+  webColLeft: { flex: 1.1, minWidth: 0 },
+
+  webColRight: { flex: 1, minWidth: 0 },
+
+  historyPanel: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#DFE5DF', padding: 20 },
 
   // ─── HERO BANNER ────────────────────────────────────────────────
-  heroBanner: {
-    backgroundColor: NAVY,
-    borderRadius: 20,
-    padding: IS_WEB ? 24 : 20,
-    marginBottom: 20,
-    shadowColor: NAVY,
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-  },
-  heroIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(16,185,129,0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-  heroTitle: { fontSize: 22, fontWeight: "800", color: "#fff", marginBottom: 6, letterSpacing: -0.3 },
-  heroSub: { fontSize: 13.5, color: "#CBD5E1", lineHeight: 20, marginBottom: 16, maxWidth: 440 },
-  heroPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    flexWrap: "wrap",
-    backgroundColor: "rgba(16,185,129,0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(16,185,129,0.3)",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  heroPillText: { fontSize: 12, fontWeight: "700", color: GREEN },
+
+  heroBanner: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 14, paddingVertical: 12, marginBottom: 28 },
+
+  heroIconWrap: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#EAF2EC', alignItems: 'center', justifyContent: 'center' },
+
+  heroTitle: { fontSize: 25, fontWeight: '700', color: NAVY, marginBottom: 6, letterSpacing: -0.5 },
+
+  heroSub: { fontSize: 13, color: '#627166', lineHeight: 21 },
+
+  heroPill: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 2, backgroundColor: '#EAF2EC', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12 },
+
+  heroPillText: { fontSize: 12, fontWeight: '600', color: GREEN_DARK },
 
   // ─── SHARED CARD ────────────────────────────────────────────────
-  card: {
-    backgroundColor: "#fff",
-    padding: 18,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#EAECF0",
-    marginBottom: 16,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
+
+  card: { paddingBottom: 20, marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#E8EDE8' },
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  label: { fontSize: 11, fontWeight: "700", color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.6 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN },
+
+  label: { fontSize: 13, fontWeight: '600', color: '#627166' },
+
+  liveDot: { display: 'none' },
 
   // ─── REFERRAL CODE ──────────────────────────────────────────────
-  codeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#EAECF0",
-    borderRadius: 12,
-    paddingLeft: 16,
-    paddingRight: 6,
-    paddingVertical: 6,
-    gap: 8,
-  },
-  codeText: { flex: 1, minWidth: 0, fontSize: 19, fontWeight: "800", color: NAVY, letterSpacing: 2.5 },
-  copyBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: GREEN, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, flexShrink: 0 },
-  copyBtnText: { color: "#fff", fontWeight: "700", fontSize: 12.5 },
+
+  codeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F3F5F2', borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 9, paddingLeft: 14, paddingRight: 5, paddingVertical: 5, gap: 8 },
+
+  codeText: { flex: 1, minWidth: 0, fontSize: 22, fontWeight: '600', color: NAVY, letterSpacing: 1.5 },
+
+  copyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: GREEN_DARK, minHeight: 42, paddingHorizontal: 14, borderRadius: 7, flexShrink: 0 },
+
+  copyBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 13 },
 
   // ─── STATS ──────────────────────────────────────────────────────
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#EAECF0",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  statIconWrap: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  statNumber: { fontSize: 19, fontWeight: "800", color: NAVY },
-  statLabel: { fontSize: 11, color: "#6B7280", marginTop: 2, fontWeight: "600" },
+
+  statsRow: { flexDirection: 'row', paddingBottom: 20, marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#E8EDE8', gap: 12 },
+
+  statCard: { flex: 1, minWidth: 0 },
+
+  statIconWrap: { display: 'none' },
+
+  statNumber: { fontSize: 28, fontWeight: '600', color: NAVY },
+
+  statLabel: { fontSize: 12, lineHeight: 18, color: '#627166', marginTop: 6 },
 
   // ─── COOLDOWN NOTICE ────────────────────────────────────────────
   noticeCard: { backgroundColor: "#FFFBEB", padding: 13, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 16, borderWidth: 1, borderColor: "#FDE68A" },
   noticeText: { fontSize: 12.5, color: "#92400E", fontWeight: "500", flex: 1, lineHeight: 17 },
 
   // ─── PROGRESS ───────────────────────────────────────────────────
-  progressHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  progressTitle: { fontSize: 13.5, fontWeight: "700", color: "#1E293B" },
-  progressPill: { backgroundColor: "#ECFDF5", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
-  progressPillText: { fontSize: 12, fontWeight: "800", color: GREEN_DARK },
-  progressBarBg: { height: 7, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden", marginBottom: 10 },
+
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16 },
+
+  progressTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: NAVY },
+
+  progressPill: { backgroundColor: '#EAF2EC', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 6 },
+
+  progressPillText: { fontSize: 12, fontWeight: '600', color: GREEN_DARK },
+
+  progressBarBg: { height: 6, backgroundColor: '#E8EDE8', borderRadius: 3, overflow: 'hidden', marginBottom: 12 },
   progressBarFill: { height: "100%", backgroundColor: GREEN, borderRadius: 4 },
-  progressSubtext: { fontSize: 12.5, color: "#6B7280" },
+
+  progressSubtext: { fontSize: 13, color: '#627166', lineHeight: 20 },
 
   // ─── REDEEM BUTTON ──────────────────────────────────────────────
-  redeemBtn: {
-    flexDirection: "row",
-    backgroundColor: GREEN,
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-    shadowColor: GREEN,
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
-  redeemBtnDisabled: { backgroundColor: "#F1F5F9", shadowOpacity: 0, elevation: 0 },
-  redeemBtnText: { color: "#fff", fontWeight: "700", fontSize: 13.5 },
-  redeemBtnTextDisabled: { color: "#9CA3AF" },
+
+  redeemBtn: { flexDirection: 'row', backgroundColor: GREEN_DARK, minHeight: 48, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+
+  redeemBtnDisabled: { backgroundColor: '#F3F5F2', borderWidth: 1, borderColor: '#DFE5DF' },
+
+  redeemBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14, flexShrink: 1 },
+
+  redeemBtnTextDisabled: { color: '#7B897F' },
 
   // ─── HISTORY ────────────────────────────────────────────────────
-  historyTitle: { fontSize: 14.5, fontWeight: "700", color: NAVY, marginBottom: 12 },
-  historyCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: "#EAECF0",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
-    elevation: 1,
-    gap: 10,
-  },
-  historyName: { fontSize: 13.5, fontWeight: "700", color: "#1E293B", marginBottom: 2 },
-  historyDate: { fontSize: 11.5, color: "#9CA3AF" },
-  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, flexShrink: 0 },
-  badgeText: { fontSize: 10, fontWeight: "800" },
 
-  emptyBox: { alignItems: "center", padding: 32, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#EAECF0", gap: 8 },
-  emptyIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
-  emptyText: { color: "#9CA3AF", fontSize: 12.5, fontWeight: "500" }
+  historyTitle: { fontSize: 16, fontWeight: '600', color: NAVY, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: '#DFE5DF' },
+
+  historyCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#E8EDE8', gap: 12 },
+
+  historyName: { fontSize: 14, fontWeight: '600', color: NAVY, marginBottom: 6 },
+
+  historyDate: { fontSize: 12, color: '#627166' },
+
+  badge: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6, flexShrink: 0 },
+
+  badgeText: { fontSize: 10, fontWeight: '600' },
+
+  emptyBox: { alignItems: 'center', paddingVertical: 36, gap: 12 },
+
+  emptyIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F3F5F2', alignItems: 'center', justifyContent: 'center' },
+
+  emptyText: { color: '#627166', fontSize: 13, textAlign: 'center', lineHeight: 20 }
 });

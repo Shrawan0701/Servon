@@ -22,17 +22,17 @@ import VoiceAdvisorTab from '../components/VoiceAdvisorTab';
 import { useLocale } from '../context/LocaleContext';
 
 const COLORS = {
-  bg: '#F5F3EF',
+  bg: '#F3F5F2',
   card: '#FFFFFF',
-  border: '#E8E2D9',
-  text: '#111827',
-  subtext: '#6B7280',
-  muted: '#9CA3AF',
-  green: '#10B981',
-  greenBg: '#ECFDF5',
-  greenSoft: '#DFF8EC',
-  navy: '#0F172A',
-  cream: '#FFFCF6',
+  border: '#DFE5DF',
+  text: '#20332A',
+  subtext: '#627166',
+  muted: '#839087',
+  green: '#39805A',
+  greenBg: '#EAF2EC',
+  greenSoft: '#DCE9DF',
+  navy: '#244F3B',
+  cream: '#FFFFFF',
   amber: '#B45309',
   amberBg: '#FEF3C7',
   amberIcon: '#F59E0B',
@@ -157,7 +157,7 @@ export default function AdvisorScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const isWide = width >= 1024;
-  const contentMaxWidth = isWide ? 760 : isTablet ? 640 : '100%';
+  const contentMaxWidth = isWide ? 880 : isTablet ? 680 : '100%';
   const horizontalPadding = isTablet ? 24 : 16;
   const bubbleMaxWidth = isTablet ? Math.min(width * 0.7, 520) : width * 0.82;
 
@@ -481,15 +481,16 @@ export default function AdvisorScreen() {
         {(SUGGESTED_QUESTIONS[language] || SUGGESTED_QUESTIONS.en).map((sq, idx) => (
           <TouchableOpacity
             key={idx}
-            style={styles.suggestionChip}
+            style={[styles.suggestionChip, { width: isWide ? '48.8%' : '100%', minHeight: isTablet ? 84 : 64 }]}
             activeOpacity={0.7}
             disabled={disabled}
             onPress={() => onSelect(sq.text)}
           >
             <View style={styles.suggestionChipIconWrap}>
-              <Ionicons name={sq.icon} size={14} color={COLORS.green} />
+              <Ionicons name={sq.icon} size={19} color={COLORS.green} />
             </View>
             <LocalizedText style={styles.suggestionChipText} numberOfLines={2}>{sq.text}</LocalizedText>
+            <Ionicons name="arrow-forward" size={16} color={COLORS.muted} />
           </TouchableOpacity>
         ))}
       </View>
@@ -553,6 +554,7 @@ export default function AdvisorScreen() {
                       activeOpacity={0.6}
                       onPress={() => scrollToMessage(item.id)}
                     >
+                      <Ionicons name="chatbubble-outline" size={15} color={COLORS.muted} />
                       <LocalizedText style={styles.sidebarItemText} numberOfLines={2}>
                         {item.question}
                       </LocalizedText>
@@ -581,7 +583,7 @@ export default function AdvisorScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={[styles.headerInner, { maxWidth: contentMaxWidth, paddingHorizontal: horizontalPadding }]}>
+        <View style={[styles.headerInner, { maxWidth: 1600, paddingHorizontal: horizontalPadding }]}>
           <View style={styles.headerLeft}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBtn} activeOpacity={0.7}>
               <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -598,12 +600,12 @@ export default function AdvisorScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.headerCenter}>
-            <View style={styles.headerIconWrap}>
+          <View style={[styles.headerCenter, !isTablet && styles.headerCenterCompact]}>
+            <View style={[styles.headerIconWrap, !isTablet && { display: 'none' }]}>
               <Ionicons name="sparkles" size={18} color={COLORS.green} />
             </View>
             <View style={styles.headerTitleWrap}>
-              <LocalizedText translate style={styles.title} numberOfLines={1}>AI Business Advisor</LocalizedText>
+              <LocalizedText translate style={[styles.title, !isTablet && { fontSize: 15 }]} numberOfLines={1}>AI Business Advisor</LocalizedText>
               <LocalizedText translate style={styles.headerSubtitle} numberOfLines={1}>Ask anything about your business</LocalizedText>
             </View>
           </View>
@@ -616,7 +618,7 @@ export default function AdvisorScreen() {
         </View>
       </View>
 
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, !SHOW_VOICE_ADVISOR_UI && { display: 'none' }]}>
         <TouchableOpacity style={[styles.tab, activeTab === 'chat' && styles.tabActive]} onPress={() => setActiveTab('chat')}>
           <Ionicons name="chatbubble-ellipses-outline" size={16} color={activeTab === 'chat' ? COLORS.green : COLORS.subtext} />
           <LocalizedText translate style={[styles.tabText, activeTab === 'chat' && styles.tabTextActive]}>Chat</LocalizedText>
@@ -655,7 +657,7 @@ export default function AdvisorScreen() {
             <View
               ref={contentRef}
               collapsable={false}
-              style={{ width: '100%', maxWidth: contentMaxWidth, paddingHorizontal: horizontalPadding }}
+              style={{ width: '100%', maxWidth: contentMaxWidth, paddingHorizontal: horizontalPadding, flexGrow: visibleConversations.length === 0 ? 1 : 0, justifyContent: 'center' }}
             >
               {/* Conversations */}
               <View style={styles.section}>
@@ -667,7 +669,7 @@ export default function AdvisorScreen() {
                 )}
 
                 {visibleConversations.length === 0 ? (
-                  <View style={styles.emptyWrap}>
+                  <View style={[styles.emptyWrap, !isTablet && styles.emptyWrapCompact]}>
                     <EmptyState icon="chatbox-ellipses-outline" text="Ask your first question below, or try one of these." />
                     <SuggestedQuestions onSelect={askQuestion} disabled={asking} />
                   </View>
@@ -809,66 +811,33 @@ export default function AdvisorScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerCenterCompact: { marginLeft: -8 },
+  emptyWrapCompact: { paddingVertical: 6, paddingHorizontal: 0 },
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    alignItems: 'center',
-  },
-  headerInner: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-  },
+  header: { backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border, alignItems: 'center' },
+  headerInner: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 18, paddingVertical: 16 },
   tabBar: { flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.88)', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 8 },
   tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 999 },
   tabActive: { backgroundColor: COLORS.greenBg, borderWidth: 1, borderColor: COLORS.greenSoft },
   tabText: { color: COLORS.subtext, fontSize: 13, fontWeight: '700' },
   tabTextActive: { color: COLORS.green },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  headerCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    justifyContent: 'center',
-    minWidth: 0,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  navBtn: { padding: 4 },
-  headerIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: COLORS.greenBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.greenSoft,
-  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  navBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10 },
+  headerIconWrap: { width: 42, height: 42, borderRadius: 12, backgroundColor: COLORS.greenBg, alignItems: 'center', justifyContent: 'center' },
   headerTitleWrap: { minWidth: 0, flexShrink: 1 },
-  title: { fontSize: 17, fontWeight: '800', color: COLORS.text, flexShrink: 1 },
-  headerSubtitle: { fontSize: 11.5, color: COLORS.subtext, marginTop: 1 },
+  title: { fontSize: 20, fontWeight: '700', color: COLORS.text, flexShrink: 1, letterSpacing: -0.4 },
+  headerSubtitle: { fontSize: 12, lineHeight: 17, color: COLORS.subtext, marginTop: 3 },
 
   // ─── BODY / LAYOUT ────────────────────────────────────────────────
-  bodyRow: { flex: 1, flexDirection: 'row' },
-  mainColumn: { flex: 1, minWidth: 0, backgroundColor: COLORS.bg },
+  bodyRow: { flex: 1, flexDirection: 'row', minHeight: 0 },
+  mainColumn: { flex: 1, minWidth: 0, minHeight: 0, backgroundColor: COLORS.bg },
 
   content: { flex: 1 },
-  section: { marginTop: 20, paddingBottom: 18 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 18 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  section: { marginTop: 24, paddingBottom: 18 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 22 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.subtext },
   insightGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
   insightGridItem: { width: '50%', paddingHorizontal: 6 },
   insightCard: {
@@ -894,63 +863,20 @@ const styles = StyleSheet.create({
   actionContainer: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 10, gap: 6 },
   actionText: { fontSize: 12, color: COLORS.amber, flex: 1, lineHeight: 18 },
 
-  chatTimeline: {
-    backgroundColor: 'rgba(255,255,255,0.34)',
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-  },
-  messageContainer: { marginBottom: 18 },
-  userMessageRow: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 6, marginBottom: 10, minWidth: 0 },
-  userMessage: {
-    backgroundColor: COLORS.navy,
-    borderRadius: 18,
-    borderBottomRightRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    flexShrink: 1,
-    minWidth: 0,
-    shadowColor: COLORS.navy,
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  userMessageText: { color: '#fff', fontSize: 14, lineHeight: 20, flexWrap: 'wrap', fontWeight: '600' },
+  chatTimeline: { paddingVertical: 4 },
+  messageContainer: { marginBottom: 28 },
+  userMessageRow: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8, marginBottom: 16, minWidth: 0 },
+  userMessage: { backgroundColor: COLORS.navy, borderRadius: 14, borderBottomRightRadius: 4, paddingHorizontal: 18, paddingVertical: 13, flexShrink: 1, minWidth: 0 },
+  userMessageText: { color: '#FFFFFF', fontSize: 15, lineHeight: 23, flexWrap: 'wrap', fontWeight: '500' },
 
   aiMessageRow: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'flex-start', gap: 10, minWidth: 0 },
-  aiAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.greenBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: COLORS.greenSoft,
-  },
-  aiMessage: {
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
-    borderTopLeftRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexShrink: 1,
-    minWidth: 0,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.05,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
+  aiAvatar: { width: 30, height: 30, borderRadius: 9, backgroundColor: COLORS.greenBg, alignItems: 'center', justifyContent: 'center', marginTop: 4, borderWidth: 1, borderColor: COLORS.greenSoft },
+  aiMessage: { backgroundColor: COLORS.card, borderRadius: 12, borderTopLeftRadius: 4, paddingHorizontal: 18, paddingVertical: 16, borderWidth: 1, borderColor: COLORS.border, flexShrink: 1, minWidth: 0 },
   aiMessageInner: { minWidth: 0 },
-  aiAnswerHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 9 },
-  aiAnswerLabel: { fontSize: 11, color: COLORS.green, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  aiAnswerHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  aiAnswerLabel: { fontSize: 12, color: COLORS.green, fontWeight: '600' },
   aiMessageError: { borderColor: '#FCA5A5', backgroundColor: COLORS.redBg },
-  aiMessageText: { color: COLORS.text, fontSize: 14, lineHeight: 22, flexShrink: 1, flexWrap: 'wrap' },
+  aiMessageText: { color: COLORS.text, fontSize: 15, lineHeight: 24, flexShrink: 1, flexWrap: 'wrap' },
   aiMessageErrorText: { color: COLORS.red },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typingText: { color: COLORS.subtext, fontSize: 13 },
@@ -962,234 +888,54 @@ const styles = StyleSheet.create({
     marginTop: 4,
     minWidth: 0,
   },
-  stepNumber: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: COLORS.text,
-    marginRight: 6,
-    minWidth: 20,
-  },
+  stepNumber: { fontSize: 15, fontWeight: '700', lineHeight: 24, color: COLORS.text, marginRight: 6, minWidth: 20 },
   stepContentWrap: {
     flex: 1,
     minWidth: 0,
   },
-  stepContent: {
-    fontSize: 14,
-    color: COLORS.text,
-    lineHeight: 22,
-  },
+  stepContent: { fontSize: 15, color: COLORS.text, lineHeight: 24 },
 
-  emptyWrap: {
-    backgroundColor: COLORS.card,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 28,
-    paddingHorizontal: 22,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 2,
-  },
-  emptyState: { alignItems: 'center', paddingBottom: 20, gap: 9 },
-  emptyIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: COLORS.greenBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.greenSoft,
-  },
-  emptyTitle: { fontSize: 20, color: COLORS.text, textAlign: 'center', fontWeight: '900', letterSpacing: -0.2 },
-  emptyText: { fontSize: 13.5, color: COLORS.subtext, textAlign: 'center', lineHeight: 20 },
+  emptyWrap: { paddingVertical: 28, paddingHorizontal: 6 },
+  emptyState: { alignItems: 'flex-start', paddingBottom: 30, gap: 12 },
+  emptyIconWrap: { width: 52, height: 52, borderRadius: 15, marginBottom: 6, backgroundColor: COLORS.greenBg, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.greenSoft },
+  emptyTitle: { fontSize: 28, lineHeight: 36, color: COLORS.text, fontWeight: '700', letterSpacing: -0.7 },
+  emptyText: { fontSize: 14, color: COLORS.subtext, lineHeight: 22 },
 
   // ─── SUGGESTED QUESTIONS ────────────────────────────────────────────
-  suggestionsWrap: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 18,
-  },
-  suggestionsLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
-  suggestionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  suggestionChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: COLORS.cream,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    paddingVertical: 11,
-    paddingHorizontal: 13,
-    maxWidth: '100%',
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
-  suggestionChipIconWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: COLORS.greenBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  suggestionChipText: {
-    fontSize: 13,
-    color: COLORS.text,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
+  suggestionsWrap: { paddingTop: 22, borderTopWidth: 1, borderTopColor: COLORS.border },
+  suggestionsLabel: { fontSize: 12, fontWeight: '600', color: COLORS.subtext, marginBottom: 14 },
+  suggestionsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
+  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 14, minHeight: 84 },
+  suggestionChipIconWrap: { width: 34, height: 34, flexShrink: 0, borderRadius: 10, backgroundColor: COLORS.greenBg, alignItems: 'center', justifyContent: 'center' },
+  suggestionChipText: { fontSize: 14, lineHeight: 21, color: COLORS.text, fontWeight: '500', flex: 1, minWidth: 0 },
 
-  inputWrap: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    alignItems: 'center',
-    paddingBottom: Platform.OS === 'android' ? 10 : 0,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 10,
-  },
-  inputFieldShell: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  inputIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.greenBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  input: {
-    flex: 1,
-    paddingHorizontal: 0,
-    paddingVertical: 4,
-    fontSize: 14,
-    maxHeight: 100,
-    color: COLORS.text,
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
-  },
-  sendBtn: {
-    backgroundColor: COLORS.green,
-    borderRadius: 18,
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.green,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
-  sendBtnDisabled: { opacity: 0.5 },
-  deleteIconWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(156,163,175,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
+  inputWrap: { backgroundColor: COLORS.bg, borderTopWidth: 1, borderTopColor: COLORS.border, alignItems: 'center', paddingBottom: Platform.OS === 'android' ? 10 : 0 },
+  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingVertical: 16, gap: 10 },
+  inputFieldShell: { flex: 1, minWidth: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: '#CCD8CE', paddingHorizontal: 14, paddingVertical: 10 },
+  inputIconWrap: { width: 24, height: 28, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, minWidth: 0, paddingHorizontal: 0, paddingVertical: 4, fontSize: 15, lineHeight: 22, maxHeight: 100, color: COLORS.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) },
+  sendBtn: { backgroundColor: COLORS.navy, borderRadius: 12, width: 52, height: 52, justifyContent: 'center', alignItems: 'center' },
+  sendBtnDisabled: { opacity: 0.4 },
+  deleteIconWrap: { width: 30, height: 30, borderRadius: 8, backgroundColor: COLORS.card, alignItems: 'center', justifyContent: 'center', marginTop: 2, borderWidth: 1, borderColor: COLORS.border },
 
   // ─── HISTORY SIDEBAR (docked + drawer share these) ─────────────────
-  dockedSidebar: {
-    width: 300,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.border,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-  },
+  dockedSidebar: { width: 264, borderRightWidth: 1, borderRightColor: COLORS.border, backgroundColor: COLORS.card },
   sidebarInner: { flex: 1, paddingTop: 12 },
-  sidebarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  sidebarHeaderTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  sidebarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  sidebarHeaderTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   sidebarHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  sidebarIconBtn: { padding: 6, borderRadius: 8 },
+  sidebarIconBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: COLORS.bg },
   sidebarScroll: { flex: 1 },
-  sidebarScrollContent: { paddingBottom: 14 },
-  sidebarGroup: { marginTop: 14, paddingHorizontal: 12 },
-  sidebarGroupLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    paddingHorizontal: 6,
-  },
-  sidebarItem: {
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    marginBottom: 4,
-    backgroundColor: 'rgba(245,243,239,0.7)',
-  },
-  sidebarItemText: { fontSize: 13, color: COLORS.text, lineHeight: 18 },
+  sidebarScrollContent: { paddingBottom: 20 },
+  sidebarGroup: { marginTop: 22, paddingHorizontal: 12 },
+  sidebarGroupLabel: { fontSize: 11, fontWeight: '600', color: COLORS.subtext, marginBottom: 10, paddingHorizontal: 8 },
+  sidebarItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 9, marginBottom: 5, backgroundColor: '#F6F8F5' },
+  sidebarItemText: { flex: 1, minWidth: 0, fontSize: 13, color: COLORS.text, lineHeight: 19 },
   sidebarEmpty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, gap: 8 },
   sidebarEmptyCompact: { alignItems: 'center', justifyContent: 'center', paddingVertical: 22, gap: 8 },
   sidebarEmptyText: { fontSize: 13, color: COLORS.muted },
-  loadMoreHistoryBtn: {
-    marginHorizontal: 12,
-    marginTop: 8,
-    paddingVertical: 11,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(16,185,129,0.22)',
-    backgroundColor: COLORS.greenBg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  loadMoreHistoryText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.green,
-  },
+  loadMoreHistoryBtn: { marginHorizontal: 12, marginTop: 12, paddingVertical: 12, borderRadius: 9, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.greenBg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  loadMoreHistoryText: { fontSize: 13, fontWeight: '600', color: COLORS.green },
 
   // Mobile drawer overlay
   overlayContainer: {
@@ -1198,20 +944,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  overlayPanel: {
-    width: '78%',
-    maxWidth: 320,
-    height: '64%',
-    backgroundColor: COLORS.card,
-    borderTopRightRadius: 22,
-    borderBottomRightRadius: 22,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-  },
+  overlayPanel: { width: '84%', maxWidth: 320, height: '90%', backgroundColor: COLORS.card, borderTopRightRadius: 16, borderBottomRightRadius: 16, overflow: 'hidden', shadowColor: '#20332A', shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
 
   // ─── DELETE MODAL STYLES ──────────────────────────────────────────
   deleteModalOverlay: {
@@ -1220,37 +953,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  deleteModal: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
-    width: '80%',
-    maxWidth: 320,
-    alignItems: 'center',
-  },
-  deleteModalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  deleteModalText: {
-    fontSize: 14,
-    color: COLORS.subtext,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
+  deleteModal: { backgroundColor: COLORS.card, borderRadius: 16, padding: 24, width: '88%', maxWidth: 360, alignItems: 'center' },
+  deleteModalTitle: { fontSize: 19, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  deleteModalText: { fontSize: 14, lineHeight: 22, color: COLORS.subtext, textAlign: 'center', marginBottom: 24 },
   deleteModalButtons: {
     flexDirection: 'row',
     gap: 12,
     width: '100%',
   },
-  deleteModalBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
+  deleteModalBtn: { flex: 1, paddingVertical: 14, borderRadius: 9, alignItems: 'center' },
   deleteModalCancel: {
     backgroundColor: COLORS.bg,
   },

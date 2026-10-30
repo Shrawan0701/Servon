@@ -185,8 +185,8 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
                <View style={styles.tableBadge}>
                   <LocalizedText translate style={styles.tableBadgeText}>LIVE</LocalizedText>
                </View>
-               <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+               <TouchableOpacity style={styles.deleteIconBtn} onPress={() => handleDelete(item.id)}>
+                  <Ionicons name="trash-outline" size={17} color="#BB4B40" />
                </TouchableOpacity>
             </View>
 
@@ -204,7 +204,7 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
             </View>
 
             <TouchableOpacity style={styles.downloadBtn} onPress={() => handleDownloadQR(item)}>
-              <Ionicons name="cloud-download-outline" size={16} color="#111" />
+              <Ionicons name="cloud-download-outline" size={17} color="#2E503C" />
               <LocalizedText translate style={styles.downloadBtnText}>Download QR</LocalizedText>
             </TouchableOpacity>
           </View>
@@ -217,8 +217,8 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
           <View style={styles.modalBox}>
             <View style={styles.modalHeaderRow}>
                <LocalizedText translate style={styles.modalTitle}>New Table</LocalizedText>
-               <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                  <Ionicons name="close" size={24} color="#6B7280" />
+               <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowAddModal(false)}>
+                  <Ionicons name="close" size={20} color="#627166" />
                </TouchableOpacity>
             </View>
             
@@ -280,83 +280,63 @@ const cardWidth = (containerWidth - SIDE_PADDING - GAP * (cols - 1)) / cols;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF8F5" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  
-  header: { 
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E8E2D9",
-    paddingVertical: 12
-  },
-  headerInner: {
-    flexDirection: "row", 
-    justifyContent: "space-between", 
-    alignItems: "center", 
-    paddingHorizontal: 20,
-    maxWidth: 1200,
-    alignSelf: 'center',
-    width: '100%'
-  },
-  headerTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
-  headerSub: { fontSize: 13, color: "#78716C", marginTop: 2 },
-  
-  addBtn: { backgroundColor: "#111827", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  addBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
-  listContent: { padding: 16, flexGrow: 1 },
+  deleteIconBtn: { width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDF3F2' },
+  modalCloseBtn: { width: 36, height: 36, borderRadius: 9, backgroundColor: '#F3F5F2', alignItems: 'center', justifyContent: 'center' },
+
+  container: { flex: 1, backgroundColor: '#F3F5F2' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F5F2' },
+  
+  header: { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#DFE5DF', paddingVertical: 18 },
+  headerInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16, paddingHorizontal: 16, maxWidth: 1200, alignSelf: 'center', width: '100%' },
+  headerTitle: { fontSize: 24, fontWeight: '700', color: '#20332A', letterSpacing: -0.4 },
+  headerSub: { fontSize: 13, color: '#627166', marginTop: 5 },
+  
+  addBtn: { backgroundColor: '#2E503C', borderRadius: 9, minHeight: 44, paddingHorizontal: 16, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  addBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
+
+  listContent: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 32, flexGrow: 1 },
   columnWrapper: { justifyContent: 'flex-start', gap: 16, marginBottom: 16 },
 
-  tableCard: { 
-    backgroundColor: "#fff", 
-    borderRadius: 16, 
-    padding: 16, 
-    borderWidth: 1, 
-    borderColor: "#E8E2D9", 
-    alignItems: "center",
-    ...Platform.select({
-      ios: { shadowColor: "#A89880", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
-      android: { elevation: 2 },
-    })
-  },
-  cardHeader: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  tableBadge: { backgroundColor: "#ECFDF5", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  tableBadgeText: { color: "#10B981", fontSize: 9, fontWeight: "800" },
+  tableCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#DFE5DF', alignItems: 'center' },
+  cardHeader: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  tableBadge: { backgroundColor: '#EAF2EC', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 5 },
+  tableBadgeText: { color: '#39805A', fontSize: 10, fontWeight: '600' },
 
-  tableNumberLabel: { fontSize: 10, fontWeight: "700", color: "#A8A29E", letterSpacing: 1 },
-  tableNumberValue: { fontSize: 28, fontWeight: "900", color: "#111827", marginVertical: 2 },
+  tableNumberLabel: { fontSize: 10, fontWeight: '500', color: '#627166', marginTop: 2 },
+  tableNumberValue: { fontSize: 30, fontWeight: '700', color: '#20332A', marginTop: 4, marginBottom: 4, letterSpacing: -0.5 },
   
-  qrContainer: { width: '100%', aspectRatio: 1, backgroundColor: '#FAF8F5', borderRadius: 12, marginVertical: 12, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#E8E2D9', borderStyle: 'dashed' },
+  qrContainer: { width: '100%', maxWidth: 216, aspectRatio: 1, backgroundColor: '#FFFFFF', borderRadius: 9, marginVertical: 16, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#E8EDE8' },
   qrImage: { width: '85%', height: '85%' },
   qrPlaceholder: { alignItems: 'center' },
 
-  downloadBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: "#F3F4F6", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, width: '100%', justifyContent: 'center' },
-  downloadBtnText: { fontSize: 12, fontWeight: "700", color: "#111827" },
+  downloadBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#F3F5F2', borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 8, minHeight: 44, paddingHorizontal: 8, paddingVertical: 10, width: '100%', justifyContent: 'center' },
+  downloadBtnText: { fontSize: 12, fontWeight: '600', color: '#2E503C', flexShrink: 1, textAlign: 'center' },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 40, alignSelf: 'center', maxWidth: 600 },
-  emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#fff", justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#E8E2D9' },
-  emptyTitle: { fontSize: 20, fontWeight: "900", color: "#111827" },
-  emptySub: { fontSize: 14, color: "#78716C", textAlign: "center", marginTop: 10, lineHeight: 22 },
-  emptyBtn: { marginTop: 24, backgroundColor: "#111827", paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12 },
-  emptyBtnText: { color: "#fff", fontWeight: "700" },
+  emptyIconCircle: { width: 64, height: 64, borderRadius: 16, backgroundColor: '#EAF2EC', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 21, fontWeight: '700', color: '#20332A' },
+  emptySub: { fontSize: 14, color: '#627166', textAlign: 'center', marginTop: 10, lineHeight: 22 },
+  emptyBtn: { marginTop: 24, backgroundColor: '#2E503C', paddingHorizontal: 22, paddingVertical: 14, borderRadius: 9 },
+  emptyBtnText: { color: '#FFFFFF', fontWeight: '600' },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(28, 25, 23, 0.7)", justifyContent: "center", padding: 20 },
-  modalBox: { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, alignSelf: 'center' },
-  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
-  inputLabel: { fontSize: 13, fontWeight: "700", color: "#10B981", marginBottom: 8, letterSpacing: 0.5 },
-  input: { borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, padding: 14, fontSize: 16, color: "#111827", backgroundColor: "#FAF8F5" },
-  confirmBtn: { backgroundColor: "#111827", borderRadius: 12, padding: 16, alignItems: "center", marginTop: 12 },
-  confirmBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(23,38,30,0.48)', justifyContent: 'center', padding: 20 },
+  modalBox: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24, width: '100%', maxWidth: 420, alignSelf: 'center' },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 18, marginBottom: 22, borderBottomWidth: 1, borderBottomColor: '#DFE5DF' },
+  modalTitle: { fontSize: 21, fontWeight: '700', color: '#20332A', letterSpacing: -0.3 },
+  inputLabel: { fontSize: 13, fontWeight: '600', color: '#405448', marginBottom: 8 },
+  input: { borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 9, minHeight: 48, padding: 13, fontSize: 15, color: '#20332A', backgroundColor: '#FFFFFF' },
+  confirmBtn: { backgroundColor: '#2E503C', borderRadius: 9, minHeight: 48, padding: 14, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  confirmBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
 
   // ─── Delete modal styles ───────────────────────────────────────────────────
-  deleteModalBox: { backgroundColor: "#fff", borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, alignSelf: 'center', alignItems: 'center' },
-  deleteIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEF2F2", justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  deleteTitle: { fontSize: 18, fontWeight: "800", color: "#111827", marginBottom: 8 },
-  deleteSub: { fontSize: 13, color: "#78716C", textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  deleteModalBox: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380, alignSelf: 'center', alignItems: 'center' },
+  deleteIconCircle: { width: 56, height: 56, borderRadius: 14, backgroundColor: '#FDF3F2', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  deleteTitle: { fontSize: 19, fontWeight: '700', color: '#20332A', marginBottom: 10 },
+  deleteSub: { fontSize: 14, color: '#627166', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
   deleteActions: { flexDirection: 'row', gap: 12, width: '100%' },
-  cancelBtn: { flex: 1, borderWidth: 1.5, borderColor: "#E8E2D9", borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  cancelBtnText: { fontSize: 14, fontWeight: "700", color: "#374151" },
-  deleteConfirmBtn: { flex: 1, backgroundColor: "#EF4444", borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  deleteConfirmBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  cancelBtn: { flex: 1, borderWidth: 1, borderColor: '#DFE5DF', borderRadius: 9, paddingVertical: 14, alignItems: 'center' },
+  cancelBtnText: { fontSize: 14, fontWeight: '600', color: '#405448' },
+  deleteConfirmBtn: { flex: 1, backgroundColor: '#BB4B40', borderRadius: 9, paddingVertical: 14, alignItems: 'center' },
+  deleteConfirmBtnText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
 });

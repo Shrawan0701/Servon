@@ -990,6 +990,74 @@ Object.assign(phrases.hi, {
   "Link a menu item to only one scanned stock item at a time": "एक मेनू आइटम को एक बार में एक ही स्कैन किए गए स्टॉक से जोड़ें",
 });
 
+Object.assign(phrases.mr, {
+  "Voice order": "बोलून ऑर्डर द्या",
+  "Scan a table QR or create an order to get started.": "टेबलचा QR स्कॅन करा किंवा नवीन ऑर्डर तयार करा.",
+  "Table {number}": "टेबल {number}",
+  "{count} min ago": "{count} मिनिटांपूर्वी",
+  "Just now": "आत्ताच",
+  "Draft": "मसुदा",
+  "Confirmed": "निश्चित",
+  "Preparing": "तयार होत आहे",
+  "Served": "वाढले",
+  "Rejected": "नाकारले",
+  "Remove item": "पदार्थ काढा",
+});
+
+Object.assign(phrases.hi, {
+  "Voice order": "बोलकर ऑर्डर दें",
+  "Scan a table QR or create an order to get started.": "टेबल का QR स्कैन करें या नया ऑर्डर बनाएं।",
+  "Table {number}": "टेबल {number}",
+  "{count} min ago": "{count} मिनट पहले",
+  "Just now": "अभी",
+  "Draft": "ड्राफ़्ट",
+  "Confirmed": "पुष्टि हुई",
+  "Preparing": "तैयार हो रहा है",
+  "Served": "परोसा गया",
+  "Rejected": "अस्वीकृत",
+  "Remove item": "आइटम हटाएं",
+});
+
+Object.assign(phrases.mr, {
+  "Log Expense": "खर्च नोंदवा",
+  "Edit Expense": "खर्च बदला",
+  "Save Expense": "खर्च जतन करा",
+  "Filters": "फिल्टर",
+  "Net Profit": "निव्वळ नफा",
+  "Category": "प्रकार",
+  "Amount (INR)": "एकूण रक्कम (₹)",
+  "Paid (INR)": "दिलेली रक्कम (₹)",
+  "Payment Status": "पैसे दिल्याची स्थिती",
+  "Supplier / Vendor": "पुरवठादार / विक्रेता",
+  "Invoice number (optional)": "बिल क्रमांक (ऐच्छिक)",
+  "Note": "टीप",
+  "Add a note...": "टीप लिहा...",
+  "Expense date": "खर्चाची तारीख",
+  "Purchase date (optional)": "खरेदीची तारीख (ऐच्छिक)",
+  "Receipt (optional)": "पावती (ऐच्छिक)",
+  "Attach receipt": "पावती जोडा",
+});
+
+Object.assign(phrases.hi, {
+  "Log Expense": "खर्च दर्ज करें",
+  "Edit Expense": "खर्च बदलें",
+  "Save Expense": "खर्च सेव करें",
+  "Filters": "फ़िल्टर",
+  "Net Profit": "शुद्ध मुनाफ़ा",
+  "Category": "श्रेणी",
+  "Amount (INR)": "कुल रकम (₹)",
+  "Paid (INR)": "दी गई रकम (₹)",
+  "Payment Status": "भुगतान की स्थिति",
+  "Supplier / Vendor": "सप्लायर / विक्रेता",
+  "Invoice number (optional)": "बिल नंबर (वैकल्पिक)",
+  "Note": "नोट",
+  "Add a note...": "नोट लिखें...",
+  "Expense date": "खर्च की तारीख",
+  "Purchase date (optional)": "खरीद की तारीख (वैकल्पिक)",
+  "Receipt (optional)": "रसीद (वैकल्पिक)",
+  "Attach receipt": "रसीद जोड़ें",
+});
+
 export function localizeText(value, language, values) {
   if (typeof value !== "string") return value;
   const padding = value.match(/^\s*/)?.[0] || "";
