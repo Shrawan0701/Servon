@@ -129,7 +129,7 @@ export default function InventoryTools({
           <Text style={[s.title, { flex: 1 }]}>
             {tr(
               {
-                scan: "Count stock from a photo",
+                scan: "Scan stock from a photo",
                 preparations: "Gravies & preparations",
                 bulk: "Set up several dishes",
                 history: "Stock history",
@@ -925,7 +925,7 @@ function History({ onChanged }) {
                 {Number(log.change_amount)} {log.unit}
               </Text>
               <Text style={s.hint}>
-                {tr(log.reason)} · {new Date(log.created_at).toLocaleString()}
+                {log.reason === "scan_addition" ? tr("Added from photo") : tr(log.reason)} · {new Date(log.created_at).toLocaleString()}
                 {log.order_id
                   ? `\n${tr("Order: {id}", { id: log.order_id })}`
                   : ""}

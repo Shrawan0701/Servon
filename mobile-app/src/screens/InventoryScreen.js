@@ -1,6 +1,7 @@
 import InventoryRecipeEditor from "../components/InventoryRecipeEditor";
 import InventoryTools from "../components/InventoryTools";
 import { StockMenuLinkEditor } from "../components/InventoryMenuLinks";
+import { searchItems } from "../utils/itemSearch";
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View, Text as NativeText, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
@@ -316,19 +317,15 @@ export default function InventoryScreen() {
     const query = recipeSearch.trim().toLowerCase();
     if (!query) return recipeMenuForDisplay;
 
-    return recipeMenuForDisplay.filter((item) => {
-      const variantText = (item.variants || [])
-        .map((variant) => `${variant.name || ""} ${variant.category || ""} ${variant.size_ml || ""}`)
-        .join(" ");
-      return `${item.name || ""} ${item.category || ""} ${item.menu_type || ""} ${item.liquor_brand_code || ""} ${variantText}`
-        .toLowerCase()
-        .includes(query);
-    });
+    return searchItems(recipeMenuForDisplay, query, (item) => ({
+      aliases: (item.variants || []).map((variant) => `${variant.name || ""} ${Number(variant.size_ml) > 0 ? `${variant.size_ml} ml` : ""}`),
+      metadata: (item.variants || []).map((variant) => variant.category),
+    }));
   }, [recipeMenuForDisplay, recipeSearch]);
 
   const filteredStock = useMemo(() => {
     const query = stockSearch.trim().toLocaleLowerCase();
-    return query ? items.filter((item) => String(item.name || "").toLocaleLowerCase().includes(query)) : items;
+    return searchItems(items, query);
   }, [items, stockSearch]);
   const renderStockSearch = () => (
     <View style={[styles.recipeSearchWrap, styles.stockSearchWrap]}>
@@ -858,7 +855,7 @@ function StockCardWeb({ item, onRestock, onReduce, onEdit, onDelete, onLink }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="inv-stock-name">{item.name}</div>
           <div className="inv-stock-measure">
-            {tr(unitLabel(item.unit))}
+            {item.bottle_size && isVolumeUnit(item.unit) ? `${Number(item.bottle_size) * (item.unit === "litre" ? 1000 : 1)} ml ${tr("bottle")}` : tr(unitLabel(item.unit))}
           </div>
         </div>
         {item.is_low && (
@@ -921,7 +918,7 @@ function StockCardNative({ item, onRestock, onReduce, onEdit, onDelete, onLink }
         <View style={styles.stockSymbol}><Ionicons name="cube-outline" size={21} color="#42604E" /></View>
         <View style={{ flex: 1 }}>
           <LocalizedText translate={false} style={styles.stockName}>{item.name}</LocalizedText>
-          <LocalizedText translate={false} style={styles.stockUnitLabel}>{tr(unitLabel(item.unit))}</LocalizedText>
+          <LocalizedText translate={false} style={styles.stockUnitLabel}>{item.bottle_size && isVolumeUnit(item.unit) ? `${Number(item.bottle_size) * (item.unit === "litre" ? 1000 : 1)} ml ${tr("bottle")}` : tr(unitLabel(item.unit))}</LocalizedText>
         </View>
         {item.is_low && (
           <View style={styles.lowBadge}>

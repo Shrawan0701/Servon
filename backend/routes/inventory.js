@@ -133,12 +133,12 @@ router.post(
         : null;
     const result = await transaction(req.businessId, async (db) => {
       const duplicate = await db.query(
-        "SELECT id FROM inventory_items WHERE business_id=$1 AND NOT archived AND lower(trim(name))=lower($2) AND unit=$3",
-        [req.businessId, name(b.name), stockUnit],
+        "SELECT id FROM inventory_items WHERE business_id=$1 AND NOT archived AND lower(trim(name))=lower($2) AND unit=$3 AND bottle_size IS NOT DISTINCT FROM $4::numeric",
+        [req.businessId, name(b.name), stockUnit, bottleSize],
       );
       if (duplicate.rowCount)
         fail(
-          "A stock item with this name and unit already exists. Use Add Stock.",
+          "This product and bottle size already exist. Use Add Stock.",
           409,
         );
       const r = await db.query(
@@ -428,6 +428,9 @@ router.post(
       fail(
         "Select a stock item before scanning a catalogue of more than 1000 items",
       );
+    const menuNames = [...new Set((await pool.query(
+      "SELECT name FROM menu_items WHERE business_id=$1 ORDER BY name LIMIT 2000", [req.businessId],
+    )).rows.map((item) => item.name.replace(/\s*\d+(?:\.\d+)?\s*ml\b/gi, "").trim()))];
     const session = req.body.scan_session;
     if (
       session != null &&
@@ -439,6 +442,7 @@ router.post(
       .update(
         JSON.stringify({
           stock: stock.map((s) => [s.id, s.name, s.unit, s.bottle_size]),
+          menu_names: menuNames,
           session: session || null,
         }),
       )
@@ -510,7 +514,7 @@ router.post(
       return res.json(reservation.scan);
     }
     try {
-      const detections = await vision.detect(image, stock);
+      const detections = await vision.detect(image, stock, undefined, menuNames);
       const saved = await pool.query(
         "UPDATE inventory_scans SET status='review',detections=$1 WHERE id=$2 AND business_id=$3 RETURNING *",
         [JSON.stringify(detections), reservation.scan.id, req.businessId],
@@ -547,6 +551,7 @@ async function scanDetail(db, businessId, id) {
   );
   return {
     ...s.rows[0],
+    stock_mode: s.rows[0].expected_snapshot?._stock_mode || "count",
     counts: counts.rows.map((count) => ({
       ...count,
       menu_links: links.rows.filter(
@@ -578,6 +583,8 @@ router.post(
     res.json(
       await transaction(req.businessId, async (db) => {
         const scan = await scanDetail(db, req.businessId, req.params.id);
+        const stockMode = req.body.stock_mode ?? scan.stock_mode;
+        if (!["add", "count"].includes(stockMode)) fail("Choose add new stock or count all stock");
         if (scan.status === "reconciled") {
           if (req.body.replace_counts === true) {
             const repeated =
@@ -591,8 +598,9 @@ router.post(
                 );
                 return (
                   count &&
+                  stockMode === scan.stock_mode &&
                   physicalQuantity(row, { unit: count.unit }).quantity ===
-                    Number(count.physical_stock)
+                    Number(scan.stock_mode === "add" ? count.variance : count.physical_stock)
                 );
               });
             if (!repeated)
@@ -624,7 +632,6 @@ router.post(
           );
         }
         const seen = new Set();
-        const linkedMenus = new Set();
         for (const row of rows) {
           if (!row || typeof row !== "object" || Array.isArray(row))
             fail("Each physical count must be an object");
@@ -640,19 +647,16 @@ router.post(
             const productUnit = unit(row.new_item.unit);
             if (!["pcs", "ml", "litre"].includes(productUnit))
               fail("Scanned products must use pieces, ml or litres");
-            const duplicate = await db.query(
-              "SELECT id FROM inventory_items WHERE business_id=$1 AND NOT archived AND lower(trim(name))=lower($2) AND unit=$3",
-              [req.businessId, productName, productUnit],
-            );
-            if (duplicate.rowCount)
-              fail(
-                "A stock item with this name and unit already exists. Choose it under Match existing stock.",
-                409,
-              );
             const bottleSize = ["ml", "litre"].includes(productUnit)
               ? number(row.bottle_size_ml, "Bottle size in ml") /
                 (productUnit === "litre" ? 1000 : 1)
               : null;
+            const duplicate = await db.query(
+              "SELECT id FROM inventory_items WHERE business_id=$1 AND NOT archived AND lower(trim(name))=lower($2) AND unit=$3 AND bottle_size IS NOT DISTINCT FROM $4::numeric",
+              [req.businessId, productName, productUnit, bottleSize],
+            );
+            if (duplicate.rowCount && row.create_separate_card !== true)
+              fail("This product and bottle size already exist. Choose it under Save to.", 409);
             const created = await db.query(
               "INSERT INTO inventory_items(business_id,name,unit,current_stock,low_stock_threshold,bottle_size) VALUES($1,$2,$3,0,0,$4) RETURNING id",
               [req.businessId, productName, productUnit, bottleSize],
@@ -679,21 +683,22 @@ router.post(
           if (!stock.rowCount) fail("Stock item not found", 404);
           const item = stock.rows[0],
             physical = physicalQuantity(row, item);
-          const baseline = scan.expected_snapshot[id];
+          if (stockMode === "add" && physical.quantity <= 0)
+            fail("Enter a positive number of bottles or pieces to add");
+          if (physical.bottle_size_ml && item.bottle_size &&
+            Number(physical.bottle_size_ml) !== Number(item.bottle_size) * (item.unit === "litre" ? 1000 : 1))
+            fail("This card uses a different bottle size. Choose New stock item for this size.", 409);
+          const baseline = stockMode === "add"
+            ? { quantity: item.current_stock, unit: item.unit, last_log_id: scan.expected_snapshot[id]?.last_log_id || 0 }
+            : scan.expected_snapshot[id];
           if (!baseline || baseline.unit !== item.unit)
             fail(
               "This stock item changed after the scan. Take a new photograph.",
               409,
             );
+          if (stockMode === "add") scan.expected_snapshot[id] = baseline;
           if (row.menu_links !== undefined) {
             if (!Array.isArray(row.menu_links)) fail("Choose valid menu items");
-            for (const link of row.menu_links) {
-              if (!link || linkedMenus.has(link.menu_item_id))
-                fail(
-                  "Link a menu item to only one scanned stock item at a time",
-                );
-              linkedMenus.add(link.menu_item_id);
-            }
             await linkStockToMenu(db, req.businessId, item, row.menu_links);
           }
           await db.query(
@@ -704,7 +709,7 @@ router.post(
               scan.id,
               id,
               baseline.quantity,
-              physical.quantity,
+              stockMode === "add" ? number(round(Number(baseline.quantity) + physical.quantity), "Stock after adding", { zero: true }) : physical.quantity,
               item.unit,
               physical.full_bottles,
               physical.bottle_size_ml,
@@ -712,6 +717,7 @@ router.post(
             ],
           );
         }
+        scan.expected_snapshot._stock_mode = stockMode;
         await db.query(
           "UPDATE inventory_scans SET status='confirmed',confirmed_at=NOW(),confirmed_by=$1,expected_snapshot=$4 WHERE id=$2 AND business_id=$3",
           [
@@ -735,6 +741,7 @@ router.post(
 );
 async function reconcileScan(db, req, scanId, note) {
   const scan = await scanDetail(db, req.businessId, scanId);
+  if (scan.stock_mode === "add" && note === "Photo count checked") note = "Stock added from photo";
   if (scan.status === "reconciled") return scan;
   if (scan.status !== "confirmed")
     fail("Confirm the physical count first", 409);
@@ -755,7 +762,7 @@ async function reconcileScan(db, req, scanId, note) {
         scan.expected_snapshot[count.inventory_item_id].last_log_id || 0,
       ],
     );
-    if (conflicting.rowCount)
+    if (scan.stock_mode !== "add" && conflicting.rowCount)
       fail(
         "Another physical adjustment was applied after this photo. Take a new count to avoid adjusting the same discrepancy twice.",
         409,
@@ -777,7 +784,7 @@ async function reconcileScan(db, req, scanId, note) {
       req,
       count.inventory_item_id,
       variance,
-      "scan_reconciliation",
+      scan.stock_mode === "add" ? "scan_addition" : "scan_reconciliation",
       { unit: count.unit, note, countId: count.id },
     );
     await db.query(
@@ -878,6 +885,10 @@ router.patch(
           req.body.bottle_size == null
             ? null
             : number(req.body.bottle_size, "Bottle size");
+        const existing = await db.query("SELECT bottle_size FROM inventory_items WHERE id=$1 AND business_id=$2 AND NOT archived FOR UPDATE", [req.params.id, req.businessId]);
+        if (!existing.rowCount) fail("Item not found", 404);
+        if (size != null && existing.rows[0].bottle_size != null && Number(existing.rows[0].bottle_size) !== size)
+          fail("This card uses a different bottle size. Create a separate stock item for this size.", 409);
         const r = await db.query(
           `UPDATE inventory_items SET current_stock=current_stock+$1,bottle_size=COALESCE($4,bottle_size),updated_at=NOW() WHERE id=$2 AND business_id=$3 RETURNING *`,
           [amount, req.params.id, req.businessId, size],

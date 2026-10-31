@@ -62,9 +62,15 @@ const pool = new Pool({
         [version],
       );
     }
+    const bottleVersion = "20261031_inventory_bottle_sources";
+    const bottleApplied = await client.query("SELECT 1 FROM inventory_schema_versions WHERE version=$1", [bottleVersion]);
+    if (!bottleApplied.rowCount) {
+      await client.query(fs.readFileSync(path.join(__dirname, "../db/migrations", `${bottleVersion}.sql`), "utf8"));
+      await client.query("INSERT INTO inventory_schema_versions(version) VALUES($1)", [bottleVersion]);
+    }
     await client.query("COMMIT");
     console.log(
-      applied.rowCount
+      applied.rowCount && bottleApplied.rowCount
         ? "Inventory migration already applied"
         : "Inventory migration applied",
     );

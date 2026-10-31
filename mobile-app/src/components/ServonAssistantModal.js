@@ -31,6 +31,7 @@ import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
 import { useNavigation } from "@react-navigation/native";
 import { localizedItemName } from "../utils/localizedItemName";
+import { searchItems } from "../utils/itemSearch";
 import { placeOrder, servonVoice, checkInRoom, updateRoom, checkOutRoom } from "../api";
 import localDB from "../services/LocalDB";
 import { refreshPOSData } from "../services/refreshPOSData";
@@ -277,24 +278,11 @@ export default function ServonAssistantModal({ visible, onClose, initialMode = "
   const searchBrandCode = liquorBrandLabel(searchTerm) ? searchTerm : "";
   const searchableMenuSource = searchBrandCode ? uniqueById([...(allMenu || []), ...(menu || [])]) : allMenu;
   const searchedMenu = searchTerm
-    ? searchableMenuSource.filter((item) => {
-      if (searchBrandCode) {
-        return item.menu_type === "liquor" && String(item.liquor_brand_code || "") === searchBrandCode;
-      }
-      return [
-        item.name,
-        item.name_mr,
-        item.name_hi,
-        menuLabel(item),
-        item.category,
-        item.liquor_code,
-        item.liquor_brand_code,
-        liquorBrandLabel(item.liquor_brand_code),
-        liquorBrandDisplayLabel(item.liquor_brand_code),
-        item.size_ml,
-        item.category_code,
-      ].filter(Boolean).join(" ").toLowerCase().includes(searchTerm);
-    })
+    ? searchBrandCode
+      ? searchableMenuSource.filter((item) => item.menu_type === "liquor" && String(item.liquor_brand_code || "") === searchBrandCode)
+      : searchItems(searchableMenuSource, searchTerm, (item) => ({
+        aliases: [menuLabel(item), liquorBrandLabel(item.liquor_brand_code), liquorBrandDisplayLabel(item.liquor_brand_code)],
+      }))
     : [];
   const displayMenu = searchTerm ? searchedMenu : menu;
   const loadCategoryCode = async (nextCode) => {

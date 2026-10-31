@@ -1,7 +1,7 @@
 const { transaction } = require("../services/inventoryTransaction");
 const {
   catalogue,
-  consumptionForMenu,
+  allocateForMenu,
 } = require("../services/inventoryRecipes");
 const { fail, round } = require("../services/inventoryUnits");
 function parseItems(items) {
@@ -126,10 +126,21 @@ async function deductInventoryForOrder(
           (previous && previous.quantity === quantity)
         )
           continue;
-        let consumption = previous?.consumption;
-        if (!consumption) {
-          consumption = await consumptionForMenu(db, businessId, id, cat);
-          if (!consumption.length) {
+        const delta = quantity - (previous?.quantity || 0);
+        // New snapshots retain total allocations in batches. Earlier snapshots
+        // remain readable: their consumption was stored per serving.
+        const batches = previous?.batches || (previous?.quantity ? [{
+          quantity: previous.quantity,
+          consumption: previous.consumption.map((c) => ({ ...c, quantity: round(Number(c.quantity) * previous.quantity) })),
+        }] : []);
+        let alternativeSources = previous?.alternative_sources || false;
+        let perServing = previous?.consumption;
+        if (delta > 0) {
+          let consumption = previous && !alternativeSources && perServing
+            ? perServing.map((c) => ({ ...c, quantity: round(Number(c.quantity) * delta) }))
+            : await allocateForMenu(db, businessId, id, cat, delta);
+          alternativeSources ||= consumption.alternativeSources === true;
+          if (!consumption.length && !previous) {
             const m = await db.query(
               "SELECT name,menu_type,size_ml FROM menu_items WHERE id=$1 AND business_id=$2",
               [id, businessId],
@@ -147,27 +158,40 @@ async function deductInventoryForOrder(
                   {
                     inventory_item_id: matches[0].id,
                     quantity:
-                      Number(menu.size_ml) /
+                      delta * Number(menu.size_ml) /
                       (matches[0].unit === "litre" ? 1000 : 1),
                   },
                 ];
             }
           }
+          // Historical untracked lines stay untracked if recipes were added
+          // after the order; configured lines use current sources for additions.
+          if (previous && !alternativeSources && perServing?.length === 0) consumption = [];
+          if (!alternativeSources) perServing = consumption.map((c) => ({ ...c, quantity: round(Number(c.quantity) / delta) }));
+          for (const c of consumption.sort((a, b) => a.inventory_item_id - b.inventory_item_id)) {
+            await move(db, businessId, orderId, id, c.inventory_item_id, -Number(c.quantity), "order_deduction");
+            const source = cat.stock.find((s) => Number(s.id) === Number(c.inventory_item_id));
+            if (source) source.current_stock = round(Number(source.current_stock) - Number(c.quantity));
+          }
+          batches.push({ quantity: delta, consumption });
+        } else {
+          let remaining = -delta;
+          while (remaining > 0 && batches.length) {
+            const batch = batches[batches.length - 1], take = Math.min(remaining, batch.quantity);
+            for (const c of batch.consumption) {
+              const refund = take === batch.quantity ? Number(c.quantity) : round(Number(c.quantity) * take / batch.quantity);
+              await move(db, businessId, orderId, id, c.inventory_item_id, refund, "order_edit_refund");
+              c.quantity = round(Number(c.quantity) - refund);
+              const source = cat.stock.find((s) => Number(s.id) === Number(c.inventory_item_id));
+              if (source) source.current_stock = round(Number(source.current_stock) + refund);
+            }
+            batch.quantity -= take;
+            remaining -= take;
+            if (!batch.quantity) batches.pop();
+          }
         }
-        const delta = quantity - (previous?.quantity || 0);
-        for (const c of [...consumption].sort(
-          (a, b) => a.inventory_item_id - b.inventory_item_id,
-        ))
-          await move(
-            db,
-            businessId,
-            orderId,
-            id,
-            c.inventory_item_id,
-            -delta * Number(c.quantity),
-            delta < 0 ? "order_edit_refund" : "order_deduction",
-          );
-        lines[id] = { quantity, consumption };
+        lines[id] = { quantity, batches, alternative_sources: alternativeSources,
+          ...(!alternativeSources ? { consumption: perServing || [] } : {}) };
       }
       await db.query(
         "UPDATE inventory_order_state SET lines=$1,updated_at=NOW() WHERE business_id=$2 AND order_id=$3",
@@ -193,17 +217,21 @@ async function reverseDeductionsForOrder(
       if (!state.rowCount) return;
       const lines = state.rows[0].lines;
       for (const [id, line] of Object.entries(lines)) {
-        for (const c of line.consumption)
+        const consumption = line.batches
+          ? line.batches.flatMap((batch) => batch.consumption)
+          : line.consumption.map((c) => ({ ...c, quantity: Number(c.quantity) * line.quantity }));
+        for (const c of consumption)
           await move(
             db,
             businessId,
             orderId,
             id === "_legacy" ? null : id,
             c.inventory_item_id,
-            Number(c.quantity) * line.quantity,
+            Number(c.quantity),
             reason,
           );
         line.quantity = 0;
+        if (line.batches) line.batches = [];
       }
       await db.query(
         "UPDATE inventory_order_state SET lines=$1,updated_at=NOW() WHERE business_id=$2 AND order_id=$3",

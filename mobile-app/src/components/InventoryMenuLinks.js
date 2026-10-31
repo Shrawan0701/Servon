@@ -5,13 +5,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import API from "../api";
+import { searchItems } from "../utils/itemSearch";
 import { useLocalizeText } from "./LocalizedText";
 import {
   InvButton,
-  InvChoice,
   InvField,
   inventoryStyles as s,
 } from "./InventoryRecipeEditor";
@@ -33,14 +34,18 @@ export function MenuLinkPicker({
 }) {
   const tr = useLocalizeText();
   const [search, setSearch] = useState(false);
+  const [query, setQuery] = useState("");
   const groups = useMemo(() => groupMenu(menu), [menu]);
-  const related = relatedGroups(menu, row.new_name || row.label);
+  const related = useMemo(() => relatedGroups(menu, row.new_name || row.label), [menu, row.new_name, row.label]);
   const selected = new Set(row.menu_groups || []);
-  const visible = [
+  const visible = query.trim() || search ? searchItems(groups, query, (group) => ({
+    aliases: group.variants.map((item) => `${item.name} ${Number(item.size_ml) > 0 ? `${item.size_ml} ml` : ""}`),
+    metadata: group.variants.flatMap((item) => [item.category, item.liquor_brand_code]),
+  })) : [
     ...new Map(
       [
         ...groups.filter((group) => selected.has(group.id)),
-        ...related.slice(0, 4),
+        ...related,
       ].map((group) => [group.id, group]),
     ).values(),
   ];
@@ -65,6 +70,13 @@ export function MenuLinkPicker({
       <Text style={s.smallHint}>
         {tr("Choose what you sell. Stock will reduce when ordered.")}
       </Text>
+      <TextInput
+        accessibilityLabel={tr("Search all menu items")}
+        placeholder={tr("Search all menu items")}
+        value={query}
+        onChangeText={setQuery}
+        style={[s.input, { marginVertical: 10 }]}
+      />
       {row.menu_mode !== "stock" && (
         <>
           {visible.map((group) => (
@@ -72,7 +84,8 @@ export function MenuLinkPicker({
               <TouchableOpacity
                 accessibilityRole="checkbox"
                 accessibilityLabel={tr("Choose {name}", { name: group.name })}
-                accessibilityState={{ checked: selected.has(group.id) }}
+                accessibilityState={{ checked: selected.has(group.id), disabled: !group.linkableVariants.length }}
+                disabled={!group.linkableVariants.length}
                 onPress={() => toggle(group.id)}
                 style={[
                   s.row,
@@ -103,12 +116,24 @@ export function MenuLinkPicker({
                   <Text style={s.smallHint}>
                     {group.liquor
                       ? group.variants
-                          .map((item) => `${Number(item.size_ml || 0)} ml`)
-                          .join(" · ")
+                          .map((item) => Number(item.size_ml) > 0
+                            ? `${item.name}${/\d+\s*ml\b/i.test(item.name) ? "" : ` · ${Number(item.size_ml)} ml`}`
+                            : `${item.name} · ${tr("Size not set — not linked")}`)
+                          .join("\n")
                       : group.variants[0]?.category}
                   </Text>
                 </View>
               </TouchableOpacity>
+              {group.missingSizeVariants.length > 0 && (
+                <View style={{ paddingVertical: 8 }}>
+                  <Text style={[s.smallHint, { color: "#85632C" }]}>
+                    {tr("Menu items without a serving size stay unlinked. Other sizes can be saved normally.")}
+                  </Text>
+                  {onOpenMenu && <TouchableOpacity onPress={onOpenMenu} style={{ paddingVertical: 8 }}>
+                    <Text style={{ color: "#3F7B53", fontSize: 13 }}>{tr("Set missing sizes in Menu")}</Text>
+                  </TouchableOpacity>}
+                </View>
+              )}
               {selected.has(group.id) &&
                 !group.liquor &&
                 group.variants.map((item) => (
@@ -140,30 +165,16 @@ export function MenuLinkPicker({
               {tr("No matching menu item yet.")}
             </Text>
           )}
-          {menu.length > 0 &&
-            (search ? (
-              <InvChoice
-                label={tr("Find in menu")}
-                options={groups.map((group) => ({
-                  id: group.id,
-                  name: group.name,
-                }))}
-                value=""
-                onChange={(id) => {
-                  if (!selected.has(id)) toggle(id);
-                  setSearch(false);
-                }}
-              />
-            ) : (
+          {menu.length > 0 && !query.trim() && (
               <TouchableOpacity
-                onPress={() => setSearch(true)}
+                onPress={() => setSearch(!search)}
                 style={{ paddingVertical: 12 }}
               >
                 <Text style={{ color: "#3F7B53", fontSize: 13 }}>
-                  {tr("Search all menu items")}
+                  {search ? tr("Show related menu items") : tr("Show all menu items")}
                 </Text>
               </TouchableOpacity>
-            ))}
+            )}
           {!visible.length && (
             <Text style={s.hint}>
               {tr(

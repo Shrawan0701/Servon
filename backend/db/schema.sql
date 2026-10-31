@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; 
+-- Inventory installations also apply the versioned inventory migrations.
 CREATE TABLE IF NOT EXISTS businesses ( 
 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), 
 business_name VARCHAR(255) NOT NULL, 
@@ -309,5 +310,11 @@ BEGIN
       AND table_name = 'inventory_items'
   ) THEN
     ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS bottle_size NUMERIC(10,2);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF to_regclass('menu_item_ingredients') IS NOT NULL THEN
+    ALTER TABLE menu_item_ingredients ADD COLUMN IF NOT EXISTS is_stock_source BOOLEAN NOT NULL DEFAULT false;
   END IF;
 END $$;

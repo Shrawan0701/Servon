@@ -388,11 +388,9 @@ export default function InventoryRecipeEditor({
     setError("");
     try {
       if (menuItem.is_liquor_group) {
-        if (selected.length > 1)
-          throw new Error(
-            "Choose one stock pool for this liquor brand to avoid duplicate consumption.",
-          );
-        const changes = menuItem.variants.map((v) => ({
+        const variants = selected.length ? menuItem.variants.filter((v) => Number.isFinite(Number(v.size_ml)) && Number(v.size_ml) > 0) : menuItem.variants;
+        if (!variants.length) throw new Error("Set a serving size in Menu before linking this brand.");
+        const changes = variants.map((v) => ({
           menu_item_id: v.id,
           ingredients: selected.map((id) => {
             if (!(Number(v.size_ml) > 0))
@@ -401,6 +399,7 @@ export default function InventoryRecipeEditor({
               inventory_item_id: id,
               quantity_required: Number(v.size_ml),
               unit: "ml",
+              is_stock_source: true,
             };
           }),
         }));
@@ -470,17 +469,23 @@ export default function InventoryRecipeEditor({
                   key={x.id}
                   secondary={!selected.includes(x.id)}
                   onPress={() =>
-                    setSelected(selected.includes(x.id) ? [] : [x.id])
+                    setSelected(selected.includes(x.id) ? selected.filter((id) => id !== x.id) : [...selected, x.id])
                   }
                 >
-                  {x.name} ({x.unit})
+                  {x.name} ({x.bottle_size ? `${Number(x.bottle_size) * (x.unit === "litre" ? 1000 : 1)} ml` : x.unit})
                 </InvButton>
               ))}
             <Text style={s.hint}>
+              {tr("Linked bottle sizes share the sale. Stock is deducted only once, preferring the matching size.")}
+            </Text>
+            <Text style={s.hint}>
               {menuItem.variants
-                .map((x) => `${x.name}: ${x.size_ml} ml`)
+                .map((x) => `${x.name}: ${Number(x.size_ml) > 0 ? `${Number(x.size_ml)} ml` : tr("Size not set — not linked")}`)
                 .join("\n")}
             </Text>
+            {menuItem.variants.some((x) => !(Number(x.size_ml) > 0)) && <Text style={s.hint}>
+              {tr("Menu items without a serving size stay unlinked. Other sizes can be saved normally.")}
+            </Text>}
           </View>
         ) : (
           <IngredientEditor

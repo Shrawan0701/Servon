@@ -113,6 +113,18 @@ test("detection parsing distinguishes exact confident matches from unknown/ambig
   );
   assert.throws(() => parseDetections({ products: [] }, stock));
 });
+test("scanning separates same-name bottle sizes and matches only the right existing size", () => {
+  const stock = [
+    { id: 1, name: "Royal Stag", unit: "ml", bottle_size: 90 },
+    { id: 2, name: "Royal Stag", unit: "ml", bottle_size: 180 },
+  ];
+  const detections = [90, 180, 750].map((size) => ({ label: "Royal Stag", count: 2, confidence: 0.95, bottle_size_ml: size, product_type: "bottle" }));
+  const rows = parseDetections({ detections }, stock);
+  assert.deepEqual(rows.map((row) => row.inventory_item_id), [1, 2, null]);
+  assert.equal(parseDetections({ detections: [{ ...detections[0], bottle_size_ml: null }] }, stock)[0].inventory_item_id, null);
+  assert.throws(() => parseDetections({ detections: [detections[0], detections[0]] }, stock), /duplicate product groups/);
+});
+
 test("upload content signatures, MIME types and limits are validated", () => {
   const data = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
   assert.equal(
@@ -159,7 +171,8 @@ test("vision integration sends actual image content and handles refusal, malform
       },
     },
   };
-  assert.equal((await detect(image, [], client))[0].count, 2);
+  assert.equal((await detect(image, [], client, ["Royal Stag", "McDowells Rum"]))[0].count, 2);
+  assert.deepEqual(JSON.parse(request.messages[1].content[0].text).known_menu_product_names, ["Royal Stag", "McDowells Rum"]);
   assert.match(
     request.messages[1].content[1].image_url.url,
     /^data:image\/png;base64,/,

@@ -17,7 +17,9 @@ import {
   chosenLinks,
   initialMenuSelection,
   groupMenu,
+  productLabel,
 } from "../utils/inventoryMenuMatching";
+import { updateScanRow, stockPreview, scanTarget } from "../utils/inventoryScanReview";
 import { useLocalizeText } from "./LocalizedText";
 import {
   InvButton,
@@ -68,12 +70,12 @@ function More({ title, children }) {
   );
 }
 
-function Counter({ value, onChange, unit, tr }) {
+function Counter({ value, onChange, unit, tr, adding }) {
   const amount = Number(value);
   return (
     <View style={{ marginVertical: 8 }}>
       <Text style={s.label}>
-        {unit === "pcs" ? tr("Pieces") : tr("Bottles")}
+        {adding ? unit === "pcs" ? tr("Pieces to add") : tr("Bottles to add") : unit === "pcs" ? tr("Pieces") : tr("Total bottles counted")}
       </Text>
       <View
         style={[
@@ -130,7 +132,7 @@ function Counter({ value, onChange, unit, tr }) {
   );
 }
 
-function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
+function Product({ row, stock, menu, onChange, onOpenMenu, onAddSize, disabled, tr, mode }) {
   const isNew = row.inventory_item_id === "new";
   const item = stock.find(
     (record) => String(record.id) === String(row.inventory_item_id),
@@ -147,6 +149,10 @@ function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
     (!hasVolume || (size > 0 && opened >= 0 && opened < size));
   const totalMl = bottles * size + opened;
   const productName = isNew ? row.new_name : item?.name || row.label;
+  const preview = stockPreview(row, item, mode);
+  const showQuantity = (quantity) => hasVolume && preview.bottleSize > 0
+    ? `${Number((quantity / preview.bottleSize).toFixed(3))} ${tr("Bottles")}`
+    : display(quantity, unit, tr);
   return (
     <View
       style={[s.card, { padding: 16 }, !row.include && { opacity: 0.5 }]}
@@ -157,7 +163,7 @@ function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
           <Text
             style={[s.label, { fontSize: 16, lineHeight: 22, marginBottom: 3 }]}
           >
-            {productName || tr("New product")}
+            {productName || tr("New product")}{hasVolume && size > 0 ? ` · ${size} ml` : ""}
           </Text>
           <Text style={s.smallHint}>
             {isNew ? tr("New item") : tr("Already in your stock")}
@@ -185,15 +191,21 @@ function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
             label={tr("Save to")}
             value={row.inventory_item_id}
             options={[
-              { id: "new", name: tr("New stock item") },
+              { id: "new", name: tr("Create a separate stock card") },
               ...stock
                 .filter((record) =>
                   ["pcs", "ml", "litre"].includes(record.unit),
                 )
-                .map((record) => ({
-                  ...record,
-                  name: `${record.name} · ${record.unit === "pcs" ? tr("Pieces") : record.unit}`,
-                })),
+                .map((record) => {
+                  const size = Number(record.bottle_size);
+                  const quantity = size > 0 && volumeUnit(record.unit)
+                    ? `${Number((Number(record.current_stock) / size).toFixed(3))} ${tr("Bottles")}`
+                    : display(record.current_stock, record.unit, tr);
+                  return {
+                    ...record,
+                    name: `${record.name}${size > 0 ? ` · ${size * (record.unit === "litre" ? 1000 : 1)} ml` : ""} · ${quantity}`,
+                  };
+                }),
             ]}
             onChange={(id) => {
               const match = stock.find(
@@ -201,7 +213,8 @@ function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
               );
               onChange({
                 inventory_item_id: id,
-                ...initialMenuSelection(menu, id === "new" ? null : id),
+                create_separate_card: id === "new",
+                ...(id === "new" ? {} : initialMenuSelection(menu, id)),
                 bottle_size_ml: match?.bottle_size
                   ? String(
                       Number(match.bottle_size) *
@@ -212,6 +225,7 @@ function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
               });
             }}
           />
+          {isNew && <Text style={s.smallHint}>{tr("A new card will be created for this product and size.")}</Text>}
 
           {isNew && (
             <View style={[s.row, { marginTop: 10, marginBottom: 4 }]}>
@@ -256,15 +270,21 @@ function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
             value={row.full_bottles}
             onChange={(value) => onChange({ full_bottles: value })}
             unit={unit}
+            adding={mode === "add"}
             tr={tr}
           />
+          {hasVolume && onAddSize && (
+            <TouchableOpacity onPress={onAddSize} style={{ paddingVertical: 10 }}>
+              <Text style={{ color: "#377B55", fontWeight: "600" }}>{tr("Add another bottle size")}</Text>
+            </TouchableOpacity>
+          )}
           {hasVolume && (
             <View>
               <Text style={[s.label, { marginTop: 8 }]}>
                 {tr("Bottle size (ml)")}
               </Text>
               <View style={[s.row, { gap: 6 }]}>
-                {[180, 330, 650, 750, 1000].map((value) => (
+                {[90, 180, 330, 375, 650, 750, 1000].map((value) => (
                   <TouchableOpacity
                     key={value}
                     accessibilityRole="button"
@@ -297,7 +317,7 @@ function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
           )}
           <View style={summaryStyle}>
             <Text style={{ color: "#64796B", fontSize: 11 }}>
-              {tr("Count total")}
+              {mode === "add" ? tr("Adding") : tr("Total counted")}
             </Text>
             <Text
               style={{
@@ -323,6 +343,15 @@ function Product({ row, stock, menu, onChange, onOpenMenu, disabled, tr }) {
               </Text>
             )}
           </View>
+          {ready && (
+            <View style={[summaryStyle, { backgroundColor: "#F6F8F5" }]}>
+              <Text style={s.smallHint}>{tr("Current stock: {quantity}", { quantity: showQuantity(preview.current) })}</Text>
+              <Text style={[s.label, { marginTop: 6 }]}>{tr("After saving: {quantity}", { quantity: showQuantity(preview.after) })}</Text>
+              <Text style={s.smallHint}>{mode === "add"
+                ? tr("Adds these bottles to your existing stock.")
+                : tr("This is the total stock, including bottles already here.")}</Text>
+            </View>
+          )}
           {row.confidence < 0.8 && !row.manual && (
             <Text style={[s.smallHint, { color: "#9A661B", marginTop: 9 }]}>
               {tr("Please check the product name.")}
@@ -392,11 +421,15 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
   const [countOnly, setCountOnly] = useState(false),
     [note, setNote] = useState(""),
     [editingSaved, setEditingSaved] = useState(false);
+  const [stockMode, setStockMode] = useState("add");
   const session = useRef(sessionKey()),
     inFlight = useRef(false);
   const patch = (index, change) =>
     setRows((current) =>
-      current.map((row, i) => (i === index ? { ...row, ...change } : row)),
+      current.map((row, i) => {
+        if (i !== index) return row;
+        return updateScanRow(row, change, stock);
+      }),
     );
   function acceptPhoto(asset) {
     if (asset.fileSize > 5 * 1024 * 1024)
@@ -472,9 +505,7 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
       setScan(result);
       setRows(
         result.detections.map((d, index) => {
-          const match = stock.find(
-            (record) => String(record.id) === String(d.inventory_item_id),
-          );
+          const match = scanTarget(d, stock);
           const isBottle =
             d.product_type !== "package" || Boolean(d.bottle_size_ml);
           return {
@@ -482,7 +513,7 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
             key: index,
             inventory_item_id: match?.id || "new",
             ...initialMenuSelection(menu, match?.id),
-            new_name: d.label,
+            new_name: productLabel(d.label),
             new_unit: isBottle ? "ml" : "pcs",
             full_bottles: String(d.count),
             opened_ml: "0",
@@ -553,6 +584,10 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
         setError("Enter a whole number of bottles or pieces.");
         return;
       }
+      if (stockMode === "add" && Number(row.full_bottles) === 0 && Number(row.opened_ml || 0) === 0) {
+        setError("Enter at least one bottle or piece to add.");
+        return;
+      }
       if (volumeUnit(unit) && !(Number(row.bottle_size_ml) > 0)) {
         setError("Choose a bottle size before saving.");
         return;
@@ -567,6 +602,7 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
       }
     }
     const counts = included.map((row) => ({
+      create_separate_card: row.create_separate_card === true,
       ...(row.inventory_item_id === "new"
         ? { new_item: { name: row.new_name.trim(), unit: row.new_unit } }
         : { inventory_item_id: row.inventory_item_id }),
@@ -589,6 +625,7 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
       const result = (
         await API.post(`/inventory/scans/${scan.id}/confirm`, {
           counts,
+          stock_mode: stockMode,
           apply_stock: !countOnly,
           replace_counts: editingSaved,
           note: note.trim() || undefined,
@@ -605,6 +642,7 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
     }
   }
   function editCount() {
+    setStockMode(scan.stock_mode || "count");
     setRows(
       scan.counts.map((count) => ({
         key: count.id,
@@ -750,6 +788,20 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
       )}
       {scan?.status === "review" && !cameraOpen && (
         <View>
+          <View style={[s.card, { padding: 14 }]}>
+            <Text style={s.label}>{tr("What are you scanning?")}</Text>
+            <View style={s.row}>
+              <InvButton secondary={stockMode !== "add"} disabled={busy} onPress={() => setStockMode("add")}>
+                {tr("Add new stock")}
+              </InvButton>
+              <InvButton secondary={stockMode !== "count"} disabled={busy} onPress={() => setStockMode("count")}>
+                {tr("Count all stock")}
+              </InvButton>
+            </View>
+            <Text style={s.smallHint}>{stockMode === "add"
+              ? tr("Adds these bottles to your existing stock.")
+              : tr("This is the total stock, including bottles already here.")}</Text>
+          </View>
           {!rows.length && (
             <Text style={s.hint}>
               {tr("No products found. Try another photo or add an item.")}
@@ -761,8 +813,16 @@ export default function Scanner({ stock, menu = [], onChanged, onOpenMenu }) {
               row={row}
               stock={stock}
               menu={menu}
+              mode={stockMode}
               onOpenMenu={onOpenMenu}
               onChange={(change) => patch(index, change)}
+              onAddSize={() => setRows((current) => [...current, {
+                ...row, key: sessionKey(), inventory_item_id: "new",
+                create_separate_card: false,
+                new_name: productLabel(row.new_name || row.label),
+                new_unit: "ml", full_bottles: "0", bottle_size_ml: "",
+                opened_ml: "0", include: true,
+              }])}
               disabled={busy}
               tr={tr}
             />
@@ -906,7 +966,7 @@ export function CountReview({
               ? tr("Item removed")
               : applied
                 ? tr("Stock now")
-                : tr("Your count")}
+                : scan.stock_mode === "add" ? tr("After adding") : tr("Your count")}
           </Text>
           <Text
             style={{
@@ -918,7 +978,9 @@ export function CountReview({
           >
             {count.archived
               ? "—"
-              : display(
+              : volumeUnit(count.unit) && Number(count.bottle_size_ml) > 0
+                ? `${Number(((Number(applied ? count.current_stock : count.physical_stock) * (count.unit === "litre" ? 1000 : 1)) / Number(count.bottle_size_ml)).toFixed(3))} ${tr("Bottles")} · ${Number(count.bottle_size_ml)} ml`
+                : display(
                   applied ? count.current_stock : count.physical_stock,
                   count.unit,
                   tr,
@@ -935,13 +997,13 @@ export function CountReview({
           </Text>
           <More title={tr("View comparison")}>
             <Text style={s.hint}>
-              {tr("Before photo: {quantity}", {
+              {tr(scan.stock_mode === "add" ? "Before adding: {quantity}" : "Before photo: {quantity}", {
                 quantity: display(count.expected_stock, count.unit, tr),
               })}
             </Text>
             <Text style={s.hint}>
-              {tr("Your count: {quantity}", {
-                quantity: display(count.physical_stock, count.unit, tr),
+              {tr(scan.stock_mode === "add" ? "Added: {quantity}" : "Your count: {quantity}", {
+                quantity: display(scan.stock_mode === "add" ? count.variance : count.physical_stock, count.unit, tr),
               })}
             </Text>
             <Text style={s.hint}>

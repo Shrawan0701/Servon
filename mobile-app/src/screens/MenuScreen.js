@@ -11,6 +11,7 @@ import localDB from "../services/LocalDB";
 import { refreshPOSData } from "../services/refreshPOSData";
 import networkMonitor from "../services/NetworkMonitor";
 import { localizedItemName } from "../utils/localizedItemName";
+import { searchItems } from "../utils/itemSearch";
 import { useAuth } from "../context/AuthContext";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -133,38 +134,20 @@ export default function MenuScreen() {
     return localDB.subscribe(() => { update().catch(() => {}); });
   }, []);
 
-  const filteredItems = items.filter((item) => {
+  const query = searchQuery.trim().toLowerCase();
+  const exactLiquorBrandCode = selectedFoodType === "liquor" && liquorBrandLabel(query) ? Number(query) : null;
+  const candidates = items.filter((item) => {
     if (itemParentType(item) !== selectedFoodType) return false;
 
-    const query = searchQuery.trim().toLowerCase();
-    const exactLiquorBrandCode = selectedFoodType === "liquor" && liquorBrandLabel(query) ? Number(query) : null;
     if (exactLiquorBrandCode) {
       return Number(item.liquor_brand_code) === exactLiquorBrandCode;
     }
 
-    const matchesCategory = selectedFilter === "All" || item.category === selectedFilter;
-    if (!matchesCategory) return false;
-
-    if (!query) return true;
-
-    const searchableText = [
-      item.name,
-      item.name_mr,
-      item.name_hi,
-      item.liquor_code,
-      item.liquor_brand_code,
-      liquorBrandLabel(item.liquor_brand_code),
-      item.size_ml,
-      item.category,
-      item.description,
-      localizedItemName(item, language),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return searchableText.includes(query);
+    return selectedFilter === "All" || item.category === selectedFilter;
   });
+  const filteredItems = exactLiquorBrandCode ? candidates : searchItems(candidates, query, (item) => ({
+    aliases: [liquorBrandLabel(item.liquor_brand_code), localizedItemName(item, language)],
+  }));
 
   const openAdd = () => {
     setEditItem(null);

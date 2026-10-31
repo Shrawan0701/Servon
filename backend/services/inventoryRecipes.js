@@ -52,6 +52,7 @@ function validateIngredients(ingredients, cat) {
         ing.unit || targetUnit,
         targetUnit,
       ),
+      is_stock_source: ing.is_stock_source === true,
     };
   });
 }
@@ -65,10 +66,10 @@ async function ownedMenu(db, businessId, id) {
 async function readRecipe(db, businessId, id) {
   await ownedMenu(db, businessId, id);
   const result = await db.query(
-    `SELECT mi.inventory_item_id, NULL::integer AS preparation_id, mi.quantity_required, ii.name, ii.unit, ii.current_stock
+    `SELECT mi.inventory_item_id, NULL::integer AS preparation_id, mi.quantity_required, ii.name, ii.unit, ii.current_stock, mi.is_stock_source
     FROM menu_item_ingredients mi JOIN inventory_items ii ON ii.id=mi.inventory_item_id AND ii.business_id=mi.business_id
     WHERE mi.menu_item_id=$1 AND mi.business_id=$2
-    UNION ALL SELECT NULL,p.preparation_id,p.quantity_required,ip.name,ip.yield_unit,NULL
+    UNION ALL SELECT NULL,p.preparation_id,p.quantity_required,ip.name,ip.yield_unit,NULL,false
     FROM menu_item_preparations p JOIN inventory_preparations ip ON ip.id=p.preparation_id AND ip.business_id=p.business_id
     WHERE p.menu_item_id=$1 AND p.business_id=$2`,
     [id, businessId],
@@ -90,6 +91,25 @@ async function saveRecipe(
     ingredients,
     cat || (await catalogue(db, businessId)),
   );
+  if (rows.some((row) => row.is_stock_source)) {
+    const menu = (await db.query("SELECT menu_type,size_ml FROM menu_items WHERE business_id=$1 AND id=$2", [businessId, id])).rows[0];
+    const stock = (cat || await catalogue(db, businessId)).stock;
+    if (menu?.menu_type !== "liquor" || !(Number(menu.size_ml) > 0) ||
+      rows.some((row) => !row.is_stock_source || row.preparation_id ||
+        !["ml", "litre"].includes(stock.find((s) => Number(s.id) === row.inventory_item_id)?.unit)))
+      fail("Alternative bottle sources require liquor servings and volume stock");
+    for (const row of rows) {
+      const source = stock.find((s) => Number(s.id) === row.inventory_item_id);
+      row.quantity_required = round(Number(menu.size_ml) / (source.unit === "litre" ? 1000 : 1));
+    }
+  }
+  if (mode === "merge") {
+    const before = await readRecipe(db, businessId, id);
+    const combined = [...before.filter((old) => !rows.some((row) =>
+      row.inventory_item_id != null && Number(row.inventory_item_id) === Number(old.inventory_item_id))), ...rows];
+    if (combined.some((row) => row.is_stock_source) && combined.some((row) => !row.is_stock_source))
+      fail("Bottle sources cannot be mixed with a multi-ingredient recipe", 409);
+  }
   if (mode === "replace") {
     await db.query(
       "DELETE FROM menu_item_ingredients WHERE business_id=$1 AND menu_item_id=$2",
@@ -114,8 +134,8 @@ async function saveRecipe(
         [businessId, id, ing.inventory_item_id],
       );
       await db.query(
-        "INSERT INTO menu_item_ingredients(business_id,menu_item_id,inventory_item_id,quantity_required) VALUES($1,$2,$3,$4)",
-        [businessId, id, ing.inventory_item_id, ing.quantity_required],
+        "INSERT INTO menu_item_ingredients(business_id,menu_item_id,inventory_item_id,quantity_required,is_stock_source) VALUES($1,$2,$3,$4,$5)",
+        [businessId, id, ing.inventory_item_id, ing.quantity_required, ing.is_stock_source],
       );
     }
   }
@@ -190,6 +210,38 @@ async function consumptionForMenu(db, businessId, id, cat) {
     quantity: round(quantity),
   }));
 }
+// Allocate the requested volume once across alternative package sizes. Prefer
+// a bottle matching the serving size, then consume older linked stock first.
+// Quantities are totals (not per-serving averages) to preserve exact refunds.
+async function allocateForMenu(db, businessId, id, cat, servings) {
+  const recipe = await readRecipe(db, businessId, id);
+  if (!recipe.length || !recipe.every((row) => row.is_stock_source))
+    return (await consumptionForMenu(db, businessId, id, cat)).map((row) => ({
+      ...row, quantity: round(row.quantity * servings),
+    }));
+  const menu = (await db.query("SELECT size_ml FROM menu_items WHERE business_id=$1 AND id=$2", [businessId, id])).rows[0];
+  let remaining = round(number(menu?.size_ml, "Menu serving size") * servings);
+  const candidates = recipe.map((row) => ({ row, stock: cat.stock.find((s) => Number(s.id) === Number(row.inventory_item_id)) }))
+    .filter(({ stock }) => stock && ["ml", "litre"].includes(stock.unit))
+    .sort((a, b) => {
+      const size = (s) => Number(s.bottle_size) * (s.unit === "litre" ? 1000 : 1);
+      return Number(size(b.stock) === Number(menu.size_ml)) - Number(size(a.stock) === Number(menu.size_ml)) || a.stock.id - b.stock.id;
+    });
+  const result = [];
+  for (const { stock } of candidates) {
+    const factor = stock.unit === "litre" ? 1000 : 1;
+    const used = Math.min(remaining, round(Number(stock.current_stock) * factor));
+    if (used > 0) {
+      const quantity = round(used / factor);
+      result.push({ inventory_item_id: stock.id, quantity });
+      remaining = round(remaining - quantity * factor);
+    }
+    if (remaining <= 0) break;
+  }
+  if (remaining > 0) fail("Insufficient stock across linked bottle sizes", 409);
+  result.alternativeSources = true;
+  return result;
+}
 module.exports = {
   catalogue,
   validateIngredients,
@@ -199,4 +251,5 @@ module.exports = {
   assertAcyclic,
   expandPreparation,
   consumptionForMenu,
+  allocateForMenu,
 };
